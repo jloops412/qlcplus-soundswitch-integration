@@ -9,6 +9,8 @@ EmberLights V1 testing builds are unsigned pre-release software. GitHub Actions 
 
 Windows 10 build 1809 or later and Windows 11 are the current implementation target. Real-machine qualification is still required before that range becomes a release guarantee.
 
+Every packaged build records its product version and source commit in About/Diagnostics. GitHub artifacts also contain a SHA-256 checksum file and machine-readable release manifest.
+
 Only one EmberLights process runs per Windows session, preventing duplicate DMX transmitters and OS2L listeners. Opening an `.emberlights` file while the app is already running forwards that project to the existing window, including its normal unsaved-changes prompt. The installer also asks the running app to close before replacing files.
 
 ## Safe first launch
@@ -54,3 +56,19 @@ The native USB path currently implements the published single-universe DMX USB P
 Do not use this build as the only lighting controller at a live event. It still needs the acceptance evidence in `04_V1_SCOPE_AND_ACCEPTANCE.md`, including real VirtualDJ/OS2L capture, Control One capture and feedback, representative Art-Net/sACN/USB-DMX receiver tests, interface disconnect/reconnect tests, low-end Windows measurements, eight-hour soak tests, shadow rehearsals, and a low-risk pilot.
 
 The installer is not code-signed yet, so Windows may show an unknown-publisher warning. Signing, upgrade/rollback validation, and public distribution are release gates rather than hidden limitations.
+
+## Machine qualification
+
+The installer includes `Tools\emberlights_qualify.exe`. Start with a two-minute smoke on each Windows machine:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_qualify.exe" --duration 120
+```
+
+Before gig qualification, run the strict eight-hour profile under the machine's normal DJ workload:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_qualify.exe" --strict --duration 28800
+```
+
+Retain the generated JSON report with the machine specifications and installer version. This synthetic test exercises 128 fixtures across two universes and live/emergency commands; it does not replace VirtualDJ, controller, receiver, or fixture testing. See `docs/17_PRODUCTION_RELEASE_GATE.md`.

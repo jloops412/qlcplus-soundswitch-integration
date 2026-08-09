@@ -3,6 +3,7 @@
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
+#include "emberlights/version.hpp"
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/winmm_midi.hpp"
 
@@ -22,6 +23,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <limits>
 #include <optional>
@@ -214,6 +216,7 @@ enum ControlId : int {
     IdDiagnosticsTitle = 8000,
     IdDiagnosticsText,
     IdDiagnosticsCopy,
+    IdDiagnosticsExport,
     IdDiagnosticsValidate
 };
 
@@ -521,6 +524,7 @@ private:
     [[nodiscard]] std::string unique_id(std::string_view prefix, std::string_view name) const;
     [[nodiscard]] std::string diagnostics_text() const;
     [[nodiscard]] bool copy_diagnostics_to_clipboard();
+    [[nodiscard]] bool save_diagnostics_report();
 
     HINSTANCE instance_{nullptr};
     HWND window_{nullptr};
@@ -1131,6 +1135,7 @@ void Application::create_pages() {
     ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
     add_edit(page, IdDiagnosticsText, true, true);
     add_button(page, L"Copy Diagnostics", IdDiagnosticsCopy);
+    add_button(page, L"Save Diagnostics...", IdDiagnosticsExport);
     add_button(page, L"Validate Project", IdDiagnosticsValidate);
 }
 
@@ -1390,7 +1395,8 @@ void Application::layout_page(Page page, int width, int height) {
     case Page::Diagnostics:
         move(1, margin, 70, usable_width, height - 150);
         move(2, margin, height - 64, 150, 30);
-        move(3, margin + 162, height - 64, 140, 30);
+        move(3, margin + 162, height - 64, 160, 30);
+        move(4, margin + 334, height - 64, 140, 30);
         break;
     case Page::Count:
         break;
@@ -1958,7 +1964,9 @@ std::string Application::diagnostics_text() const {
     const auto status = runner_.status();
     const auto validation = emberlights::validate_project(project_);
     std::ostringstream output;
-    output << "EmberLights V1 preflight\r\n"
+    output << "EmberLights " << emberlights::kVersion
+           << " (commit " << emberlights::kCommit << ")\r\n"
+           << "V1 preflight and runtime health snapshot\r\n"
            << "Project: " << project_.name << " (" << project_.id << ")\r\n"
            << "Project file: " << (current_path_.empty() ? "Unsaved" : current_path_.string())
            << "\r\nFixtures: " << project_.fixtures.size()
@@ -1986,7 +1994,13 @@ std::string Application::diagnostics_text() const {
            << "  decode errors: " << status.os2l_decode_errors << "\r\n"
            << "MIDI messages: " << status.midi_messages
            << "  dropped actions: " << status.dropped_midi_actions
-           << "  max scheduler jitter: " << status.max_jitter_us << " µs\r\n\r\n";
+           << "\r\nRunner uptime: " << status.uptime_ms << " ms"
+           << "  last frame age: " << status.last_frame_age_ms << " ms\r\n"
+           << "Scheduler jitter p99: " << status.jitter_p99_us << " µs"
+           << "  max: " << status.max_jitter_us << " µs"
+           << "  samples: " << status.jitter_samples << "\r\n"
+           << "Deadline misses (>5 ms): " << status.deadline_misses
+           << "  scheduler resyncs: " << status.scheduler_resyncs << "\r\n\r\n";
     for (const auto& issue : validation.issues) {
         output << (issue.severity == emberlights::ProjectIssueSeverity::Error ? "ERROR" : "WARNING")
                << " [" << issue.code << "] " << issue.subject << ": " << issue.message
@@ -2075,13 +2089,18 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdShowStartStop:
     case IdLiveStartStop: start_or_stop_show(); break;
     case IdHelpAbout:
+    {
+        const auto about = widen(
+            std::string("EmberLights ") + std::string(emberlights::kVersion) +
+            "\n\nOffline-first DJ and event lighting workstation.\n"
+            "Windows V1 development build.\n\nCommit: " + std::string(emberlights::kCommit));
         ::MessageBoxW(
             window_,
-            L"EmberLights\n\nOffline-first DJ and event lighting workstation.\n"
-            L"Windows V1 development build.",
+            about.c_str(),
             L"About EmberLights",
             MB_OK | MB_ICONINFORMATION);
         break;
+    }
     case IdLiveBlackout: runner_.set_blackout(!runner_.status().blackout); break;
     case IdLiveWorkLight: runner_.set_work_light(!runner_.status().work_light); break;
     case IdLiveApplyBpm: {
@@ -2174,6 +2193,11 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdDiagnosticsCopy:
         if (copy_diagnostics_to_clipboard()) {
             set_status(L"Diagnostics copied to the clipboard.");
+        }
+        break;
+    case IdDiagnosticsExport:
+        if (save_diagnostics_report()) {
+            set_status(L"Diagnostics report saved. Review it before sharing because it contains the project path.");
         }
         break;
     default:
@@ -2514,6 +2538,40 @@ bool Application::copy_diagnostics_to_clipboard() {
         return false;
     }
     ::CloseClipboard();
+    return true;
+}
+
+bool Application::save_diagnostics_report() {
+    std::array<wchar_t, 32768> path{};
+    constexpr std::wstring_view suggested = L"EmberLights-Diagnostics.txt";
+    std::copy(suggested.begin(), suggested.end(), path.begin());
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window_;
+    dialog.lpstrFilter = L"Text Reports (*.txt)\0*.txt\0All Files\0*.*\0";
+    dialog.lpstrFile = path.data();
+    dialog.nMaxFile = static_cast<DWORD>(path.size());
+    dialog.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    dialog.lpstrDefExt = L"txt";
+    if (::GetSaveFileNameW(&dialog) == FALSE) {
+        return false;
+    }
+    std::ofstream output(
+        std::filesystem::path(path.data()),
+        std::ios::binary | std::ios::trunc);
+    if (!output) {
+        ::MessageBoxW(
+            window_, L"The diagnostics report could not be opened for writing.",
+            L"Could not save diagnostics", MB_OK | MB_ICONERROR);
+        return false;
+    }
+    output << diagnostics_text();
+    if (!output.good()) {
+        ::MessageBoxW(
+            window_, L"The diagnostics report could not be written completely.",
+            L"Could not save diagnostics", MB_OK | MB_ICONERROR);
+        return false;
+    }
     return true;
 }
 

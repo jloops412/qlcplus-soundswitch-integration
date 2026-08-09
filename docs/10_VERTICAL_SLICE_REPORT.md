@@ -40,6 +40,9 @@ Implemented:
 - versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, and unknown-record preservation;
 - fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, and Diagnostics workflows in the native Windows application;
 - bounded Studio-only QLC+ QXF import with OFL-export provenance detection, coarse/fine pairing, semantic/range conversion, native validation, approximation reports, and unsafe-mode quarantine;
+- fixed-capacity Runner health telemetry for uptime, last-frame age, p99/max jitter, deadline misses, and scheduler resynchronization;
+- an installed 128-fixture/two-universe qualification tool with safe no-DMX default, optional isolated Art-Net/sACN loopback, strict release ceilings, and machine-readable JSON evidence;
+- embedded product version/source commit plus saved diagnostics, artifact checksums, and a release manifest;
 - self-contained portable ZIP and per-user Inno Setup installer built only after Windows/Linux tests pass;
 - optional QLC+ bridge boundary through Art-Net;
 - zero-allocation render test and deterministic replay test.
@@ -60,6 +63,7 @@ Implemented:
 - Windows and Linux native compilation/tests and packaged Windows application tests passed for the preceding installed checkpoint; this change is re-gated by the repository workflow before publication.
 - ENTTEC packet framing, COM1–COM256 validation, duplicate-device prevention, 40 Hz cap, project round-trip, and stale-frame supersession tests pass.
 - QXF tests cover entities/DOCTYPE rejection, QLC+/OFL provenance, emitter colors, 8/16-bit pairing, reversed presets, safe active ranges, fan/haze separation, unknown lanes, switching-mode quarantine, and laser arming.
+- A clean ten-second strict qualification run passed with 405 frames, 300 microsecond p99 jitter, 2.807 ms maximum jitter, zero deadline misses/resynchronizations/drops/send failures, about 3.87% of one core including the qualification driver, 8.7 MB peak RSS, and a 1 ms Runner start in this environment. This is local evidence, not the required eight-hour Windows result.
 
 ## Initial benchmark
 
@@ -69,21 +73,21 @@ Test load: 128 RGB fixtures split evenly across both universes, four semantic pr
 | --- | ---: |
 | Engine object | 875,552 bytes |
 | Release binary (`core_bench`) | about 22 KB loadable sections |
-| Full render tick | about 16.3 microseconds |
-| Theoretical full renders/second | about 61,400 |
-| Observed process max RSS | about 4.6 MB |
+| Full render tick | about 16.2 microseconds |
+| Theoretical full renders/second | about 61,600 |
+| Observed process max RSS | about 4.7 MB |
 
 An additional full-path benchmark continuously ran generic Autoloop interpolation, overlapping Static Look transitions, layer resolution, and two-universe rendering across 128 fixtures with 512 assignments per look:
 
 | Measurement | Observed |
 | --- | ---: |
-| Full performance update | about 141.3 microseconds |
-| Estimated one-core use at 40 Hz | about 0.57% |
-| Observed process max RSS | about 5.2 MB |
+| Full performance update | about 134.9 microseconds |
+| Estimated one-core use at 40 Hz | about 0.54% |
+| Observed process max RSS | about 5.4 MB |
 
 The performance playback path completed 20,000 scheduling updates without a heap allocation after activation.
 
-At 40 DMX updates/second, 16.3 microseconds per render is roughly 0.065% of one CPU core for this fixture load, before sockets, UI, MIDI, OS2L, logging, and operating-system overhead. Expanding the Autoloop catalog to 2,048 entries adds roughly 16 KB of fixed catalog storage and does not run a catalog scan on the scheduling path. This is encouraging architectural evidence, not a Windows release claim.
+At 40 DMX updates/second, 16.2 microseconds per render is roughly 0.065% of one CPU core for this fixture load, before sockets, UI, MIDI, OS2L, logging, and operating-system overhead. Expanding the Autoloop catalog to 2,048 entries adds roughly 16 KB of fixed catalog storage and does not run a catalog scan on the scheduling path. This is encouraging architectural evidence, not a Windows release claim.
 
 ## Known limitations
 
@@ -95,6 +99,7 @@ At 40 DMX updates/second, 16.3 microseconds per render is roughly 0.065% of one 
 - Fixture mapping now covers a broad fixed semantic/custom surface and safely imports QLC+ QXF/OFL-export profiles. A searchable pinned OFL catalog, richer function-range editing, switching-channel aliases, and cell-aware multi-head/pixel topology remain pending.
 - The Autoloop runtime and editor have complete 64×32 capacity plus activation/return policies, but shipped default content, richer organization, and random/automatic selection policies remain pending.
 - The native Windows UI is functional but its look/profile/Autoloop authoring still needs guided controls, undo/history, and usability qualification.
+- The production qualification/report path is implemented, but the required eight-hour runs on the primary and minimum Windows machines, adapter fault injection, and durable session/crash logging remain pending.
 - Live-audio fallback, track scripting, AutoScripting, SoundSwitch migration, Serato, smart-light integrations, and remaining parity-ledger items are still pending.
 
 ## Next gate

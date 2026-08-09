@@ -91,3 +91,4 @@ Every milestone release includes:
 - known limitations and unsupported hardware;
 - show-package schema version;
 - recovery/rollback instructions.
+- a machine-readable release manifest, artifact checksums, and applicable qualification reports.

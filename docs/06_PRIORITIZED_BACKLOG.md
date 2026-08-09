@@ -59,7 +59,7 @@ Priority is based on replacing SoundSwitch safely, not feature novelty.
 46. Output/controller disconnect recovery.
 47. On-demand audio fallback worker.
 48. Manual tap-tempo fallback.
-49. Eight-hour soak/fault suite.
+49. Eight-hour soak/fault suite. Installed 128-fixture qualification tool, p99/deadline/resync health metrics, JSON evidence, and CI smoke are implemented; eight-hour Windows runs and full adapter/system fault injection remain.
 50. Shadow-mode frame comparison against SoundSwitch.
 
 ## P3 — Track-specific parity and migration

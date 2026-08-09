@@ -91,7 +91,13 @@ struct RunnerStatus {
     std::uint64_t dropped_beats{0};
     std::uint64_t midi_messages{0};
     std::uint64_t dropped_midi_actions{0};
+    std::uint64_t uptime_ms{0};
+    std::uint64_t last_frame_age_ms{0};
+    std::uint64_t jitter_samples{0};
+    std::uint64_t jitter_p99_us{0};
     std::uint64_t max_jitter_us{0};
+    std::uint64_t deadline_misses{0};
+    std::uint64_t scheduler_resyncs{0};
 };
 
 struct RunnerMidiMonitorEvent {
@@ -214,7 +220,13 @@ private:
     std::atomic<std::uint64_t> dropped_beats_{0};
     std::atomic<std::uint64_t> midi_messages_{0};
     std::atomic<std::uint64_t> dropped_midi_actions_{0};
+    std::atomic<std::uint64_t> started_at_ms_{0};
+    std::atomic<std::uint64_t> last_frame_ms_{0};
+    std::atomic<std::uint64_t> jitter_samples_{0};
+    std::atomic<std::uint64_t> jitter_p99_us_{0};
     std::atomic<std::uint64_t> max_jitter_us_{0};
+    std::atomic<std::uint64_t> deadline_misses_{0};
+    std::atomic<std::uint64_t> scheduler_resyncs_{0};
 };
 
 }  // namespace emberlights
