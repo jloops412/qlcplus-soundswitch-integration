@@ -193,6 +193,33 @@ ProjectDocument make_starter_project() {
     return project;
 }
 
+LookTargetExpansion expand_look_target(
+    const ProjectDocument& project,
+    std::string_view target_id,
+    showcore::Property property,
+    showcore::PropertyValue value,
+    std::vector<LookAssignmentDefinition>& assignments) {
+    const auto fixture = std::find_if(
+        project.fixtures.begin(),
+        project.fixtures.end(),
+        [&](const auto& candidate) { return candidate.id == target_id; });
+    if (fixture != project.fixtures.end()) {
+        assignments.push_back({fixture->id, property, value});
+        return {true, 1U};
+    }
+    const auto group = std::find_if(
+        project.groups.begin(),
+        project.groups.end(),
+        [&](const auto& candidate) { return candidate.id == target_id; });
+    if (group == project.groups.end()) {
+        return {};
+    }
+    for (const auto& fixture_id : group->fixture_ids) {
+        assignments.push_back({fixture_id, property, value});
+    }
+    return {true, group->fixture_ids.size()};
+}
+
 ProjectValidation validate_project(const ProjectDocument& project) {
     ProjectValidation result;
     if (project.format_version != kProjectFormatVersion) {
@@ -274,6 +301,16 @@ ProjectValidation validate_project(const ProjectDocument& project) {
             add_issue(result, ProjectIssueSeverity::Error, "fixture.id", fixture.id,
                       "Fixture IDs must be unique, non-empty, and 96 characters or fewer.");
             continue;
+        }
+        std::unordered_set<std::string_view> roles;
+        for (const auto& role : fixture.roles) {
+            if (!valid_identifier(role)) {
+                add_issue(result, ProjectIssueSeverity::Error, "fixture.role", fixture.id,
+                          "Fixture roles must be non-empty and 96 characters or fewer.");
+            } else if (!roles.insert(role).second) {
+                add_issue(result, ProjectIssueSeverity::Warning, "fixture.roleDuplicate", fixture.id,
+                          "Fixture contains the same role more than once.");
+            }
         }
         const auto profile = profiles.find(fixture.profile_id);
         if (profile == profiles.end()) {

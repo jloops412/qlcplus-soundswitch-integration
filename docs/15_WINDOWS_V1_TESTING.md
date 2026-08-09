@@ -15,8 +15,9 @@ Windows 10 build 1809 or later and Windows 11 are the current implementation tar
 2. Start the app. Network DMX output is disabled in a new project; OS2L listens only on `127.0.0.1` by default.
 3. Build and validate a project before enabling output:
    - choose or create a Fixture Profile;
-   - add each fixture under Patch with the correct universe and DMX address;
-   - create Static Looks using `fixture-id,property,value` rows;
+   - add each fixture under Patch with the correct universe, DMX address, and optional role tags;
+   - create reusable Groups from the stable fixture IDs shown in Patch;
+   - create Static Looks using `fixture-id,property,value` or `group-id,property,value` rows;
    - create Autoloops from those look IDs;
    - save the project as an `.emberlights` file;
    - use **Show → Validate Project**.
@@ -35,6 +36,7 @@ Windows 10 build 1809 or later and Windows 11 are the current implementation tar
 
 - Blackout bypasses the semantic renderer and transmits raw zeroed DMX frames.
 - Fog, haze, laser, and spark properties fail closed unless explicitly armed.
+- The Safety page controls whether each hazard requires an explicit arm and caps normalized strobe/intensity output; conservative arming defaults are enabled in new projects.
 - Work Light is locally available even when DJ or MIDI input is unavailable.
 - Saves are written to a temporary file, read back, checksum-verified, and atomically promoted. The previous valid file is retained as `.bak`; EmberLights attempts that backup when the primary file is corrupt.
 - Clean Runner shutdown sends three zero frames. Keep a rehearsed independent backup lighting path during testing.

@@ -140,6 +140,11 @@ struct ProjectDocument {
     std::vector<std::string> unknown_records;
 };
 
+struct LookTargetExpansion {
+    bool target_found{false};
+    std::size_t assignments_added{0};
+};
+
 enum class ProjectIssueSeverity : std::uint8_t {
     Warning,
     Error
@@ -161,6 +166,12 @@ struct ProjectValidation {
 };
 
 [[nodiscard]] ProjectDocument make_starter_project();
+[[nodiscard]] LookTargetExpansion expand_look_target(
+    const ProjectDocument& project,
+    std::string_view target_id,
+    showcore::Property property,
+    showcore::PropertyValue value,
+    std::vector<LookAssignmentDefinition>& assignments);
 [[nodiscard]] ProjectValidation validate_project(const ProjectDocument& project);
 
 [[nodiscard]] std::string_view property_name(showcore::Property property) noexcept;

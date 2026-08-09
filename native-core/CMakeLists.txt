@@ -83,6 +83,11 @@ if(WIN32)
         comctl32
         comdlg32
         shell32)
+    if(MSVC)
+        # The executable already embeds our explicit DPI/compatibility manifest
+        # through EmberLights.rc; suppress the linker's second default manifest.
+        target_link_options(EmberLights PRIVATE /MANIFEST:NO)
+    endif()
     target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
 
