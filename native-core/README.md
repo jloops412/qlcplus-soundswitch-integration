@@ -24,6 +24,7 @@ It proves:
 - versioned, checksummed `.emberlights` project persistence with atomic replacement, backup recovery, and unknown-record preservation;
 - a fixed-capacity project compiler and three-thread service Runner that keeps input and network output away from the DMX scheduler;
 - a native Windows Studio/Live shell and installer packaging path;
+- fixed-capacity p99 scheduling-health metrics and an installed 128-fixture qualification/report tool;
 - a two-universe laboratory Runner with a dedicated scheduling thread, bounded OS2L beat queue, non-droppable blackout state, dry-run default, network output, status counters, and finite-duration smoke mode.
 
 ## Build
@@ -33,6 +34,7 @@ make
 make test
 make bench
 make smoke
+./build/emberlights_qualify --duration 120
 make winmm-syntax dmx-usb-syntax
 ```
 
@@ -47,6 +49,8 @@ ctest --test-dir build-cmake --build-config Release --output-on-failure
 ```
 
 The repository workflow compiles and tests the core on Windows and Linux, then produces an Inno Setup installer and portable Windows ZIP.
+
+Use `emberlights_qualify --strict --duration 28800` for the production eight-hour synthetic soak. It writes a JSON evidence report; physical DJ, MIDI, and DMX tests remain separate gates.
 
 ## Capture VirtualDJ OS2L
 

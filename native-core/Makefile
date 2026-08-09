@@ -42,15 +42,18 @@ DEPS := \
 	$(BUILD)/src/os2l_capture.d \
 	$(BUILD)/src/midi_capture.d \
 	$(BUILD)/src/runner_lab.d \
+	$(BUILD)/src/qualification.d \
 	$(BUILD)/tests/test_main.d \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
-.PHONY: all runner_lab test winmm-syntax dmx-usb-syntax bench smoke clean
+.PHONY: all runner_lab qualification test winmm-syntax dmx-usb-syntax bench smoke clean
 
-all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/core_tests $(BUILD)/core_bench $(BUILD)/performance_bench
+all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/core_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
 runner_lab: $(BUILD)/runner_lab
+
+qualification: $(BUILD)/emberlights_qualify
 
 $(BUILD)/runner_demo: $(OBJECTS) $(BUILD)/src/demo.o
 	$(CXX) $^ $(LDFLAGS) -o $@
@@ -64,6 +67,11 @@ $(BUILD)/midi_capture: $(OBJECTS) $(BUILD)/src/midi_capture.o
 $(BUILD)/src/runner_lab.o: CXXFLAGS += $(THREAD_FLAGS)
 
 $(BUILD)/runner_lab: $(OBJECTS) $(BUILD)/src/runner_lab.o
+	$(CXX) $^ $(LDFLAGS) $(THREAD_FLAGS) -o $@
+
+$(BUILD)/src/qualification.o: CXXFLAGS += $(THREAD_FLAGS)
+
+$(BUILD)/emberlights_qualify: $(OBJECTS) $(BUILD)/src/qualification.o
 	$(CXX) $^ $(LDFLAGS) $(THREAD_FLAGS) -o $@
 
 $(BUILD)/core_tests: $(OBJECTS) $(BUILD)/tests/test_main.o

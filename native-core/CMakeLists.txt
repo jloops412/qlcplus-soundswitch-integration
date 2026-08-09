@@ -6,6 +6,9 @@ endif()
 
 project(dj_lighting_showcore LANGUAGES CXX)
 
+set(EMBERLIGHTS_VERSION "0.1.0-dev" CACHE STRING "EmberLights product version")
+set(EMBERLIGHTS_COMMIT "unknown" CACHE STRING "EmberLights source commit")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -41,6 +44,9 @@ add_library(showcore STATIC
 
 target_include_directories(showcore PUBLIC include)
 target_link_libraries(showcore PUBLIC Threads::Threads)
+target_compile_definitions(showcore PUBLIC
+    EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}"
+    EMBERLIGHTS_COMMIT="${EMBERLIGHTS_COMMIT}")
 
 if(MSVC)
     # C4324 reports the deliberate cache-line padding in the lock-free SPSC
@@ -66,6 +72,12 @@ target_link_libraries(midi_capture PRIVATE showcore Threads::Threads)
 
 add_executable(runner_lab src/runner_lab.cpp)
 target_link_libraries(runner_lab PRIVATE showcore Threads::Threads)
+
+add_executable(emberlights_qualify src/qualification.cpp)
+target_link_libraries(emberlights_qualify PRIVATE showcore Threads::Threads)
+if(WIN32)
+    target_link_libraries(emberlights_qualify PRIVATE psapi)
+endif()
 
 add_executable(core_tests tests/test_main.cpp)
 target_link_libraries(core_tests PRIVATE showcore)
@@ -94,11 +106,13 @@ if(WIN32)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
 
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
+    install(TARGETS emberlights_qualify RUNTIME DESTINATION Tools)
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/15_WINDOWS_V1_TESTING.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/16_QLC_FIXTURE_IMPORT.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
         DESTINATION docs)
 endif()
 
@@ -108,3 +122,7 @@ add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke
     COMMAND runner_lab --os2l-port 0 --duration 1 --manual-bpm 120)
+add_test(
+    NAME qualification_smoke
+    COMMAND emberlights_qualify --duration 2 --network-loopback --report qualification-smoke.json)
+set_tests_properties(qualification_smoke PROPERTIES TIMEOUT 20)

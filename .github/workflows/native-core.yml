@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  EMBERLIGHTS_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
 concurrency:
   group: native-core-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -24,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S native-core -B native-core/build-ci -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S native-core -B native-core/build-ci -DCMAKE_BUILD_TYPE=Release "-DEMBERLIGHTS_VERSION=0.1.0-ci.${{ github.run_number }}" "-DEMBERLIGHTS_COMMIT=${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
 
       - name: Build
         run: cmake --build native-core/build-ci --config Release --parallel
@@ -52,7 +55,7 @@ jobs:
           "value=$version" >> $env:GITHUB_OUTPUT
 
       - name: Configure
-        run: cmake -S native-core -B native-core/build-package -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S native-core -B native-core/build-package -DCMAKE_BUILD_TYPE=Release "-DEMBERLIGHTS_VERSION=${{ steps.version.outputs.value }}" "-DEMBERLIGHTS_COMMIT=${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
 
       - name: Build
         run: cmake --build native-core/build-package --config Release --parallel
@@ -77,15 +80,83 @@ jobs:
           & $iscc "/DBuildDir=$PWD/stage" "/DAppVersion=${{ steps.version.outputs.value }}" "installer/EmberLights.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Generate release evidence
+        shell: pwsh
+        run: |
+          $releaseDir = "release-artifacts"
+          New-Item -ItemType Directory -Force $releaseDir | Out-Null
+          $setupName = "EmberLights-${{ steps.version.outputs.value }}-Setup.exe"
+          $portableName = "EmberLights-${{ steps.version.outputs.value }}-Portable.zip"
+          $setup = Join-Path $releaseDir $setupName
+          $portable = Join-Path $releaseDir $portableName
+          $checksums = Join-Path $releaseDir "EmberLights-${{ steps.version.outputs.value }}-SHA256SUMS.txt"
+          $manifest = Join-Path $releaseDir "EmberLights-${{ steps.version.outputs.value }}-release-manifest.json"
+          Copy-Item "installer/output/$setupName" $setup
+          Copy-Item $portableName $portable
+          $setupHash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
+          $portableHash = (Get-FileHash -Algorithm SHA256 $portable).Hash.ToLowerInvariant()
+          @(
+            "$setupHash  $setupName"
+            "$portableHash  $portableName"
+          ) | Set-Content -Encoding ascii $checksums
+          [ordered]@{
+            format = "emberlights-release-manifest"
+            formatVersion = 1
+            product = "EmberLights"
+            version = "${{ steps.version.outputs.value }}"
+            commit = "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
+            buildCommit = "${{ github.sha }}"
+            workflowRun = "${{ github.run_id }}"
+            projectFormatVersion = 1
+            showPackageSchemaVersion = 4
+            qualificationSmoke = "passed"
+            artifacts = @(
+              [ordered]@{ file = $setupName; sha256 = $setupHash }
+              [ordered]@{ file = $portableName; sha256 = $portableHash }
+            )
+          } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8NoBOM $manifest
+
+      - name: Verify release evidence
+        shell: pwsh
+        run: |
+          Push-Location release-artifacts
+          try {
+            $checksumFile = Get-Item "EmberLights-*-SHA256SUMS.txt"
+            foreach ($line in Get-Content $checksumFile) {
+              if ($line -notmatch '^([0-9a-f]{64})  (.+)$') {
+                throw "Malformed checksum line: $line"
+              }
+              $expected = $Matches[1]
+              $artifact = $Matches[2]
+              if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) {
+                throw "Checksum target is missing from release root: $artifact"
+              }
+              $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact).Hash.ToLowerInvariant()
+              if ($actual -ne $expected) {
+                throw "Checksum mismatch for $artifact"
+              }
+            }
+            $manifest = Get-Content (Get-Item "EmberLights-*-release-manifest.json") -Raw | ConvertFrom-Json
+            foreach ($artifact in $manifest.artifacts) {
+              if (-not (Test-Path -LiteralPath $artifact.file -PathType Leaf)) {
+                throw "Manifest target is missing from release root: $($artifact.file)"
+              }
+              $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.file).Hash.ToLowerInvariant()
+              if ($actual -ne $artifact.sha256) {
+                throw "Manifest checksum mismatch for $($artifact.file)"
+              }
+            }
+          } finally {
+            Pop-Location
+          }
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: EmberLights-${{ steps.version.outputs.value }}-Windows
           if-no-files-found: error
           retention-days: 30
-          path: |
-            installer/output/EmberLights-${{ steps.version.outputs.value }}-Setup.exe
-            EmberLights-${{ steps.version.outputs.value }}-Portable.zip
+          path: release-artifacts/*
 
   release:
     name: Publish tagged release
@@ -110,3 +181,5 @@ jobs:
           files: |
             EmberLights-*-Setup.exe
             EmberLights-*-Portable.zip
+            EmberLights-*-SHA256SUMS.txt
+            EmberLights-*-release-manifest.json

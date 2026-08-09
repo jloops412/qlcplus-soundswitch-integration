@@ -30,6 +30,10 @@ namespace {
 
 using SteadyClock = std::chrono::steady_clock;
 
+inline constexpr std::uint64_t kJitterBucketWidthUs = 50U;
+inline constexpr std::size_t kJitterBucketCount = 201U;
+inline constexpr std::uint64_t kDeadlineMissUs = 5'000U;
+
 [[nodiscard]] std::uint16_t encode_autoloop(showcore::AutoloopAddress address) noexcept {
     return address.valid()
         ? static_cast<std::uint16_t>(
@@ -78,6 +82,8 @@ struct RunnerService::RuntimeState {
     std::size_t tap_interval_count{0};
     std::size_t tap_interval_cursor{0};
     std::uint64_t last_tap_ms{0};
+    std::array<std::uint64_t, kJitterBucketCount> jitter_histogram{};
+    std::uint64_t jitter_sample_count{0};
     showcore::AutoloopAddress selected_autoloop{};
     std::int32_t selected_look{-1};
     bool track_playing{true};
@@ -146,7 +152,14 @@ bool RunnerService::start(
     dropped_beats_.store(0, std::memory_order_relaxed);
     midi_messages_.store(0, std::memory_order_relaxed);
     dropped_midi_actions_.store(0, std::memory_order_relaxed);
+    const auto started_at = monotonic_ms();
+    started_at_ms_.store(started_at, std::memory_order_relaxed);
+    last_frame_ms_.store(0, std::memory_order_relaxed);
+    jitter_samples_.store(0, std::memory_order_relaxed);
+    jitter_p99_us_.store(0, std::memory_order_relaxed);
     max_jitter_us_.store(0, std::memory_order_relaxed);
+    deadline_misses_.store(0, std::memory_order_relaxed);
+    scheduler_resyncs_.store(0, std::memory_order_relaxed);
     os2l_state_.store(
         connections_.os2l_enabled ? AdapterState::Starting : AdapterState::Disabled,
         std::memory_order_relaxed);
@@ -252,7 +265,18 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.dropped_beats = dropped_beats_.load(std::memory_order_relaxed);
     snapshot.midi_messages = midi_messages_.load(std::memory_order_relaxed);
     snapshot.dropped_midi_actions = dropped_midi_actions_.load(std::memory_order_relaxed);
+    const auto now_ms = monotonic_ms();
+    const auto started_at = started_at_ms_.load(std::memory_order_relaxed);
+    const auto last_frame = last_frame_ms_.load(std::memory_order_relaxed);
+    snapshot.uptime_ms = started_at != 0U && now_ms >= started_at ? now_ms - started_at : 0U;
+    snapshot.last_frame_age_ms = last_frame != 0U && now_ms >= last_frame
+        ? now_ms - last_frame
+        : 0U;
+    snapshot.jitter_samples = jitter_samples_.load(std::memory_order_relaxed);
+    snapshot.jitter_p99_us = jitter_p99_us_.load(std::memory_order_relaxed);
     snapshot.max_jitter_us = max_jitter_us_.load(std::memory_order_relaxed);
+    snapshot.deadline_misses = deadline_misses_.load(std::memory_order_relaxed);
+    snapshot.scheduler_resyncs = scheduler_resyncs_.load(std::memory_order_relaxed);
     return snapshot;
 }
 
@@ -672,12 +696,38 @@ void RunnerService::run_scheduler() noexcept {
     while (!stop_requested_.load(std::memory_order_acquire)) {
         std::this_thread::sleep_until(next_frame);
         const auto now = SteadyClock::now();
+        std::uint64_t late_us = 0U;
         if (now > next_frame) {
-            update_maximum(
-                max_jitter_us_,
-                static_cast<std::uint64_t>(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                        now - next_frame).count()));
+            late_us = static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    now - next_frame).count());
+            update_maximum(max_jitter_us_, late_us);
+        }
+        ++runtime.jitter_sample_count;
+        const auto jitter_bucket = std::min<std::size_t>(
+            static_cast<std::size_t>(late_us / kJitterBucketWidthUs),
+            runtime.jitter_histogram.size() - 1U);
+        ++runtime.jitter_histogram[jitter_bucket];
+        jitter_samples_.store(runtime.jitter_sample_count, std::memory_order_relaxed);
+        if (late_us > kDeadlineMissUs) {
+            deadline_misses_.fetch_add(1U, std::memory_order_relaxed);
+        }
+        if (runtime.jitter_sample_count == 1U ||
+            (runtime.jitter_sample_count % 16U) == 0U) {
+            const auto target_rank = runtime.jitter_sample_count -
+                (runtime.jitter_sample_count / 100U);
+            std::uint64_t cumulative = 0U;
+            std::uint64_t p99_us = 0U;
+            for (std::size_t index = 0; index < runtime.jitter_histogram.size(); ++index) {
+                cumulative += runtime.jitter_histogram[index];
+                if (cumulative >= target_rank) {
+                    p99_us = index + 1U == runtime.jitter_histogram.size()
+                        ? max_jitter_us_.load(std::memory_order_relaxed)
+                        : static_cast<std::uint64_t>(index + 1U) * kJitterBucketWidthUs;
+                    break;
+                }
+            }
+            jitter_p99_us_.store(p99_us, std::memory_order_relaxed);
         }
         const auto now_ms = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -811,9 +861,11 @@ void RunnerService::run_scheduler() noexcept {
             static_cast<std::int64_t>(clock.beat_position * 1000.0),
             std::memory_order_relaxed);
         frames_.fetch_add(1, std::memory_order_relaxed);
+        last_frame_ms_.store(now_ms, std::memory_order_relaxed);
 
         next_frame += frame_period;
         if (now > next_frame + frame_period * 4) {
+            scheduler_resyncs_.fetch_add(1U, std::memory_order_relaxed);
             next_frame = now + frame_period;
         }
     }

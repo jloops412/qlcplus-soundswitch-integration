@@ -1612,6 +1612,10 @@ void test_runner_service_lifecycle() {
     CHECK(active.active_look == 0);
     CHECK((active.active_autoloop == showcore::AutoloopAddress{7, 3}));
     CHECK(active.blackout && active.work_light);
+    CHECK(active.uptime_ms >= 100U);
+    CHECK(active.last_frame_age_ms < 250U);
+    CHECK(active.jitter_samples >= 3U);
+    CHECK(active.deadline_misses <= active.jitter_samples);
     CHECK(active.artnet == emberlights::AdapterState::Disabled);
     CHECK(active.sacn == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[0] == emberlights::AdapterState::Disabled);

@@ -66,7 +66,7 @@ Statuses:
 | RUN-07 | Static Looks in performance mode | Partial | Latched generic look player, crossfaded clearing/switching, native Live UI, and MIDI action routing exist; feedback and hardware qualification remain. |
 | RUN-08 | Live Override FX for color, movement, intensity, strobe, white/UV, blackout, and effect actions | Partial | MIDI action/property routing, raw-zero blackout, work light, explicit hazard arming, editable safety caps, and live controls exist; richer movement/color FX tools and hardware qualification remain. |
 | RUN-09 | Standalone operation without supported DJ software/controller | Partial | Manual clock/safe unsynchronized core passes; usable workflow pending. |
-| RUN-10 | Clear DJ, interface, clock, active-loop, bank, and fault status feedback | Partial | Native Live and Diagnostics pages expose Runner, clock, adapter, frame, jitter, and error state; usability and fault-injection acceptance remain. |
+| RUN-10 | Clear DJ, interface, clock, active-loop, bank, and fault status feedback | Partial | Native Live and Diagnostics pages expose Runner, clock, adapter, frame, p99/max jitter, deadline/resync, and error state; diagnostics can be saved and a JSON qualification tool records sustained health. Durable session logging, usability, and fault-injection acceptance remain. |
 
 ## DJ transport, mixing, and synchronization
 
@@ -121,7 +121,7 @@ Statuses:
 | DAT-04 | Relink moved audio and preserve scripted work | Planned | Multi-signal resolver and conflict UI. |
 | DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, and tests pass; multi-version history and live hot-swap remain. |
 | DAT-06 | Fully offline show operation without a license server | Partial | Runner architecture requires no cloud; installer/activation proof pending. |
-| DAT-07 | Windows application and installer | Partial | Native Win32 application, per-user Inno Setup recipe, file association, portable ZIP, and Windows packaging workflow exist; successful artifact verification, signing, upgrade/rollback, and low-end qualification remain. |
+| DAT-07 | Windows application and installer | Partial | Native Win32 application, per-user Inno Setup recipe, file association, portable ZIP, packaged qualification tool, checksums, and release manifest exist; signing, upgrade/rollback, and low-end qualification remain. |
 | DAT-08 | macOS parity | Planned | Explicitly follows the Windows production launch; portable core/adapter boundaries retained, platform qualification pending. |
 
 ## Source baseline
