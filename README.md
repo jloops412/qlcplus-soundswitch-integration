@@ -34,6 +34,7 @@ SoundSwitch is the primary product reference. Wolfmix is a secondary source of u
 - [`docs/08_DECISIONS_AND_OPEN_QUESTIONS.md`](docs/08_DECISIONS_AND_OPEN_QUESTIONS.md) — decision log and questions for Joshua.
 - [`docs/13_SOUNDSWITCH_PARITY_LEDGER.md`](docs/13_SOUNDSWITCH_PARITY_LEDGER.md) — binding feature-parity and evidence checklist.
 - [`docs/14_RUNNER_LAB.md`](docs/14_RUNNER_LAB.md) — safe usage and limitations of the first end-to-end laboratory Runner.
+- [`docs/15_WINDOWS_V1_TESTING.md`](docs/15_WINDOWS_V1_TESTING.md) — installer, setup, safety, and qualification guidance for Windows testing builds.
 - [`spec/showpack.schema.json`](spec/showpack.schema.json) — initial portable authoring/show-package schema.
 - [`native-core`](native-core) — dependency-light native reference engine and test harness.
 
