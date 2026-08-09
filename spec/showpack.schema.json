@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/dj-lighting/showpack.schema.json",
+  "title": "DJ Lighting Workstation Portable Show Package",
+  "description": "Versioned authoring/export contract. Runner may compile this into a compact binary representation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "showId", "manifest", "patch", "groups", "safety", "recoveryLook"],
+  "properties": {
+    "format": { "const": "dj-lighting-showpack" },
+    "version": { "type": "integer", "const": 3 },
+    "showId": { "type": "string", "minLength": 1 },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "createdUtc", "sourceSchemaVersion", "universeCount"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "createdUtc": { "type": "string", "format": "date-time" },
+        "sourceSchemaVersion": { "type": "integer", "minimum": 1 },
+        "universeCount": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "checksum": { "type": "string" }
+      }
+    },
+    "fixtureProfiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fixtureProfile" }
+    },
+    "patch": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/fixtureInstance" }
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/group" }
+    },
+    "palettes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/palette" }
+    },
+    "positions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/position" }
+    },
+    "autoloops": {
+      "type": "array",
+      "maxItems": 2048,
+      "items": { "$ref": "#/$defs/autoloop" }
+    },
+    "looks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/look" }
+    },
+    "midiMappings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/midiMapping" }
+    },
+    "safety": { "$ref": "#/$defs/safety" },
+    "recoveryLook": { "type": "string", "minLength": 1 },
+    "sourceBundle": {
+      "type": "object",
+      "description": "Read-only migration provenance and unknown payload references.",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "normalized": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "sourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceId", "revision"],
+      "properties": {
+        "kind": { "enum": ["builtIn", "openFixtureLibrary", "local", "migrated"] },
+        "sourceId": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 },
+        "adapterVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "propertyName": {
+      "enum": [
+        "intensity", "red", "green", "blue", "white", "amber", "uv",
+        "cyan", "magenta", "yellow", "lime", "indigo",
+        "pan", "tilt", "panRotate", "tiltRotate", "panTiltSpeed",
+        "strobe", "shutter", "colorWheel", "gobo", "goboRotation",
+        "prism", "prismRotation", "focus", "zoom", "iris", "frost",
+        "animation", "animationRotation", "effect", "effectSpeed", "fan",
+        "fog", "haze", "laser", "spark",
+        "custom1", "custom2", "custom3", "custom4", "custom5", "custom6",
+        "custom7", "custom8", "custom9", "custom10", "custom11", "custom12",
+        "custom13", "custom14", "custom15", "custom16", "constant"
+      ]
+    },
+    "fixtureProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "manufacturer", "model", "name", "mode", "source", "footprint", "channels"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "manufacturer": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "minLength": 1 },
+        "footprint": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "source": { "$ref": "#/$defs/sourceProvenance" },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["property", "coarseOffset", "encoding"],
+            "properties": {
+              "property": { "$ref": "#/$defs/propertyName" },
+              "coarseOffset": { "type": "integer", "minimum": 0, "maximum": 511 },
+              "fineOffset": { "type": "integer", "minimum": 0, "maximum": 511 },
+              "encoding": { "enum": ["linear8", "linear16", "discrete8", "constant8"] },
+              "dmxMin": { "type": "integer", "minimum": 0, "maximum": 255 },
+              "dmxMax": { "type": "integer", "minimum": 0, "maximum": 255 },
+              "defaultValue": { "type": "integer", "minimum": 0, "maximum": 65535 }
+            }
+          }
+        }
+      }
+    },
+    "fixtureInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profileId", "universe", "address", "roles"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "profileId": { "type": "string", "minLength": 1 },
+        "universe": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "address": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "roles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fixtureIds"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "fixtureIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "red", "green", "blue"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "red": { "$ref": "#/$defs/normalized" },
+        "green": { "$ref": "#/$defs/normalized" },
+        "blue": { "$ref": "#/$defs/normalized" },
+        "white": { "$ref": "#/$defs/normalized" },
+        "amber": { "$ref": "#/$defs/normalized" },
+        "uv": { "$ref": "#/$defs/normalized" }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fixtureValues"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "fixtureValues": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pan", "tilt"],
+            "properties": {
+              "pan": { "$ref": "#/$defs/normalized" },
+              "tilt": { "$ref": "#/$defs/normalized" }
+            }
+          }
+        }
+      }
+    },
+    "propertyAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["property", "mode"],
+      "properties": {
+        "property": { "$ref": "#/$defs/propertyName" },
+        "mode": { "enum": ["set", "release", "forceZero"] },
+        "value": { "$ref": "#/$defs/normalized" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "set" } } },
+          "then": { "required": ["value"] },
+          "else": { "not": { "required": ["value"] } }
+        }
+      ]
+    },
+    "triggerPolicy": {
+      "type": "object",
+      "description": "Explicit live activation and return behavior. Studio supplies product defaults when omitted.",
+      "additionalProperties": false,
+      "required": ["behavior", "start", "release"],
+      "properties": {
+        "behavior": { "enum": ["momentary", "toggle", "latch", "oneShot"] },
+        "start": { "enum": ["immediate", "nextBeat", "nextBar"] },
+        "release": { "enum": ["buttonUp", "clear", "naturalEnd", "nextBeat", "nextBar", "trackEnd"] },
+        "repeat": { "enum": ["once", "infinite", "trackDuration"] },
+        "fadeInMs": { "type": "integer", "minimum": 0, "maximum": 30000 },
+        "fadeOutMs": { "type": "integer", "minimum": 0, "maximum": 30000 }
+      }
+    },
+    "look": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "targets"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "activation": { "$ref": "#/$defs/triggerPolicy" },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["groupId", "properties"],
+            "properties": {
+              "groupId": { "type": "string" },
+              "properties": { "type": "array", "items": { "$ref": "#/$defs/propertyAssignment" } }
+            }
+          }
+        }
+      }
+    },
+    "autoloop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "bank", "slot", "lengthBeats", "steps"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "bank": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "slot": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "activation": { "$ref": "#/$defs/triggerPolicy" },
+        "lengthBeats": { "type": "number", "exclusiveMinimum": 0 },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["atBeat", "lookId"],
+            "properties": {
+              "atBeat": { "type": "number", "minimum": 0 },
+              "lookId": { "type": "string" },
+              "transition": { "enum": ["cut", "linear"] }
+            }
+          }
+        }
+      }
+    },
+    "midiMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device", "message", "action", "behavior"],
+      "properties": {
+        "device": { "type": "string" },
+        "message": { "type": "object", "additionalProperties": true },
+        "action": { "type": "object", "additionalProperties": true },
+        "behavior": { "enum": ["momentary", "toggle", "latch", "continuous", "relative"] },
+        "softTakeover": { "type": "boolean" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fogRequiresArm", "strobeAllowed", "maxStrobe"],
+      "properties": {
+        "fogRequiresArm": { "type": "boolean" },
+        "hazeRequiresArm": { "type": "boolean" },
+        "laserRequiresArm": { "type": "boolean" },
+        "sparkRequiresArm": { "type": "boolean" },
+        "strobeAllowed": { "type": "boolean" },
+        "maxStrobe": { "$ref": "#/$defs/normalized" },
+        "maxIntensity": { "$ref": "#/$defs/normalized" },
+        "failureMode": { "enum": ["holdThenRecoveryLook", "recoveryLook", "blackout"] }
+      }
+    }
+  }
+}

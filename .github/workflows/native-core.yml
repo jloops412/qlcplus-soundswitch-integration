@@ -1,0 +1,108 @@
+name: Native core
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S native-core -B native-core/build-ci -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build native-core/build-ci --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir native-core/build-ci --build-config Release --output-on-failure
+
+  package-windows:
+    name: Windows installer
+    needs: build-and-test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select package version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -match '^v(.+)$') {
+            $version = $Matches[1]
+          } else {
+            $version = "0.1.0-preview.${{ github.run_number }}"
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configure
+        run: cmake -S native-core -B native-core/build-package -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build native-core/build-package --config Release --parallel
+
+      - name: Test packaged build
+        run: ctest --test-dir native-core/build-package --build-config Release --output-on-failure
+
+      - name: Stage portable application
+        shell: pwsh
+        run: |
+          cmake --install native-core/build-package --config Release --prefix "$PWD/stage"
+          Compress-Archive -Path "$PWD/stage/*" -DestinationPath "$PWD/EmberLights-${{ steps.version.outputs.value }}-Portable.zip"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6/ISCC.exe"
+          & $iscc "/DBuildDir=$PWD/stage" "/DAppVersion=${{ steps.version.outputs.value }}" "installer/EmberLights.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmberLights-${{ steps.version.outputs.value }}-Windows
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            installer/output/EmberLights-${{ steps.version.outputs.value }}-Setup.exe
+            EmberLights-${{ steps.version.outputs.value }}-Portable.zip
+
+  release:
+    name: Publish tagged release
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: package-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged application
+        uses: actions/download-artifact@v4
+        with:
+          pattern: EmberLights-*-Windows
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            EmberLights-*-Setup.exe
+            EmberLights-*-Portable.zip

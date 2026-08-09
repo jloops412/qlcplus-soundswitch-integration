@@ -1,0 +1,44 @@
+# Hardware Inventory
+
+Status: user-reported names captured; exact USB identities and modes pending.
+
+| Device | Role | Confidence | Next evidence |
+| --- | --- | --- | --- |
+| Pioneer DDJ-REV7 | Primary VirtualDJ DJ controller | Confirmed | VirtualDJ version, firmware, Windows device details, transport captures. |
+| SoundSwitch Control One | Primary lighting MIDI surface; two proprietary DMX outputs | Confirmed | MIDI port names, VID/PID, complete input map, safe output-feedback map. |
+| ADJ MyDMX Buddy | Possible USB-DMX adapter | User believes owned; exact model unverified | Label/photo, VID/PID, driver, QLC+ compatibility, channel/license limits. |
+| SoundSwitch simple USB-DMX interface | Possible native/bridge output | User-reported; exact model unverified | Label/photo, VID/PID, driver and published/proprietary protocol boundary. |
+
+## Reported lighting fixtures
+
+| Fixture | Likely role/capabilities | Confidence | Evidence still needed |
+| --- | --- | --- | --- |
+| [Both Lighting IR-4](https://bothlightingusa.com/products/ir-4) | Wireless battery RGBWA+UV uplight | Model family confirmed from user wording | Quantity, label/photo, firmware if exposed, current DMX mode, channel chart/manual. |
+| [Both Lighting 360 LED Tube](https://bothlightingusa.com/products/360-tubes) | Wireless battery pixel tube | Model family confirmed from user wording | Quantity, exact revision/model label, pixel count, current DMX mode, channel chart/manual. |
+| [CHAUVET DJ Wash FX Hex](https://www.chauvetdj.com/products/wash-fx-hex/) | Six-zone RGBAW+UV wash/chase/blinder effect | Model confirmed from user wording | Quantity, confirm original versus ILS variant, current DMX personality, label/photo. |
+| Other fixtures | First profile pack | Known to exist, names pending | Model names, quantities, manuals, and which are part of the normal rig. |
+
+Do not infer a channel map from a retail name. Profiles are accepted only after the active mode and its DMX table match the physical fixture.
+
+## Capture checklist on Windows
+
+For each device:
+
+1. Photograph front/back/label and cable ports.
+2. Record exact marketing/model name.
+3. Device Manager → device name, provider, driver version/date.
+4. Hardware IDs including VID/PID and interface identifiers.
+5. MIDI input/output port names, if any.
+6. Whether SoundSwitch, QLC+, VirtualDJ, or another app has the device open.
+7. Maximum universes and any software/license restriction.
+8. Disconnect/reconnect behavior.
+
+Do not upload serial numbers, license keys, or credentials. Redact them from screenshots/captures.
+
+## Benchmark machines
+
+Still needed:
+
+- Joshua's primary DJ laptop model, CPU, RAM, GPU, Windows version, and normal background workload.
+- A lower-end Windows test machine representing the minimum supported tier.
+- Optional separate lighting PC/mini-PC and wired-network hardware.
