@@ -1371,7 +1371,7 @@ void test_runner_service_lifecycle() {
 #define EMBERLIGHTS_NOINLINE
 #endif
 
-void* operator new(std::size_t size) {
+EMBERLIGHTS_NOINLINE void* operator new(std::size_t size) {
     g_allocations.fetch_add(1, std::memory_order_relaxed);
     if (void* memory = std::malloc(size)) {
         return memory;
@@ -1379,16 +1379,18 @@ void* operator new(std::size_t size) {
     throw std::bad_alloc();
 }
 
-void* operator new[](std::size_t size) {
+EMBERLIGHTS_NOINLINE void* operator new[](std::size_t size) {
     return ::operator new(size);
 }
 
-void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+EMBERLIGHTS_NOINLINE void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
     g_allocations.fetch_add(1, std::memory_order_relaxed);
     return std::malloc(size);
 }
 
-void* operator new[](std::size_t size, const std::nothrow_t& tag) noexcept {
+EMBERLIGHTS_NOINLINE void* operator new[](
+    std::size_t size,
+    const std::nothrow_t& tag) noexcept {
     return ::operator new(size, tag);
 }
 
