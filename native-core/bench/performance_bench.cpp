@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -63,14 +64,14 @@ void populate_assignments(
 }  // namespace
 
 int main() {
-    showcore::Engine engine;
+    auto engine = std::make_unique<showcore::Engine>();
     constexpr std::uint16_t fixtures_per_universe = kFixtureCount / showcore::kV1UniverseCount;
     for (std::uint8_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
         for (std::uint16_t index = 0; index < fixtures_per_universe; ++index) {
             const auto fixture_id = static_cast<std::uint16_t>(
                 universe * fixtures_per_universe + index);
             const auto address = static_cast<std::uint16_t>(index * 4U + 1U);
-            if (!engine.patch().add({fixture_id, universe, address, &kProfile})) {
+            if (!engine->patch().add({fixture_id, universe, address, &kProfile})) {
                 std::cerr << "Performance benchmark patch failed\n";
                 return EXIT_FAILURE;
             }
@@ -112,8 +113,8 @@ int main() {
             showcore::AutoloopRepeat::Infinite,
             0.0,
             true,
-            engine.layers()) ||
-        !static_look.trigger(warm, 0, 750, engine.layers())) {
+            engine->layers()) ||
+        !static_look.trigger(warm, 0, 750, engine->layers())) {
         std::cerr << "Performance benchmark playback start failed\n";
         return EXIT_FAILURE;
     }
@@ -126,15 +127,15 @@ int main() {
         const auto now_ms = static_cast<std::uint64_t>(iteration * 25U);
         if (iteration > 0 && iteration % 40U == 0U) {
             const auto& next = (iteration / 40U) % 2U == 0U ? warm : cool;
-            if (!static_look.trigger(next, now_ms, 750, engine.layers())) {
+            if (!static_look.trigger(next, now_ms, 750, engine->layers())) {
                 std::cerr << "Performance benchmark look transition failed\n";
                 return EXIT_FAILURE;
             }
         }
-        autoloop.tick(beat, true, engine.layers());
-        static_look.tick(now_ms, engine.layers());
-        engine.tick();
-        checksum += engine.frames().universes[iteration & 1U][iteration & 255U];
+        autoloop.tick(beat, true, engine->layers());
+        static_look.tick(now_ms, engine->layers());
+        engine->tick();
+        checksum += engine->frames().universes[iteration & 1U][iteration & 255U];
     }
     const auto end = std::chrono::steady_clock::now();
     const auto elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();

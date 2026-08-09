@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <string_view>
 
 namespace {
@@ -55,8 +56,8 @@ constexpr showcore::StaticLook kBlueLook{
 }  // namespace
 
 int main(int argc, char** argv) {
-    showcore::Engine engine;
-    const auto patch_result = engine.patch().add({0, 0, 1, &kRgbDimmer});
+    auto engine = std::make_unique<showcore::Engine>();
+    const auto patch_result = engine->patch().add({0, 0, 1, &kRgbDimmer});
     if (!patch_result) {
         std::cerr << "Unable to patch reference fixture\n";
         return EXIT_FAILURE;
@@ -85,10 +86,10 @@ int main(int argc, char** argv) {
             pattern,
             beat,
             showcore::LayerId::Autonomous,
-            engine.layers()));
-        engine.tick();
+            engine->layers()));
+        engine->tick();
 
-        const auto& frame = engine.frames().universes[0];
+        const auto& frame = engine->frames().universes[0];
         std::cout << "beat=" << std::fixed << std::setprecision(1) << beat
                   << " dim=" << static_cast<int>(frame[0])
                   << " rgb=(" << static_cast<int>(frame[1]) << ','

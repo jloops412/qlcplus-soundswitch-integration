@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <limits>
 #include <new>
 #include <string>
@@ -58,7 +59,7 @@ int g_failures = 0;
     } \
 } while (false)
 
-[[nodiscard]] bool near(float first, float second, float tolerance = 0.001F) {
+[[nodiscard]] bool nearly_equal(float first, float second, float tolerance = 0.001F) {
     return std::abs(first - second) <= tolerance;
 }
 
@@ -187,27 +188,28 @@ constexpr showcore::FixtureProfile kGenericFixture{
     8};
 
 void test_layers() {
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::Idle, 1, showcore::Property::Intensity, showcore::PropertyValue::set(0.2F));
     auto resolved = layers.resolve(1, showcore::Property::Intensity);
-    CHECK(resolved.owned && near(resolved.value, 0.2F));
+    CHECK(resolved.owned && nearly_equal(resolved.value, 0.2F));
     CHECK(resolved.source == showcore::LayerId::Idle);
 
     layers.set(showcore::LayerId::TrackScript, 1, showcore::Property::Intensity, showcore::PropertyValue::set(0.7F));
     layers.set(showcore::LayerId::EventMoment, 1, showcore::Property::Intensity, showcore::PropertyValue::release());
     resolved = layers.resolve(1, showcore::Property::Intensity);
-    CHECK(near(resolved.value, 0.7F));
+    CHECK(nearly_equal(resolved.value, 0.7F));
     CHECK(resolved.source == showcore::LayerId::TrackScript);
 
     layers.set(showcore::LayerId::ManualOverride, 1, showcore::Property::Intensity, showcore::PropertyValue::force_zero());
     resolved = layers.resolve(1, showcore::Property::Intensity);
-    CHECK(resolved.owned && near(resolved.value, 0.0F));
+    CHECK(resolved.owned && nearly_equal(resolved.value, 0.0F));
     CHECK(resolved.mode == showcore::ValueMode::ForceZero);
     CHECK(resolved.source == showcore::LayerId::ManualOverride);
 
     layers.set(showcore::LayerId::Safety, 1, showcore::Property::Intensity, showcore::PropertyValue::set(0.9F));
     resolved = layers.resolve(1, showcore::Property::Intensity);
-    CHECK(near(resolved.value, 0.9F));
+    CHECK(nearly_equal(resolved.value, 0.9F));
     CHECK(resolved.source == showcore::LayerId::Safety);
 
     layers.clear_layer(showcore::LayerId::Safety);
@@ -215,7 +217,8 @@ void test_layers() {
 }
 
 void test_safety() {
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::TrackScript, 0, showcore::Property::Fog, showcore::PropertyValue::set(1.0F));
     layers.set(showcore::LayerId::TrackScript, 0, showcore::Property::Strobe, showcore::PropertyValue::set(0.8F));
     layers.set(showcore::LayerId::TrackScript, 0, showcore::Property::Intensity, showcore::PropertyValue::set(0.9F));
@@ -232,20 +235,20 @@ void test_safety() {
     const auto fog_locked = layers.resolve_safe(0, showcore::Property::Fog, policy);
     CHECK(fog_locked.mode == showcore::ValueMode::ForceZero);
     CHECK(fog_locked.source == showcore::LayerId::Safety);
-    CHECK(near(layers.resolve_safe(0, showcore::Property::Strobe, policy).value, 0.25F));
-    CHECK(near(layers.resolve_safe(0, showcore::Property::Intensity, policy).value, 0.6F));
+    CHECK(nearly_equal(layers.resolve_safe(0, showcore::Property::Strobe, policy).value, 0.25F));
+    CHECK(nearly_equal(layers.resolve_safe(0, showcore::Property::Intensity, policy).value, 0.6F));
     CHECK(layers.resolve_safe(0, showcore::Property::Haze, policy).mode == showcore::ValueMode::ForceZero);
     CHECK(layers.resolve_safe(0, showcore::Property::Laser, policy).mode == showcore::ValueMode::ForceZero);
     CHECK(layers.resolve_safe(0, showcore::Property::Spark, policy).mode == showcore::ValueMode::ForceZero);
 
     policy.fog_armed = true;
-    CHECK(near(layers.resolve_safe(0, showcore::Property::Fog, policy).value, 1.0F));
+    CHECK(nearly_equal(layers.resolve_safe(0, showcore::Property::Fog, policy).value, 1.0F));
     policy.haze_armed = true;
     policy.laser_armed = true;
     policy.spark_armed = true;
-    CHECK(near(layers.resolve_safe(0, showcore::Property::Haze, policy).value, 1.0F));
-    CHECK(near(layers.resolve_safe(0, showcore::Property::Laser, policy).value, 1.0F));
-    CHECK(near(layers.resolve_safe(0, showcore::Property::Spark, policy).value, 1.0F));
+    CHECK(nearly_equal(layers.resolve_safe(0, showcore::Property::Haze, policy).value, 1.0F));
+    CHECK(nearly_equal(layers.resolve_safe(0, showcore::Property::Laser, policy).value, 1.0F));
+    CHECK(nearly_equal(layers.resolve_safe(0, showcore::Property::Spark, policy).value, 1.0F));
     policy.strobe_allowed = false;
     CHECK(layers.resolve_safe(0, showcore::Property::Strobe, policy).mode == showcore::ValueMode::ForceZero);
 }
@@ -310,46 +313,47 @@ void test_fixture_profile_validation() {
 }
 
 void test_generic_profile_rendering() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &kGenericFixture}));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &kGenericFixture}));
 
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 64U);
-    CHECK(engine.frames().universes[0][1] == 42U);
-    CHECK(engine.frames().universes[0][2] == 0x80U);
-    CHECK(engine.frames().universes[0][3] == 0x00U);
-    CHECK(engine.frames().universes[0][4] == 77U);
-    CHECK(engine.frames().universes[0][5] == 0U);
-    CHECK(engine.frames().universes[0][6] == 9U);
-    CHECK(engine.frames().universes[0][7] == 128U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 64U);
+    CHECK(engine->frames().universes[0][1] == 42U);
+    CHECK(engine->frames().universes[0][2] == 0x80U);
+    CHECK(engine->frames().universes[0][3] == 0x00U);
+    CHECK(engine->frames().universes[0][4] == 77U);
+    CHECK(engine->frames().universes[0][5] == 0U);
+    CHECK(engine->frames().universes[0][6] == 9U);
+    CHECK(engine->frames().universes[0][7] == 128U);
 
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Intensity, showcore::PropertyValue::set(0.0F));
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Shutter, showcore::PropertyValue::set(0.5F));
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Pan, showcore::PropertyValue::set(0.5F));
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Laser, showcore::PropertyValue::set(0.0F));
-    engine.safety().laser_armed = true;
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 255U);
-    CHECK(engine.frames().universes[0][1] == 105U);
-    CHECK(engine.frames().universes[0][2] == 0x80U);
-    CHECK(engine.frames().universes[0][3] == 0x00U);
-    CHECK(engine.frames().universes[0][5] == 100U);
+    engine->safety().laser_armed = true;
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 255U);
+    CHECK(engine->frames().universes[0][1] == 105U);
+    CHECK(engine->frames().universes[0][2] == 0x80U);
+    CHECK(engine->frames().universes[0][3] == 0x00U);
+    CHECK(engine->frames().universes[0][5] == 100U);
 
-    engine.layers().set(showcore::LayerId::Emergency, 0,
+    engine->layers().set(showcore::LayerId::Emergency, 0,
         showcore::Property::Intensity, showcore::PropertyValue::force_zero());
-    engine.layers().set(showcore::LayerId::Emergency, 0,
+    engine->layers().set(showcore::LayerId::Emergency, 0,
         showcore::Property::Shutter, showcore::PropertyValue::force_zero());
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 0U);
-    CHECK(engine.frames().universes[0][1] == 0U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 0U);
+    CHECK(engine->frames().universes[0][1] == 0U);
 }
 
 void test_compiled_fixture_library() {
-    showcore::CompiledFixtureLibrary library;
+    auto library_storage = std::make_unique<showcore::CompiledFixtureLibrary>();
+    auto& library = *library_storage;
     const showcore::FixtureProfileDraft draft{
         "testco/rgb/basic",
         "TestCo",
@@ -393,53 +397,53 @@ void test_compiled_fixture_library() {
     CHECK(library.ingest(second));
     CHECK(library.size() == 2U);
 
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &compiled->runtime}));
-    engine.layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity,
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &compiled->runtime}));
+    engine->layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity,
         showcore::PropertyValue::set(1.0F));
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 255U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 255U);
 }
 
 void test_patch_and_render() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &kRgbFixture}));
-    CHECK(engine.patch().add({1, 1, 507, &kRgbFixture}));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &kRgbFixture}));
+    CHECK(engine->patch().add({1, 1, 507, &kRgbFixture}));
 
-    const auto overlap = engine.patch().add({2, 0, 2, &kRgbFixture});
+    const auto overlap = engine->patch().add({2, 0, 2, &kRgbFixture});
     CHECK(!overlap && overlap.error == showcore::PatchError::AddressOverlap);
     CHECK(overlap.conflicting_fixture_id == 0);
-    CHECK(engine.patch().add({0, 0, 20, &kRgbFixture}).error == showcore::PatchError::DuplicateFixtureId);
-    CHECK(engine.patch().add({3, 2, 1, &kRgbFixture}).error == showcore::PatchError::InvalidUniverse);
-    CHECK(engine.patch().add({3, 0, 510, &kRgbFixture}).error == showcore::PatchError::AddressOverflow);
+    CHECK(engine->patch().add({0, 0, 20, &kRgbFixture}).error == showcore::PatchError::DuplicateFixtureId);
+    CHECK(engine->patch().add({3, 2, 1, &kRgbFixture}).error == showcore::PatchError::InvalidUniverse);
+    CHECK(engine->patch().add({3, 0, 510, &kRgbFixture}).error == showcore::PatchError::AddressOverflow);
 
-    for (std::uint16_t fixture_id : {0U, 1U}) {
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Red, showcore::PropertyValue::set(1.0F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Green, showcore::PropertyValue::set(0.25F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Blue, showcore::PropertyValue::set(0.0F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Fog, showcore::PropertyValue::set(1.0F));
+    for (const auto fixture_id : std::array<std::uint16_t, 2>{0U, 1U}) {
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Red, showcore::PropertyValue::set(1.0F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Green, showcore::PropertyValue::set(0.25F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Blue, showcore::PropertyValue::set(0.0F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Fog, showcore::PropertyValue::set(1.0F));
     }
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 128U);
-    CHECK(engine.frames().universes[0][1] == 255U);
-    CHECK(engine.frames().universes[0][2] == 64U);
-    CHECK(engine.frames().universes[0][3] == 0U);
-    CHECK(engine.frames().universes[0][5] == 0U);
-    CHECK(engine.frames().universes[1][506] == 128U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 128U);
+    CHECK(engine->frames().universes[0][1] == 255U);
+    CHECK(engine->frames().universes[0][2] == 64U);
+    CHECK(engine->frames().universes[0][3] == 0U);
+    CHECK(engine->frames().universes[0][5] == 0U);
+    CHECK(engine->frames().universes[1][506] == 128U);
 
-    engine.safety().fog_armed = true;
-    engine.tick();
-    CHECK(engine.frames().universes[0][5] == 255U);
+    engine->safety().fog_armed = true;
+    engine->tick();
+    CHECK(engine->frames().universes[0][5] == 255U);
 }
 
 void test_16bit_render() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 100, &kPan16Fixture}));
-    engine.layers().set(showcore::LayerId::TrackScript, 0, showcore::Property::Pan, showcore::PropertyValue::set(0.5F));
-    engine.tick();
-    CHECK(engine.frames().universes[0][99] == 0x80U);
-    CHECK(engine.frames().universes[0][100] == 0x00U);
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 100, &kPan16Fixture}));
+    engine->layers().set(showcore::LayerId::TrackScript, 0, showcore::Property::Pan, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    CHECK(engine->frames().universes[0][99] == 0x80U);
+    CHECK(engine->frames().universes[0][100] == 0x00U);
 }
 
 void test_artnet() {
@@ -786,7 +790,7 @@ void test_sync_manager() {
     sync.on_audio_clock({true, 121.0, 1.0, 0.9F, 350});
     auto snapshot = sync.tick(350);
     CHECK(snapshot.state == showcore::SyncState::AudioFallback);
-    CHECK(snapshot.source == showcore::ClockSource::Audio && near(snapshot.confidence, 0.9F));
+    CHECK(snapshot.source == showcore::ClockSource::Audio && nearly_equal(snapshot.confidence, 0.9F));
 
     sync.on_os2l_beat(1, 120.0, 400);
     CHECK(sync.tick(400).state == showcore::SyncState::Recovering);
@@ -804,7 +808,8 @@ void test_sync_manager() {
 }
 
 void test_midi() {
-    showcore::MidiMappingEngine midi;
+    auto midi_storage = std::make_unique<showcore::MidiMappingEngine>();
+    auto& midi = *midi_storage;
     showcore::MidiMapping soft;
     soft.message_type = showcore::MidiMessageType::ControlChange;
     soft.number = 10;
@@ -818,7 +823,7 @@ void test_midi() {
     CHECK(midi.process({1, showcore::MidiMessageType::ControlChange, 0, 10, 10}, events) == 0U);
     CHECK(midi.process({1, showcore::MidiMessageType::ControlChange, 0, 10, 50}, events) == 0U);
     CHECK(midi.process({1, showcore::MidiMessageType::ControlChange, 0, 10, 64}, events) == 1U);
-    CHECK(near(events[0].value, 64.0F / 127.0F));
+    CHECK(nearly_equal(events[0].value, 64.0F / 127.0F));
 
     showcore::MidiMapping relative;
     relative.device_id = 2;
@@ -959,7 +964,8 @@ void test_static_look_player() {
     }};
     const showcore::StaticLook look{"Formal moment", assignments.data(), assignments.size()};
 
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::TrackScript, 7, showcore::Property::Intensity,
         showcore::PropertyValue::set(0.2F));
     layers.set(showcore::LayerId::TrackScript, 7, showcore::Property::Red,
@@ -969,13 +975,14 @@ void test_static_look_player() {
     layers.set(showcore::LayerId::TrackScript, 7, showcore::Property::Blue,
         showcore::PropertyValue::set(0.4F));
 
-    showcore::StaticLookPlayer player;
+    auto player_storage = std::make_unique<showcore::StaticLookPlayer>();
+    auto& player = *player_storage;
     CHECK(player.trigger(look, 1000, 1000, layers));
     player.tick(1500, layers);
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.6F));
-    CHECK(near(layers.resolve(7, showcore::Property::Red).value, 0.55F));
-    CHECK(near(layers.resolve(7, showcore::Property::Blue).value, 0.2F));
-    CHECK(near(layers.resolve(7, showcore::Property::Green).value, 0.3F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.6F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Red).value, 0.55F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Blue).value, 0.2F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Green).value, 0.3F));
     CHECK(layers.resolve(7, showcore::Property::Green).source == showcore::LayerId::TrackScript);
 
     player.tick(2000, layers);
@@ -986,9 +993,9 @@ void test_static_look_player() {
         showcore::PropertyValue::set(0.4F));
     player.clear(2000, 1000, layers);
     player.tick(2500, layers);
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.7F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.7F));
     player.tick(3000, layers);
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.4F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.4F));
     CHECK(layers.resolve(7, showcore::Property::Intensity).source == showcore::LayerId::TrackScript);
     CHECK(!player.status(3000).active && !player.status(3000).transitioning);
 
@@ -998,17 +1005,17 @@ void test_static_look_player() {
     const showcore::StaticLook dark{"Dark", dark_assignments.data(), dark_assignments.size()};
     CHECK(player.trigger(look, 3000, 1000, layers));
     player.tick(3500, layers);
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.7F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.7F));
     CHECK(player.trigger(dark, 3500, 1000, layers));
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.7F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.7F));
     player.tick(4000, layers);
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.35F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.35F));
     player.clear(4000, 0, layers);
 
     auto invalid = look;
     invalid.name = nullptr;
     CHECK(!player.trigger(invalid, 3000, 0, layers));
-    CHECK(near(layers.resolve(7, showcore::Property::Intensity).value, 0.4F));
+    CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.4F));
 }
 
 void test_autoloop() {
@@ -1016,16 +1023,18 @@ void test_autoloop() {
     CHECK(showcore::validate_autoloop_pattern(pattern));
     CHECK(!pattern.add_step({1.0F, &kRedLook, showcore::AutoloopTransition::Cut}));
 
-    showcore::LayerStack layers;
-    showcore::AutoloopEngine autoloop;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
+    auto autoloop_storage = std::make_unique<showcore::AutoloopEngine>();
+    auto& autoloop = *autoloop_storage;
     CHECK(autoloop.apply(pattern, 1.0, showcore::LayerId::Autonomous, layers));
-    CHECK(near(layers.resolve(4, showcore::Property::Red).value, 0.5F));
-    CHECK(near(layers.resolve(4, showcore::Property::Blue).value, 0.5F));
-    CHECK(near(layers.resolve(4, showcore::Property::Intensity).value, 0.6F));
+    CHECK(nearly_equal(layers.resolve(4, showcore::Property::Red).value, 0.5F));
+    CHECK(nearly_equal(layers.resolve(4, showcore::Property::Blue).value, 0.5F));
+    CHECK(nearly_equal(layers.resolve(4, showcore::Property::Intensity).value, 0.6F));
 
     CHECK(autoloop.apply(pattern, 3.0, showcore::LayerId::Autonomous, layers));
-    CHECK(near(layers.resolve(4, showcore::Property::Red).value, 0.0F));
-    CHECK(near(layers.resolve(4, showcore::Property::Blue).value, 1.0F));
+    CHECK(nearly_equal(layers.resolve(4, showcore::Property::Red).value, 0.0F));
+    CHECK(nearly_equal(layers.resolve(4, showcore::Property::Blue).value, 1.0F));
 
     auto invalid = pattern;
     invalid.name = nullptr;
@@ -1080,10 +1089,12 @@ void test_autoloop_catalog_and_player() {
     CHECK(bank_window.page() == 15U);
     CHECK((bank_window.address(3, 31) == showcore::AutoloopAddress{63, 31}));
 
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::TrackScript, 4, showcore::Property::Intensity,
         showcore::PropertyValue::set(0.25F));
-    showcore::AutoloopPlayer player;
+    auto player_storage = std::make_unique<showcore::AutoloopPlayer>();
+    auto& player = *player_storage;
     CHECK(player.trigger(
         catalog,
         {0, 0},
@@ -1093,12 +1104,12 @@ void test_autoloop_catalog_and_player() {
         layers));
     player.tick(11.0, true, layers);
     CHECK(player.status().active);
-    CHECK(near(player.status().progress, 0.25F));
+    CHECK(nearly_equal(player.status().progress, 0.25F));
     CHECK(layers.resolve(4, showcore::Property::Intensity).source ==
         showcore::LayerId::ManualAutoloop);
     player.tick(14.0, true, layers);
-    CHECK(!player.status().active && near(player.status().progress, 1.0F));
-    CHECK(near(layers.resolve(4, showcore::Property::Intensity).value, 0.25F));
+    CHECK(!player.status().active && nearly_equal(player.status().progress, 1.0F));
+    CHECK(nearly_equal(layers.resolve(4, showcore::Property::Intensity).value, 0.25F));
     CHECK(layers.resolve(4, showcore::Property::Intensity).source ==
         showcore::LayerId::TrackScript);
 
@@ -1111,7 +1122,7 @@ void test_autoloop_catalog_and_player() {
         layers));
     player.tick(29.0, true, layers);
     CHECK(player.status().active && player.status().completed_cycles == 2U);
-    CHECK(near(player.status().progress, 0.25F));
+    CHECK(nearly_equal(player.status().progress, 0.25F));
 
     CHECK(player.trigger(
         catalog,
@@ -1127,12 +1138,12 @@ void test_autoloop_catalog_and_player() {
 }
 
 void test_render_has_no_allocations() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &kRgbFixture}));
-    engine.layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &kRgbFixture}));
+    engine->layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
     const auto before = g_allocations.load();
     for (int index = 0; index < 10000; ++index) {
-        engine.tick();
+        engine->tick();
     }
     const auto after = g_allocations.load();
     CHECK(after == before);
@@ -1142,9 +1153,12 @@ void test_performance_playback_has_no_allocations() {
     auto pattern = make_test_autoloop();
     showcore::AutoloopCatalog catalog;
     CHECK(catalog.set({0, 0}, &pattern));
-    showcore::LayerStack layers;
-    showcore::AutoloopPlayer autoloop;
-    showcore::StaticLookPlayer look;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
+    auto autoloop_storage = std::make_unique<showcore::AutoloopPlayer>();
+    auto& autoloop = *autoloop_storage;
+    auto look_storage = std::make_unique<showcore::StaticLookPlayer>();
+    auto& look = *look_storage;
     CHECK(autoloop.trigger(
         catalog,
         {0, 0},
@@ -1166,21 +1180,21 @@ void test_performance_playback_has_no_allocations() {
 }
 
 void test_deterministic_replay() {
-    showcore::Engine first;
-    showcore::Engine second;
-    CHECK(first.patch().add({0, 0, 1, &kRgbFixture}));
-    CHECK(second.patch().add({0, 0, 1, &kRgbFixture}));
+    auto first = std::make_unique<showcore::Engine>();
+    auto second = std::make_unique<showcore::Engine>();
+    CHECK(first->patch().add({0, 0, 1, &kRgbFixture}));
+    CHECK(second->patch().add({0, 0, 1, &kRgbFixture}));
 
     for (int tick = 0; tick < 1000; ++tick) {
         const auto value = static_cast<float>((tick * 37) % 256) / 255.0F;
-        for (auto* engine : {&first, &second}) {
+        for (auto* engine : {first.get(), second.get()}) {
             engine->layers().set(showcore::LayerId::TrackScript, 0,
                 showcore::Property::Intensity, showcore::PropertyValue::set(value));
             engine->layers().set(showcore::LayerId::TrackScript, 0,
                 showcore::Property::Blue, showcore::PropertyValue::set(1.0F - value));
             engine->tick();
         }
-        CHECK(first.frames().universes == second.frames().universes);
+        CHECK(first->frames().universes == second->frames().universes);
     }
 }
 
@@ -1221,6 +1235,41 @@ void test_project_validation_io_and_compilation() {
     const auto validation = emberlights::validate_project(project);
     CHECK(validation.ok());
 
+    std::vector<emberlights::LookAssignmentDefinition> expanded;
+    const auto fixture_target = emberlights::expand_look_target(
+        project,
+        "wash-1",
+        showcore::Property::White,
+        showcore::PropertyValue::set(0.5F),
+        expanded);
+    CHECK(fixture_target.target_found && fixture_target.assignments_added == 1U);
+    const auto group_target = emberlights::expand_look_target(
+        project,
+        "dance",
+        showcore::Property::Blue,
+        showcore::PropertyValue::force_zero(),
+        expanded);
+    CHECK(group_target.target_found && group_target.assignments_added == 1U);
+    CHECK(expanded.size() == 2U);
+    CHECK(expanded[0].fixture_id == "wash-1");
+    CHECK(expanded[1].fixture_id == "wash-1");
+    CHECK(expanded[1].property == showcore::Property::Blue);
+    CHECK(!emberlights::expand_look_target(
+               project,
+               "missing-target",
+               showcore::Property::Intensity,
+               showcore::PropertyValue::set(1.0F),
+               expanded)
+               .target_found);
+    auto invalid_role = project;
+    invalid_role.fixtures[0].roles.push_back("");
+    CHECK(!emberlights::validate_project(invalid_role).ok());
+    auto duplicate_role = project;
+    duplicate_role.fixtures[0].roles.push_back("dance-floor");
+    const auto duplicate_role_validation = emberlights::validate_project(duplicate_role);
+    CHECK(duplicate_role_validation.ok());
+    CHECK(duplicate_role_validation.warning_count() >= 1U);
+
     const auto serialized = emberlights::serialize_project(project);
     emberlights::ProjectDocument parsed;
     const auto parsed_result = emberlights::parse_project(serialized, parsed);
@@ -1245,7 +1294,8 @@ void test_project_validation_io_and_compilation() {
     CHECK(compilation.show->fixture_count() == 1U);
     CHECK(compilation.show->look_count() == 2U);
     CHECK(compilation.show->autoloops().get({7, 3}) != nullptr);
-    showcore::StaticLookPlayer look_player;
+    auto look_player_storage = std::make_unique<showcore::StaticLookPlayer>();
+    auto& look_player = *look_player_storage;
     CHECK(look_player.trigger(
         *compilation.show->look(0),
         0,
@@ -1321,7 +1371,7 @@ void test_runner_service_lifecycle() {
 #define EMBERLIGHTS_NOINLINE
 #endif
 
-void* operator new(std::size_t size) {
+EMBERLIGHTS_NOINLINE void* operator new(std::size_t size) {
     g_allocations.fetch_add(1, std::memory_order_relaxed);
     if (void* memory = std::malloc(size)) {
         return memory;
@@ -1329,16 +1379,18 @@ void* operator new(std::size_t size) {
     throw std::bad_alloc();
 }
 
-void* operator new[](std::size_t size) {
+EMBERLIGHTS_NOINLINE void* operator new[](std::size_t size) {
     return ::operator new(size);
 }
 
-void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+EMBERLIGHTS_NOINLINE void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
     g_allocations.fetch_add(1, std::memory_order_relaxed);
     return std::malloc(size);
 }
 
-void* operator new[](std::size_t size, const std::nothrow_t& tag) noexcept {
+EMBERLIGHTS_NOINLINE void* operator new[](
+    std::size_t size,
+    const std::nothrow_t& tag) noexcept {
     return ::operator new(size, tag);
 }
 

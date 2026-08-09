@@ -26,7 +26,7 @@ Statuses:
 | FIX-06 | 8/16-bit pan/tilt and named Position Cues | Partial | 16-bit rendering exists; authoring, cue override, and transition tests pending. |
 | FIX-07 | Gobo, prism, focus, zoom, iris, frost, rotation, and arbitrary Attribute Cues | Partial | Core semantic plus sixteen compiled custom lanes and profile mappings pass; named authoring/playback pending. |
 | FIX-08 | Multi-cell and effect fixtures | Planned | Cell-aware semantic model and representative fixtures required. |
-| FIX-09 | Fixture groups and category/role assignments | Partial | Fixed group contract exists; authoring and category behavior pending. |
+| FIX-09 | Fixture groups and category/role assignments | Partial | Native group and fixture-role editors persist stable IDs; group-targeted Static Look rows expand deterministically with portable tests. Category defaults and richer selection behavior remain. |
 | FIX-10 | Stable repatching/replacement without cue loss | Partial | Stable IDs accepted; migration/relink tests pending. |
 | FIX-11 | DMX chart, address editing, overlap/range validation | Partial | Native patch editor and overlap/range checks exist; graphical universe chart and hardware evidence remain. |
 | FIX-12 | Two DMX universes | Partial | Fixed two-universe frames pass; complete output/hardware qualification pending. |
@@ -64,7 +64,7 @@ Statuses:
 | RUN-05 | Trigger an Autoloop over a script, show progress, then return naturally | Partial | Manual activation, progress/cycle status, musically complete one-shot release, and return to the still-running scripted layer pass; UI pending. |
 | RUN-06 | Infinite and track-duration repeat | Partial | Infinite cycling and track-stop release pass in native runtime; package/UI integration pending. |
 | RUN-07 | Static Looks in performance mode | Partial | Latched generic look player, crossfaded clearing/switching, native Live UI, and MIDI action routing exist; feedback and hardware qualification remain. |
-| RUN-08 | Live Override FX for color, movement, intensity, strobe, white/UV, blackout, and effect actions | Partial | MIDI action/property foundation passes; full action engine pending. |
+| RUN-08 | Live Override FX for color, movement, intensity, strobe, white/UV, blackout, and effect actions | Partial | MIDI action/property routing, raw-zero blackout, work light, explicit hazard arming, editable safety caps, and live controls exist; richer movement/color FX tools and hardware qualification remain. |
 | RUN-09 | Standalone operation without supported DJ software/controller | Partial | Manual clock/safe unsynchronized core passes; usable workflow pending. |
 | RUN-10 | Clear DJ, interface, clock, active-loop, bank, and fault status feedback | Partial | Native Live and Diagnostics pages expose Runner, clock, adapter, frame, jitter, and error state; usability and fault-injection acceptance remain. |
 

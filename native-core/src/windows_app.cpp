@@ -35,6 +35,9 @@ namespace {
 
 constexpr wchar_t kWindowClass[] = L"EmberLightsMainWindow";
 constexpr wchar_t kPageClass[] = L"EmberLightsPage";
+constexpr wchar_t kInstanceMutex[] =
+    L"Local\\EmberLights-5AE71134-902A-4E44-AF80-ADCC47F15DA9";
+constexpr ULONG_PTR kOpenProjectCopyData = 0x454D4245U;
 constexpr UINT_PTR kStatusTimer = 1U;
 constexpr UINT kStatusTimerMs = 250U;
 constexpr int kNavigationWidth = 176;
@@ -44,10 +47,12 @@ enum class Page : std::size_t {
     Live,
     Profiles,
     Patch,
+    Groups,
     Looks,
     Autoloops,
     Midi,
     Connections,
+    Safety,
     Diagnostics,
     Count
 };
@@ -65,10 +70,12 @@ enum ControlId : int {
     IdNavLive = 200,
     IdNavProfiles,
     IdNavPatch,
+    IdNavGroups,
     IdNavLooks,
     IdNavAutoloops,
     IdNavMidi,
     IdNavConnections,
+    IdNavSafety,
     IdNavDiagnostics,
 
     IdLiveTitle = 1000,
@@ -117,7 +124,19 @@ enum ControlId : int {
     IdPatchProfile,
     IdPatchUniverse,
     IdPatchAddress,
+    IdPatchRoles,
     IdPatchMessage,
+
+    IdGroupTitle = 3500,
+    IdGroupList,
+    IdGroupNew,
+    IdGroupDuplicate,
+    IdGroupSave,
+    IdGroupDelete,
+    IdGroupName,
+    IdGroupMembers,
+    IdGroupHelp,
+    IdGroupMessage,
 
     IdLookTitle = 4000,
     IdLookList,
@@ -175,6 +194,17 @@ enum ControlId : int {
     IdRefreshMidi,
     IdConnectionsApply,
     IdConnectionsMessage,
+
+    IdSafetyTitle = 7500,
+    IdSafetyFogArm,
+    IdSafetyHazeArm,
+    IdSafetyLaserArm,
+    IdSafetySparkArm,
+    IdSafetyStrobeAllowed,
+    IdSafetyMaxStrobe,
+    IdSafetyMaxIntensity,
+    IdSafetyApply,
+    IdSafetyMessage,
 
     IdDiagnosticsTitle = 8000,
     IdDiagnosticsText,
@@ -429,10 +459,12 @@ private:
     void refresh_live_status();
     void refresh_profiles();
     void refresh_patch();
+    void refresh_groups();
     void refresh_looks();
     void refresh_autoloops();
     void refresh_midi();
     void refresh_connections();
+    void refresh_safety();
     void refresh_midi_ports();
     void refresh_diagnostics();
 
@@ -457,6 +489,11 @@ private:
     void new_fixture();
     void save_fixture();
     void delete_fixture();
+    void select_group(std::int32_t index);
+    void new_group();
+    void duplicate_group();
+    void save_group();
+    void delete_group();
     void select_look(std::int32_t index);
     void new_look();
     void duplicate_look();
@@ -469,6 +506,7 @@ private:
     void delete_autoloop();
 
     void apply_connections();
+    void apply_safety();
     void update_midi_targets();
     void begin_midi_learn();
     void finish_midi_learn(const showcore::MidiMessage& message);
@@ -494,6 +532,7 @@ private:
     bool refreshing_{false};
     std::int32_t profile_index_{-1};
     std::int32_t fixture_index_{-1};
+    std::int32_t group_index_{-1};
     std::int32_t look_index_{-1};
     std::int32_t autoloop_index_{-1};
 
@@ -673,6 +712,24 @@ LRESULT Application::handle_message(UINT message, WPARAM wparam, LPARAM lparam) 
             handle_timer();
         }
         return 0;
+    case WM_COPYDATA: {
+        const auto* copy = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+        if (copy == nullptr || copy->dwData != kOpenProjectCopyData || copy->lpData == nullptr ||
+            copy->cbData < sizeof(wchar_t) ||
+            copy->cbData > static_cast<DWORD>(32768U * sizeof(wchar_t)) ||
+            copy->cbData % sizeof(wchar_t) != 0U) {
+            return FALSE;
+        }
+        const auto count = static_cast<std::size_t>(copy->cbData / sizeof(wchar_t));
+        const auto* path = static_cast<const wchar_t*>(copy->lpData);
+        if (path[count - 1U] != L'\0') {
+            return FALSE;
+        }
+        if (maybe_save_changes()) {
+            static_cast<void>(open_project(std::filesystem::path(path)));
+        }
+        return TRUE;
+    }
     case WM_CTLCOLORSTATIC: {
         const auto device = reinterpret_cast<HDC>(wparam);
         ::SetBkMode(device, TRANSPARENT);
@@ -824,8 +881,8 @@ HWND Application::create_page(Page page) {
 
 void Application::create_navigation() {
     constexpr std::array<const wchar_t*, static_cast<std::size_t>(Page::Count)> names{{
-        L"Live", L"Fixture Profiles", L"Patch", L"Static Looks",
-        L"Autoloops", L"MIDI", L"Connections", L"Diagnostics"}};
+        L"Live", L"Fixture Profiles", L"Patch", L"Groups", L"Static Looks",
+        L"Autoloops", L"MIDI", L"Connections", L"Safety", L"Diagnostics"}};
     for (std::size_t index = 0; index < navigation_.size(); ++index) {
         navigation_[index] = add_button(
             window_, names[index], IdNavLive + static_cast<int>(index), BS_LEFT);
@@ -897,10 +954,11 @@ void Application::create_pages() {
     ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
     auto list = add_listview(page, IdPatchList);
     add_listview_column(list, 0, 210, L"Fixture");
-    add_listview_column(list, 1, 300, L"Profile");
-    add_listview_column(list, 2, 90, L"Universe");
-    add_listview_column(list, 3, 90, L"Address");
-    add_listview_column(list, 4, 90, L"Footprint");
+    add_listview_column(list, 1, 190, L"Stable ID");
+    add_listview_column(list, 2, 280, L"Profile");
+    add_listview_column(list, 3, 90, L"Universe");
+    add_listview_column(list, 4, 90, L"Address");
+    add_listview_column(list, 5, 90, L"Footprint");
     add_button(page, L"New", IdPatchNew);
     add_button(page, L"Save Fixture", IdPatchSave);
     add_button(page, L"Delete", IdPatchDelete);
@@ -912,7 +970,28 @@ void Application::create_pages() {
     add_combo(page, IdPatchUniverse);
     add_label(page, L"Address", 0);
     add_edit(page, IdPatchAddress);
+    add_label(page, L"Roles (one per line)", 0);
+    add_edit(page, IdPatchRoles, true);
     add_label(page, L"", IdPatchMessage);
+
+    page = pages_[static_cast<std::size_t>(Page::Groups)];
+    title = add_label(page, L"Fixture Groups", IdGroupTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_listbox(page, IdGroupList);
+    add_button(page, L"New", IdGroupNew);
+    add_button(page, L"Duplicate", IdGroupDuplicate);
+    add_button(page, L"Save Group", IdGroupSave);
+    add_button(page, L"Delete", IdGroupDelete);
+    add_label(page, L"Name", 0);
+    add_edit(page, IdGroupName);
+    add_label(page, L"Fixture IDs", 0);
+    add_edit(page, IdGroupMembers, true);
+    add_label(
+        page,
+        L"Enter one patched fixture ID per line. Groups can be used as targets while "
+        L"authoring Static Looks; EmberLights expands them into deterministic fixture assignments.",
+        IdGroupHelp);
+    add_label(page, L"", IdGroupMessage);
 
     page = pages_[static_cast<std::size_t>(Page::Looks)];
     title = add_label(page, L"Static Looks", IdLookTitle);
@@ -930,8 +1009,8 @@ void Application::create_pages() {
     add_edit(page, IdLookAssignments, true);
     add_label(
         page,
-        L"One per line: fixture-id, property, value. Value is 0–1, off, or release. "
-        L"Example: wash-1,red,1",
+        L"One per line: fixture-id or group-id, property, value. Value is 0–1, off, or "
+        L"release. Group targets expand when saved. Example: dance-washes,red,1",
         IdLookHelp);
     add_label(page, L"", IdLookMessage);
 
@@ -1013,6 +1092,26 @@ void Application::create_pages() {
     add_button(page, L"Refresh MIDI Devices", IdRefreshMidi);
     add_button(page, L"Apply Settings", IdConnectionsApply);
     add_label(page, L"", IdConnectionsMessage);
+
+    page = pages_[static_cast<std::size_t>(Page::Safety)];
+    title = add_label(page, L"Safety Policy", IdSafetyTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_label(
+        page,
+        L"Hazard gates fail closed in Runner. Changing this policy requires stopping and "
+        L"restarting the show so the compiled runtime can apply it.",
+        0);
+    add_button(page, L"Fog requires explicit arm", IdSafetyFogArm, BS_AUTOCHECKBOX);
+    add_button(page, L"Haze requires explicit arm", IdSafetyHazeArm, BS_AUTOCHECKBOX);
+    add_button(page, L"Laser requires explicit arm", IdSafetyLaserArm, BS_AUTOCHECKBOX);
+    add_button(page, L"Sparks require explicit arm", IdSafetySparkArm, BS_AUTOCHECKBOX);
+    add_button(page, L"Allow strobe output", IdSafetyStrobeAllowed, BS_AUTOCHECKBOX);
+    add_label(page, L"Maximum strobe (0–1)", 0);
+    add_edit(page, IdSafetyMaxStrobe);
+    add_label(page, L"Maximum intensity (0–1)", 0);
+    add_edit(page, IdSafetyMaxIntensity);
+    add_button(page, L"Apply Safety Policy", IdSafetyApply);
+    add_label(page, L"", IdSafetyMessage);
 
     page = pages_[static_cast<std::size_t>(Page::Diagnostics)];
     title = add_label(page, L"Diagnostics & Preflight", IdDiagnosticsTitle);
@@ -1128,20 +1227,39 @@ void Application::layout_page(Page page, int width, int height) {
         break;
     }
     case Page::Patch:
-        move(1, margin, 70, usable_width, std::max(210, height - 285));
-        move(2, margin, height - 190, 80, 30);
-        move(3, margin + 90, height - 190, 110, 30);
-        move(4, margin + 210, height - 190, 80, 30);
-        move(5, margin, height - 142, 100, 26);
-        move(6, margin + 100, height - 142, 230, 27);
-        move(7, margin + 350, height - 142, 70, 26);
-        move(8, margin + 420, height - 142, std::max(220, usable_width - 750), 200);
-        move(9, width - 300, height - 142, 72, 26);
-        move(10, width - 228, height - 142, 70, 200);
-        move(11, width - 146, height - 142, 62, 26);
-        move(12, width - 84, height - 142, 60, 27);
-        move(13, margin, height - 92, usable_width, 42);
+        move(1, margin, 70, usable_width, std::max(210, height - 335));
+        move(2, margin, height - 240, 80, 30);
+        move(3, margin + 90, height - 240, 110, 30);
+        move(4, margin + 210, height - 240, 80, 30);
+        move(5, margin, height - 192, 100, 26);
+        move(6, margin + 100, height - 192, 230, 27);
+        move(7, margin + 350, height - 192, 70, 26);
+        move(8, margin + 420, height - 192, std::max(220, usable_width - 750), 200);
+        move(9, width - 300, height - 192, 72, 26);
+        move(10, width - 228, height - 192, 70, 200);
+        move(11, width - 146, height - 192, 62, 26);
+        move(12, width - 84, height - 192, 60, 27);
+        move(13, margin, height - 150, 150, 26);
+        move(14, margin + 150, height - 150, usable_width - 150, 58);
+        move(15, margin, height - 78, usable_width, 36);
         break;
+    case Page::Groups: {
+        const auto left_width = std::min(330, usable_width / 3);
+        move(1, margin, 70, left_width, height - 150);
+        move(2, margin, height - 68, 70, 30);
+        move(3, margin + 78, height - 68, 90, 30);
+        move(4, margin + 176, height - 68, 90, 30);
+        move(5, margin + 274, height - 68, 70, 30);
+        const auto x = margin + left_width + 24;
+        const auto form_width = usable_width - left_width - 24;
+        move(6, x, 70, 110, 26);
+        move(7, x + 110, 70, form_width - 110, 27);
+        move(8, x, 110, form_width, 26);
+        move(9, x, 140, form_width, std::max(190, height - 305));
+        move(10, x, height - 122, form_width, 50);
+        move(11, x, height - 66, form_width, 30);
+        break;
+    }
     case Page::Looks: {
         const auto left_width = std::min(330, usable_width / 3);
         move(1, margin, 70, left_width, height - 150);
@@ -1233,6 +1351,20 @@ void Application::layout_page(Page page, int width, int height) {
         move(28, margin, height - 66, usable_width, 30);
         break;
     }
+    case Page::Safety:
+        move(1, margin, 70, usable_width, 48);
+        move(2, margin, 132, 260, 30);
+        move(3, margin, 170, 260, 30);
+        move(4, margin, 208, 260, 30);
+        move(5, margin, 246, 260, 30);
+        move(6, margin, 294, 260, 30);
+        move(7, margin, 342, 190, 27);
+        move(8, margin + 190, 342, 100, 27);
+        move(9, margin, 382, 190, 27);
+        move(10, margin + 190, 382, 100, 27);
+        move(11, margin, 438, 170, 32);
+        move(12, margin, 486, usable_width, 42);
+        break;
     case Page::Diagnostics:
         move(1, margin, 70, usable_width, height - 150);
         move(2, margin, height - 64, 150, 30);
@@ -1464,10 +1596,12 @@ void Application::refresh_all() {
     refreshing_ = true;
     refresh_profiles();
     refresh_patch();
+    refresh_groups();
     refresh_looks();
     refresh_autoloops();
     refresh_midi();
     refresh_connections();
+    refresh_safety();
     refresh_live_lists();
     refresh_live_status();
     refresh_diagnostics();
@@ -1557,6 +1691,7 @@ void Application::refresh_patch() {
             static_cast<int>(index),
             static_cast<LPARAM>(index),
             {widen(fixture.name),
+             widen(fixture.id),
              profile != project_.fixture_profiles.end() ? widen(profile->name) : L"Missing",
              widen(number_text(fixture.universe)),
              widen(number_text(fixture.address)),
@@ -1576,6 +1711,24 @@ void Application::refresh_patch() {
         select_fixture(fixture_index_);
     } else {
         new_fixture();
+    }
+}
+
+void Application::refresh_groups() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Groups)];
+    const auto list = ::GetDlgItem(page, IdGroupList);
+    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
+    for (std::size_t index = 0; index < project_.groups.size(); ++index) {
+        const auto& group = project_.groups[index];
+        std::ostringstream label;
+        label << group.name << " (" << group.fixture_ids.size() << ")";
+        listbox_add(list, widen(label.str()), index);
+    }
+    if (group_index_ >= 0 && static_cast<std::size_t>(group_index_) < project_.groups.size()) {
+        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, group_index_, 0));
+        select_group(group_index_);
+    } else {
+        new_group();
     }
 }
 
@@ -1731,6 +1884,27 @@ void Application::refresh_connections() {
     combo_select_data(output, project_.connections.midi_output_index);
 }
 
+void Application::refresh_safety() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Safety)];
+    if (page == nullptr) {
+        return;
+    }
+    Button_SetCheck(::GetDlgItem(page, IdSafetyFogArm),
+                    project_.safety.fog_requires_arm ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(::GetDlgItem(page, IdSafetyHazeArm),
+                    project_.safety.haze_requires_arm ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(::GetDlgItem(page, IdSafetyLaserArm),
+                    project_.safety.laser_requires_arm ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(::GetDlgItem(page, IdSafetySparkArm),
+                    project_.safety.spark_requires_arm ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(::GetDlgItem(page, IdSafetyStrobeAllowed),
+                    project_.safety.strobe_allowed ? BST_CHECKED : BST_UNCHECKED);
+    set_control_text(::GetDlgItem(page, IdSafetyMaxStrobe),
+                     number_text(project_.safety.max_strobe));
+    set_control_text(::GetDlgItem(page, IdSafetyMaxIntensity),
+                     number_text(project_.safety.max_intensity));
+}
+
 std::string Application::diagnostics_text() const {
     const auto status = runner_.status();
     const auto validation = emberlights::validate_project(project_);
@@ -1740,6 +1914,7 @@ std::string Application::diagnostics_text() const {
            << "Project file: " << (current_path_.empty() ? "Unsaved" : current_path_.string())
            << "\r\nFixtures: " << project_.fixtures.size()
            << "  Profiles: " << project_.fixture_profiles.size()
+           << "  Groups: " << project_.groups.size()
            << "  Static Looks: " << project_.looks.size()
            << "  Autoloops: " << project_.autoloops.size()
            << "  MIDI mappings: " << project_.midi_mappings.size() << "\r\n"
@@ -1816,6 +1991,10 @@ void Application::handle_command(int id, int notification, HWND) {
         if (id == IdProfileList) {
             select_profile(static_cast<std::int32_t>(::SendMessageW(
                 ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Profiles)], IdProfileList),
+                LB_GETCURSEL, 0, 0)));
+        } else if (id == IdGroupList) {
+            select_group(static_cast<std::int32_t>(::SendMessageW(
+                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Groups)], IdGroupList),
                 LB_GETCURSEL, 0, 0)));
         } else if (id == IdLookList) {
             select_look(static_cast<std::int32_t>(::SendMessageW(
@@ -1922,6 +2101,10 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdPatchNew: new_fixture(); break;
     case IdPatchSave: save_fixture(); break;
     case IdPatchDelete: delete_fixture(); break;
+    case IdGroupNew: new_group(); break;
+    case IdGroupDuplicate: duplicate_group(); break;
+    case IdGroupSave: save_group(); break;
+    case IdGroupDelete: delete_group(); break;
     case IdLookNew: new_look(); break;
     case IdLookDuplicate: duplicate_look(); break;
     case IdLookSave: save_look(); break;
@@ -1932,6 +2115,7 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdAutoloopDelete: delete_autoloop(); break;
     case IdRefreshMidi: refresh_midi_ports(); break;
     case IdConnectionsApply: apply_connections(); break;
+    case IdSafetyApply: apply_safety(); break;
     case IdMidiLearn: begin_midi_learn(); break;
     case IdMidiDelete: delete_midi_mapping(); break;
     case IdDiagnosticsCopy:
@@ -1969,6 +2153,7 @@ void Application::new_project() {
     dirty_ = false;
     profile_index_ = -1;
     fixture_index_ = -1;
+    group_index_ = -1;
     look_index_ = -1;
     autoloop_index_ = -1;
     refresh_all();
@@ -2007,6 +2192,7 @@ bool Application::open_project(const std::filesystem::path& path) {
     dirty_ = result.recovered_from_backup;
     profile_index_ = -1;
     fixture_index_ = -1;
+    group_index_ = -1;
     look_index_ = -1;
     autoloop_index_ = -1;
     refresh_all();
@@ -2252,20 +2438,6 @@ namespace {
 
 }  // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
-    std::optional<std::filesystem::path> initial_file;
-    int argument_count = 0;
-    auto** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &argument_count);
-    if (arguments != nullptr) {
-        if (argument_count > 1 && arguments[1] != nullptr && arguments[1][0] != L'\0') {
-            initial_file = std::filesystem::path(arguments[1]);
-        }
-        ::LocalFree(arguments);
-    }
-    Application application(instance);
-    return application.run(show_command, initial_file);
-}
-
 void Application::select_profile(std::int32_t index) {
     if (index < 0 || static_cast<std::size_t>(index) >= project_.fixture_profiles.size()) {
         new_profile();
@@ -2443,6 +2615,11 @@ void Application::select_fixture(std::int32_t index) {
                   std::distance(project_.fixture_profiles.begin(), profile)));
     combo_select_data(::GetDlgItem(page, IdPatchUniverse), fixture.universe);
     set_control_text(::GetDlgItem(page, IdPatchAddress), number_text(fixture.address));
+    std::ostringstream roles;
+    for (const auto& role : fixture.roles) {
+        roles << role << '\n';
+    }
+    set_control_text(::GetDlgItem(page, IdPatchRoles), roles.str());
     ::EnableWindow(::GetDlgItem(page, IdPatchDelete), TRUE);
     set_page_message(Page::Patch, IdPatchMessage, "Editing patched fixture " + fixture.id + ".");
 }
@@ -2473,6 +2650,7 @@ void Application::new_fixture() {
     }
     combo_select_data(::GetDlgItem(page, IdPatchUniverse), universe);
     set_control_text(::GetDlgItem(page, IdPatchAddress), number_text(address));
+    set_control_text(::GetDlgItem(page, IdPatchRoles), "");
     ::EnableWindow(::GetDlgItem(page, IdPatchDelete), FALSE);
     set_page_message(Page::Patch, IdPatchMessage,
                      "Choose a profile and a non-overlapping universe/address.");
@@ -2497,9 +2675,7 @@ void Application::save_fixture() {
         : unique_id("fixture", fixture.name);
     fixture.profile_id = project_.fixture_profiles[static_cast<std::size_t>(profile_index)].id;
     fixture.universe = static_cast<std::uint8_t>(universe);
-    if (fixture_index_ >= 0) {
-        fixture.roles = project_.fixtures[static_cast<std::size_t>(fixture_index_)].roles;
-    }
+    fixture.roles = lines(control_text(::GetDlgItem(page, IdPatchRoles)));
     auto candidate = project_;
     if (fixture_index_ >= 0) {
         candidate.fixtures[static_cast<std::size_t>(fixture_index_)] = fixture;
@@ -2552,6 +2728,105 @@ void Application::delete_fixture() {
     refresh_patch();
 }
 
+void Application::select_group(std::int32_t index) {
+    if (index < 0 || static_cast<std::size_t>(index) >= project_.groups.size()) {
+        new_group();
+        return;
+    }
+    group_index_ = index;
+    const auto page = pages_[static_cast<std::size_t>(Page::Groups)];
+    const auto& group = project_.groups[static_cast<std::size_t>(index)];
+    set_control_text(::GetDlgItem(page, IdGroupName), group.name);
+    std::ostringstream members;
+    for (const auto& fixture_id : group.fixture_ids) {
+        members << fixture_id << '\n';
+    }
+    set_control_text(::GetDlgItem(page, IdGroupMembers), members.str());
+    ::EnableWindow(::GetDlgItem(page, IdGroupDuplicate), TRUE);
+    ::EnableWindow(::GetDlgItem(page, IdGroupDelete), TRUE);
+    set_page_message(Page::Groups, IdGroupMessage, "Editing fixture group " + group.id + ".");
+}
+
+void Application::new_group() {
+    group_index_ = -1;
+    const auto page = pages_[static_cast<std::size_t>(Page::Groups)];
+    set_control_text(::GetDlgItem(page, IdGroupName), "");
+    set_control_text(::GetDlgItem(page, IdGroupMembers), "");
+    ::EnableWindow(::GetDlgItem(page, IdGroupDuplicate), FALSE);
+    ::EnableWindow(::GetDlgItem(page, IdGroupDelete), FALSE);
+    set_page_message(
+        Page::Groups,
+        IdGroupMessage,
+        "Create a reusable group from the stable fixture IDs shown in Patch and Static Looks.");
+}
+
+void Application::duplicate_group() {
+    if (group_index_ < 0 || static_cast<std::size_t>(group_index_) >= project_.groups.size()) {
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Groups)];
+    set_control_text(
+        ::GetDlgItem(page, IdGroupName),
+        project_.groups[static_cast<std::size_t>(group_index_)].name + " Copy");
+    group_index_ = -1;
+    ::EnableWindow(::GetDlgItem(page, IdGroupDuplicate), FALSE);
+    ::EnableWindow(::GetDlgItem(page, IdGroupDelete), FALSE);
+    set_page_message(Page::Groups, IdGroupMessage, "Edit the copy and choose Save Group.");
+}
+
+void Application::save_group() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Groups)];
+    emberlights::GroupDefinition group;
+    group.name = trim(control_text(::GetDlgItem(page, IdGroupName)));
+    group.fixture_ids = lines(control_text(::GetDlgItem(page, IdGroupMembers)));
+    if (group.name.empty() || group.fixture_ids.empty()) {
+        set_page_message(
+            Page::Groups,
+            IdGroupMessage,
+            "A group needs a name and at least one patched fixture ID.",
+            true);
+        return;
+    }
+    group.id = group_index_ >= 0
+        ? project_.groups[static_cast<std::size_t>(group_index_)].id
+        : unique_id("group", group.name);
+    auto candidate = project_;
+    if (group_index_ >= 0) {
+        candidate.groups[static_cast<std::size_t>(group_index_)] = group;
+    } else {
+        candidate.groups.push_back(group);
+    }
+    const auto validation = emberlights::validate_project(candidate);
+    if (!validation.ok()) {
+        set_page_message(Page::Groups, IdGroupMessage, first_validation_error(validation), true);
+        return;
+    }
+    project_ = std::move(candidate);
+    if (group_index_ < 0) {
+        group_index_ = static_cast<std::int32_t>(project_.groups.size() - 1U);
+    }
+    mark_dirty();
+    refresh_groups();
+    set_page_message(Page::Groups, IdGroupMessage, "Fixture group saved.");
+}
+
+void Application::delete_group() {
+    if (group_index_ < 0 || static_cast<std::size_t>(group_index_) >= project_.groups.size()) {
+        return;
+    }
+    if (::MessageBoxW(
+            window_,
+            L"Delete this fixture group? Existing Static Looks keep their expanded fixture values.",
+            L"Delete group",
+            MB_YESNO | MB_ICONWARNING) != IDYES) {
+        return;
+    }
+    project_.groups.erase(project_.groups.begin() + group_index_);
+    group_index_ = -1;
+    mark_dirty();
+    refresh_groups();
+}
+
 namespace {
 
 [[nodiscard]] bool parse_normalized_value(
@@ -2584,6 +2859,7 @@ namespace {
 
 [[nodiscard]] bool parse_look_rows(
     std::string_view text,
+    const emberlights::ProjectDocument& project,
     std::vector<emberlights::LookAssignmentDefinition>& assignments,
     std::string& error_message) {
     assignments.clear();
@@ -2597,11 +2873,25 @@ namespace {
             assignment.property == showcore::Property::Count ||
             !parse_normalized_value(fields[2], assignment.value)) {
             error_message = "Assignment row " + number_text(row) +
-                " must be fixture-id, property, and a 0–1/off/release value.";
+                " must be target-id, property, and a 0–1/off/release value.";
             return false;
         }
-        assignment.fixture_id = fields[0];
-        assignments.push_back(std::move(assignment));
+        const auto expansion = emberlights::expand_look_target(
+            project,
+            fields[0],
+            assignment.property,
+            assignment.value,
+            assignments);
+        if (!expansion.target_found) {
+            error_message = "Assignment row " + number_text(row) +
+                " references an unknown fixture or group ID.";
+            return false;
+        }
+        if (expansion.assignments_added == 0U) {
+            error_message = "Assignment row " + number_text(row) +
+                " references an empty fixture group.";
+            return false;
+        }
     }
     if (assignments.empty()) {
         error_message = "A Static Look needs at least one fixture-property assignment.";
@@ -2699,6 +2989,7 @@ void Application::save_look() {
     std::string parse_error;
     if (!parse_look_rows(
             control_text(::GetDlgItem(page, IdLookAssignments)),
+            project_,
             look.assignments,
             parse_error)) {
         set_page_message(Page::Looks, IdLookMessage, parse_error, true);
@@ -2949,6 +3240,47 @@ void Application::apply_connections() {
             : "Connection settings saved. Start Show from Live when the patch is ready.");
 }
 
+void Application::apply_safety() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Safety)];
+    auto updated = project_.safety;
+    updated.fog_requires_arm =
+        Button_GetCheck(::GetDlgItem(page, IdSafetyFogArm)) == BST_CHECKED;
+    updated.haze_requires_arm =
+        Button_GetCheck(::GetDlgItem(page, IdSafetyHazeArm)) == BST_CHECKED;
+    updated.laser_requires_arm =
+        Button_GetCheck(::GetDlgItem(page, IdSafetyLaserArm)) == BST_CHECKED;
+    updated.spark_requires_arm =
+        Button_GetCheck(::GetDlgItem(page, IdSafetySparkArm)) == BST_CHECKED;
+    updated.strobe_allowed =
+        Button_GetCheck(::GetDlgItem(page, IdSafetyStrobeAllowed)) == BST_CHECKED;
+    if (!parse_number(
+            control_text(::GetDlgItem(page, IdSafetyMaxStrobe)), updated.max_strobe) ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdSafetyMaxIntensity)), updated.max_intensity)) {
+        set_page_message(
+            Page::Safety,
+            IdSafetyMessage,
+            "Maximum strobe and intensity must be numbers from zero through one.",
+            true);
+        return;
+    }
+    auto candidate = project_;
+    candidate.safety = updated;
+    const auto validation = emberlights::validate_project(candidate);
+    if (!validation.ok()) {
+        set_page_message(Page::Safety, IdSafetyMessage, first_validation_error(validation), true);
+        return;
+    }
+    project_ = std::move(candidate);
+    mark_dirty();
+    set_page_message(
+        Page::Safety,
+        IdSafetyMessage,
+        runner_.status().state == emberlights::RunnerState::Running
+            ? "Safety policy saved. Stop and restart the show to activate it."
+            : "Safety policy saved and will apply when the show starts.");
+}
+
 void Application::update_midi_targets() {
     const auto page = pages_[static_cast<std::size_t>(Page::Midi)];
     const auto action = static_cast<showcore::ActionType>(combo_selected_data(
@@ -3113,3 +3445,53 @@ void Application::delete_midi_mapping() {
 }
 
 }  // namespace
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
+    std::optional<std::filesystem::path> initial_file;
+    int argument_count = 0;
+    auto** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &argument_count);
+    if (arguments != nullptr) {
+        if (argument_count > 1 && arguments[1] != nullptr && arguments[1][0] != L'\0') {
+            initial_file = std::filesystem::path(arguments[1]);
+        }
+        ::LocalFree(arguments);
+    }
+    const auto instance_mutex = ::CreateMutexW(nullptr, FALSE, kInstanceMutex);
+    if (instance_mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (const auto existing = ::FindWindowW(kWindowClass, nullptr); existing != nullptr) {
+            if (initial_file.has_value()) {
+                const auto project_path = initial_file->wstring();
+                COPYDATASTRUCT copy{};
+                copy.dwData = kOpenProjectCopyData;
+                copy.cbData = static_cast<DWORD>(
+                    (project_path.size() + 1U) * sizeof(wchar_t));
+                copy.lpData = const_cast<wchar_t*>(project_path.c_str());
+                DWORD_PTR ignored = 0;
+                static_cast<void>(::SendMessageTimeoutW(
+                    existing,
+                    WM_COPYDATA,
+                    0,
+                    reinterpret_cast<LPARAM>(&copy),
+                    SMTO_ABORTIFHUNG | SMTO_BLOCK,
+                    5000U,
+                    &ignored));
+            }
+            ::ShowWindow(existing, SW_RESTORE);
+            static_cast<void>(::SetForegroundWindow(existing));
+        } else {
+            ::MessageBoxW(
+                nullptr,
+                L"EmberLights is already running in this Windows session.",
+                L"EmberLights",
+                MB_OK | MB_ICONINFORMATION);
+        }
+        ::CloseHandle(instance_mutex);
+        return EXIT_SUCCESS;
+    }
+    Application application(instance);
+    const auto result = application.run(show_command, initial_file);
+    if (instance_mutex != nullptr) {
+        ::CloseHandle(instance_mutex);
+    }
+    return result;
+}

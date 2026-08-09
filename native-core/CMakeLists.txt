@@ -41,12 +41,15 @@ target_include_directories(showcore PUBLIC include)
 target_link_libraries(showcore PUBLIC Threads::Threads)
 
 if(MSVC)
-    target_compile_options(showcore PUBLIC /W4 /WX /permissive-)
+    # C4324 reports the deliberate cache-line padding in the lock-free SPSC
+    # queues. Keep every other level-4 warning fatal.
+    target_compile_options(showcore PUBLIC /W4 /WX /permissive- /wd4324)
 else()
     target_compile_options(showcore PUBLIC -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 if(WIN32)
+    target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0A00)
     target_link_libraries(showcore PUBLIC ws2_32 winmm)
 endif()
 
@@ -80,8 +83,12 @@ if(WIN32)
         comctl32
         comdlg32
         shell32)
-    target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE NOMINMAX)
-    target_compile_definitions(EmberLights PRIVATE _WIN32_WINNT=0x0A00)
+    if(MSVC)
+        # The executable already embeds our explicit DPI/compatibility manifest
+        # through EmberLights.rc; suppress the linker's second default manifest.
+        target_link_options(EmberLights PRIVATE /MANIFEST:NO)
+    endif()
+    target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
 
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)

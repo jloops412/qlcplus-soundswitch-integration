@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <string_view>
 #include <thread>
 
@@ -248,9 +249,9 @@ void update_max_jitter(std::atomic<std::uint64_t>& maximum, std::uint64_t candid
 }
 
 void run_scheduler(const LabConfig& config, SharedState& shared) noexcept {
-    showcore::Engine engine;
-    if (!engine.patch().add({0, 0, 1, &kRgbDimmer}) ||
-        !engine.patch().add({1, 1, 1, &kRgbDimmer})) {
+    auto engine = std::make_unique<showcore::Engine>();
+    if (!engine->patch().add({0, 0, 1, &kRgbDimmer}) ||
+        !engine->patch().add({1, 1, 1, &kRgbDimmer})) {
         shared.output_state.store(OutputState::Failed, std::memory_order_release);
         return;
     }
@@ -276,7 +277,7 @@ void run_scheduler(const LabConfig& config, SharedState& shared) noexcept {
             showcore::AutoloopRepeat::Infinite,
             0.0,
             true,
-            engine.layers())) {
+            engine->layers())) {
         shared.output_state.store(OutputState::Failed, std::memory_order_release);
         return;
     }
@@ -319,18 +320,18 @@ void run_scheduler(const LabConfig& config, SharedState& shared) noexcept {
         const bool requested_blackout = shared.blackout.load(std::memory_order_acquire);
         if (requested_blackout != applied_blackout) {
             if (requested_blackout) {
-                engine.layers().set(
+                engine->layers().set(
                     showcore::LayerId::Emergency,
                     0,
                     showcore::Property::Intensity,
                     showcore::PropertyValue::force_zero());
-                engine.layers().set(
+                engine->layers().set(
                     showcore::LayerId::Emergency,
                     1,
                     showcore::Property::Intensity,
                     showcore::PropertyValue::force_zero());
             } else {
-                engine.layers().clear_layer(showcore::LayerId::Emergency);
+                engine->layers().clear_layer(showcore::LayerId::Emergency);
             }
             applied_blackout = requested_blackout;
         }
@@ -339,13 +340,13 @@ void run_scheduler(const LabConfig& config, SharedState& shared) noexcept {
         const auto beat_position = clock.source == showcore::ClockSource::None
             ? 0.0
             : clock.beat_position;
-        player.tick(beat_position, true, engine.layers());
-        engine.tick();
+        player.tick(beat_position, true, engine->layers());
+        engine->tick();
 
         if (sends_artnet) {
             for (std::uint16_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
                 const auto packet = showcore::build_artdmx(
-                    engine.frames().universes[universe],
+                    engine->frames().universes[universe],
                     static_cast<std::uint16_t>(config.artnet_base + universe),
                     sequence);
                 if (!sender.send(packet)) {
