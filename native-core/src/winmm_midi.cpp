@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <new>
 
 #ifdef _WIN32
@@ -169,7 +170,7 @@ bool WinMmMidiInput::open(
         &slot->handle,
         static_cast<UINT>(system_index),
         reinterpret_cast<DWORD_PTR>(&Impl::callback),
-        reinterpret_cast<DWORD_PTR>(slot),
+        reinterpret_cast<DWORD_PTR>(std::addressof(*slot)),
         CALLBACK_FUNCTION | MIDI_IO_STATUS);
     if (impl_->last_error != MMSYSERR_NOERROR) {
         slot->handle = nullptr;

@@ -363,8 +363,8 @@ ProjectValidation validate_project(const ProjectDocument& project) {
             add_issue(result, ProjectIssueSeverity::Error, "autoloop.id", loop.id,
                       "Autoloop IDs must be unique and valid.");
         }
-        const auto slot_key = static_cast<std::uint32_t>(loop.bank) *
-            showcore::kAutoloopsPerBank + loop.slot;
+        const auto slot_key = static_cast<std::uint32_t>(
+            static_cast<std::size_t>(loop.bank) * showcore::kAutoloopsPerBank + loop.slot);
         if (loop.bank >= showcore::kMaxAutoloopBanks ||
             loop.slot >= showcore::kAutoloopsPerBank ||
             !autoloop_slots.insert(slot_key).second) {
