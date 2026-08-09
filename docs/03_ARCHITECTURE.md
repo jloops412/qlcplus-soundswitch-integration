@@ -47,6 +47,12 @@ The first Windows adapter uses WinMM only behind the device-agnostic MIDI contra
 
 Short-message output for LEDs/rings runs on the controller-feedback adapter thread, never the DMX scheduler. Microsoft notes that `midiOutShortMsg` may block until hardware sends the message, so Runner treats feedback as bounded, optional, and lower priority than lighting output. [Microsoft `midiInOpen`](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-midiinopen), [Microsoft `midiOutShortMsg`](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-midioutshortmsg)
 
+### Native USB-DMX boundary
+
+The first native adapter implements ENTTEC's published DMX USB Pro application framing over a Windows COM port. A configured device owns one universe; two devices may independently carry V1's two universes. Serial discovery, open/retry, packet writes, and zero-frame shutdown all run on the output thread, never the scheduler. The scheduler publishes into a bounded SPSC queue, and the output consumer deliberately takes the newest available frame so a temporarily blocked interface cannot replay stale lighting after recovery.
+
+The adapter is a replaceable output contract, not a fixture or show-model dependency. It does not imply qualification of the legacy two-universe Pro Mk2 protocol or every third-party device that advertises protocol compatibility. [ENTTEC DMX USB Pro API](https://support.enttec.com/dmx/usbdmx-dmx-usb-pro-70304/dmx-usb-pro-api)
+
 ## Fixture-library ingestion boundary
 
 Open Fixture Library is an upstream source, not a Runner file format. [OFL's format documentation](https://github.com/OpenLightingProject/open-fixture-library/blob/master/docs/fixture-format.md) explicitly warns that its native JSON may make breaking changes and recommends transforming it through a plugin. Studio therefore uses a version-pinned adapter to translate OFL data into our stable native fixture-profile contract, recording the OFL schema/revision, adapter version, and source identity.

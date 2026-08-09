@@ -18,8 +18,9 @@ It proves:
 - portable short-MIDI codec plus an isolated Windows WinMM adapter for enumeration, 16 simultaneous inputs/outputs, timestamped callbacks, bounded per-port queues, feedback output, and controller capture;
 - generic sparse Static Looks with interruption-safe crossfades;
 - 64 banks of 32 generic semantic Autoloops (2,048 total), with pageable four-bank control views plus one-shot, infinite, and track-duration playback;
-- ArtDMX packet generation and IPv4 unicast output.
+- ArtDMX packet generation and IPv4 unicast output;
 - sACN/E1.31 packet generation plus unicast and standards-based multicast output;
+- ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe output/reconnect state, and latest-frame-wins backpressure;
 - versioned, checksummed `.emberlights` project persistence with atomic replacement, backup recovery, and unknown-record preservation;
 - a fixed-capacity project compiler and three-thread service Runner that keeps input and network output away from the DMX scheduler;
 - a native Windows Studio/Live shell and installer packaging path;
@@ -32,6 +33,7 @@ make
 make test
 make bench
 make smoke
+make winmm-syntax dmx-usb-syntax
 ```
 
 The build uses only a C++20 compiler, the standard library, and operating-system sockets. `make bench` measures both raw rendering and full Static Look/Autoloop performance updates.

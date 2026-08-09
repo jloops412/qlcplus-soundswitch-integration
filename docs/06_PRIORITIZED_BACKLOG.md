@@ -33,10 +33,11 @@ Priority is based on replacing SoundSwitch safely, not feature novelty.
 24. Control One bundled profile v0.
 25. Art-Net unicast sender and receiver diagnostics. Exact loopback UDP delivery test and lab Runner sender complete; node/visualizer diagnostics remain.
 26. ArtPoll/subscription discovery compliance.
-27. sACN/E1.31 sender.
+27. sACN/E1.31 sender. Byte-exact unicast/multicast sender and loopback tests complete; physical receiver qualification remains.
+    - First native published-protocol USB output: ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe mapping, reconnect/status, and stale-frame suppression implemented; physical hardware and broader USB matrix remain.
 28. QLC+ local bridge example project/configuration.
 29. Same-PC versus LAN equivalence tests. Endpoint-neutral lab Runner exists; Windows/VirtualDJ comparison remains.
-30. Minimal Runner status/blackout UI. Console laboratory status and non-droppable blackout path complete; production performance UI remains.
+30. Minimal Runner status/blackout UI. Native Live/Diagnostics pages, non-droppable blackout, work light, adapter states, counters, and jitter display complete; usability/hardware qualification remains.
 
 ## P2 — Gig-safe SoundSwitch-style workflow
 
@@ -46,7 +47,7 @@ Priority is based on replacing SoundSwitch safely, not feature novelty.
 34. Named color palettes.
 35. Named position and attribute cues.
 36. Static Look authoring and sparse playback.
-37. Scalable Autoloop library, 32-slot banks, pageable controller windows, lengths, fades, and manual selection. Native 64-bank/2,048-loop catalog and four-bank window foundation complete; package compiler/UI remain.
+37. Scalable Autoloop library, 32-slot banks, pageable controller windows, lengths, fades, and manual selection. Native 64-bank/2,048-loop catalog, project compiler, editor, Live selection, and four-bank window foundation complete; shipped content and richer organization remain.
 38. Manual color, movement, position, intensity, strobe, white, and UV controls.
 39. Blackout, work light, and recovery look.
 40. Fog/haze explicit arming and timeout.

@@ -1,10 +1,10 @@
 # Native Vertical Slice Report
 
-Date: 2026-08-08.
+Date: 2026-08-09.
 
 ## Outcome
 
-The first dependency-light native reference core compiles and runs. It is not yet a Windows hardware build or a live-gig application.
+The dependency-light native core now ships inside a coherent Windows Studio/Live testing application and installer. It is not yet hardware-qualified or safe to use as the only controller at a live event.
 
 Implemented:
 
@@ -32,7 +32,13 @@ Implemented:
 - one-shot natural return over a scripted layer, infinite repeat, track-duration repeat, progress, and completed-cycle state;
 - byte-exact ArtDMX encoding and IPv4 unicast sender;
 - exact ArtDMX delivery/contents verified through a real loopback UDP receiver;
+- byte-exact sACN/E1.31 encoding with unicast and standards-based multicast senders;
+- byte-exact ENTTEC DMX USB Pro serial framing, Windows COM discovery, one-device-per-universe mapping, bounded output-thread writes, retry/status handling, and zero-frame shutdown;
+- latest-frame-wins output queue consumption so a temporarily blocked adapter does not replay stale frames after it recovers;
 - end-to-end two-universe `runner_lab` with separate adapter/status and scheduling threads, dry-run default, optional Art-Net output, finite-duration smoke mode, and live status/jitter counters;
+- versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, and unknown-record preservation;
+- fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, and Diagnostics workflows in the native Windows application;
+- self-contained portable ZIP and per-user Inno Setup installer built only after Windows/Linux tests pass;
 - optional QLC+ bridge boundary through Art-Net;
 - zero-allocation render test and deterministic replay test.
 
@@ -48,7 +54,9 @@ Implemented:
 - OS2L lifecycle integration: passed through connect, multi-event decode, incomplete message, disconnect, reconnect, and clean post-reconnect decode.
 - End-to-end Runner integration: 10 TCP events at 126 BPM produced 82 frames with zero decode errors, queue drops, or send failures in dry-run mode.
 - Runner smoke: one second at 40 Hz completed with 42 frames.
-- Portable MIDI codec and non-Windows adapter-boundary tests pass; the WinMM branch awaits Windows CI/hardware execution.
+- Portable MIDI codec plus Linux-hosted WinMM and DMX USB Pro Windows-boundary syntax tests pass.
+- Windows and Linux native compilation/tests and packaged Windows application tests passed for the preceding installed checkpoint; this change is re-gated by the repository workflow before publication.
+- ENTTEC packet framing, COM1–COM256 validation, duplicate-device prevention, 40 Hz cap, project round-trip, and stale-frame supersession tests pass.
 
 ## Initial benchmark
 
@@ -58,17 +66,17 @@ Test load: 128 RGB fixtures split evenly across both universes, four semantic pr
 | --- | ---: |
 | Engine object | 875,552 bytes |
 | Release binary (`core_bench`) | about 22 KB loadable sections |
-| Full render tick | about 16.4 microseconds |
-| Theoretical full renders/second | about 60,900 |
-| Observed process max RSS | about 4.5 MB |
+| Full render tick | about 16.1 microseconds |
+| Theoretical full renders/second | about 62,000 |
+| Observed process max RSS | about 4.7 MB |
 
 An additional full-path benchmark continuously ran generic Autoloop interpolation, overlapping Static Look transitions, layer resolution, and two-universe rendering across 128 fixtures with 512 assignments per look:
 
 | Measurement | Observed |
 | --- | ---: |
-| Full performance update | about 134.6 microseconds |
+| Full performance update | about 134.9 microseconds |
 | Estimated one-core use at 40 Hz | about 0.54% |
-| Observed process max RSS | about 5.2 MB |
+| Observed process max RSS | about 5.3 MB |
 
 The performance playback path completed 10,000 scheduling updates without a heap allocation after activation.
 
@@ -76,22 +84,23 @@ At 40 DMX updates/second, 16.4 microseconds per render is roughly 0.066% of one 
 
 ## Known limitations
 
-- Linux test environment only; no Windows cross-compiler is installed here.
 - The OS2L TCP lifecycle is implemented and loopback-tested; real VirtualDJ/Windows discovery/direct-IP soak is pending.
-- The WinMM adapter and capture utility are implemented but not yet compiled or exercised on Windows; Control One data has not yet been captured.
-- No real sACN or USB-DMX adapter yet.
+- The WinMM adapter and capture utility compile on Windows CI but have not been exercised with Control One; its message map has not yet been captured.
+- Native DMX USB Pro output compiles on Windows CI only after publication of this slice; physical interface output and unplug/replug qualification remain pending.
+- The serial adapter covers the published single-universe DMX USB Pro framing. Pro Mk2 dual-port support and third-party compatible hardware are not claimed.
 - Art-Net direct unicast delivery is loopback-verified; node/visualizer qualification and discovery/subscription compliance are pending.
 - Fixture mapping now covers a broad fixed semantic/custom surface and safely compiles normalized profiles, but the versioned OFL adapter and multi-cell pixel topology remain pending.
-- The Autoloop runtime now has complete 64×32 capacity, pageable four-bank controller views, and core activation/return policies, but the Studio editor, default content, random selection policies, package loader, and performance UI remain pending.
-- The lab Runner has console status only; no production performance UI, persistence compiler, audio analysis, or `.ssproj` parser yet.
+- The Autoloop runtime and editor have complete 64×32 capacity plus activation/return policies, but shipped default content, richer organization, and random/automatic selection policies remain pending.
+- The native Windows UI is functional but its look/profile/Autoloop authoring still needs guided controls, undo/history, and usability qualification.
+- Live-audio fallback, track scripting, AutoScripting, SoundSwitch migration, Serato, smart-light integrations, and remaining parity-ledger items are still pending.
 
 ## Next gate
 
-Move from pure contracts to a Windows hardware/DJ laboratory build:
+Qualify the installed Windows application against real DJ and lighting hardware:
 
-1. OS2L TCP server and capture tool.
-2. Windows CI compile, WinMM device enumeration/capture/feedback test, and Control One map.
-3. Control One map.
-4. Art-Net receiver/node and QLC+ bridge verification.
-5. USB VID/PID/driver inventory.
+1. VirtualDJ/OS2L two-hour sync and reconnect run.
+2. Control One MIDI capture, mapping, feedback, and reconnect tests.
+3. DMX USB Pro physical output plus unplug/replug test; inventory Joshua's other USB interfaces.
+4. Art-Net/sACN receiver and QLC+ bridge verification.
+5. Eight-hour installed-app soak and fault matrix.
 6. Windows benchmarks on Joshua's DJ laptop and a lower-end PC.

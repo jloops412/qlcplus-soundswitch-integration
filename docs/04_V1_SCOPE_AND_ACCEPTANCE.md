@@ -43,6 +43,7 @@ V1 show packages may contain up to 64 Autoloop banks of 32 slots each. Four-bank
 - WinMM or equivalent Windows MIDI input/output adapter.
 - Captured Control One map and first profile.
 - Art-Net output verified against a receiver/node.
+- ENTTEC DMX USB Pro–compatible serial output verified against a physical interface.
 - QLC+ loopback bridge verified and benchmarked.
 - USB inventory for Control One, MyDMX Buddy, and SoundSwitch USB interface.
 - Minimal status console: clock source, BPM, beat, active show/layer, outputs, MIDI devices, warnings, blackout.

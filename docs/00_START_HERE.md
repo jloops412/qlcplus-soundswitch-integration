@@ -13,7 +13,7 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Joshua confirmed a hybrid QLC+ strategy is acceptable if the result remains uniquely ours.
 - The handoff package now exists.
 - The compiled/tested native vertical slice and first end-to-end `runner_lab` exist.
-- EmberLights now has a versioned/checksummed project model and compiler, a deterministic service Runner, Art-Net and sACN output, WinMM MIDI/learn foundations, and a native Windows Studio/Live shell. Windows CI, installer verification, VirtualDJ, MIDI, and lighting-hardware qualification remain active gates.
+- EmberLights now has a versioned/checksummed project model and compiler, a deterministic service Runner, Art-Net, sACN, and initial ENTTEC DMX USB Pro serial output, WinMM MIDI/learn foundations, and a native Windows Studio/Live shell. Windows/Linux CI and installer packaging pass on the merged checkpoint; VirtualDJ, MIDI, USB-DMX, broader output-hardware, soak, and live-event qualification remain active gates.
 - Joshua clarified on 2026-08-08 that his fixtures are later validation inputs, not the product scope, and that full SoundSwitch feature parity is the minimum finished-product bar.
 - `13_SOUNDSWITCH_PARITY_LEDGER.md` is the binding completeness checklist. Milestone exclusions sequence delivery; they do not remove features from the finished product.
 

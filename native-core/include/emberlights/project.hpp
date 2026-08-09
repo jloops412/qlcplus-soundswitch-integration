@@ -5,6 +5,7 @@
 #include "showcore/fixture_library.hpp"
 #include "showcore/midi.hpp"
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -109,6 +110,7 @@ struct ConnectionSettings {
     bool sacn_enabled{false};
     std::string sacn_destination{"127.0.0.1"};
     std::uint16_t sacn_universe_base{1};
+    std::array<std::string, showcore::kV1UniverseCount> dmx_usb_pro_ports{};
     std::uint16_t frame_rate{40};
     double manual_bpm{120.0};
     std::int32_t midi_input_index{-1};

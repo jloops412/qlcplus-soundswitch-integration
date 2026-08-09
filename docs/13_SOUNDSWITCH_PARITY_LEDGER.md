@@ -102,11 +102,11 @@ Statuses:
 
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
-| OUT-01 | Reliable DMX output through supported interfaces | Partial | Art-Net sender passes; native USB matrix pending. |
+| OUT-01 | Reliable DMX output through supported interfaces | Partial | Art-Net and sACN pass byte/loopback tests. Native ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe mapping, reconnect state, zero-frame shutdown, and stale-frame supersession now pass portable/syntax tests; physical interface qualification and broader USB matrix remain. |
 | OUT-02 | Art-Net output and third-party visualizer interoperability | Partial | ArtDMX golden bytes and exact loopback UDP delivery pass; real node/visualizer qualification and discovery remain. |
 | OUT-03 | sACN/E1.31 output | Partial | E1.31 packet construction, deterministic CID, unicast/multicast sender, byte-level tests, and UDP loopback pass; real receiver qualification remains. |
 | OUT-04 | QLC+ bridge for otherwise unsupported USB interfaces | Partial | Boundary specified; live loopback qualification pending. |
-| OUT-05 | Interface hot-plug, disconnect/reconnect, and visible status | Planned | Fault-injection and UI tests. |
+| OUT-05 | Interface hot-plug, disconnect/reconnect, and visible status | Partial | Network and DMX USB Pro outputs retry independently, USB universe states are visible in Live/Diagnostics, and stale queued frames are superseded; controlled Windows unplug/replug and broader adapter tests remain. |
 | OUT-06 | Philips Hue integration | Planned | Local bridge integration with latency/degradation tests. |
 | OUT-07 | Nanoleaf Shapes and Lines integration | Planned | Official local API capability/latency qualification. |
 | OUT-08 | Wireless DMX compatibility through transparent DMX transmitters | Planned | Documented transport guidance and representative hardware test. |

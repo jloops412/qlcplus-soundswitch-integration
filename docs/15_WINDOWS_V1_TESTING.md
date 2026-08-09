@@ -14,7 +14,7 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
 ## Safe first launch
 
 1. Install EmberLights or extract the portable ZIP.
-2. Start the app. Network DMX output is disabled in a new project; OS2L listens only on `127.0.0.1` by default.
+2. Start the app. All DMX output is disabled in a new project; OS2L listens only on `127.0.0.1` by default.
 3. Build and validate a project before enabling output:
    - choose or create a Fixture Profile;
    - add each fixture under Patch with the correct universe, DMX address, and optional role tags;
@@ -24,8 +24,12 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
    - save the project as an `.emberlights` file;
    - use **Show → Validate Project**.
 4. Use a visualizer or isolated test node before connecting production fixtures. Confirm universe numbering and address maps independently.
-5. Under Connections, enable either Art-Net or sACN and enter the receiver address. sACN accepts `multicast` as its destination.
+5. Under Connections, choose one or more output paths:
+   - enable Art-Net or sACN and enter the receiver address; sACN accepts `multicast` as its destination;
+   - for an ENTTEC DMX USB Pro or compatible interface that Windows exposes as a COM port, choose its port for universe 1 or universe 2. Choose **Refresh MIDI + USB-DMX** after connecting a device. One single-universe device cannot be assigned to both universes, and projects using this adapter are capped at 40 Hz.
 6. Start the show from Live. Confirm clock, adapter, frame, error, and jitter state under Diagnostics before triggering content.
+
+The native USB path currently implements the published single-universe DMX USB Pro serial framing. Physical-device qualification is pending. It does not yet claim the legacy Pro Mk2's dual-port API, and devices that do not appear as Windows COM ports still require Art-Net, sACN, or the QLC+ bridge.
 
 ## VirtualDJ and MIDI
 
@@ -41,10 +45,10 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
 - The Safety page controls whether each hazard requires an explicit arm and caps normalized strobe/intensity output; conservative arming defaults are enabled in new projects.
 - Work Light is locally available even when DJ or MIDI input is unavailable.
 - Saves are written to a temporary file, read back, checksum-verified, and atomically promoted. The previous valid file is retained as `.bak`; EmberLights attempts that backup when the primary file is corrupt.
-- Clean Runner shutdown sends three zero frames. Keep a rehearsed independent backup lighting path during testing.
+- Clean Runner shutdown sends three zero frames to every open network and USB-DMX output. Keep a rehearsed independent backup lighting path during testing.
 
 ## Not yet qualified
 
-Do not use this build as the only lighting controller at a live event. It still needs the acceptance evidence in `04_V1_SCOPE_AND_ACCEPTANCE.md`, including real VirtualDJ/OS2L capture, Control One capture and feedback, representative Art-Net/sACN receiver tests, interface disconnect/reconnect tests, low-end Windows measurements, eight-hour soak tests, shadow rehearsals, and a low-risk pilot.
+Do not use this build as the only lighting controller at a live event. It still needs the acceptance evidence in `04_V1_SCOPE_AND_ACCEPTANCE.md`, including real VirtualDJ/OS2L capture, Control One capture and feedback, representative Art-Net/sACN/USB-DMX receiver tests, interface disconnect/reconnect tests, low-end Windows measurements, eight-hour soak tests, shadow rehearsals, and a low-risk pilot.
 
 The installer is not code-signed yet, so Windows may show an unknown-publisher warning. Signing, upgrade/rollback validation, and public distribution are release gates rather than hidden limitations.
