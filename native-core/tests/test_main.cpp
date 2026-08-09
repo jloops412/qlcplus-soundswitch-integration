@@ -1,6 +1,7 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_io.hpp"
+#include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
 #include "showcore/artnet.hpp"
 #include "showcore/autoloop.hpp"
@@ -350,6 +351,213 @@ void test_generic_profile_rendering() {
     engine->tick();
     CHECK(engine->frames().universes[0][0] == 0U);
     CHECK(engine->frames().universes[0][1] == 0U);
+}
+
+void test_ranged_channel_rendering() {
+    constexpr std::array<showcore::ChannelMapping, 1> channels{{
+        {showcore::Property::Strobe, 0, -1, showcore::ChannelEncoding::Ranged8,
+         16, 127, 8}
+    }};
+    const showcore::FixtureProfile profile{
+        "Ranged strobe", channels.data(), channels.size(), 1};
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &profile}));
+
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 8U);
+    engine->layers().set(showcore::LayerId::ManualOverride, 0,
+        showcore::Property::Strobe, showcore::PropertyValue::set(0.0F));
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 8U);
+    engine->layers().set(showcore::LayerId::ManualOverride, 0,
+        showcore::Property::Strobe, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 72U);
+    engine->safety().strobe_allowed = false;
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 0U);
+}
+
+void test_qlc_fixture_import() {
+    constexpr std::string_view qxf = R"qxf(<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE FixtureDefinition>
+<FixtureDefinition xmlns="http://www.qlcplus.org/FixtureDefinition">
+ <Creator><Name>Q Light Controller Plus</Name><Version>5.2.2</Version><Author>Test</Author></Creator>
+ <Manufacturer>Example &amp; Co</Manufacturer>
+ <Model>Party Wash</Model>
+ <Type>Effect</Type>
+ <Channel Name="Dimmer" Preset="IntensityMasterDimmer" Default="1"/>
+ <Channel Name="Dimmer Fine" Preset="IntensityMasterDimmerFine" Default="2"/>
+ <Channel Name="Shutter">
+  <Group Byte="0">Shutter</Group>
+  <Capability Min="0" Max="7" Preset="ShutterClose">Closed</Capability>
+  <Capability Min="8" Max="15" Preset="ShutterOpen">Open</Capability>
+  <Capability Min="16" Max="127" Preset="StrobeSlowToFast">Strobe</Capability>
+  <Capability Min="128" Max="255" Preset="StrobeRandomSlowToFast">Random</Capability>
+ </Channel>
+ <Channel Name="Haze Output"><Group Byte="0">Intensity</Group><Capability Min="0" Max="255">Output</Capability></Channel>
+ <Channel Name="Fan Speed"><Group Byte="0">Intensity</Group><Capability Min="0" Max="255">Speed</Capability></Channel>
+ <Channel Name="Red Emitter"><Group Byte="0">Intensity</Group><Colour>Red</Colour></Channel>
+ <Channel Name="Reverse Zoom" Preset="BeamZoomBigSmall"/>
+ <Channel Name="Mystery"><Group Byte="0">Maintenance</Group></Channel>
+ <Channel Name="Switcher"><Group Byte="0">Effect</Group><Capability Min="0" Max="255">Program<Alias Mode="Switched" Channel="Mystery" With="Haze Output"/></Capability></Channel>
+ <Mode Name="Safe 5ch">
+  <Channel Number="0">Dimmer</Channel><Channel Number="1">Dimmer Fine</Channel>
+  <Channel Number="2">Shutter</Channel><Channel Number="3">Haze Output</Channel>
+  <Channel Number="4">Fan Speed</Channel><Channel Number="5">Red Emitter</Channel>
+  <Channel Number="6">Reverse Zoom</Channel><Channel Number="7">Mystery</Channel>
+ </Mode>
+ <Mode Name="Switched"><Channel Number="0">Switcher</Channel></Mode>
+</FixtureDefinition>)qxf";
+
+    const auto imported = emberlights::import_qlc_fixture(qxf, "test.qxf");
+    CHECK(imported);
+    CHECK(imported.manufacturer == "Example & Co");
+    CHECK(imported.model == "Party Wash");
+    CHECK(imported.profiles.size() == 1U);
+    CHECK(imported.error_count() >= 1U);
+    CHECK(imported.warning_count() >= 2U);
+    const auto& profile = imported.profiles[0];
+    CHECK(profile.source == showcore::FixtureProfileSource::QlcPlus);
+    CHECK(profile.mode == "Safe 5ch");
+    CHECK(profile.footprint == 8U);
+    CHECK(profile.channels.size() == 7U);
+
+    const auto dimmer = std::find_if(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Intensity; });
+    CHECK(dimmer != profile.channels.end());
+    if (dimmer != profile.channels.end()) {
+        CHECK(dimmer->encoding == showcore::ChannelEncoding::Linear16);
+        CHECK(dimmer->coarse_offset == 0U && dimmer->fine_offset == 1);
+        CHECK(dimmer->default_value == 0x0102U);
+    }
+    const auto strobe = std::find_if(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Strobe; });
+    CHECK(strobe != profile.channels.end());
+    if (strobe != profile.channels.end()) {
+        CHECK(strobe->encoding == showcore::ChannelEncoding::Ranged8);
+        CHECK(strobe->dmx_min == 16U && strobe->dmx_max == 127U);
+        CHECK(strobe->default_value == 8U);
+    }
+    CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Haze; }));
+    CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Fan; }));
+    CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Red; }));
+    const auto zoom = std::find_if(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Zoom; });
+    CHECK(zoom != profile.channels.end());
+    if (zoom != profile.channels.end()) {
+        CHECK(zoom->dmx_min == 255U && zoom->dmx_max == 0U);
+    }
+    CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
+        [](const auto& channel) { return channel.property == showcore::Property::Custom1; }));
+
+    std::vector<showcore::ChannelMapping> mappings;
+    for (const auto& channel : profile.channels) {
+        mappings.push_back({channel.property, channel.coarse_offset, channel.fine_offset,
+            channel.encoding, channel.dmx_min, channel.dmx_max, channel.default_value});
+    }
+    const showcore::FixtureProfile runtime{
+        profile.name.c_str(), mappings.data(), mappings.size(), profile.footprint};
+    CHECK(showcore::validate_fixture_profile(runtime));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &runtime}));
+    engine->layers().set(showcore::LayerId::ManualOverride, 0,
+        showcore::Property::Strobe, showcore::PropertyValue::set(0.0F));
+    engine->layers().set(showcore::LayerId::ManualOverride, 0,
+        showcore::Property::Haze, showcore::PropertyValue::set(1.0F));
+    engine->tick();
+    CHECK(engine->frames().universes[0][2] == 8U);
+    CHECK(engine->frames().universes[0][3] == 0U);
+    engine->safety().haze_armed = true;
+    engine->tick();
+    CHECK(engine->frames().universes[0][3] == 255U);
+
+    auto project = emberlights::make_starter_project();
+    project.fixture_profiles.push_back(profile);
+    const auto serialized = emberlights::serialize_project(project);
+    emberlights::ProjectDocument parsed;
+    CHECK(emberlights::parse_project(serialized, parsed));
+    CHECK(parsed.fixture_profiles.back().source == showcore::FixtureProfileSource::QlcPlus);
+    CHECK(std::any_of(parsed.fixture_profiles.back().channels.begin(),
+        parsed.fixture_profiles.back().channels.end(), [](const auto& channel) {
+            return channel.encoding == showcore::ChannelEncoding::Ranged8;
+        }));
+
+    const auto external_entity = emberlights::import_qlc_fixture(
+        "<!DOCTYPE FixtureDefinition SYSTEM \"file:///secret\"><FixtureDefinition/>",
+        "unsafe.qxf");
+    CHECK(!external_entity);
+    CHECK(external_entity.error_count() == 1U);
+
+    auto ofl_qxf = std::string(qxf);
+    const auto creator = ofl_qxf.find("Q Light Controller Plus");
+    CHECK(creator != std::string::npos);
+    if (creator != std::string::npos) {
+        ofl_qxf.replace(creator, std::string_view("Q Light Controller Plus").size(),
+                        "OFL - https://open-fixture-library.org/example");
+    }
+    const auto ofl_import = emberlights::import_qlc_fixture(ofl_qxf, "ofl.qxf");
+    CHECK(ofl_import);
+    CHECK(ofl_import.source == showcore::FixtureProfileSource::OpenFixtureLibrary);
+    CHECK(ofl_import.profiles[0].source == showcore::FixtureProfileSource::OpenFixtureLibrary);
+
+    const auto qxf_path = std::filesystem::temp_directory_path() /
+        "emberlights-qlc-import-test.qxf";
+    std::error_code qxf_file_error;
+    std::filesystem::remove(qxf_path, qxf_file_error);
+    {
+        std::ofstream qxf_file(qxf_path, std::ios::binary | std::ios::trunc);
+        CHECK(qxf_file.good());
+        qxf_file.write(qxf.data(), static_cast<std::streamsize>(qxf.size()));
+        CHECK(qxf_file.good());
+    }
+    const auto loaded_import = emberlights::load_qlc_fixture(qxf_path);
+    CHECK(loaded_import);
+    CHECK(loaded_import.profiles.size() == imported.profiles.size());
+    std::filesystem::remove(qxf_path, qxf_file_error);
+
+    constexpr std::string_view laser_qxf = R"qxf(
+<FixtureDefinition xmlns="http://www.qlcplus.org/FixtureDefinition">
+ <Creator><Name>Q Light Controller Plus</Name><Version>5.2.2</Version><Author>Test</Author></Creator>
+ <Manufacturer>SafeCo</Manufacturer><Model>Beam</Model><Type>Laser</Type>
+ <Channel Name="Laser Shutter"><Group Byte="0">Shutter</Group>
+  <Capability Min="0" Max="7" Preset="ShutterClose">Closed</Capability>
+  <Capability Min="8" Max="15" Preset="ShutterOpen">Open</Capability>
+ </Channel>
+ <Mode Name="1ch"><Channel Number="0">Laser Shutter</Channel></Mode>
+</FixtureDefinition>)qxf";
+    const auto laser_import = emberlights::import_qlc_fixture(laser_qxf, "laser.qxf");
+    CHECK(laser_import);
+    CHECK(laser_import.profiles.size() == 1U);
+    const auto& laser_profile = laser_import.profiles[0];
+    CHECK(laser_profile.channels.size() == 1U);
+    CHECK(laser_profile.channels[0].property == showcore::Property::Laser);
+    CHECK(laser_profile.channels[0].encoding == showcore::ChannelEncoding::Ranged8);
+    CHECK(laser_profile.channels[0].dmx_min == 8U);
+    CHECK(laser_profile.channels[0].dmx_max == 15U);
+
+    const showcore::ChannelMapping laser_mapping{
+        laser_profile.channels[0].property,
+        laser_profile.channels[0].coarse_offset,
+        laser_profile.channels[0].fine_offset,
+        laser_profile.channels[0].encoding,
+        laser_profile.channels[0].dmx_min,
+        laser_profile.channels[0].dmx_max,
+        laser_profile.channels[0].default_value};
+    const showcore::FixtureProfile laser_runtime{
+        laser_profile.name.c_str(), &laser_mapping, 1U, laser_profile.footprint};
+    auto laser_engine = std::make_unique<showcore::Engine>();
+    CHECK(laser_engine->patch().add({0, 0, 1, &laser_runtime}));
+    laser_engine->layers().set(showcore::LayerId::ManualOverride, 0,
+        showcore::Property::Laser, showcore::PropertyValue::set(1.0F));
+    laser_engine->tick();
+    CHECK(laser_engine->frames().universes[0][0] == 0U);
+    laser_engine->safety().laser_armed = true;
+    laser_engine->tick();
+    CHECK(laser_engine->frames().universes[0][0] == 15U);
 }
 
 void test_compiled_fixture_library() {
@@ -1478,6 +1686,8 @@ int main() {
     test_safety();
     test_fixture_profile_validation();
     test_generic_profile_rendering();
+    test_ranged_channel_rendering();
+    test_qlc_fixture_import();
     test_compiled_fixture_library();
     test_patch_and_render();
     test_16bit_render();

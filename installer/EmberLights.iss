@@ -44,6 +44,8 @@ Source: "{#BuildDir}\EmberLights.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\midi_capture.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 Source: "{#BuildDir}\docs\README.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "{#BuildDir}\docs\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "{#BuildDir}\docs\15_WINDOWS_V1_TESTING.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "{#BuildDir}\docs\16_QLC_FIXTURE_IMPORT.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\EmberLights"; Filename: "{app}\{#AppExeName}"

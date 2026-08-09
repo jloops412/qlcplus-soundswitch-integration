@@ -502,6 +502,7 @@ std::string_view channel_encoding_name(showcore::ChannelEncoding encoding) noexc
     case showcore::ChannelEncoding::Linear8: return "linear8";
     case showcore::ChannelEncoding::Linear16: return "linear16";
     case showcore::ChannelEncoding::Discrete8: return "discrete8";
+    case showcore::ChannelEncoding::Ranged8: return "ranged8";
     case showcore::ChannelEncoding::Constant8: return "constant8";
     }
     return "invalid";
@@ -516,6 +517,8 @@ bool parse_channel_encoding(
         encoding = showcore::ChannelEncoding::Linear16;
     } else if (text == "discrete8") {
         encoding = showcore::ChannelEncoding::Discrete8;
+    } else if (text == "ranged8") {
+        encoding = showcore::ChannelEncoding::Ranged8;
     } else if (text == "constant8") {
         encoding = showcore::ChannelEncoding::Constant8;
     } else {

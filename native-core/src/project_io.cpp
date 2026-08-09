@@ -135,6 +135,7 @@ void append_record(std::string& output, std::initializer_list<std::string> field
     switch (source) {
     case showcore::FixtureProfileSource::BuiltIn: return "builtIn";
     case showcore::FixtureProfileSource::OpenFixtureLibrary: return "openFixtureLibrary";
+    case showcore::FixtureProfileSource::QlcPlus: return "qlcPlus";
     case showcore::FixtureProfileSource::Local: return "local";
     case showcore::FixtureProfileSource::Migrated: return "migrated";
     case showcore::FixtureProfileSource::Unknown: return "unknown";
@@ -149,6 +150,8 @@ void append_record(std::string& output, std::initializer_list<std::string> field
         source = showcore::FixtureProfileSource::BuiltIn;
     } else if (text == "openFixtureLibrary") {
         source = showcore::FixtureProfileSource::OpenFixtureLibrary;
+    } else if (text == "qlcPlus") {
+        source = showcore::FixtureProfileSource::QlcPlus;
     } else if (text == "local") {
         source = showcore::FixtureProfileSource::Local;
     } else if (text == "migrated") {

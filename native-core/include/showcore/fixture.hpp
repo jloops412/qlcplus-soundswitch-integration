@@ -13,6 +13,10 @@ enum class ChannelEncoding : std::uint8_t {
     Linear8,
     Linear16,
     Discrete8,
+    // Zero/released uses default_value. Positive semantic values enter the
+    // configured DMX range. This safely represents shutter/strobe and other
+    // channels whose inactive value sits outside their active range.
+    Ranged8,
     Constant8
 };
 

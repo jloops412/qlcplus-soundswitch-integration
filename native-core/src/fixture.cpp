@@ -210,9 +210,15 @@ void FixtureRenderer::render(
                 continue;
             }
 
-            frames.universes[fixture.universe][coarse_slot] = resolved.owned
-                ? encode_8bit(resolved.value, mapping.dmx_min, mapping.dmx_max)
-                : static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+            if (mapping.encoding == ChannelEncoding::Ranged8 &&
+                (!resolved.owned || resolved.value <= 0.0F)) {
+                frames.universes[fixture.universe][coarse_slot] =
+                    static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+            } else {
+                frames.universes[fixture.universe][coarse_slot] = resolved.owned
+                    ? encode_8bit(resolved.value, mapping.dmx_min, mapping.dmx_max)
+                    : static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+            }
         }
     }
 }
