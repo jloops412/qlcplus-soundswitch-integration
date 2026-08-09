@@ -2252,20 +2252,6 @@ namespace {
 
 }  // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
-    std::optional<std::filesystem::path> initial_file;
-    int argument_count = 0;
-    auto** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &argument_count);
-    if (arguments != nullptr) {
-        if (argument_count > 1 && arguments[1] != nullptr && arguments[1][0] != L'\0') {
-            initial_file = std::filesystem::path(arguments[1]);
-        }
-        ::LocalFree(arguments);
-    }
-    Application application(instance);
-    return application.run(show_command, initial_file);
-}
-
 void Application::select_profile(std::int32_t index) {
     if (index < 0 || static_cast<std::size_t>(index) >= project_.fixture_profiles.size()) {
         new_profile();
@@ -3113,3 +3099,17 @@ void Application::delete_midi_mapping() {
 }
 
 }  // namespace
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
+    std::optional<std::filesystem::path> initial_file;
+    int argument_count = 0;
+    auto** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &argument_count);
+    if (arguments != nullptr) {
+        if (argument_count > 1 && arguments[1] != nullptr && arguments[1][0] != L'\0') {
+            initial_file = std::filesystem::path(arguments[1]);
+        }
+        ::LocalFree(arguments);
+    }
+    Application application(instance);
+    return application.run(show_command, initial_file);
+}
