@@ -71,7 +71,7 @@ int main() {
     std::cout << std::fixed << std::setprecision(2)
               << "iterations=" << iterations << '\n'
               << "fixtures=" << fixtures_per_universe * showcore::kV1UniverseCount << '\n'
-              << "engine_bytes=" << sizeof(engine) << '\n'
+              << "engine_bytes=" << sizeof(*engine) << '\n'
               << "ns_per_render_tick=" << ns_per_tick << '\n'
               << "max_render_ticks_per_second=" << 1'000'000'000.0 / ns_per_tick << '\n'
               << "checksum=" << checksum << '\n';

@@ -188,7 +188,8 @@ constexpr showcore::FixtureProfile kGenericFixture{
     8};
 
 void test_layers() {
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::Idle, 1, showcore::Property::Intensity, showcore::PropertyValue::set(0.2F));
     auto resolved = layers.resolve(1, showcore::Property::Intensity);
     CHECK(resolved.owned && nearly_equal(resolved.value, 0.2F));
@@ -216,7 +217,8 @@ void test_layers() {
 }
 
 void test_safety() {
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::TrackScript, 0, showcore::Property::Fog, showcore::PropertyValue::set(1.0F));
     layers.set(showcore::LayerId::TrackScript, 0, showcore::Property::Strobe, showcore::PropertyValue::set(0.8F));
     layers.set(showcore::LayerId::TrackScript, 0, showcore::Property::Intensity, showcore::PropertyValue::set(0.9F));
@@ -350,7 +352,8 @@ void test_generic_profile_rendering() {
 }
 
 void test_compiled_fixture_library() {
-    showcore::CompiledFixtureLibrary library;
+    auto library_storage = std::make_unique<showcore::CompiledFixtureLibrary>();
+    auto& library = *library_storage;
     const showcore::FixtureProfileDraft draft{
         "testco/rgb/basic",
         "TestCo",
@@ -805,7 +808,8 @@ void test_sync_manager() {
 }
 
 void test_midi() {
-    showcore::MidiMappingEngine midi;
+    auto midi_storage = std::make_unique<showcore::MidiMappingEngine>();
+    auto& midi = *midi_storage;
     showcore::MidiMapping soft;
     soft.message_type = showcore::MidiMessageType::ControlChange;
     soft.number = 10;
@@ -960,7 +964,8 @@ void test_static_look_player() {
     }};
     const showcore::StaticLook look{"Formal moment", assignments.data(), assignments.size()};
 
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::TrackScript, 7, showcore::Property::Intensity,
         showcore::PropertyValue::set(0.2F));
     layers.set(showcore::LayerId::TrackScript, 7, showcore::Property::Red,
@@ -970,7 +975,8 @@ void test_static_look_player() {
     layers.set(showcore::LayerId::TrackScript, 7, showcore::Property::Blue,
         showcore::PropertyValue::set(0.4F));
 
-    showcore::StaticLookPlayer player;
+    auto player_storage = std::make_unique<showcore::StaticLookPlayer>();
+    auto& player = *player_storage;
     CHECK(player.trigger(look, 1000, 1000, layers));
     player.tick(1500, layers);
     CHECK(nearly_equal(layers.resolve(7, showcore::Property::Intensity).value, 0.6F));
@@ -1017,8 +1023,10 @@ void test_autoloop() {
     CHECK(showcore::validate_autoloop_pattern(pattern));
     CHECK(!pattern.add_step({1.0F, &kRedLook, showcore::AutoloopTransition::Cut}));
 
-    showcore::LayerStack layers;
-    showcore::AutoloopEngine autoloop;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
+    auto autoloop_storage = std::make_unique<showcore::AutoloopEngine>();
+    auto& autoloop = *autoloop_storage;
     CHECK(autoloop.apply(pattern, 1.0, showcore::LayerId::Autonomous, layers));
     CHECK(nearly_equal(layers.resolve(4, showcore::Property::Red).value, 0.5F));
     CHECK(nearly_equal(layers.resolve(4, showcore::Property::Blue).value, 0.5F));
@@ -1081,10 +1089,12 @@ void test_autoloop_catalog_and_player() {
     CHECK(bank_window.page() == 15U);
     CHECK((bank_window.address(3, 31) == showcore::AutoloopAddress{63, 31}));
 
-    showcore::LayerStack layers;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
     layers.set(showcore::LayerId::TrackScript, 4, showcore::Property::Intensity,
         showcore::PropertyValue::set(0.25F));
-    showcore::AutoloopPlayer player;
+    auto player_storage = std::make_unique<showcore::AutoloopPlayer>();
+    auto& player = *player_storage;
     CHECK(player.trigger(
         catalog,
         {0, 0},
@@ -1143,9 +1153,12 @@ void test_performance_playback_has_no_allocations() {
     auto pattern = make_test_autoloop();
     showcore::AutoloopCatalog catalog;
     CHECK(catalog.set({0, 0}, &pattern));
-    showcore::LayerStack layers;
-    showcore::AutoloopPlayer autoloop;
-    showcore::StaticLookPlayer look;
+    auto layers_storage = std::make_unique<showcore::LayerStack>();
+    auto& layers = *layers_storage;
+    auto autoloop_storage = std::make_unique<showcore::AutoloopPlayer>();
+    auto& autoloop = *autoloop_storage;
+    auto look_storage = std::make_unique<showcore::StaticLookPlayer>();
+    auto& look = *look_storage;
     CHECK(autoloop.trigger(
         catalog,
         {0, 0},
@@ -1281,7 +1294,8 @@ void test_project_validation_io_and_compilation() {
     CHECK(compilation.show->fixture_count() == 1U);
     CHECK(compilation.show->look_count() == 2U);
     CHECK(compilation.show->autoloops().get({7, 3}) != nullptr);
-    showcore::StaticLookPlayer look_player;
+    auto look_player_storage = std::make_unique<showcore::StaticLookPlayer>();
+    auto& look_player = *look_player_storage;
     CHECK(look_player.trigger(
         *compilation.show->look(0),
         0,
