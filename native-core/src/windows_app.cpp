@@ -35,6 +35,9 @@ namespace {
 
 constexpr wchar_t kWindowClass[] = L"EmberLightsMainWindow";
 constexpr wchar_t kPageClass[] = L"EmberLightsPage";
+constexpr wchar_t kInstanceMutex[] =
+    L"Local\\EmberLights-5AE71134-902A-4E44-AF80-ADCC47F15DA9";
+constexpr ULONG_PTR kOpenProjectCopyData = 0x454D4245U;
 constexpr UINT_PTR kStatusTimer = 1U;
 constexpr UINT kStatusTimerMs = 250U;
 constexpr int kNavigationWidth = 176;
@@ -709,6 +712,24 @@ LRESULT Application::handle_message(UINT message, WPARAM wparam, LPARAM lparam) 
             handle_timer();
         }
         return 0;
+    case WM_COPYDATA: {
+        const auto* copy = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+        if (copy == nullptr || copy->dwData != kOpenProjectCopyData || copy->lpData == nullptr ||
+            copy->cbData < sizeof(wchar_t) ||
+            copy->cbData > static_cast<DWORD>(32768U * sizeof(wchar_t)) ||
+            copy->cbData % sizeof(wchar_t) != 0U) {
+            return FALSE;
+        }
+        const auto count = static_cast<std::size_t>(copy->cbData / sizeof(wchar_t));
+        const auto* path = static_cast<const wchar_t*>(copy->lpData);
+        if (path[count - 1U] != L'\0') {
+            return FALSE;
+        }
+        if (maybe_save_changes()) {
+            static_cast<void>(open_project(std::filesystem::path(path)));
+        }
+        return TRUE;
+    }
     case WM_CTLCOLORSTATIC: {
         const auto device = reinterpret_cast<HDC>(wparam);
         ::SetBkMode(device, TRANSPARENT);
@@ -3435,6 +3456,42 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
         }
         ::LocalFree(arguments);
     }
+    const auto instance_mutex = ::CreateMutexW(nullptr, FALSE, kInstanceMutex);
+    if (instance_mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (const auto existing = ::FindWindowW(kWindowClass, nullptr); existing != nullptr) {
+            if (initial_file.has_value()) {
+                const auto project_path = initial_file->wstring();
+                COPYDATASTRUCT copy{};
+                copy.dwData = kOpenProjectCopyData;
+                copy.cbData = static_cast<DWORD>(
+                    (project_path.size() + 1U) * sizeof(wchar_t));
+                copy.lpData = const_cast<wchar_t*>(project_path.c_str());
+                DWORD_PTR ignored = 0;
+                static_cast<void>(::SendMessageTimeoutW(
+                    existing,
+                    WM_COPYDATA,
+                    0,
+                    reinterpret_cast<LPARAM>(&copy),
+                    SMTO_ABORTIFHUNG | SMTO_BLOCK,
+                    5000U,
+                    &ignored));
+            }
+            ::ShowWindow(existing, SW_RESTORE);
+            static_cast<void>(::SetForegroundWindow(existing));
+        } else {
+            ::MessageBoxW(
+                nullptr,
+                L"EmberLights is already running in this Windows session.",
+                L"EmberLights",
+                MB_OK | MB_ICONINFORMATION);
+        }
+        ::CloseHandle(instance_mutex);
+        return EXIT_SUCCESS;
+    }
     Application application(instance);
-    return application.run(show_command, initial_file);
+    const auto result = application.run(show_command, initial_file);
+    if (instance_mutex != nullptr) {
+        ::CloseHandle(instance_mutex);
+    }
+    return result;
 }

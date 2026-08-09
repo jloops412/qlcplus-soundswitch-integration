@@ -29,6 +29,9 @@ SetupLogging=yes
 UninstallDisplayIcon={app}\{#AppExeName}
 ChangesAssociations=yes
 MinVersion=10.0.17763
+AppMutex=Local\EmberLights-5AE71134-902A-4E44-AF80-ADCC47F15DA9
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

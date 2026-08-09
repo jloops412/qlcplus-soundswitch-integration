@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <limits>
 #include <new>
 #include <string>
@@ -310,42 +311,42 @@ void test_fixture_profile_validation() {
 }
 
 void test_generic_profile_rendering() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &kGenericFixture}));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &kGenericFixture}));
 
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 64U);
-    CHECK(engine.frames().universes[0][1] == 42U);
-    CHECK(engine.frames().universes[0][2] == 0x80U);
-    CHECK(engine.frames().universes[0][3] == 0x00U);
-    CHECK(engine.frames().universes[0][4] == 77U);
-    CHECK(engine.frames().universes[0][5] == 0U);
-    CHECK(engine.frames().universes[0][6] == 9U);
-    CHECK(engine.frames().universes[0][7] == 128U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 64U);
+    CHECK(engine->frames().universes[0][1] == 42U);
+    CHECK(engine->frames().universes[0][2] == 0x80U);
+    CHECK(engine->frames().universes[0][3] == 0x00U);
+    CHECK(engine->frames().universes[0][4] == 77U);
+    CHECK(engine->frames().universes[0][5] == 0U);
+    CHECK(engine->frames().universes[0][6] == 9U);
+    CHECK(engine->frames().universes[0][7] == 128U);
 
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Intensity, showcore::PropertyValue::set(0.0F));
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Shutter, showcore::PropertyValue::set(0.5F));
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Pan, showcore::PropertyValue::set(0.5F));
-    engine.layers().set(showcore::LayerId::TrackScript, 0,
+    engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Laser, showcore::PropertyValue::set(0.0F));
-    engine.safety().laser_armed = true;
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 255U);
-    CHECK(engine.frames().universes[0][1] == 105U);
-    CHECK(engine.frames().universes[0][2] == 0x80U);
-    CHECK(engine.frames().universes[0][3] == 0x00U);
-    CHECK(engine.frames().universes[0][5] == 100U);
+    engine->safety().laser_armed = true;
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 255U);
+    CHECK(engine->frames().universes[0][1] == 105U);
+    CHECK(engine->frames().universes[0][2] == 0x80U);
+    CHECK(engine->frames().universes[0][3] == 0x00U);
+    CHECK(engine->frames().universes[0][5] == 100U);
 
-    engine.layers().set(showcore::LayerId::Emergency, 0,
+    engine->layers().set(showcore::LayerId::Emergency, 0,
         showcore::Property::Intensity, showcore::PropertyValue::force_zero());
-    engine.layers().set(showcore::LayerId::Emergency, 0,
+    engine->layers().set(showcore::LayerId::Emergency, 0,
         showcore::Property::Shutter, showcore::PropertyValue::force_zero());
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 0U);
-    CHECK(engine.frames().universes[0][1] == 0U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 0U);
+    CHECK(engine->frames().universes[0][1] == 0U);
 }
 
 void test_compiled_fixture_library() {
@@ -393,53 +394,53 @@ void test_compiled_fixture_library() {
     CHECK(library.ingest(second));
     CHECK(library.size() == 2U);
 
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &compiled->runtime}));
-    engine.layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity,
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &compiled->runtime}));
+    engine->layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity,
         showcore::PropertyValue::set(1.0F));
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 255U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 255U);
 }
 
 void test_patch_and_render() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &kRgbFixture}));
-    CHECK(engine.patch().add({1, 1, 507, &kRgbFixture}));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &kRgbFixture}));
+    CHECK(engine->patch().add({1, 1, 507, &kRgbFixture}));
 
-    const auto overlap = engine.patch().add({2, 0, 2, &kRgbFixture});
+    const auto overlap = engine->patch().add({2, 0, 2, &kRgbFixture});
     CHECK(!overlap && overlap.error == showcore::PatchError::AddressOverlap);
     CHECK(overlap.conflicting_fixture_id == 0);
-    CHECK(engine.patch().add({0, 0, 20, &kRgbFixture}).error == showcore::PatchError::DuplicateFixtureId);
-    CHECK(engine.patch().add({3, 2, 1, &kRgbFixture}).error == showcore::PatchError::InvalidUniverse);
-    CHECK(engine.patch().add({3, 0, 510, &kRgbFixture}).error == showcore::PatchError::AddressOverflow);
+    CHECK(engine->patch().add({0, 0, 20, &kRgbFixture}).error == showcore::PatchError::DuplicateFixtureId);
+    CHECK(engine->patch().add({3, 2, 1, &kRgbFixture}).error == showcore::PatchError::InvalidUniverse);
+    CHECK(engine->patch().add({3, 0, 510, &kRgbFixture}).error == showcore::PatchError::AddressOverflow);
 
     for (const auto fixture_id : std::array<std::uint16_t, 2>{0U, 1U}) {
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Red, showcore::PropertyValue::set(1.0F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Green, showcore::PropertyValue::set(0.25F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Blue, showcore::PropertyValue::set(0.0F));
-        engine.layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Fog, showcore::PropertyValue::set(1.0F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Red, showcore::PropertyValue::set(1.0F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Green, showcore::PropertyValue::set(0.25F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Blue, showcore::PropertyValue::set(0.0F));
+        engine->layers().set(showcore::LayerId::Autonomous, fixture_id, showcore::Property::Fog, showcore::PropertyValue::set(1.0F));
     }
-    engine.tick();
-    CHECK(engine.frames().universes[0][0] == 128U);
-    CHECK(engine.frames().universes[0][1] == 255U);
-    CHECK(engine.frames().universes[0][2] == 64U);
-    CHECK(engine.frames().universes[0][3] == 0U);
-    CHECK(engine.frames().universes[0][5] == 0U);
-    CHECK(engine.frames().universes[1][506] == 128U);
+    engine->tick();
+    CHECK(engine->frames().universes[0][0] == 128U);
+    CHECK(engine->frames().universes[0][1] == 255U);
+    CHECK(engine->frames().universes[0][2] == 64U);
+    CHECK(engine->frames().universes[0][3] == 0U);
+    CHECK(engine->frames().universes[0][5] == 0U);
+    CHECK(engine->frames().universes[1][506] == 128U);
 
-    engine.safety().fog_armed = true;
-    engine.tick();
-    CHECK(engine.frames().universes[0][5] == 255U);
+    engine->safety().fog_armed = true;
+    engine->tick();
+    CHECK(engine->frames().universes[0][5] == 255U);
 }
 
 void test_16bit_render() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 100, &kPan16Fixture}));
-    engine.layers().set(showcore::LayerId::TrackScript, 0, showcore::Property::Pan, showcore::PropertyValue::set(0.5F));
-    engine.tick();
-    CHECK(engine.frames().universes[0][99] == 0x80U);
-    CHECK(engine.frames().universes[0][100] == 0x00U);
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 100, &kPan16Fixture}));
+    engine->layers().set(showcore::LayerId::TrackScript, 0, showcore::Property::Pan, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    CHECK(engine->frames().universes[0][99] == 0x80U);
+    CHECK(engine->frames().universes[0][100] == 0x00U);
 }
 
 void test_artnet() {
@@ -1127,12 +1128,12 @@ void test_autoloop_catalog_and_player() {
 }
 
 void test_render_has_no_allocations() {
-    showcore::Engine engine;
-    CHECK(engine.patch().add({0, 0, 1, &kRgbFixture}));
-    engine.layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({0, 0, 1, &kRgbFixture}));
+    engine->layers().set(showcore::LayerId::Autonomous, 0, showcore::Property::Intensity, showcore::PropertyValue::set(0.5F));
     const auto before = g_allocations.load();
     for (int index = 0; index < 10000; ++index) {
-        engine.tick();
+        engine->tick();
     }
     const auto after = g_allocations.load();
     CHECK(after == before);
@@ -1166,21 +1167,21 @@ void test_performance_playback_has_no_allocations() {
 }
 
 void test_deterministic_replay() {
-    showcore::Engine first;
-    showcore::Engine second;
-    CHECK(first.patch().add({0, 0, 1, &kRgbFixture}));
-    CHECK(second.patch().add({0, 0, 1, &kRgbFixture}));
+    auto first = std::make_unique<showcore::Engine>();
+    auto second = std::make_unique<showcore::Engine>();
+    CHECK(first->patch().add({0, 0, 1, &kRgbFixture}));
+    CHECK(second->patch().add({0, 0, 1, &kRgbFixture}));
 
     for (int tick = 0; tick < 1000; ++tick) {
         const auto value = static_cast<float>((tick * 37) % 256) / 255.0F;
-        for (auto* engine : {&first, &second}) {
+        for (auto* engine : {first.get(), second.get()}) {
             engine->layers().set(showcore::LayerId::TrackScript, 0,
                 showcore::Property::Intensity, showcore::PropertyValue::set(value));
             engine->layers().set(showcore::LayerId::TrackScript, 0,
                 showcore::Property::Blue, showcore::PropertyValue::set(1.0F - value));
             engine->tick();
         }
-        CHECK(first.frames().universes == second.frames().universes);
+        CHECK(first->frames().universes == second->frames().universes);
     }
 }
 

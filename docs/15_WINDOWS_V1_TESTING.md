@@ -9,6 +9,8 @@ EmberLights V1 testing builds are unsigned pre-release software. GitHub Actions 
 
 Windows 10 build 1809 or later and Windows 11 are the current implementation target. Real-machine qualification is still required before that range becomes a release guarantee.
 
+Only one EmberLights process runs per Windows session, preventing duplicate DMX transmitters and OS2L listeners. Opening an `.emberlights` file while the app is already running forwards that project to the existing window, including its normal unsaved-changes prompt. The installer also asks the running app to close before replacing files.
+
 ## Safe first launch
 
 1. Install EmberLights or extract the portable ZIP.
