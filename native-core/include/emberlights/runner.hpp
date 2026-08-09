@@ -8,6 +8,7 @@
 #include "showcore/sync_manager.hpp"
 #include "showcore/types.hpp"
 
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -64,6 +65,9 @@ struct RunnerStatus {
     AdapterState midi_output{AdapterState::Disabled};
     AdapterState artnet{AdapterState::Disabled};
     AdapterState sacn{AdapterState::Disabled};
+    std::array<AdapterState, showcore::kV1UniverseCount> dmx_usb_pro{
+        AdapterState::Disabled,
+        AdapterState::Disabled};
     showcore::SyncState sync_state{showcore::SyncState::Waiting};
     showcore::ClockSource clock_source{showcore::ClockSource::None};
     double bpm{0.0};
@@ -79,6 +83,7 @@ struct RunnerStatus {
     std::uint64_t frames{0};
     std::uint64_t output_frames{0};
     std::uint64_t output_queue_drops{0};
+    std::uint64_t output_superseded_frames{0};
     std::uint64_t output_send_failures{0};
     std::uint64_t os2l_connections{0};
     std::uint64_t os2l_messages{0};
@@ -186,6 +191,8 @@ private:
     std::atomic<AdapterState> midi_output_state_{AdapterState::Disabled};
     std::atomic<AdapterState> artnet_state_{AdapterState::Disabled};
     std::atomic<AdapterState> sacn_state_{AdapterState::Disabled};
+    std::array<std::atomic<AdapterState>, showcore::kV1UniverseCount>
+        dmx_usb_pro_state_{};
     std::atomic<showcore::SyncState> sync_state_{showcore::SyncState::Waiting};
     std::atomic<showcore::ClockSource> clock_source_{showcore::ClockSource::None};
     std::atomic<std::uint32_t> bpm_milli_{0};
@@ -199,6 +206,7 @@ private:
     std::atomic<std::uint64_t> frames_{0};
     std::atomic<std::uint64_t> output_frames_{0};
     std::atomic<std::uint64_t> output_queue_drops_{0};
+    std::atomic<std::uint64_t> output_superseded_frames_{0};
     std::atomic<std::uint64_t> output_send_failures_{0};
     std::atomic<std::uint64_t> os2l_connections_{0};
     std::atomic<std::uint64_t> os2l_messages_{0};

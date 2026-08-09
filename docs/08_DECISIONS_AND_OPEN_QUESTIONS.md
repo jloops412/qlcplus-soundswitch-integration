@@ -1,6 +1,6 @@
 # Decisions and Open Questions
 
-Last updated: 2026-08-08.
+Last updated: 2026-08-09.
 
 ## Accepted decisions
 
@@ -36,6 +36,7 @@ Last updated: 2026-08-08.
 | D-028 | WinMM is the first Windows MIDI adapter, isolated behind logical device/port contracts with one bounded queue per input; MIDI feedback never runs on the DMX scheduler. | Windows is the launch platform and WinMM provides the required desktop MIDI device lifecycle. Isolation preserves later backend replacement, while per-port queues and off-thread feedback protect deterministic output. |
 | D-029 | The product name is EmberLights. | Joshua selected the name for the application and repository; project files use the `.emberlights` extension. |
 | D-030 | The first distributed Windows build is a coherent full-V1 testing build with an installer, not a hard-coded lab-only alpha. | Joshua asked to keep building the whole application and improve it through installed versions and iterations. Hardware qualification and parity evidence still determine gig-ready/public-release claims. |
+| D-031 | The first native USB-DMX output is the published ENTTEC DMX USB Pro serial protocol, with one independently reconnecting COM device mapped per universe. | It gives Windows users a lawful, dependency-light native adapter while preserving the two-universe architecture. Slow writes stay off the scheduler and stale queued frames are superseded instead of replayed late. DMX USB Pro Mk2 dual-port behavior and third-party compatible devices remain separate hardware qualifications. |
 
 ## Superseded recommendations
 

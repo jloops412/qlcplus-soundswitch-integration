@@ -1,5 +1,6 @@
 #include "emberlights/project.hpp"
 
+#include "showcore/dmx_usb_pro.hpp"
 #include "showcore/fixture_library.hpp"
 
 #include <algorithm>
@@ -242,6 +243,41 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         project.connections.manual_bpm < 20.0 || project.connections.manual_bpm > 300.0) {
         add_issue(result, ProjectIssueSeverity::Error, "connections.manualBpm", project.id,
                   "Manual BPM must be between 20 and 300.");
+    }
+    std::array<std::uint16_t, showcore::kV1UniverseCount> dmx_usb_port_numbers{};
+    for (std::size_t universe = 0;
+         universe < project.connections.dmx_usb_pro_ports.size(); ++universe) {
+        const auto& port = project.connections.dmx_usb_pro_ports[universe];
+        if (!port.empty() && !showcore::parse_windows_com_port(
+                port, dmx_usb_port_numbers[universe])) {
+            add_issue(
+                result,
+                ProjectIssueSeverity::Error,
+                "connections.dmxUsbProPort",
+                project.id,
+                "DMX USB Pro ports must use a COM number from COM1 through COM256.");
+        }
+    }
+    if (dmx_usb_port_numbers[0] != 0U &&
+        dmx_usb_port_numbers[0] == dmx_usb_port_numbers[1]) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "connections.dmxUsbProDuplicate",
+            project.id,
+            "One serial DMX interface cannot drive both universes simultaneously.");
+    }
+    if (project.connections.frame_rate > 40U &&
+        std::any_of(
+            project.connections.dmx_usb_pro_ports.begin(),
+            project.connections.dmx_usb_pro_ports.end(),
+            [](const auto& port) { return !port.empty(); })) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "connections.dmxUsbProFrameRate",
+            project.id,
+            "DMX USB Pro output is limited to a 40 Hz project frame rate.");
     }
     if (!finite_normalized(project.safety.max_strobe) ||
         !finite_normalized(project.safety.max_intensity)) {

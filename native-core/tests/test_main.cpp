@@ -4,6 +4,7 @@
 #include "emberlights/runner.hpp"
 #include "showcore/artnet.hpp"
 #include "showcore/autoloop.hpp"
+#include "showcore/dmx_usb_pro.hpp"
 #include "showcore/engine.hpp"
 #include "showcore/fixture.hpp"
 #include "showcore/fixture_library.hpp"
@@ -529,6 +530,32 @@ void test_artnet() {
     }
 }
 
+void test_dmx_usb_pro() {
+    showcore::DmxUniverse universe{};
+    universe[0] = 0x11U;
+    universe[1] = 0x22U;
+    universe[511] = 0xFEU;
+    const auto packet = showcore::build_dmx_usb_pro_packet(universe);
+    static_assert(showcore::kDmxUsbProPacketSize == 518U);
+    CHECK(packet.bytes[0] == 0x7EU);
+    CHECK(packet.bytes[1] == 0x06U);
+    CHECK(packet.bytes[2] == 0x01U);
+    CHECK(packet.bytes[3] == 0x02U);
+    CHECK(packet.bytes[4] == 0x00U);
+    CHECK(packet.bytes[5] == 0x11U);
+    CHECK(packet.bytes[6] == 0x22U);
+    CHECK(packet.bytes[516] == 0xFEU);
+    CHECK(packet.bytes[517] == 0xE7U);
+
+    std::uint16_t port = 0U;
+    CHECK(showcore::parse_windows_com_port("COM1", port) && port == 1U);
+    CHECK(showcore::parse_windows_com_port("com256", port) && port == 256U);
+    CHECK(!showcore::parse_windows_com_port("COM0", port));
+    CHECK(!showcore::parse_windows_com_port("COM257", port));
+    CHECK(!showcore::parse_windows_com_port("COM3extra", port));
+    CHECK(!showcore::parse_windows_com_port("\\\\.\\COM3", port));
+}
+
 void test_sacn() {
     showcore::DmxUniverse universe{};
     universe[0] = 0x21U;
@@ -772,6 +799,13 @@ void test_spsc_queue() {
     queue.reset();
     CHECK(queue.empty());
     CHECK(!queue.try_pop(value));
+    CHECK(queue.try_pop_latest(value) == 0U);
+    CHECK(queue.try_push(60U));
+    CHECK(queue.try_push(70U));
+    CHECK(queue.try_push(80U));
+    CHECK(queue.try_pop_latest(value) == 3U);
+    CHECK(value == 80U);
+    CHECK(queue.empty());
 }
 
 void test_sync_manager() {
@@ -1232,8 +1266,19 @@ emberlights::ProjectDocument make_test_project() {
 
 void test_project_validation_io_and_compilation() {
     auto project = make_test_project();
+    project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
     const auto validation = emberlights::validate_project(project);
     CHECK(validation.ok());
+
+    auto invalid_usb_port = project;
+    invalid_usb_port.connections.dmx_usb_pro_ports[0] = "device-path";
+    CHECK(!emberlights::validate_project(invalid_usb_port).ok());
+    auto duplicate_usb_port = project;
+    duplicate_usb_port.connections.dmx_usb_pro_ports[1] = "com3";
+    CHECK(!emberlights::validate_project(duplicate_usb_port).ok());
+    auto fast_usb_output = project;
+    fast_usb_output.connections.frame_rate = 41U;
+    CHECK(!emberlights::validate_project(fast_usb_output).ok());
 
     std::vector<emberlights::LookAssignmentDefinition> expanded;
     const auto fixture_target = emberlights::expand_look_target(
@@ -1278,6 +1323,8 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.name == project.name);
     CHECK(parsed.fixture_profiles.size() == project.fixture_profiles.size());
     CHECK(parsed.fixtures.size() == 1U);
+    CHECK(parsed.connections.dmx_usb_pro_ports[0] == "COM3");
+    CHECK(parsed.connections.dmx_usb_pro_ports[1] == "COM4");
     CHECK(parsed.fixtures[0].roles.size() == 1U);
     CHECK(parsed.looks.size() == 2U);
     CHECK(parsed.autoloops.size() == 1U);
@@ -1359,6 +1406,8 @@ void test_runner_service_lifecycle() {
     CHECK(active.blackout && active.work_light);
     CHECK(active.artnet == emberlights::AdapterState::Disabled);
     CHECK(active.sacn == emberlights::AdapterState::Disabled);
+    CHECK(active.dmx_usb_pro[0] == emberlights::AdapterState::Disabled);
+    CHECK(active.dmx_usb_pro[1] == emberlights::AdapterState::Disabled);
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
 }
@@ -1433,6 +1482,7 @@ int main() {
     test_patch_and_render();
     test_16bit_render();
     test_artnet();
+    test_dmx_usb_pro();
     test_sacn();
     test_os2l();
     test_os2l_stream();

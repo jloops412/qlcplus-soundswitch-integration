@@ -40,7 +40,7 @@ SoundSwitch is the primary product reference. Wolfmix is a secondary source of u
 
 ## Current milestone
 
-The current milestone is a coherent installable Windows V1 testing build. The native application now brings project creation, fixture-profile editing, two-universe patching, reusable fixture groups and roles, Static Looks, a 64-by-32 Autoloop library, MIDI Learn, VirtualDJ/OS2L timing, Art-Net/sACN output, editable fail-closed safety policy, live controls, diagnostics, validation, and recovery into one desktop shell. The portable core remains independently tested and allocation-free on the DMX scheduling path.
+The current milestone is a coherent installable Windows V1 testing build. The native application now brings project creation, fixture-profile editing, two-universe patching, reusable fixture groups and roles, Static Looks, a 64-by-32 Autoloop library, MIDI Learn, VirtualDJ/OS2L timing, Art-Net/sACN output, per-universe ENTTEC DMX USB Pro–compatible serial output, editable fail-closed safety policy, live controls, diagnostics, validation, and recovery into one desktop shell. The portable core remains independently tested and allocation-free on the DMX scheduling path.
 
 Every push is compiled and tested on Windows and Linux. The Windows packaging job stages a self-contained portable build and creates an Inno Setup installer. Tagged commits additionally publish those artifacts as a GitHub release.
 

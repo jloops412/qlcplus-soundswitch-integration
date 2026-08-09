@@ -1,6 +1,7 @@
 #include "emberlights/runner.hpp"
 
 #include "showcore/artnet.hpp"
+#include "showcore/dmx_usb_pro.hpp"
 #include "showcore/look.hpp"
 #include "showcore/os2l_server.hpp"
 #include "showcore/sacn.hpp"
@@ -137,6 +138,7 @@ bool RunnerService::start(
     frames_.store(0, std::memory_order_relaxed);
     output_frames_.store(0, std::memory_order_relaxed);
     output_queue_drops_.store(0, std::memory_order_relaxed);
+    output_superseded_frames_.store(0, std::memory_order_relaxed);
     output_send_failures_.store(0, std::memory_order_relaxed);
     os2l_connections_.store(0, std::memory_order_relaxed);
     os2l_messages_.store(0, std::memory_order_relaxed);
@@ -160,6 +162,13 @@ bool RunnerService::start(
     sacn_state_.store(
         connections_.sacn_enabled ? AdapterState::Starting : AdapterState::Disabled,
         std::memory_order_relaxed);
+    for (std::size_t universe = 0; universe < dmx_usb_pro_state_.size(); ++universe) {
+        dmx_usb_pro_state_[universe].store(
+            connections_.dmx_usb_pro_ports[universe].empty()
+                ? AdapterState::Disabled
+                : AdapterState::Starting,
+            std::memory_order_relaxed);
+    }
 
     try {
         output_thread_ = std::thread(&RunnerService::run_output, this);
@@ -213,6 +222,10 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.midi_output = midi_output_state_.load(std::memory_order_relaxed);
     snapshot.artnet = artnet_state_.load(std::memory_order_relaxed);
     snapshot.sacn = sacn_state_.load(std::memory_order_relaxed);
+    for (std::size_t universe = 0; universe < snapshot.dmx_usb_pro.size(); ++universe) {
+        snapshot.dmx_usb_pro[universe] =
+            dmx_usb_pro_state_[universe].load(std::memory_order_relaxed);
+    }
     snapshot.sync_state = sync_state_.load(std::memory_order_relaxed);
     snapshot.clock_source = clock_source_.load(std::memory_order_relaxed);
     snapshot.bpm = static_cast<double>(bpm_milli_.load(std::memory_order_relaxed)) / 1000.0;
@@ -230,6 +243,8 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.frames = frames_.load(std::memory_order_relaxed);
     snapshot.output_frames = output_frames_.load(std::memory_order_relaxed);
     snapshot.output_queue_drops = output_queue_drops_.load(std::memory_order_relaxed);
+    snapshot.output_superseded_frames =
+        output_superseded_frames_.load(std::memory_order_relaxed);
     snapshot.output_send_failures = output_send_failures_.load(std::memory_order_relaxed);
     snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
     snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
@@ -810,14 +825,19 @@ void RunnerService::run_scheduler() noexcept {
 void RunnerService::run_output() noexcept {
     showcore::ArtNetSender artnet;
     std::array<showcore::SacnSender, showcore::kV1UniverseCount> sacn;
+    std::array<showcore::DmxUsbProSender, showcore::kV1UniverseCount> dmx_usb_pro;
     const auto cid = showcore::make_sacn_cid(project_id_);
 
-    auto open_outputs = [&]() noexcept {
+    auto open_missing_outputs = [&]() noexcept {
         bool artnet_ready = !connections_.artnet_enabled;
         bool sacn_ready = !connections_.sacn_enabled;
+        bool usb_ready = true;
         if (connections_.artnet_enabled) {
-            artnet_state_.store(AdapterState::Starting, std::memory_order_relaxed);
-            artnet_ready = artnet.open_ipv4(connections_.artnet_destination);
+            if (!artnet.is_open()) {
+                artnet_state_.store(AdapterState::Starting, std::memory_order_relaxed);
+                static_cast<void>(artnet.open_ipv4(connections_.artnet_destination));
+            }
+            artnet_ready = artnet.is_open();
             artnet_state_.store(
                 artnet_ready ? AdapterState::Ready : AdapterState::Fault,
                 std::memory_order_relaxed);
@@ -828,43 +848,65 @@ void RunnerService::run_output() noexcept {
             for (std::uint16_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
                 const auto output_universe = static_cast<std::uint16_t>(
                     connections_.sacn_universe_base + universe);
-                const bool opened = connections_.sacn_destination == "multicast"
-                    ? sacn[universe].open_multicast(output_universe)
-                    : sacn[universe].open_ipv4(connections_.sacn_destination);
-                sacn_ready = sacn_ready && opened;
+                if (!sacn[universe].is_open()) {
+                    static_cast<void>(connections_.sacn_destination == "multicast"
+                        ? sacn[universe].open_multicast(output_universe)
+                        : sacn[universe].open_ipv4(connections_.sacn_destination));
+                }
+                sacn_ready = sacn_ready && sacn[universe].is_open();
             }
             sacn_state_.store(
                 sacn_ready ? AdapterState::Ready : AdapterState::Fault,
                 std::memory_order_relaxed);
         }
-        return artnet_ready && sacn_ready;
+        for (std::size_t universe = 0; universe < dmx_usb_pro.size(); ++universe) {
+            const auto& port = connections_.dmx_usb_pro_ports[universe];
+            if (port.empty()) {
+                dmx_usb_pro_state_[universe].store(
+                    AdapterState::Disabled, std::memory_order_relaxed);
+                continue;
+            }
+            if (!dmx_usb_pro[universe].is_open()) {
+                dmx_usb_pro_state_[universe].store(
+                    AdapterState::Starting, std::memory_order_relaxed);
+                static_cast<void>(dmx_usb_pro[universe].open(port));
+            }
+            const bool opened = dmx_usb_pro[universe].is_open();
+            usb_ready = usb_ready && opened;
+            dmx_usb_pro_state_[universe].store(
+                opened ? AdapterState::Ready : AdapterState::Fault,
+                std::memory_order_relaxed);
+        }
+        return artnet_ready && sacn_ready && usb_ready;
     };
 
-    bool outputs_ready = open_outputs();
+    bool outputs_ready = open_missing_outputs();
     auto next_retry = SteadyClock::now() + std::chrono::seconds(2);
     OutputFrame frame;
     while (!stop_requested_.load(std::memory_order_acquire) || !output_queue_.empty()) {
         if (!outputs_ready && SteadyClock::now() >= next_retry) {
-            artnet.close();
-            for (auto& sender : sacn) {
-                sender.close();
-            }
-            outputs_ready = open_outputs();
+            outputs_ready = open_missing_outputs();
             next_retry = SteadyClock::now() + std::chrono::seconds(2);
         }
-        if (!output_queue_.try_pop(frame)) {
+        const auto consumed = output_queue_.try_pop_latest(frame);
+        if (consumed == 0U) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
+        if (consumed > 1U) {
+            output_superseded_frames_.fetch_add(consumed - 1U, std::memory_order_relaxed);
+        }
 
-        bool success = true;
+        bool artnet_success = true;
+        bool sacn_success = true;
+        bool usb_success = true;
         for (std::uint16_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
             if (connections_.artnet_enabled && artnet.is_open()) {
                 const auto packet = showcore::build_artdmx(
                     frame.frames.universes[universe],
                     static_cast<std::uint16_t>(connections_.artnet_base + universe),
                     frame.sequence);
-                success = artnet.send(packet) && success;
+                artnet_success = artnet.send(packet) && artnet_success;
             }
             if (connections_.sacn_enabled && sacn[universe].is_open()) {
                 const auto packet = showcore::build_sacn_data_packet(
@@ -873,16 +915,30 @@ void RunnerService::run_output() noexcept {
                     frame.sequence,
                     cid,
                     project_name_);
-                success = sacn[universe].send(packet) && success;
+                sacn_success = sacn[universe].send(packet) && sacn_success;
+            }
+            if (!connections_.dmx_usb_pro_ports[universe].empty() &&
+                dmx_usb_pro[universe].is_open() &&
+                !dmx_usb_pro[universe].send(frame.frames.universes[universe])) {
+                usb_success = false;
+                dmx_usb_pro[universe].close();
+                dmx_usb_pro_state_[universe].store(
+                    AdapterState::Fault, std::memory_order_relaxed);
             }
         }
+        const bool success = artnet_success && sacn_success && usb_success;
         if (!success) {
             output_send_failures_.fetch_add(1, std::memory_order_relaxed);
             outputs_ready = false;
-            if (connections_.artnet_enabled) {
+            next_retry = SteadyClock::now() + std::chrono::seconds(2);
+            if (!artnet_success && connections_.artnet_enabled) {
+                artnet.close();
                 artnet_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
-            if (connections_.sacn_enabled) {
+            if (!sacn_success && connections_.sacn_enabled) {
+                for (auto& sender : sacn) {
+                    sender.close();
+                }
                 sacn_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
         }
@@ -907,8 +963,21 @@ void RunnerService::run_output() noexcept {
                     cid,
                     project_name_)));
             }
+            if (!connections_.dmx_usb_pro_ports[universe].empty() &&
+                dmx_usb_pro[universe].is_open()) {
+                static_cast<void>(dmx_usb_pro[universe].send(
+                    zero_frames.universes[universe]));
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    }
+
+    artnet.close();
+    for (auto& sender : sacn) {
+        sender.close();
+    }
+    for (auto& sender : dmx_usb_pro) {
+        sender.close();
     }
 }
 

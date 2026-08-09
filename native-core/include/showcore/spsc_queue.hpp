@@ -37,6 +37,22 @@ public:
         return true;
     }
 
+    [[nodiscard]] std::size_t try_pop_latest(Value& value) noexcept {
+        auto read = read_.load(std::memory_order_relaxed);
+        const auto write = write_.load(std::memory_order_acquire);
+        if (read == write) {
+            return 0U;
+        }
+        std::size_t consumed = 0U;
+        do {
+            value = storage_[read];
+            read = increment(read);
+            ++consumed;
+        } while (read != write);
+        read_.store(read, std::memory_order_release);
+        return consumed;
+    }
+
     [[nodiscard]] bool empty() const noexcept {
         return read_.load(std::memory_order_acquire) ==
             write_.load(std::memory_order_acquire);

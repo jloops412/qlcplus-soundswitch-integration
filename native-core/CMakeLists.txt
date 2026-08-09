@@ -22,6 +22,7 @@ add_library(showcore STATIC
     src/layer_resolver.cpp
     src/fixture.cpp
     src/fixture_library.cpp
+    src/dmx_usb_pro.cpp
     src/artnet.cpp
     src/sacn.cpp
     src/os2l.cpp

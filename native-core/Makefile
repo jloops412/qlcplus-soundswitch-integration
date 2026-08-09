@@ -19,6 +19,7 @@ SOURCES := \
 	src/layer_resolver.cpp \
 	src/fixture.cpp \
 	src/fixture_library.cpp \
+	src/dmx_usb_pro.cpp \
 	src/artnet.cpp \
 	src/sacn.cpp \
 	src/os2l.cpp \
@@ -44,7 +45,7 @@ DEPS := \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
-.PHONY: all runner_lab test winmm-syntax bench smoke clean
+.PHONY: all runner_lab test winmm-syntax dmx-usb-syntax bench smoke clean
 
 all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/core_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
@@ -83,6 +84,10 @@ test: $(BUILD)/core_tests
 winmm-syntax:
 	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \
 		-Itests/winmm_stubs -Iinclude -fsyntax-only src/winmm_midi.cpp
+
+dmx-usb-syntax:
+	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \
+		-Itests/winmm_stubs -Iinclude -fsyntax-only src/dmx_usb_pro.cpp
 
 bench: $(BUILD)/core_bench $(BUILD)/performance_bench
 	./$(BUILD)/core_bench

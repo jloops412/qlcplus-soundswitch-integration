@@ -317,7 +317,16 @@ template <typename Collection>
             project.connections.os2l_bind = f[2];
             project.connections.artnet_destination = f[5];
             project.connections.sacn_destination = f[8];
-            // Fields 14-16 are reserved for forward-compatible connection settings.
+            // Preview builds before native USB-DMX used literal zeroes in these
+            // reserved fields. Treat those as disabled when opening older files.
+            if (f[14] != "0") {
+                project.connections.dmx_usb_pro_ports[0] = f[14];
+            }
+            if (f[15] != "0") {
+                project.connections.dmx_usb_pro_ports[1] = f[15];
+            }
+            // Field 16 identifies the adapter contract and remains optional so
+            // earlier project files continue to load without a format bump.
         } else if (f[0] == "SAFETY") {
             if (f.size() != 8U ||
                 !parse_bool(f[1], project.safety.fog_requires_arm) ||
@@ -558,7 +567,9 @@ std::string serialize_project(const ProjectDocument& project) {
         number_text(project.connections.manual_bpm),
         number_text(project.connections.midi_input_index),
         number_text(project.connections.midi_output_index),
-        "0", "0", "0"});
+        project.connections.dmx_usb_pro_ports[0],
+        project.connections.dmx_usb_pro_ports[1],
+        "dmxUsbProSerialV1"});
     append_record(payload, {
         "SAFETY",
         project.safety.fog_requires_arm ? "1" : "0",

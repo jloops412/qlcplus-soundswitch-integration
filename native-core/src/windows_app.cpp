@@ -2,6 +2,7 @@
 #include "emberlights/project.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/runner.hpp"
+#include "showcore/dmx_usb_pro.hpp"
 #include "showcore/winmm_midi.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -187,6 +188,8 @@ enum ControlId : int {
     IdSacnEnabled,
     IdSacnDestination,
     IdSacnBase,
+    IdDmxUsbProUniverse1,
+    IdDmxUsbProUniverse2,
     IdFrameRate,
     IdManualBpm,
     IdMidiInput,
@@ -542,6 +545,7 @@ private:
     bool learn_uses_runner_{false};
     showcore::MidiPortList midi_inputs_{};
     showcore::MidiPortList midi_outputs_{};
+    showcore::DmxSerialPortList dmx_serial_ports_{};
 };
 
 Application::~Application() noexcept {
@@ -1081,6 +1085,10 @@ void Application::create_pages() {
     add_edit(page, IdSacnDestination);
     add_label(page, L"First universe", 0);
     add_edit(page, IdSacnBase);
+    add_label(page, L"USB-DMX Pro — universe 1", 0);
+    add_combo(page, IdDmxUsbProUniverse1);
+    add_label(page, L"USB-DMX Pro — universe 2", 0);
+    add_combo(page, IdDmxUsbProUniverse2);
     add_label(page, L"Frame rate", 0);
     add_edit(page, IdFrameRate);
     add_label(page, L"Manual fallback BPM", 0);
@@ -1089,7 +1097,7 @@ void Application::create_pages() {
     add_combo(page, IdMidiInput);
     add_label(page, L"MIDI feedback output", 0);
     add_combo(page, IdMidiOutput);
-    add_button(page, L"Refresh MIDI Devices", IdRefreshMidi);
+    add_button(page, L"Refresh MIDI + USB-DMX", IdRefreshMidi);
     add_button(page, L"Apply Settings", IdConnectionsApply);
     add_label(page, L"", IdConnectionsMessage);
 
@@ -1342,13 +1350,21 @@ void Application::layout_page(Page page, int width, int height) {
         ++row;
         field_row(14, 15);
         field_row(16, 17);
-        field_row(18, 19);
-        field_row(20, 21);
+        {
+            const auto y = 70 + row * 36;
+            move(18, margin, y, 155, 27);
+            move(19, margin + 155, y, 175, 200);
+            move(20, margin + 350, y, 155, 27);
+            move(21, margin + 505, y, 175, 200);
+            ++row;
+        }
         field_row(22, 23);
         field_row(24, 25);
-        move(26, margin, height - 106, 180, 32);
-        move(27, margin + 194, height - 106, 140, 32);
-        move(28, margin, height - 66, usable_width, 30);
+        field_row(26, 27);
+        field_row(28, 29);
+        move(30, margin, height - 106, 210, 32);
+        move(31, margin + 224, height - 106, 140, 32);
+        move(32, margin, height - 66, usable_width, 30);
         break;
     }
     case Page::Safety:
@@ -1653,9 +1669,12 @@ void Application::refresh_live_status() {
             << L"    MIDI: " << adapter_state_name(status.midi_input)
             << L"    Art-Net: " << adapter_state_name(status.artnet)
             << L"    sACN: " << adapter_state_name(status.sacn)
+            << L"    USB U1/U2: " << adapter_state_name(status.dmx_usb_pro[0])
+            << L"/" << adapter_state_name(status.dmx_usb_pro[1])
             << L"\r\nFrames: " << status.frames
             << L"    Output failures: " << status.output_send_failures
             << L"    Queue drops: " << status.output_queue_drops
+            << L"    Superseded: " << status.output_superseded_frames
             << L"    Max jitter: " << status.max_jitter_us << L" µs";
     static_cast<void>(::SetWindowTextW(::GetDlgItem(page, IdLiveMetrics), metrics.str().c_str()));
 }
@@ -1840,6 +1859,7 @@ void Application::refresh_midi() {
 void Application::refresh_midi_ports() {
     midi_inputs_ = showcore::enumerate_winmm_midi_inputs();
     midi_outputs_ = showcore::enumerate_winmm_midi_outputs();
+    dmx_serial_ports_ = showcore::enumerate_dmx_serial_ports();
     refresh_connections();
 }
 
@@ -1863,6 +1883,29 @@ void Application::refresh_connections() {
     set_control_text(::GetDlgItem(page, IdSacnDestination), project_.connections.sacn_destination);
     set_control_text(::GetDlgItem(page, IdSacnBase),
                      number_text(project_.connections.sacn_universe_base));
+
+    auto populate_dmx_port = [&](int control_id, const std::string& configured) {
+        const auto combo = ::GetDlgItem(page, control_id);
+        static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+        combo_add(combo, L"Disabled", -1);
+        std::intptr_t selected = -1;
+        for (std::size_t index = 0; index < dmx_serial_ports_.count; ++index) {
+            const auto name = dmx_serial_ports_.ports[index].name();
+            combo_add(combo, widen(name), static_cast<std::intptr_t>(index));
+            if (name == configured) {
+                selected = static_cast<std::intptr_t>(index);
+            }
+        }
+        if (!configured.empty() && selected < 0) {
+            combo_add(combo, widen(configured + " (not connected)"), -2);
+            selected = -2;
+        }
+        combo_select_data(combo, selected);
+    };
+    populate_dmx_port(
+        IdDmxUsbProUniverse1, project_.connections.dmx_usb_pro_ports[0]);
+    populate_dmx_port(
+        IdDmxUsbProUniverse2, project_.connections.dmx_usb_pro_ports[1]);
     set_control_text(::GetDlgItem(page, IdFrameRate), number_text(project_.connections.frame_rate));
     set_control_text(::GetDlgItem(page, IdManualBpm), number_text(project_.connections.manual_bpm));
 
@@ -1925,10 +1968,13 @@ std::string Application::diagnostics_text() const {
            << "OS2L: " << narrow(adapter_state_name(status.os2l))
            << "  MIDI: " << narrow(adapter_state_name(status.midi_input))
            << "  Art-Net: " << narrow(adapter_state_name(status.artnet))
-           << "  sACN: " << narrow(adapter_state_name(status.sacn)) << "\r\n"
+           << "  sACN: " << narrow(adapter_state_name(status.sacn))
+           << "  USB U1: " << narrow(adapter_state_name(status.dmx_usb_pro[0]))
+           << "  USB U2: " << narrow(adapter_state_name(status.dmx_usb_pro[1])) << "\r\n"
            << "Frames: " << status.frames << "  Output frames: " << status.output_frames
            << "  Send failures: " << status.output_send_failures
-           << "  Queue drops: " << status.output_queue_drops << "\r\n"
+           << "  Queue drops: " << status.output_queue_drops
+           << "  Superseded stale frames: " << status.output_superseded_frames << "\r\n"
            << "OS2L connections: " << status.os2l_connections
            << "  messages: " << status.os2l_messages
            << "  decode errors: " << status.os2l_decode_errors << "\r\n"
@@ -2287,7 +2333,7 @@ void Application::start_or_stop_show() {
             IdShowStartStop,
             L"&Start Show"));
         refresh_live_status();
-        set_status(L"Show stopped. EmberLights sent explicit zero frames to active network outputs.");
+        set_status(L"Show stopped. EmberLights sent explicit zero frames to active outputs.");
         return;
     }
     auto compilation = emberlights::compile_project(project_);
@@ -3199,6 +3245,18 @@ void Application::apply_connections() {
         combo_selected_data(::GetDlgItem(page, IdMidiInput), -1));
     updated.midi_output_index = static_cast<std::int32_t>(
         combo_selected_data(::GetDlgItem(page, IdMidiOutput), -1));
+    auto selected_dmx_port = [&](int control_id, const std::string& current) {
+        const auto selected = combo_selected_data(::GetDlgItem(page, control_id), -1);
+        if (selected >= 0 &&
+            static_cast<std::size_t>(selected) < dmx_serial_ports_.count) {
+            return std::string(dmx_serial_ports_.ports[static_cast<std::size_t>(selected)].name());
+        }
+        return selected == -2 ? current : std::string{};
+    };
+    updated.dmx_usb_pro_ports[0] = selected_dmx_port(
+        IdDmxUsbProUniverse1, project_.connections.dmx_usb_pro_ports[0]);
+    updated.dmx_usb_pro_ports[1] = selected_dmx_port(
+        IdDmxUsbProUniverse2, project_.connections.dmx_usb_pro_ports[1]);
     if (project_name.empty() || updated.os2l_bind.empty() ||
         (updated.artnet_enabled && updated.artnet_destination.empty()) ||
         (updated.sacn_enabled && updated.sacn_destination.empty()) ||
