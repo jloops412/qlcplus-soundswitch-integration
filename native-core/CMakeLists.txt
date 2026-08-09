@@ -49,7 +49,7 @@ else()
 endif()
 
 if(WIN32)
-    target_compile_definitions(showcore PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
+    target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0A00)
     target_link_libraries(showcore PUBLIC ws2_32 winmm)
 endif()
 
