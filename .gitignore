@@ -1,0 +1,13 @@
+native-core/build/
+native-core/build-*/
+.vs/
+.vscode/
+.idea/
+.git-local/
+*.zip
+*.tar
+*.tar.gz
+*.log
+compile_commands.json
+.DS_Store
+Thumbs.db
