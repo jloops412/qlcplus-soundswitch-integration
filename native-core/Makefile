@@ -32,6 +32,7 @@ SOURCES := \
 	src/engine.cpp \
 	src/project.cpp \
 	src/project_io.cpp \
+	src/qlc_fixture_import.cpp \
 	src/compiler.cpp \
 	src/runner.cpp
 OBJECTS := $(SOURCES:%.cpp=$(BUILD)/%.o)

@@ -8,7 +8,7 @@
   "required": ["format", "version", "showId", "manifest", "patch", "groups", "safety", "recoveryLook"],
   "properties": {
     "format": { "const": "dj-lighting-showpack" },
-    "version": { "type": "integer", "const": 3 },
+    "version": { "type": "integer", "const": 4 },
     "showId": { "type": "string", "minLength": 1 },
     "manifest": {
       "type": "object",
@@ -71,7 +71,7 @@
       "additionalProperties": false,
       "required": ["kind", "sourceId", "revision"],
       "properties": {
-        "kind": { "enum": ["builtIn", "openFixtureLibrary", "local", "migrated"] },
+        "kind": { "enum": ["builtIn", "openFixtureLibrary", "qlcPlus", "local", "migrated"] },
         "sourceId": { "type": "string", "minLength": 1 },
         "revision": { "type": "string", "minLength": 1 },
         "adapterVersion": { "type": "string", "minLength": 1 }
@@ -113,7 +113,7 @@
               "property": { "$ref": "#/$defs/propertyName" },
               "coarseOffset": { "type": "integer", "minimum": 0, "maximum": 511 },
               "fineOffset": { "type": "integer", "minimum": 0, "maximum": 511 },
-              "encoding": { "enum": ["linear8", "linear16", "discrete8", "constant8"] },
+              "encoding": { "enum": ["linear8", "linear16", "discrete8", "ranged8", "constant8"] },
               "dmxMin": { "type": "integer", "minimum": 0, "maximum": 255 },
               "dmxMax": { "type": "integer", "minimum": 0, "maximum": 255 },
               "defaultValue": { "type": "integer", "minimum": 0, "maximum": 65535 }

@@ -17,6 +17,7 @@ enum class FixtureProfileSource : std::uint8_t {
     Unknown,
     BuiltIn,
     OpenFixtureLibrary,
+    QlcPlus,
     Local,
     Migrated
 };

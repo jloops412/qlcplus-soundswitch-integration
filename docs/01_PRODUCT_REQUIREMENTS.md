@@ -36,6 +36,7 @@ Joshua's VirtualDJ, Pioneer DDJ-REV7, Control One, and Love & Light fixtures are
 - Selected published-protocol USB-DMX adapters.
 - Optional QLC+ compatibility bridge for otherwise unsupported adapters.
 - Fixture-profile creation, editing, import, validation, provenance, local storage, and safe sharing workflows.
+- QLC+ QXF import as an ecosystem on-ramp, with deterministic conversion reports, source provenance, and quarantine for semantics that cannot be represented safely.
 - Generic channel defaults, discrete ranges, inverted ranges, 8/16-bit functions, arbitrary attributes, multi-cell fixtures, and effect fixtures.
 
 ### Lighting content

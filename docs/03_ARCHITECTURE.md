@@ -55,9 +55,11 @@ The adapter is a replaceable output contract, not a fixture or show-model depend
 
 ## Fixture-library ingestion boundary
 
-Open Fixture Library is an upstream source, not a Runner file format. [OFL's format documentation](https://github.com/OpenLightingProject/open-fixture-library/blob/master/docs/fixture-format.md) explicitly warns that its native JSON may make breaking changes and recommends transforming it through a plugin. Studio therefore uses a version-pinned adapter to translate OFL data into our stable native fixture-profile contract, recording the OFL schema/revision, adapter version, and source identity.
+Open Fixture Library is an upstream source, not a Runner file format. [OFL's format documentation](https://github.com/OpenLightingProject/open-fixture-library/blob/master/docs/fixture-format.md) explicitly warns that its native JSON may make breaking changes and recommends transforming it through a plugin. Studio therefore uses version-pinned adapters to translate upstream data into our stable native fixture-profile contract, recording the source, adapter version, and source identity.
 
-Profiles that cannot be represented safely are quarantined with exact reasons; one malformed or unsupported profile cannot block the rest of the library or a compiled show. Only validated profiles used by the active show enter Runner's immutable package. Runner performs no OFL parsing, network fetch, or fixture-library scan during a gig.
+The first implemented ecosystem adapter accepts QLC+ Fixture Definition (`.qxf`) XML, including files emitted by OFL's QLC+ export plugin. It is an original bounded parser used only by Studio: input size, XML nodes, nesting, attributes, and reports are capped; external entities and DTD subsets are rejected; source hashes and creator metadata are recorded. QXF modes become independent native profiles. Coarse/fine pairs, channel defaults, regular strobe ranges, emitter colors, and known semantic presets are converted; switching aliases are quarantined, and flattened multi-head topology is reported for manual verification. Imported profiles are validated by the same native compiler as locally authored profiles.
+
+Profiles that cannot be represented safely are quarantined with exact reasons; one malformed or unsupported profile cannot block the rest of the library or a compiled show. Only validated profiles used by the active show enter Runner's immutable package. Runner performs no QXF/OFL parsing, network fetch, or fixture-library scan during a gig.
 
 ## Runtime dataflow
 

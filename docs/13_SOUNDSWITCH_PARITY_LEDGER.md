@@ -19,10 +19,10 @@ Statuses:
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
 | FIX-01 | Venue tabs/projects with reusable fixture patches | Partial | Native project open/save, fixture-profile and patch editors, validation, and fixed-capacity compiled loading exist; reusable venue tabs/templates remain. |
-| FIX-02 | Searchable fixture library with manufacturer/model/mode selection | Partial | Fixed-capacity compiled profile store, stable IDs, provenance metadata, exact validation failures, and independent quarantine tests pass; OFL adapter/search UI pending. |
-| FIX-03 | Create and edit local fixture profiles | Partial | Native Windows profile editor persists semantic channel maps and compiles them; richer function-range/discrete-value tools and importer remain. |
-| FIX-04 | Production/public/local fixture sources and safe sharing | Planned | Signed/provenance-aware local and community workflow. |
-| FIX-05 | RGB, RGBW, RGBA, RGBWAUV, CMY, color-wheel, dimmer, shutter, and strobe functions | Partial | Broad semantic lanes, defaults, constant/discrete channels, inversion, and validation pass; OFL conformance corpus required. |
+| FIX-02 | Searchable fixture library with manufacturer/model/mode selection | Partial | Fixed-capacity compiled profile store plus QLC+ QXF/OFL-export import, stable IDs, provenance, exact validation failures, and per-mode quarantine tests pass; bundled catalog/search UI and corpus qualification remain. |
+| FIX-03 | Create and edit local fixture profiles | Partial | Native Windows profile editor persists semantic channel maps and compiles them; QXF modes import as inspectable read-only profiles that can be duplicated locally. Richer function-range/discrete-value tools remain. |
+| FIX-04 | Production/public/local fixture sources and safe sharing | Partial | QLC+ and OFL-export provenance survives QXF conversion; signed update, bundled corpus, community review, and sharing workflows remain. |
+| FIX-05 | RGB, RGBW, RGBA, RGBWAUV, CMY, color-wheel, dimmer, shutter, and strobe functions | Partial | Broad semantic lanes, defaults, constant/discrete/active-range channels, inversion, QXF emitter/preset conversion, and validation pass; representative conformance corpus remains required. |
 | FIX-06 | 8/16-bit pan/tilt and named Position Cues | Partial | 16-bit rendering exists; authoring, cue override, and transition tests pending. |
 | FIX-07 | Gobo, prism, focus, zoom, iris, frost, rotation, and arbitrary Attribute Cues | Partial | Core semantic plus sixteen compiled custom lanes and profile mappings pass; named authoring/playback pending. |
 | FIX-08 | Multi-cell and effect fixtures | Planned | Cell-aware semantic model and representative fixtures required. |

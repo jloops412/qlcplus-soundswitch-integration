@@ -15,6 +15,7 @@ Implemented:
 - fail-closed arming for fog, haze, laser, and spark plus strobe permission/cap and intensity cap;
 - broad semantic and custom-attribute lanes covering additive/subtractive colors, movement, shutter/beam, focus/zoom, effect, and hazardous functions;
 - semantic 8-bit, discrete 8-bit, inverted-range, constant-channel, and 16-bit fixture rendering with explicit safe defaults;
+- active-range 8-bit rendering whose released/off state can use a safe DMX default outside the active range, including literal-zero safety override;
 - literal raw-DMX-zero enforcement for `FORCE_ZERO`, independent of a fixture's normal encoded range;
 - baseline OS2L beat/button/command/feedback parser with bounded messages;
 - bounded TCP stream decoder that handles split/concatenated JSON objects and braces inside strings;
@@ -38,6 +39,7 @@ Implemented:
 - end-to-end two-universe `runner_lab` with separate adapter/status and scheduling threads, dry-run default, optional Art-Net output, finite-duration smoke mode, and live status/jitter counters;
 - versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, and unknown-record preservation;
 - fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, and Diagnostics workflows in the native Windows application;
+- bounded Studio-only QLC+ QXF import with OFL-export provenance detection, coarse/fine pairing, semantic/range conversion, native validation, approximation reports, and unsafe-mode quarantine;
 - self-contained portable ZIP and per-user Inno Setup installer built only after Windows/Linux tests pass;
 - optional QLC+ bridge boundary through Art-Net;
 - zero-allocation render test and deterministic replay test.
@@ -48,7 +50,7 @@ Implemented:
 - Flags: `-O2 -Wall -Wextra -Wpedantic -Werror -MMD -MP`.
 - Unit tests: passed.
 - Address/undefined sanitizers: passed; leak detection is unavailable in this sandbox because LeakSanitizer cannot inspect the supervised process tree.
-- Show-package schema v3: syntactically valid; retains fixture provenance and expands explicit 32-slot Autoloop coordinates to 64 banks/2,048 loops.
+- Show-package schema v4: syntactically valid; retains fixture provenance, represents QLC+ source and safe active-range channel encoding, and keeps explicit 32-slot Autoloop coordinates across 64 banks/2,048 loops.
 - One million complete two-universe render ticks: completed without crash or state divergence.
 - Loopback TCP integration: passed with concatenated `beat` and `blackout` button events.
 - OS2L lifecycle integration: passed through connect, multi-event decode, incomplete message, disconnect, reconnect, and clean post-reconnect decode.
@@ -57,6 +59,7 @@ Implemented:
 - Portable MIDI codec plus Linux-hosted WinMM and DMX USB Pro Windows-boundary syntax tests pass.
 - Windows and Linux native compilation/tests and packaged Windows application tests passed for the preceding installed checkpoint; this change is re-gated by the repository workflow before publication.
 - ENTTEC packet framing, COM1–COM256 validation, duplicate-device prevention, 40 Hz cap, project round-trip, and stale-frame supersession tests pass.
+- QXF tests cover entities/DOCTYPE rejection, QLC+/OFL provenance, emitter colors, 8/16-bit pairing, reversed presets, safe active ranges, fan/haze separation, unknown lanes, switching-mode quarantine, and laser arming.
 
 ## Initial benchmark
 
@@ -66,21 +69,21 @@ Test load: 128 RGB fixtures split evenly across both universes, four semantic pr
 | --- | ---: |
 | Engine object | 875,552 bytes |
 | Release binary (`core_bench`) | about 22 KB loadable sections |
-| Full render tick | about 16.1 microseconds |
-| Theoretical full renders/second | about 62,000 |
-| Observed process max RSS | about 4.7 MB |
+| Full render tick | about 16.3 microseconds |
+| Theoretical full renders/second | about 61,400 |
+| Observed process max RSS | about 4.6 MB |
 
 An additional full-path benchmark continuously ran generic Autoloop interpolation, overlapping Static Look transitions, layer resolution, and two-universe rendering across 128 fixtures with 512 assignments per look:
 
 | Measurement | Observed |
 | --- | ---: |
-| Full performance update | about 134.9 microseconds |
-| Estimated one-core use at 40 Hz | about 0.54% |
-| Observed process max RSS | about 5.3 MB |
+| Full performance update | about 141.3 microseconds |
+| Estimated one-core use at 40 Hz | about 0.57% |
+| Observed process max RSS | about 5.2 MB |
 
-The performance playback path completed 10,000 scheduling updates without a heap allocation after activation.
+The performance playback path completed 20,000 scheduling updates without a heap allocation after activation.
 
-At 40 DMX updates/second, 16.4 microseconds per render is roughly 0.066% of one CPU core for this fixture load, before sockets, UI, MIDI, OS2L, logging, and operating-system overhead. Expanding the Autoloop catalog to 2,048 entries adds roughly 16 KB of fixed catalog storage and does not run a catalog scan on the scheduling path. This is encouraging architectural evidence, not a Windows release claim.
+At 40 DMX updates/second, 16.3 microseconds per render is roughly 0.065% of one CPU core for this fixture load, before sockets, UI, MIDI, OS2L, logging, and operating-system overhead. Expanding the Autoloop catalog to 2,048 entries adds roughly 16 KB of fixed catalog storage and does not run a catalog scan on the scheduling path. This is encouraging architectural evidence, not a Windows release claim.
 
 ## Known limitations
 
@@ -89,7 +92,7 @@ At 40 DMX updates/second, 16.4 microseconds per render is roughly 0.066% of one 
 - Native DMX USB Pro output compiles on Windows CI only after publication of this slice; physical interface output and unplug/replug qualification remain pending.
 - The serial adapter covers the published single-universe DMX USB Pro framing. Pro Mk2 dual-port support and third-party compatible hardware are not claimed.
 - Art-Net direct unicast delivery is loopback-verified; node/visualizer qualification and discovery/subscription compliance are pending.
-- Fixture mapping now covers a broad fixed semantic/custom surface and safely compiles normalized profiles, but the versioned OFL adapter and multi-cell pixel topology remain pending.
+- Fixture mapping now covers a broad fixed semantic/custom surface and safely imports QLC+ QXF/OFL-export profiles. A searchable pinned OFL catalog, richer function-range editing, switching-channel aliases, and cell-aware multi-head/pixel topology remain pending.
 - The Autoloop runtime and editor have complete 64×32 capacity plus activation/return policies, but shipped default content, richer organization, and random/automatic selection policies remain pending.
 - The native Windows UI is functional but its look/profile/Autoloop authoring still needs guided controls, undo/history, and usability qualification.
 - Live-audio fallback, track scripting, AutoScripting, SoundSwitch migration, Serato, smart-light integrations, and remaining parity-ledger items are still pending.

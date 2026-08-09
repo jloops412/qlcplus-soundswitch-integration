@@ -1,6 +1,7 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_io.hpp"
+#include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/winmm_midi.hpp"
@@ -103,6 +104,7 @@ enum ControlId : int {
 
     IdProfileTitle = 2000,
     IdProfileList,
+    IdProfileImportQlc,
     IdProfileNew,
     IdProfileDuplicate,
     IdProfileSave,
@@ -478,6 +480,7 @@ private:
     bool maybe_save_changes();
     void new_project();
     void open_project_dialog();
+    void import_qlc_fixture_dialog();
     bool open_project(const std::filesystem::path& path);
     bool save_project(bool save_as);
     void validate_project(bool show_success);
@@ -930,6 +933,7 @@ void Application::create_pages() {
     title = add_label(page, L"Fixture Profiles", IdProfileTitle);
     ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
     add_listbox(page, IdProfileList);
+    add_button(page, L"Import QLC+ Fixture (.qxf)...", IdProfileImportQlc);
     add_button(page, L"New", IdProfileNew);
     add_button(page, L"Duplicate", IdProfileDuplicate);
     add_button(page, L"Save Profile", IdProfileSave);
@@ -949,7 +953,8 @@ void Application::create_pages() {
     add_label(
         page,
         L"One channel per line: coarse, property, encoding, fine, min, max, default. "
-        L"Use fine=0 for 8-bit. Example: 1,intensity,linear8,0,0,255,0",
+        L"Encodings: linear8, linear16, discrete8, ranged8, constant8. "
+        L"Use ranged8 when zero means the separate safe default.",
         IdProfileHelp);
     add_label(page, L"", IdProfileMessage);
 
@@ -1213,25 +1218,26 @@ void Application::layout_page(Page page, int width, int height) {
     }
     case Page::Profiles: {
         const auto left_width = std::min(330, usable_width / 3);
-        move(1, margin, 70, left_width, height - 150);
-        move(2, margin, height - 68, 70, 30);
-        move(3, margin + 78, height - 68, 90, 30);
-        move(4, margin + 176, height - 68, 110, 30);
-        move(5, margin + 294, height - 68, 76, 30);
+        move(1, margin, 70, left_width, height - 190);
+        move(2, margin, height - 108, left_width, 30);
+        move(3, margin, height - 68, 70, 30);
+        move(4, margin + 78, height - 68, 90, 30);
+        move(5, margin + 176, height - 68, 110, 30);
+        move(6, margin + 294, height - 68, 76, 30);
         const auto x = margin + left_width + 24;
         const auto form_width = usable_width - left_width - 24;
         constexpr int label_width = 120;
         constexpr int row_height = 34;
         for (std::size_t row = 0; row < 5U; ++row) {
-            const auto base = 6U + row * 2U;
+            const auto base = 7U + row * 2U;
             move(base, x, 70 + static_cast<int>(row) * row_height, label_width, 26);
             move(base + 1U, x + label_width, 70 + static_cast<int>(row) * row_height,
                  form_width - label_width, 27);
         }
-        move(16, x, 246, label_width, 26);
-        move(17, x, 274, form_width, std::max(160, height - 430));
-        move(18, x, height - 122, form_width, 52);
-        move(19, x, height - 66, form_width, 30);
+        move(17, x, 246, label_width, 26);
+        move(18, x, 274, form_width, std::max(160, height - 430));
+        move(19, x, height - 122, form_width, 52);
+        move(20, x, height - 66, form_width, 30);
         break;
     }
     case Page::Patch:
@@ -2141,6 +2147,7 @@ void Application::handle_command(int id, int notification, HWND) {
                 pages_[static_cast<std::size_t>(Page::Live)], IdLiveSparkArm)) == BST_CHECKED));
         break;
     case IdProfileNew: new_profile(); break;
+    case IdProfileImportQlc: import_qlc_fixture_dialog(); break;
     case IdProfileDuplicate: duplicate_profile(); break;
     case IdProfileSave: save_profile(); break;
     case IdProfileDelete: delete_profile(); break;
@@ -2221,6 +2228,97 @@ void Application::open_project_dialog() {
     dialog.lpstrDefExt = L"emberlights";
     if (::GetOpenFileNameW(&dialog) != FALSE) {
         static_cast<void>(open_project(std::filesystem::path(path.data())));
+    }
+}
+
+void Application::import_qlc_fixture_dialog() {
+    std::array<wchar_t, 32768> path{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window_;
+    dialog.lpstrFilter =
+        L"QLC+ Fixture Definitions (*.qxf)\0*.qxf\0XML Files (*.xml)\0*.xml\0All Files\0*.*\0";
+    dialog.lpstrFile = path.data();
+    dialog.nMaxFile = static_cast<DWORD>(path.size());
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    dialog.lpstrDefExt = L"qxf";
+    if (::GetOpenFileNameW(&dialog) == FALSE) {
+        return;
+    }
+
+    const auto imported = emberlights::load_qlc_fixture(std::filesystem::path(path.data()));
+    std::size_t added = 0U;
+    std::size_t duplicates = 0U;
+    std::size_t rejected = 0U;
+    std::int32_t first_added = -1;
+    auto candidate = project_;
+    for (const auto& profile : imported.profiles) {
+        const auto duplicate = std::find_if(
+            candidate.fixture_profiles.begin(), candidate.fixture_profiles.end(),
+            [&](const auto& existing) { return existing.id == profile.id; });
+        if (duplicate != candidate.fixture_profiles.end()) {
+            ++duplicates;
+            continue;
+        }
+        candidate.fixture_profiles.push_back(profile);
+        const auto validation = emberlights::validate_project(candidate);
+        if (!validation.ok()) {
+            candidate.fixture_profiles.pop_back();
+            ++rejected;
+            continue;
+        }
+        if (first_added < 0) {
+            first_added = static_cast<std::int32_t>(candidate.fixture_profiles.size() - 1U);
+        }
+        ++added;
+    }
+
+    if (added > 0U) {
+        project_ = std::move(candidate);
+        mark_dirty();
+        refresh_profiles();
+        refresh_patch();
+        const auto list = ::GetDlgItem(
+            pages_[static_cast<std::size_t>(Page::Profiles)], IdProfileList);
+        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, first_added, 0));
+        select_profile(first_added);
+    }
+
+    std::ostringstream report;
+    report << "QLC+ fixture import\r\n\r\n"
+           << "Converted modes: " << imported.profiles.size() << "\r\n"
+           << "Added to this project: " << added << "\r\n"
+           << "Already present: " << duplicates << "\r\n"
+           << "Rejected by project capacity/validation: " << rejected << "\r\n"
+           << "Importer warnings: " << imported.warning_count() << "\r\n"
+           << "Quarantined/errors: " << imported.error_count() << "\r\n";
+    const auto shown = std::min<std::size_t>(imported.issues.size(), 8U);
+    if (shown > 0U) {
+        report << "\r\nReview:\r\n";
+        for (std::size_t index = 0; index < shown; ++index) {
+            const auto& issue = imported.issues[index];
+            report << (issue.severity == emberlights::QlcImportIssueSeverity::Error
+                           ? "ERROR" : "WARNING")
+                   << " [" << issue.code << "] " << issue.subject << ": "
+                   << issue.message << "\r\n";
+        }
+        if (shown < imported.issues.size()) {
+            report << "...and " << imported.issues.size() - shown << " more message(s).\r\n";
+        }
+    }
+    if (added > 0U) {
+        report << "\r\nImported profiles are read-only. Duplicate one to customize it, "
+                  "and verify every approximation against the fixture's official DMX chart.";
+    }
+    const auto report_wide = widen(report.str());
+    ::MessageBoxW(
+        window_, report_wide.c_str(), L"QLC+ fixture import",
+        MB_OK | ((imported.error_count() > 0U || added == 0U)
+                     ? MB_ICONWARNING : MB_ICONINFORMATION));
+    if (added > 0U) {
+        set_status(runner_.status().state == emberlights::RunnerState::Running
+            ? L"QLC+ profiles imported. Stop and restart the show to compile project changes."
+            : L"QLC+ profiles imported. Patch fixtures, then validate and start the show.");
     }
 }
 
@@ -2501,15 +2599,20 @@ void Application::select_profile(std::int32_t index) {
     const bool editable = profile.source == showcore::FixtureProfileSource::Local;
     for (const auto id : {
              IdProfileManufacturer, IdProfileModel, IdProfileMode, IdProfileName,
-             IdProfileFootprint, IdProfileChannels, IdProfileSave, IdProfileDelete}) {
+             IdProfileFootprint, IdProfileChannels, IdProfileSave}) {
         ::EnableWindow(::GetDlgItem(page, id), editable ? TRUE : FALSE);
     }
+    ::EnableWindow(
+        ::GetDlgItem(page, IdProfileDelete),
+        profile.source == showcore::FixtureProfileSource::BuiltIn ? FALSE : TRUE);
     ::EnableWindow(::GetDlgItem(page, IdProfileDuplicate), TRUE);
     set_page_message(
         Page::Profiles,
         IdProfileMessage,
         editable ? "Editing a local fixture profile."
-                 : "Built-in profiles are read-only. Duplicate one to customize it.");
+                 : (profile.source == showcore::FixtureProfileSource::BuiltIn
+                        ? "Built-in profiles are read-only. Duplicate one to customize it."
+                        : "Imported profiles are read-only. Duplicate one to customize it; verify importer warnings against the official DMX chart."));
 }
 
 void Application::new_profile() {
@@ -2618,7 +2721,7 @@ void Application::delete_profile() {
         return;
     }
     const auto& profile = project_.fixture_profiles[static_cast<std::size_t>(profile_index_)];
-    if (profile.source != showcore::FixtureProfileSource::Local) {
+    if (profile.source == showcore::FixtureProfileSource::BuiltIn) {
         set_page_message(Page::Profiles, IdProfileMessage,
                          "Built-in profiles cannot be deleted.", true);
         return;
@@ -2630,7 +2733,7 @@ void Application::delete_profile() {
                          "This profile is used by the patch. Reassign those fixtures first.", true);
         return;
     }
-    if (::MessageBoxW(window_, L"Delete this local fixture profile?", L"Delete profile",
+    if (::MessageBoxW(window_, L"Delete this fixture profile from the project?", L"Delete profile",
                       MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
     }

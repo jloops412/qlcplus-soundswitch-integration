@@ -42,7 +42,7 @@ Priority is based on replacing SoundSwitch safely, not feature novelty.
 ## P2 — Gig-safe SoundSwitch-style workflow
 
 31. Fixture/venue authoring source model.
-32. Versioned OFL Studio adapter, stable-profile compiler, provenance, and profile quarantine. Native compiled-store/quarantine foundation complete; upstream adapter and corpus remain.
+32. Versioned OFL Studio adapter, stable-profile compiler, provenance, and profile quarantine. Native compiled-store/quarantine foundation plus a bounded QLC+ QXF/OFL-export ingestion path are complete; direct pinned OFL adapter, offline corpus, search/index UI, and conformance qualification remain.
 33. Fixture groups, categories, roles, and stable identities.
 34. Named color palettes.
 35. Named position and attribute cues.

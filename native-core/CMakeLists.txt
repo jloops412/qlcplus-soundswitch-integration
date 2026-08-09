@@ -35,6 +35,7 @@ add_library(showcore STATIC
     src/engine.cpp
     src/project.cpp
     src/project_io.cpp
+    src/qlc_fixture_import.cpp
     src/compiler.cpp
     src/runner.cpp)
 
@@ -96,6 +97,8 @@ if(WIN32)
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/15_WINDOWS_V1_TESTING.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/16_QLC_FIXTURE_IMPORT.md"
         DESTINATION docs)
 endif()
 
