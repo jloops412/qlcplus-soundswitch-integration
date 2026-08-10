@@ -524,6 +524,30 @@ bool RunnerService::clear_manual_overrides() noexcept {
     return post({RunnerCommandType::ClearManualOverrides});
 }
 
+bool RunnerService::set_group_property(
+    const showcore::FixtureGroup& fixtures,
+    showcore::Property property,
+    float value,
+    bool active) noexcept {
+    if (fixtures.count == 0U || fixtures.count > fixtures.fixture_ids.size() ||
+        property >= showcore::Property::Count || !std::isfinite(value)) {
+        return false;
+    }
+    RunnerCommand command;
+    command.type = RunnerCommandType::SetGroupProperty;
+    command.property = property;
+    command.value = std::clamp(value, 0.0F, 1.0F);
+    command.active = active;
+    for (std::size_t index = 0U; index < fixtures.count; ++index) {
+        const auto fixture = fixtures.fixture_ids[index];
+        if (fixture >= showcore::kMaxFixtures) {
+            return false;
+        }
+        command.fixture_mask[fixture / 64U] |= std::uint64_t{1} << (fixture % 64U);
+    }
+    return post(command);
+}
+
 bool RunnerService::set_hazard_armed(
     showcore::Property property,
     bool armed) noexcept {
@@ -1199,6 +1223,36 @@ void RunnerService::run_scheduler() noexcept {
             case RunnerCommandType::ClearManualOverrides:
                 clear_manual_overrides();
                 break;
+            case RunnerCommandType::SetGroupProperty: {
+                bool valid_group = false;
+                for (std::size_t fixture = 0U;
+                     fixture < showcore::kMaxFixtures;
+                     ++fixture) {
+                    const auto selected = (command.fixture_mask[fixture / 64U] &
+                                           (std::uint64_t{1} << (fixture % 64U))) != 0U;
+                    if (!selected) {
+                        continue;
+                    }
+                    if (fixture >= show->fixture_count()) {
+                        valid_group = false;
+                        break;
+                    }
+                    valid_group = true;
+                }
+                if (!valid_group) {
+                    break;
+                }
+                for (std::uint16_t fixture = 0U;
+                     fixture < show->fixture_count();
+                     ++fixture) {
+                    if ((command.fixture_mask[fixture / 64U] &
+                         (std::uint64_t{1} << (fixture % 64U))) != 0U) {
+                        set_manual_property(
+                            fixture, command.property, command.value, command.active);
+                    }
+                }
+                break;
+            }
             }
         }
 

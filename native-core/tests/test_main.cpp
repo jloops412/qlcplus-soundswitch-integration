@@ -1804,6 +1804,13 @@ void test_runner_service_lifecycle() {
     CHECK(wait_for_override_count(1U));
     CHECK(runner.clear_manual_overrides());
     CHECK(wait_for_override_count(0U));
+    showcore::FixtureGroup manual_group;
+    CHECK(manual_group.add(0U));
+    CHECK(runner.set_group_property(manual_group, showcore::Property::Blue, 0.5F));
+    CHECK(wait_for_override_count(1U));
+    CHECK(runner.set_group_property(manual_group, showcore::Property::Blue, 0.0F, false));
+    CHECK(wait_for_override_count(0U));
+    CHECK(!runner.set_group_property(manual_group, showcore::Property::Count, 0.5F));
     CHECK(!runner.set_property(0U, showcore::Property::Count, 0.5F));
     CHECK(runner.trigger_look(0));
     CHECK(runner.trigger_autoloop({7, 3}));
