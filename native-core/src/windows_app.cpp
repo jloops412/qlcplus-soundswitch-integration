@@ -4991,7 +4991,6 @@ void Application::verify_selected_audio_for_track() {
 }
 
 void Application::resolve_audio_assets_for_project() {
-    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
     if (project_.audio_assets.empty()) {
         set_page_message(
             Page::Tracks,
