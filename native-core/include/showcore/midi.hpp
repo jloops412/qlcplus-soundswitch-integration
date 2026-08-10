@@ -76,6 +76,7 @@ enum class ActionType : std::uint8_t {
     ArmSpark,
     TriggerTrackScript,
     ClearTrackScript,
+    ClearManualOverrides,
     Count
 };
 

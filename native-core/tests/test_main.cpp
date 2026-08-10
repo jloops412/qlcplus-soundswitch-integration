@@ -1485,6 +1485,14 @@ emberlights::ProjectDocument make_test_project() {
     start_track.behavior = showcore::MappingBehavior::Toggle;
     start_track.action.type = showcore::ActionType::TriggerTrackScript;
     project.midi_mappings.push_back(std::move(start_track));
+    emberlights::MidiMappingDefinition release_overrides;
+    release_overrides.device_name = "Test controller";
+    release_overrides.message_type = showcore::MidiMessageType::NoteOn;
+    release_overrides.channel = 0U;
+    release_overrides.number = 25U;
+    release_overrides.behavior = showcore::MappingBehavior::Momentary;
+    release_overrides.action.type = showcore::ActionType::ClearManualOverrides;
+    project.midi_mappings.push_back(std::move(release_overrides));
     project.groups.push_back({"dance", "Dance Floor", {"wash-1"}});
     return project;
 }
@@ -1646,6 +1654,8 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.track_scripts[0].cues.size() == 4U);
     CHECK(parsed.track_scripts[0].cues[1].action ==
         emberlights::TrackCueAction::TriggerAutoloop);
+    CHECK(parsed.midi_mappings.size() == 2U);
+    CHECK(parsed.midi_mappings[1].action.type == showcore::ActionType::ClearManualOverrides);
     CHECK(emberlights::serialize_project(parsed) == serialized);
 
     auto corrupted = serialized;
@@ -1659,7 +1669,13 @@ void test_project_validation_io_and_compilation() {
     CHECK(compilation.show->look_count() == 2U);
     CHECK(compilation.show->autoloops().get({7, 3}) != nullptr);
     CHECK(compilation.show->track_script_count() == 1U);
-    CHECK(compilation.show->midi_mappings().size() == 1U);
+    CHECK(compilation.show->midi_mappings().size() == 2U);
+    std::array<showcore::MidiActionEvent, showcore::kMaxMidiActionsPerMessage> clear_events{};
+    CHECK(compilation.show->midi_mappings().process(
+              {showcore::kAnyMidiDevice, showcore::MidiMessageType::NoteOn, 0U, 25U, 127U},
+              clear_events) == 1U);
+    CHECK(clear_events[0].action.type == showcore::ActionType::ClearManualOverrides);
+    CHECK(clear_events[0].active);
     const auto* compiled_track = compilation.show->track_script(0U);
     CHECK(compiled_track != nullptr);
     CHECK(compiled_track->cue_count == 4U);

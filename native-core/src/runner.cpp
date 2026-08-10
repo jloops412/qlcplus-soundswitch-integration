@@ -1122,6 +1122,11 @@ void RunnerService::run_scheduler() noexcept {
                     clear_track_script();
                 }
                 break;
+            case showcore::ActionType::ClearManualOverrides:
+                if (active) {
+                    clear_manual_overrides();
+                }
+                break;
             case showcore::ActionType::NextAutoloop:
                 if (active) {
                     trigger_loop(
