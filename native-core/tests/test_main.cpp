@@ -1750,6 +1750,7 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     const auto comparison_json = emberlights::serialize_soundswitch_comparison(comparison);
     CHECK(comparison_json.find("emberlights-soundswitch-comparison") != std::string::npos);
     CHECK(comparison_json.find("\"change\": \"modified\"") != std::string::npos);
+    CHECK(comparison_json.find("venue-updated") == std::string::npos);
     CHECK(emberlights::save_soundswitch_comparison_atomic(
         comparison_report, comparison, report_error));
     CHECK(std::filesystem::file_size(comparison_report, ignored) > 0U);
