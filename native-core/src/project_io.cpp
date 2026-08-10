@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -21,6 +24,7 @@ namespace emberlights {
 namespace {
 
 inline constexpr std::size_t kMaximumProjectBytes = 64U * 1024U * 1024U;
+std::atomic<std::uint64_t> g_history_sequence{0U};
 
 struct ParsedRecord {
     std::size_t line{0};
@@ -570,6 +574,92 @@ template <typename Collection>
     return {};
 }
 
+[[nodiscard]] std::filesystem::path make_history_snapshot_path(
+    const std::filesystem::path& history_directory) {
+    const auto now = std::chrono::system_clock::now();
+    const auto seconds = std::chrono::system_clock::to_time_t(now);
+    std::tm local_time{};
+#ifdef _WIN32
+    if (::localtime_s(&local_time, &seconds) != 0) {
+        return {};
+    }
+#else
+    if (::localtime_r(&seconds, &local_time) == nullptr) {
+        return {};
+    }
+#endif
+    const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
+        now.time_since_epoch()).count();
+    const auto microsecond_part = static_cast<std::uint64_t>(micros >= 0 ? micros : -micros) %
+        1'000'000U;
+    for (std::uint32_t attempt = 0U; attempt < 32U; ++attempt) {
+        std::ostringstream filename;
+        filename << std::put_time(&local_time, "%Y%m%d-%H%M%S") << '-'
+                 << std::setw(6) << std::setfill('0') << microsecond_part << '-'
+                 << std::setw(8) << std::setfill('0')
+                 << g_history_sequence.fetch_add(1U, std::memory_order_relaxed)
+                 << emberlights::kProjectExtension;
+        const auto candidate = history_directory / filename.str();
+        std::error_code filesystem_error;
+        if (!std::filesystem::exists(candidate, filesystem_error) && !filesystem_error) {
+            return candidate;
+        }
+    }
+    return {};
+}
+
+[[nodiscard]] ProjectIoResult save_history_snapshot(
+    const std::filesystem::path& project_path) {
+    const auto history_directory = project_history_directory(project_path);
+    std::error_code filesystem_error;
+    std::filesystem::create_directories(history_directory, filesystem_error);
+    if (filesystem_error) {
+        return error(ProjectIoError::WriteFailed, 0,
+                     "Unable to create the automatic project history folder.");
+    }
+    const auto snapshot = make_history_snapshot_path(history_directory);
+    if (snapshot.empty()) {
+        return error(ProjectIoError::WriteFailed, 0,
+                     "Unable to allocate a unique automatic project history entry.");
+    }
+    auto temporary = snapshot;
+    temporary += ".tmp";
+    std::filesystem::copy_file(project_path, temporary, filesystem_error);
+    if (filesystem_error) {
+        std::filesystem::remove(temporary, filesystem_error);
+        return error(ProjectIoError::WriteFailed, 0,
+                     "Unable to write the automatic project history entry.");
+    }
+    ProjectDocument verification;
+    const auto verified = load_project(temporary, verification, false);
+    if (!verified) {
+        std::filesystem::remove(temporary, filesystem_error);
+        return error(ProjectIoError::WriteFailed, verified.line,
+                     "Automatic project history entry failed checksum verification.");
+    }
+    std::filesystem::rename(temporary, snapshot, filesystem_error);
+    if (filesystem_error) {
+        std::filesystem::remove(temporary, filesystem_error);
+        return error(ProjectIoError::WriteFailed, 0,
+                     "Unable to activate the automatic project history entry.");
+    }
+
+    std::vector<ProjectHistoryEntry> entries;
+    const auto listed = list_project_history(project_path, entries);
+    if (!listed) {
+        return error(ProjectIoError::RecoveryFailed, 0,
+                     "Project was saved, but its automatic history could not be inspected.");
+    }
+    for (std::size_t index = kMaximumProjectHistoryEntries; index < entries.size(); ++index) {
+        std::filesystem::remove(entries[index].path, filesystem_error);
+        if (filesystem_error) {
+            return error(ProjectIoError::RecoveryFailed, 0,
+                         "Project was saved, but an old automatic history entry could not be pruned.");
+        }
+    }
+    return {};
+}
+
 }  // namespace
 
 std::string serialize_project(const ProjectDocument& project) {
@@ -776,6 +866,77 @@ std::filesystem::path project_active_path(const std::filesystem::path& path) {
     return active;
 }
 
+std::filesystem::path project_history_directory(const std::filesystem::path& path) {
+    auto history = path;
+    history += ".history";
+    return history;
+}
+
+ProjectIoResult list_project_history(
+    const std::filesystem::path& path,
+    std::vector<ProjectHistoryEntry>& entries) {
+    entries.clear();
+    if (path.empty()) {
+        return error(ProjectIoError::InvalidValue, 0, "Project path is empty.");
+    }
+    const auto history_directory = project_history_directory(path);
+    std::error_code filesystem_error;
+    const bool exists = std::filesystem::exists(history_directory, filesystem_error);
+    if (filesystem_error) {
+        return error(ProjectIoError::ReadFailed, 0,
+                     "Unable to inspect the automatic project history folder.");
+    }
+    if (!exists) {
+        return {};
+    }
+    if (!std::filesystem::is_directory(history_directory, filesystem_error) || filesystem_error) {
+        return error(ProjectIoError::ReadFailed, 0,
+                     "The automatic project history location is not a folder.");
+    }
+    std::filesystem::directory_iterator iterator(history_directory, filesystem_error);
+    const std::filesystem::directory_iterator end;
+    if (filesystem_error) {
+        return error(ProjectIoError::ReadFailed, 0,
+                     "Unable to enumerate automatic project history.");
+    }
+    while (iterator != end) {
+        const auto entry = *iterator;
+        const auto entry_path = entry.path();
+        std::error_code entry_error;
+        if (entry_path.extension() == kProjectExtension &&
+            entry.is_regular_file(entry_error) && !entry_error) {
+            const auto modified_at = entry.last_write_time(entry_error);
+            if (entry_error) {
+                return error(ProjectIoError::ReadFailed, 0,
+                             "Unable to read an automatic project history timestamp.");
+            }
+            const auto size_bytes = entry.file_size(entry_error);
+            if (entry_error) {
+                return error(ProjectIoError::ReadFailed, 0,
+                             "Unable to read an automatic project history entry size.");
+            }
+            entries.push_back({entry_path, modified_at, size_bytes});
+        } else if (entry_error) {
+            return error(ProjectIoError::ReadFailed, 0,
+                         "Unable to inspect an automatic project history entry.");
+        }
+        iterator.increment(filesystem_error);
+        if (filesystem_error) {
+            return error(ProjectIoError::ReadFailed, 0,
+                         "Unable to enumerate automatic project history.");
+        }
+    }
+    std::sort(
+        entries.begin(), entries.end(),
+        [](const ProjectHistoryEntry& first, const ProjectHistoryEntry& second) {
+            if (first.modified_at != second.modified_at) {
+                return first.modified_at > second.modified_at;
+            }
+            return first.path.filename().native() > second.path.filename().native();
+        });
+    return {};
+}
+
 ProjectIoResult load_project(
     const std::filesystem::path& path,
     ProjectDocument& project,
@@ -806,7 +967,8 @@ ProjectIoResult load_project(
 
 ProjectIoResult save_project_atomic(
     const std::filesystem::path& path,
-    const ProjectDocument& project) {
+    const ProjectDocument& project,
+    bool capture_history) {
     if (path.empty()) {
         return error(ProjectIoError::WriteFailed, 0, "Project path is empty.");
     }
@@ -872,7 +1034,71 @@ ProjectIoResult save_project_atomic(
                          "Project was saved, but its recovery backup could not be refreshed.");
         }
     }
-    return {};
+    if (!capture_history) {
+        return {};
+    }
+    const auto history_result = save_history_snapshot(path);
+    if (history_result) {
+        return {};
+    }
+    return {ProjectIoError::None, 0, false,
+            "Project was saved safely, but its automatic history could not be updated: " +
+                history_result.message};
+}
+
+ProjectIoResult restore_project_history(
+    const std::filesystem::path& path,
+    const std::filesystem::path& history_path,
+    ProjectDocument& restored_project) {
+    if (path.empty() || history_path.empty()) {
+        return error(ProjectIoError::InvalidValue, 0, "Project and restore-point paths are required.");
+    }
+    std::error_code filesystem_error;
+    const auto history_directory = std::filesystem::weakly_canonical(
+        project_history_directory(path), filesystem_error);
+    if (filesystem_error) {
+        return error(ProjectIoError::ReadFailed, 0,
+                     "Unable to locate this project's automatic history folder.");
+    }
+    const auto candidate_path = std::filesystem::weakly_canonical(history_path, filesystem_error);
+    if (filesystem_error || candidate_path.parent_path() != history_directory ||
+        candidate_path.extension() != kProjectExtension) {
+        return error(ProjectIoError::InvalidValue, 0,
+                     "The selected restore point does not belong to this project's automatic history.");
+    }
+
+    std::vector<ProjectHistoryEntry> entries;
+    const auto listed = list_project_history(path, entries);
+    if (!listed) {
+        return listed;
+    }
+    const auto is_listed = std::any_of(
+        entries.begin(), entries.end(), [&](const ProjectHistoryEntry& entry) {
+            std::error_code entry_error;
+            return std::filesystem::equivalent(entry.path, candidate_path, entry_error) && !entry_error;
+        });
+    if (!is_listed) {
+        return error(ProjectIoError::InvalidValue, 0,
+                     "The selected restore point is no longer available in this project's history.");
+    }
+
+    ProjectDocument restored;
+    auto result = load_project(candidate_path, restored, false);
+    if (!result) {
+        result.message = "The selected restore point failed integrity validation: " + result.message;
+        return result;
+    }
+    result = save_project_atomic(path, restored, true);
+    if (!result) {
+        return result;
+    }
+    restored_project = std::move(restored);
+    const auto warning = result.message;
+    result.message = "Saved version restored safely.";
+    if (!warning.empty()) {
+        result.message += " " + warning;
+    }
+    return result;
 }
 
 }  // namespace emberlights
