@@ -741,6 +741,12 @@ std::filesystem::path project_backup_path(const std::filesystem::path& path) {
     return backup;
 }
 
+std::filesystem::path project_active_path(const std::filesystem::path& path) {
+    auto active = path;
+    active += ".active";
+    return active;
+}
+
 ProjectIoResult load_project(
     const std::filesystem::path& path,
     ProjectDocument& project,
