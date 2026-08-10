@@ -18,6 +18,7 @@ inline constexpr std::uint32_t kProjectFormatVersion = 1;
 inline constexpr std::string_view kProjectExtension = ".emberlights";
 inline constexpr std::size_t kMaximumTrackScripts = 1024;
 inline constexpr std::size_t kMaximumTrackCues = 32768;
+inline constexpr std::size_t kMaximumAudioAssets = 4096;
 inline constexpr std::size_t kMaximumFixtureGroups = showcore::kMaxFixtures;
 
 struct ChannelDefinition {
@@ -86,6 +87,18 @@ struct AutoloopDefinition {
     std::vector<AutoloopStepDefinition> steps;
 };
 
+// Audio stays external to the project package so users retain control of their
+// music library. Identity is content-based; the local path is only a relinkable
+// hint and never a substitute for the recorded digest.
+struct AudioAssetDefinition {
+    std::string id;
+    std::string name;
+    std::string file_name;
+    std::string sha256;
+    std::uint64_t size_bytes{0};
+    std::string local_path_hint;
+};
+
 enum class AutoloopPlacementResult : std::uint8_t {
     Moved,
     Swapped,
@@ -119,6 +132,7 @@ struct TrackScriptDefinition {
     // content hashing and media relinking will build on this stable hook.
     std::string audio_key;
     std::vector<TrackCueDefinition> cues;
+    std::string audio_asset_id;
 };
 
 struct MidiMappingDefinition {
@@ -185,6 +199,7 @@ struct ProjectDocument {
     std::vector<GroupDefinition> groups;
     std::vector<LookDefinition> looks;
     std::vector<AutoloopDefinition> autoloops;
+    std::vector<AudioAssetDefinition> audio_assets;
     std::vector<TrackScriptDefinition> track_scripts;
     std::vector<MidiMappingDefinition> midi_mappings;
     std::vector<std::string> unknown_records;
