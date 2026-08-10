@@ -1940,6 +1940,8 @@ void listview_set_row(
     case showcore::ActionType::ClearManualOverrides: return "Release All Manual Overrides";
     case showcore::ActionType::SetGroupProperty: return "Set group property";
     case showcore::ActionType::SelectAutoloopBank: return "Select Autoloop Bank";
+    case showcore::ActionType::SelectAllAutoloopBanks: return "Select All Autoloop Banks";
+    case showcore::ActionType::SetAutoloopBankEnabled: return "Set Autoloop Bank Enabled";
     case showcore::ActionType::Count: return "Invalid";
     }
     return "Invalid";
@@ -2384,7 +2386,8 @@ void Application::refresh_midi() {
         if (target.empty() && mapping.action.property < showcore::Property::Count) {
             target = std::string(emberlights::property_name(mapping.action.property));
         } else if (target.empty() &&
-                   mapping.action.type == showcore::ActionType::SelectAutoloopBank &&
+                   (mapping.action.type == showcore::ActionType::SelectAutoloopBank ||
+                    mapping.action.type == showcore::ActionType::SetAutoloopBankEnabled) &&
                    mapping.action.target_id < showcore::kMaxAutoloopBanks) {
             target = "Bank " + std::to_string(mapping.action.target_id + 1U);
         }
@@ -2400,7 +2403,7 @@ void Application::refresh_midi() {
 
     const auto action = ::GetDlgItem(page, IdMidiAction);
     static_cast<void>(::SendMessageW(action, CB_RESETCONTENT, 0, 0));
-    constexpr std::array<showcore::ActionType, 19> actions{{
+    constexpr std::array<showcore::ActionType, 21> actions{{
         showcore::ActionType::Blackout,
         showcore::ActionType::WorkLight,
         showcore::ActionType::TriggerLook,
@@ -2408,6 +2411,8 @@ void Application::refresh_midi() {
         showcore::ActionType::TriggerAutoloop,
         showcore::ActionType::ClearAutoloop,
         showcore::ActionType::SelectAutoloopBank,
+        showcore::ActionType::SelectAllAutoloopBanks,
+        showcore::ActionType::SetAutoloopBankEnabled,
         showcore::ActionType::TriggerTrackScript,
         showcore::ActionType::ClearTrackScript,
         showcore::ActionType::ClearManualOverrides,
@@ -4911,7 +4916,8 @@ void Application::update_midi_targets() {
                   << static_cast<unsigned int>(loop.slot + 1U) << " — " << loop.name;
             combo_add(target, widen(label.str()), static_cast<std::intptr_t>(index));
         }
-    } else if (action == showcore::ActionType::SelectAutoloopBank) {
+    } else if (action == showcore::ActionType::SelectAutoloopBank ||
+               action == showcore::ActionType::SetAutoloopBankEnabled) {
         needs_target = true;
         for (std::uint16_t bank = 0U; bank < showcore::kMaxAutoloopBanks; ++bank) {
             combo_add(target, L"Bank " + std::to_wstring(bank + 1U), bank);
@@ -4962,7 +4968,8 @@ void Application::begin_midi_learn() {
         action == showcore::ActionType::TriggerTrackScript ||
         action == showcore::ActionType::SetProperty ||
         action == showcore::ActionType::SetGroupProperty ||
-        action == showcore::ActionType::SelectAutoloopBank;
+        action == showcore::ActionType::SelectAutoloopBank ||
+        action == showcore::ActionType::SetAutoloopBankEnabled;
     if (needs_target && combo_selected_data(::GetDlgItem(page, IdMidiTarget), -1) < 0) {
         set_page_message(Page::Midi, IdMidiMessage,
                          "Create and select the required fixture, Static Look, Autoloop, or track script first.", true);
@@ -5049,6 +5056,9 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
                static_cast<std::size_t>(target) < project_.groups.size()) {
         mapping.target_ref = project_.groups[static_cast<std::size_t>(target)].id;
     } else if (mapping.action.type == showcore::ActionType::SelectAutoloopBank && target >= 0 &&
+               target < static_cast<std::intptr_t>(showcore::kMaxAutoloopBanks)) {
+        mapping.action.target_id = static_cast<std::uint16_t>(target);
+    } else if (mapping.action.type == showcore::ActionType::SetAutoloopBankEnabled && target >= 0 &&
                target < static_cast<std::intptr_t>(showcore::kMaxAutoloopBanks)) {
         mapping.action.target_id = static_cast<std::uint16_t>(target);
     }
