@@ -24,7 +24,7 @@ Implemented:
 - OS2L healthy/predictive/audio/recovery/manual/safe synchronization states;
 - fixed-capacity SPSC beat delivery from adapter to scheduler, with explicit overflow accounting;
 - non-droppable OS2L blackout state independent of the beat queue;
-- device-agnostic MIDI mappings, multiple-device matching, curves, inversion, relative encoders, soft takeover, a targetless Release All Manual Overrides action, compiled named-group property control, and complete Autoloop-bank select/enable/all-bank control; all share bounded Runner paths with the Live controls;
+- device-agnostic MIDI mappings, multiple-device matching, curves, inversion, relative encoders, soft takeover, targetless Release All Manual Overrides, compiled named-group property control, literal-zero group blackout, and complete Autoloop-bank select/enable/all-bank control; all share bounded Runner paths with the Live controls;
 - portable WinMM short-message encode/decode with ingress timestamps, plus an isolated Windows adapter for enumeration, up to 16 simultaneous input/output ports, per-input callback queues, dropped-message counters, and short-message feedback output;
 - `midi_capture` utility for listing ports and recording one, several, or all Windows MIDI inputs, ready for Control One protocol capture;
 - fixture-agnostic compiled Static Looks with sparse SET/RELEASE/FORCE_ZERO assignments, interruption-safe switching, configurable fade-in, and crossfaded clearing;
