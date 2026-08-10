@@ -960,6 +960,13 @@ void RunnerService::run_scheduler() noexcept {
                     runtime.selected_autoloop = {};
                 }
                 break;
+            case showcore::ActionType::TriggerTrackScript:
+                if (active) {
+                    trigger_track_script(action.target_id, beat_position);
+                } else {
+                    clear_track_script();
+                }
+                break;
             case showcore::ActionType::TapTempo:
                 apply_tap(now_ms);
                 break;
@@ -976,6 +983,11 @@ void RunnerService::run_scheduler() noexcept {
                 if (active) {
                     runtime.manual_autoloop.clear(engine.layers());
                     runtime.selected_autoloop = {};
+                }
+                break;
+            case showcore::ActionType::ClearTrackScript:
+                if (active) {
+                    clear_track_script();
                 }
                 break;
             case showcore::ActionType::NextAutoloop:
