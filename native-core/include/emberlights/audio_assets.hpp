@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace emberlights {
 
@@ -45,6 +46,34 @@ struct AudioAssetFileResult {
 
 [[nodiscard]] AudioAssetFileResult verify_audio_asset(
     const AudioAssetDefinition& asset);
+
+struct AudioAssetDirectoryResolveOptions {
+    std::size_t maximum_files{100000U};
+    std::uint64_t maximum_total_bytes{256ULL * 1024ULL * 1024ULL * 1024ULL};
+};
+
+// Studio-only recovery for a moved music library. Only supported audio files
+// with a matching recorded size are hashed, and paths are changed only after an
+// exact digest match. Source media is never copied, renamed, tagged, or edited.
+struct AudioAssetDirectoryResolveResult {
+    std::size_t files_examined{0};
+    std::size_t hash_candidates{0};
+    std::size_t matched_assets{0};
+    std::size_t updated_assets{0};
+    std::size_t unreadable_files{0};
+    bool limit_reached{false};
+    std::string message;
+    std::vector<std::string> matched_asset_ids;
+
+    [[nodiscard]] bool complete() const noexcept {
+        return message.empty() && !limit_reached;
+    }
+};
+
+[[nodiscard]] AudioAssetDirectoryResolveResult resolve_audio_assets_in_directory(
+    ProjectDocument& project,
+    const std::filesystem::path& directory,
+    const AudioAssetDirectoryResolveOptions& options = {});
 
 [[nodiscard]] const char* audio_asset_file_status_name(AudioAssetFileStatus status) noexcept;
 
