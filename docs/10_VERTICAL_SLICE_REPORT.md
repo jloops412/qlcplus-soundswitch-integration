@@ -29,7 +29,7 @@ Implemented:
 - `midi_capture` utility for listing ports and recording one, several, or all Windows MIDI inputs, ready for Control One protocol capture;
 - fixture-agnostic compiled Static Looks with sparse SET/RELEASE/FORCE_ZERO assignments, interruption-safe switching, configurable fade-in, and crossfaded clearing;
 - semantic Autoloops that reference generic looks rather than hard-coded RGB values;
-- 64 banks of 32 Autoloops (2,048 total), a controller-neutral pageable four-bank window, deterministic next/previous selection, per-bank/exclusive/all-bank modes, duplication, explicit Studio slot move/swap/next-open placement, and cross-bank slot swaps;
+- 64 banks of 32 Autoloops (2,048 total), a Runner-owned controller-neutral pageable four-bank window in Live, deterministic next/previous selection, per-bank/exclusive/all-bank modes, status feedback, compatible hot-swap preservation, duplication, explicit Studio slot move/swap/next-open placement, and cross-bank slot swaps;
 - one-shot natural return over a scripted layer, infinite repeat, track-duration repeat, progress, and completed-cycle state;
 - byte-exact ArtDMX encoding and IPv4 unicast sender;
 - exact ArtDMX delivery/contents verified through a real loopback UDP receiver;
