@@ -118,6 +118,18 @@ enum ControlId : int {
     IdLiveLaserArm,
     IdLiveSparkArm,
     IdLiveMetrics,
+    IdLiveAutoloopBankPage,
+    IdLivePreviousAutoloopBankPage,
+    IdLiveNextAutoloopBankPage,
+    IdLiveSelectAllAutoloopBanks,
+    IdLiveAutoloopBank1,
+    IdLiveAutoloopBank1Only,
+    IdLiveAutoloopBank2,
+    IdLiveAutoloopBank2Only,
+    IdLiveAutoloopBank3,
+    IdLiveAutoloopBank3Only,
+    IdLiveAutoloopBank4,
+    IdLiveAutoloopBank4Only,
 
     IdProfileTitle = 2000,
     IdProfileList,
@@ -682,6 +694,7 @@ private:
     std::int32_t look_index_{-1};
     std::int32_t autoloop_index_{-1};
     std::int32_t track_index_{-1};
+    std::uint16_t live_autoloop_bank_page_{0U};
 
     emberlights::RunnerService runner_{};
     std::optional<emberlights::ProjectDocument> active_project_{};
@@ -1091,6 +1104,18 @@ void Application::create_pages() {
     add_button(page, L"Arm Laser", IdLiveLaserArm, BS_AUTOCHECKBOX);
     add_button(page, L"Arm Sparks", IdLiveSparkArm, BS_AUTOCHECKBOX);
     add_label(page, L"", IdLiveMetrics);
+    add_label(page, L"", IdLiveAutoloopBankPage);
+    add_button(page, L"Previous Banks", IdLivePreviousAutoloopBankPage);
+    add_button(page, L"Next Banks", IdLiveNextAutoloopBankPage);
+    add_button(page, L"Use All 64", IdLiveSelectAllAutoloopBanks);
+    add_button(page, L"Use B1", IdLiveAutoloopBank1, BS_AUTOCHECKBOX);
+    add_button(page, L"Only B1", IdLiveAutoloopBank1Only);
+    add_button(page, L"Use B2", IdLiveAutoloopBank2, BS_AUTOCHECKBOX);
+    add_button(page, L"Only B2", IdLiveAutoloopBank2Only);
+    add_button(page, L"Use B3", IdLiveAutoloopBank3, BS_AUTOCHECKBOX);
+    add_button(page, L"Only B3", IdLiveAutoloopBank3Only);
+    add_button(page, L"Use B4", IdLiveAutoloopBank4, BS_AUTOCHECKBOX);
+    add_button(page, L"Only B4", IdLiveAutoloopBank4Only);
 
     page = pages_[static_cast<std::size_t>(Page::Profiles)];
     title = add_label(page, L"Fixture Profiles", IdProfileTitle);
@@ -1392,16 +1417,34 @@ void Application::layout_page(Page page, int width, int height) {
         move(11, margin, list_bottom + 10, 100, 30);
         move(12, margin + 110, list_bottom + 10, 100, 30);
         const auto right = margin + column_width + column_gap;
-        move(13, right, 112, column_width, 26);
-        move(14, right, 140, column_width, list_height);
-        move(15, right, list_bottom + 10, 90, 30);
-        move(16, right + 100, list_bottom + 10, 90, 30);
-        move(17, right + 200, list_bottom + 10, 90, 30);
-        move(18, right + 300, list_bottom + 10, 90, 30);
-        move(19, margin, list_bottom + 54, 180, 26);
-        move(20, margin, list_bottom + 80, usable_width, 64);
-        move(21, margin, list_bottom + 150, 110, 30);
-        move(22, margin + 120, list_bottom + 150, 110, 30);
+        move(13, right, 112, 120, 26);
+        move(28, right + 126, 112, std::max(160, column_width - 126), 26);
+        move(29, right, 140, 90, 28);
+        move(30, right + 96, 140, 90, 28);
+        move(31, right + 192, 140, 120, 28);
+        const auto bank_column_width = std::max(120, column_width / 2);
+        constexpr int bank_only_width = 62;
+        const auto bank_use_width = std::max(54, bank_column_width - bank_only_width - 6);
+        move(32, right, 174, bank_use_width, 27);
+        move(33, right + bank_use_width + 6, 174, bank_only_width, 27);
+        move(34, right + bank_column_width, 174, bank_use_width, 27);
+        move(35, right + bank_column_width + bank_use_width + 6, 174, bank_only_width, 27);
+        move(36, right, 204, bank_use_width, 27);
+        move(37, right + bank_use_width + 6, 204, bank_only_width, 27);
+        move(38, right + bank_column_width, 204, bank_use_width, 27);
+        move(39, right + bank_column_width + bank_use_width + 6, 204, bank_only_width, 27);
+        const auto autoloop_list_height = std::max(90, height - 548);
+        const auto autoloop_list_bottom = 238 + autoloop_list_height;
+        const auto live_controls_bottom = std::max(list_bottom, autoloop_list_bottom);
+        move(14, right, 238, column_width, autoloop_list_height);
+        move(15, right, live_controls_bottom + 10, 90, 30);
+        move(16, right + 100, live_controls_bottom + 10, 90, 30);
+        move(17, right + 200, live_controls_bottom + 10, 90, 30);
+        move(18, right + 300, live_controls_bottom + 10, 90, 30);
+        move(19, margin, live_controls_bottom + 54, 180, 26);
+        move(20, margin, live_controls_bottom + 80, usable_width, 64);
+        move(21, margin, live_controls_bottom + 150, 110, 30);
+        move(22, margin + 120, live_controls_bottom + 150, 110, 30);
         move(23, margin, height - 110, 110, 28);
         move(24, margin + 120, height - 110, 110, 28);
         move(25, margin + 240, height - 110, 110, 28);
@@ -1982,6 +2025,47 @@ void Application::refresh_live_status() {
     Button_SetCheck(::GetDlgItem(page, IdLiveLaserArm), status.laser_armed ? BST_CHECKED : BST_UNCHECKED);
     Button_SetCheck(::GetDlgItem(page, IdLiveSparkArm), status.spark_armed ? BST_CHECKED : BST_UNCHECKED);
 
+    const auto bank_page_count = static_cast<std::uint16_t>(
+        showcore::kAutoloopControlPageCount);
+    if (live_autoloop_bank_page_ >= bank_page_count) {
+        live_autoloop_bank_page_ = 0U;
+    }
+    const auto first_bank = static_cast<std::uint16_t>(
+        live_autoloop_bank_page_ * showcore::kAutoloopBanksPerControlPage);
+    std::wostringstream bank_page;
+    bank_page << L"Previous/Next filter: banks " << first_bank + 1U << L"–"
+              << first_bank + showcore::kAutoloopBanksPerControlPage << L"  (page "
+              << live_autoloop_bank_page_ + 1U << L"/" << bank_page_count << L")";
+    static_cast<void>(::SetWindowTextW(
+        ::GetDlgItem(page, IdLiveAutoloopBankPage), bank_page.str().c_str()));
+    const bool can_change_banks = status.state == emberlights::RunnerState::Running;
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdLiveSelectAllAutoloopBanks), can_change_banks));
+    constexpr std::array<int, showcore::kAutoloopBanksPerControlPage> bank_controls{
+        IdLiveAutoloopBank1,
+        IdLiveAutoloopBank2,
+        IdLiveAutoloopBank3,
+        IdLiveAutoloopBank4};
+    constexpr std::array<int, showcore::kAutoloopBanksPerControlPage> only_controls{
+        IdLiveAutoloopBank1Only,
+        IdLiveAutoloopBank2Only,
+        IdLiveAutoloopBank3Only,
+        IdLiveAutoloopBank4Only};
+    for (std::size_t offset = 0U; offset < bank_controls.size(); ++offset) {
+        const auto bank = static_cast<std::uint16_t>(first_bank + offset);
+        const auto enabled = (status.active_autoloop_bank_mask &
+                              (std::uint64_t{1} << bank)) != 0U;
+        const auto use_label = L"Use B" + std::to_wstring(bank + 1U);
+        const auto only_label = L"Only B" + std::to_wstring(bank + 1U);
+        const auto use_control = ::GetDlgItem(page, bank_controls[offset]);
+        static_cast<void>(::SetWindowTextW(use_control, use_label.c_str()));
+        Button_SetCheck(use_control, enabled ? BST_CHECKED : BST_UNCHECKED);
+        static_cast<void>(::EnableWindow(use_control, can_change_banks));
+        const auto only_control = ::GetDlgItem(page, only_controls[offset]);
+        static_cast<void>(::SetWindowTextW(only_control, only_label.c_str()));
+        static_cast<void>(::EnableWindow(only_control, can_change_banks));
+    }
+
     std::wostringstream metrics;
     metrics << L"OS2L: " << adapter_state_name(status.os2l)
             << L"    MIDI: " << adapter_state_name(status.midi_input)
@@ -2318,7 +2402,9 @@ std::string Application::diagnostics_text() const {
            << validation.warning_count() << " warning(s)\r\n\r\n"
            << "Runner: " << narrow(runner_state_name(status.state))
            << "  BPM: " << status.bpm << "  Beat: " << status.beat_position
-           << "  Active script: " << status.active_track_script << "\r\n"
+           << "  Active script: " << status.active_track_script
+           << "  Navigation bank mask: 0x" << std::hex
+           << status.active_autoloop_bank_mask << std::dec << "\r\n"
            << "OS2L: " << narrow(adapter_state_name(status.os2l))
            << "  MIDI: " << narrow(adapter_state_name(status.midi_input))
            << "  Art-Net: " << narrow(adapter_state_name(status.artnet))
@@ -2510,6 +2596,66 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdLivePreviousAutoloop: static_cast<void>(runner_.previous_autoloop()); break;
     case IdLiveNextAutoloop: static_cast<void>(runner_.next_autoloop()); break;
     case IdLiveClearAutoloop: static_cast<void>(runner_.clear_autoloop()); break;
+    case IdLivePreviousAutoloopBankPage:
+        if (live_autoloop_bank_page_ == 0U) {
+            live_autoloop_bank_page_ = static_cast<std::uint16_t>(
+                showcore::kAutoloopControlPageCount - 1U);
+        } else {
+            --live_autoloop_bank_page_;
+        }
+        refresh_live_status();
+        break;
+    case IdLiveNextAutoloopBankPage:
+        live_autoloop_bank_page_ = static_cast<std::uint16_t>(
+            (live_autoloop_bank_page_ + 1U) % showcore::kAutoloopControlPageCount);
+        refresh_live_status();
+        break;
+    case IdLiveSelectAllAutoloopBanks:
+        if (!runner_.select_all_autoloop_banks()) {
+            set_status(L"Start the show before changing Autoloop navigation banks.");
+        }
+        break;
+    case IdLiveAutoloopBank1:
+    case IdLiveAutoloopBank2:
+    case IdLiveAutoloopBank3:
+    case IdLiveAutoloopBank4: {
+        std::uint16_t offset = 0U;
+        if (id == IdLiveAutoloopBank2) {
+            offset = 1U;
+        } else if (id == IdLiveAutoloopBank3) {
+            offset = 2U;
+        } else if (id == IdLiveAutoloopBank4) {
+            offset = 3U;
+        }
+        const auto bank = static_cast<std::uint16_t>(
+            live_autoloop_bank_page_ * showcore::kAutoloopBanksPerControlPage + offset);
+        const auto enabled = Button_GetCheck(::GetDlgItem(
+            pages_[static_cast<std::size_t>(Page::Live)], id)) == BST_CHECKED;
+        if (!runner_.set_autoloop_bank_enabled(bank, enabled)) {
+            set_status(L"Start the show before changing Autoloop navigation banks.");
+            refresh_live_status();
+        }
+        break;
+    }
+    case IdLiveAutoloopBank1Only:
+    case IdLiveAutoloopBank2Only:
+    case IdLiveAutoloopBank3Only:
+    case IdLiveAutoloopBank4Only: {
+        std::uint16_t offset = 0U;
+        if (id == IdLiveAutoloopBank2Only) {
+            offset = 1U;
+        } else if (id == IdLiveAutoloopBank3Only) {
+            offset = 2U;
+        } else if (id == IdLiveAutoloopBank4Only) {
+            offset = 3U;
+        }
+        const auto bank = static_cast<std::uint16_t>(
+            live_autoloop_bank_page_ * showcore::kAutoloopBanksPerControlPage + offset);
+        if (!runner_.select_exclusive_autoloop_bank(bank)) {
+            set_status(L"Start the show before changing Autoloop navigation banks.");
+        }
+        break;
+    }
     case IdLiveTriggerTrack: {
         const auto list = ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Live)], IdLiveTracks);
         const auto selected = static_cast<int>(::SendMessageW(list, LB_GETCURSEL, 0, 0));
