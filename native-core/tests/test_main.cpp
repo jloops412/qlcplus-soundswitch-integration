@@ -2013,6 +2013,9 @@ void test_runner_service_lifecycle() {
     CHECK(active.active_autoloop_progress >= 0.0F && active.active_autoloop_progress <= 1.0F);
     CHECK(active.active_autoloop_completed_cycles <= 1U);
     CHECK(active.active_track_script == 0);
+    CHECK(active.active_track_script_beat >= 0.0);
+    CHECK(active.active_track_script_beat < 1.0);
+    CHECK(active.active_track_script_consumed_cues == 1U);
     CHECK(active.blackout && active.work_light);
     CHECK(active.uptime_ms >= 100U);
     CHECK(active.last_frame_age_ms < 250U);
@@ -2025,6 +2028,8 @@ void test_runner_service_lifecycle() {
     CHECK(runner.clear_track_script());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     CHECK(runner.status().active_track_script == -1);
+    CHECK(runner.status().active_track_script_beat == 0.0);
+    CHECK(runner.status().active_track_script_consumed_cues == 0U);
     CHECK(runner.select_exclusive_autoloop_bank(7U));
     CHECK(wait_for_bank_mask(std::uint64_t{1} << 7U));
 
