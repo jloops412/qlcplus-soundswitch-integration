@@ -65,12 +65,12 @@ public:
         block_[block_size_++] = 0x80U;
         if (block_size_ > 56U) {
             std::fill(block_.begin() + static_cast<std::ptrdiff_t>(block_size_),
-                      block_.end(), 0U);
+                      block_.end(), std::uint8_t{0});
             transform(block_.data());
             block_size_ = 0U;
         }
         std::fill(block_.begin() + static_cast<std::ptrdiff_t>(block_size_),
-                  block_.begin() + 56, 0U);
+                  block_.begin() + 56, std::uint8_t{0});
         for (std::size_t index = 0; index < 8U; ++index) {
             block_[63U - index] = static_cast<std::uint8_t>(bit_count >> (index * 8U));
         }
