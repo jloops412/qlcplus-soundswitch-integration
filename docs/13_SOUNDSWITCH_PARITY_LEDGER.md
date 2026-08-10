@@ -35,7 +35,7 @@ Statuses:
 
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
-| EDT-01 | Add supported audio files and maintain durable track associations | Planned | Hash/fingerprint/metadata/path resolver and relink tests. |
+| EDT-01 | Add supported audio files and maintain durable track associations | Partial | Studio can add an external supported audio file as a SHA-256/size-identified asset, attach it to a Track Script, detect a missing/changed path, and relink only byte-identical content. Metadata/fingerprint enrichment, library-scale resolver, waveform/beatgrid, and DJ-library integration remain. |
 | EDT-02 | Waveform, beatgrid, zoom, looping preview, hotkeys, and trackpad editing | Planned | Studio usability and timing-accuracy suite. |
 | EDT-03 | Main/Master control tracks | Partial | Semantic global intent exists; timeline editor/playback pending. |
 | EDT-04 | Group and individual Fixture control tracks with precedence | Partial | Layer precedence passes; timeline authoring pending. |
@@ -118,7 +118,7 @@ Statuses:
 | DAT-01 | Import/export projects between computers | Partial | Self-contained `.emberlights` projects open/save through native dialogs with checksums and unknown-record retention; assets/bundle packaging remains. |
 | DAT-02 | Inspect and migrate `.ssproj` venues, patch, groups, looks, positions, attributes, and Autoloops | Partial | Read-only inventory, lossless source bundle, and controlled two-export byte-range comparison exist; user-owned sample corpus and deterministic semantic conversion remain. |
 | DAT-03 | Recover packaged lighting files and copied audio-associated script metadata where decodable | Research | Read-only probes; unknown payloads preserved losslessly. |
-| DAT-04 | Relink moved audio and preserve scripted work | Planned | Multi-signal resolver and conflict UI. |
+| DAT-04 | Relink moved audio and preserve scripted work | Partial | A moved file can relink to its retained asset only after an exact SHA-256/size match; same-named substitutions are refused and scripts retain their association. Multi-signal folder/library resolver and conflict UI remain. |
 | DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, verified bounded 20-version history/restore, 100-state Studio Undo/Redo, and generation-stamped live hot-swap pass. Cross-version compatibility corpus and asset-bundle rollback remain. |
 | DAT-06 | Fully offline show operation without a license server | Partial | Runner architecture requires no cloud; installer/activation proof pending. |
 | DAT-07 | Windows application and installer | Partial | Native Win32 application, per-user Inno Setup recipe, file association, portable ZIP, packaged qualification tool, checksums, and release manifest exist; signing, upgrade/rollback, and low-end qualification remain. |

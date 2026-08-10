@@ -1,4 +1,5 @@
 #include "emberlights/compiler.hpp"
+#include "emberlights/audio_assets.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
@@ -1475,7 +1476,8 @@ emberlights::ProjectDocument make_test_project() {
             {0.0F, emberlights::TrackCueAction::TriggerLook, "red"},
             {1.0F, emberlights::TrackCueAction::TriggerAutoloop, "red-blue"},
             {2.0F, emberlights::TrackCueAction::ClearLook, ""},
-            {3.0F, emberlights::TrackCueAction::ClearAutoloop, ""}}});
+            {3.0F, emberlights::TrackCueAction::ClearAutoloop, ""}},
+        {}});
     emberlights::MidiMappingDefinition start_track;
     start_track.device_name = "Test controller";
     start_track.target_ref = "test-song";
@@ -1621,6 +1623,58 @@ void test_autoloop_placement_operations() {
     }
     CHECK(emberlights::move_autoloop_to_next_empty_slot(full, "loop-0") ==
         emberlights::AutoloopPlacementResult::LibraryFull);
+}
+
+void test_audio_asset_identity_and_relinking() {
+    const auto directory = std::filesystem::path("build/audio-asset-test");
+    const auto first = directory / "Test Song.mp3";
+    const auto moved = directory / "Moved Song.mp3";
+    const auto changed = directory / "Different Song.mp3";
+    std::error_code ignored;
+    std::filesystem::remove_all(directory, ignored);
+    std::filesystem::create_directories(directory, ignored);
+    CHECK(!ignored);
+    auto write_file = [](const std::filesystem::path& path, std::string_view bytes) {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        return static_cast<bool>(output);
+    };
+    CHECK(write_file(first, "audio-identity-source"));
+    CHECK(write_file(changed, "different-audio-content"));
+
+    emberlights::AudioAssetDefinition asset;
+    const auto imported = emberlights::make_audio_asset(first, "audio.test-song", asset);
+    CHECK(imported.available());
+    CHECK(asset.id == "audio.test-song");
+    CHECK(asset.file_name == "Test Song.mp3");
+    CHECK(asset.size_bytes == 21U);
+    CHECK(asset.sha256 == "eb96dbf9519f0d542b682de8c3cfbac3c1694426bbd11fcb46e4c7bbe16fb482");
+    CHECK(emberlights::verify_audio_asset(asset).available());
+    CHECK(emberlights::relink_audio_asset(asset, changed).status ==
+        emberlights::AudioAssetFileStatus::Changed);
+    CHECK(asset.file_name == "Test Song.mp3");
+    CHECK(std::filesystem::copy_file(first, moved, std::filesystem::copy_options::overwrite_existing, ignored));
+    CHECK(!ignored);
+    CHECK(emberlights::relink_audio_asset(asset, moved).available());
+    CHECK(asset.local_path_hint.find("Moved Song.mp3") != std::string::npos);
+    std::filesystem::remove(moved, ignored);
+    CHECK(emberlights::verify_audio_asset(asset).status == emberlights::AudioAssetFileStatus::Missing);
+
+    auto project = make_test_project();
+    project.audio_assets.push_back(asset);
+    project.track_scripts.front().audio_asset_id = asset.id;
+    CHECK(emberlights::validate_project(project).ok());
+    const auto serialized = emberlights::serialize_project(project);
+    emberlights::ProjectDocument parsed;
+    CHECK(emberlights::parse_project(serialized, parsed));
+    CHECK(parsed.audio_assets.size() == 1U);
+    CHECK(parsed.audio_assets.front().sha256 == asset.sha256);
+    CHECK(parsed.track_scripts.front().audio_asset_id == asset.id);
+    CHECK(emberlights::serialize_project(parsed) == serialized);
+    parsed.track_scripts.front().audio_asset_id = "missing-audio";
+    CHECK(!emberlights::validate_project(parsed).ok());
+
+    std::filesystem::remove_all(directory, ignored);
 }
 
 void test_project_validation_io_and_compilation() {
@@ -2196,6 +2250,7 @@ int main() {
     test_deterministic_replay();
     test_project_edit_history();
     test_autoloop_placement_operations();
+    test_audio_asset_identity_and_relinking();
     test_project_validation_io_and_compilation();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();

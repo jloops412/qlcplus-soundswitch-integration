@@ -1,5 +1,7 @@
 #include "emberlights/project.hpp"
 
+#include "emberlights/file_identity.hpp"
+
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/fixture_library.hpp"
 
@@ -92,6 +94,12 @@ void add_issue(
 
 [[nodiscard]] bool finite_normalized(float value) noexcept {
     return std::isfinite(value) && value >= 0.0F && value <= 1.0F;
+}
+
+[[nodiscard]] bool valid_file_name(std::string_view value) noexcept {
+    return !value.empty() && value.size() <= 255U &&
+        value.find('/') == std::string_view::npos &&
+        value.find('\\') == std::string_view::npos;
 }
 
 FixtureProfileDefinition make_profile(
@@ -537,6 +545,38 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         }
     }
 
+    if (project.audio_assets.size() > kMaximumAudioAssets) {
+        add_issue(result, ProjectIssueSeverity::Error, "audio.capacity", project.id,
+                  "The project exceeds the supported audio-asset capacity.");
+    }
+    std::unordered_set<std::string_view> audio_asset_ids;
+    for (const auto& asset : project.audio_assets) {
+        if (!valid_identifier(asset.id) || !audio_asset_ids.insert(asset.id).second) {
+            add_issue(result, ProjectIssueSeverity::Error, "audio.id", asset.id,
+                      "Audio asset IDs must be unique, non-empty, and 96 characters or fewer.");
+        }
+        if (asset.name.empty() || asset.name.size() > 255U) {
+            add_issue(result, ProjectIssueSeverity::Error, "audio.name", asset.id,
+                      "An audio asset needs a display name of 255 characters or fewer.");
+        }
+        if (!valid_file_name(asset.file_name)) {
+            add_issue(result, ProjectIssueSeverity::Error, "audio.fileName", asset.id,
+                      "An audio asset needs a filename, not a directory path.");
+        }
+        if (!is_sha256_digest(asset.sha256)) {
+            add_issue(result, ProjectIssueSeverity::Error, "audio.sha256", asset.id,
+                      "An audio asset must have a lowercase 64-character SHA-256 digest.");
+        }
+        if (asset.size_bytes == 0U) {
+            add_issue(result, ProjectIssueSeverity::Error, "audio.size", asset.id,
+                      "An audio asset cannot be empty.");
+        }
+        if (asset.local_path_hint.size() > 4096U) {
+            add_issue(result, ProjectIssueSeverity::Error, "audio.pathHint", asset.id,
+                      "The audio path hint exceeds the safe project limit.");
+        }
+    }
+
     if (project.track_scripts.size() > kMaximumTrackScripts) {
         add_issue(result, ProjectIssueSeverity::Error, "track.capacity", project.id,
                   "The project exceeds the compiled track-script capacity.");
@@ -555,6 +595,11 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         if (!track.audio_key.empty() && !valid_identifier(track.audio_key)) {
             add_issue(result, ProjectIssueSeverity::Error, "track.audioKey", track.id,
                       "A track audio key must be 96 characters or fewer.");
+        }
+        if (!track.audio_asset_id.empty() &&
+            audio_asset_ids.find(track.audio_asset_id) == audio_asset_ids.end()) {
+            add_issue(result, ProjectIssueSeverity::Error, "track.audioAsset", track.id,
+                      "Track script references a missing audio asset.");
         }
         track_cue_count += track.cues.size();
         float previous = -1.0F;
