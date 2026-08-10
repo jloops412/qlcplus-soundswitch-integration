@@ -71,7 +71,8 @@ enum class RunnerCommandType : std::uint8_t {
     SetProperty,
     ArmHazard,
     SetTrackPlaying,
-    ClearManualOverrides
+    ClearManualOverrides,
+    SetGroupProperty
 };
 
 struct RunnerCommand {
@@ -80,6 +81,7 @@ struct RunnerCommand {
     showcore::Property property{showcore::Property::Intensity};
     float value{0.0F};
     bool active{false};
+    std::array<std::uint64_t, (showcore::kMaxFixtures + 63U) / 64U> fixture_mask{};
     std::uint64_t timestamp_ms{0};
     std::uint64_t generation{0};
 };
@@ -158,6 +160,8 @@ struct RunnerOutputFrame {
 
 class RunnerService {
 public:
+    using FixtureMask = std::array<std::uint64_t, (showcore::kMaxFixtures + 63U) / 64U>;
+
     RunnerService() noexcept;
     ~RunnerService() noexcept;
 
@@ -196,6 +200,11 @@ public:
         float value,
         bool active = true) noexcept;
     [[nodiscard]] bool clear_manual_overrides() noexcept;
+    [[nodiscard]] bool set_group_property(
+        const showcore::FixtureGroup& fixtures,
+        showcore::Property property,
+        float value,
+        bool active = true) noexcept;
     [[nodiscard]] bool set_hazard_armed(
         showcore::Property property,
         bool armed) noexcept;
