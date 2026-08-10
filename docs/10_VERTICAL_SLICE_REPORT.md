@@ -24,12 +24,12 @@ Implemented:
 - OS2L healthy/predictive/audio/recovery/manual/safe synchronization states;
 - fixed-capacity SPSC beat delivery from adapter to scheduler, with explicit overflow accounting;
 - non-droppable OS2L blackout state independent of the beat queue;
-- device-agnostic MIDI mappings, multiple-device matching, curves, inversion, relative encoders, soft takeover, a targetless Release All Manual Overrides action, and compiled named-group property control; all share bounded Runner paths with the Live controls;
+- device-agnostic MIDI mappings, multiple-device matching, curves, inversion, relative encoders, soft takeover, a targetless Release All Manual Overrides action, compiled named-group property control, and exclusive Autoloop-bank selection; all share bounded Runner paths with the Live controls;
 - portable WinMM short-message encode/decode with ingress timestamps, plus an isolated Windows adapter for enumeration, up to 16 simultaneous input/output ports, per-input callback queues, dropped-message counters, and short-message feedback output;
 - `midi_capture` utility for listing ports and recording one, several, or all Windows MIDI inputs, ready for Control One protocol capture;
 - fixture-agnostic compiled Static Looks with sparse SET/RELEASE/FORCE_ZERO assignments, interruption-safe switching, configurable fade-in, and crossfaded clearing;
 - semantic Autoloops that reference generic looks rather than hard-coded RGB values;
-- 64 banks of 32 Autoloops (2,048 total), a Runner-owned controller-neutral pageable four-bank window in Live, deterministic next/previous selection, per-bank/exclusive/all-bank modes, status feedback, compatible hot-swap preservation, duplication, explicit Studio slot move/swap/next-open placement, and cross-bank slot swaps;
+- 64 banks of 32 Autoloops (2,048 total), a Runner-owned controller-neutral pageable four-bank window in Live, deterministic next/previous selection, per-bank/exclusive/all-bank modes, direct MIDI exclusive-bank selection, status feedback, compatible hot-swap preservation, duplication, explicit Studio slot move/swap/next-open placement, and cross-bank slot swaps;
 - one-shot natural return over a scripted layer, infinite repeat, track-duration repeat, progress, and completed-cycle state;
 - byte-exact ArtDMX encoding and IPv4 unicast sender;
 - exact ArtDMX delivery/contents verified through a real loopback UDP receiver;
