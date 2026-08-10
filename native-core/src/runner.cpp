@@ -1151,6 +1151,14 @@ void RunnerService::run_scheduler() noexcept {
                     static_cast<void>(show->autoloops().select_exclusive_bank(action.target_id));
                 }
                 break;
+            case showcore::ActionType::SelectAllAutoloopBanks:
+                if (active) {
+                    show->autoloops().select_all_banks();
+                }
+                break;
+            case showcore::ActionType::SetAutoloopBankEnabled:
+                static_cast<void>(show->autoloops().set_bank_enabled(action.target_id, active));
+                break;
             case showcore::ActionType::NextAutoloop:
                 if (active) {
                     trigger_loop(
