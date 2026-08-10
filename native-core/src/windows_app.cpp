@@ -16,6 +16,7 @@
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
+#include <shlobj_core.h>
 #include <shobjidl.h>
 
 #include <algorithm>
@@ -225,6 +226,7 @@ enum ControlId : int {
     IdTrackAddAudio,
     IdTrackRelinkAudio,
     IdTrackVerifyAudio,
+    IdTrackResolveAudioFolder,
     IdTrackAudioKey,
     IdTrackCues,
     IdTrackHelp,
@@ -303,6 +305,7 @@ enum ControlId : int {
     case IdTrackDelete:
     case IdTrackAddAudio:
     case IdTrackRelinkAudio:
+    case IdTrackResolveAudioFolder:
     case IdMidiDelete:
     case IdConnectionsApply:
     case IdSafetyApply:
@@ -693,6 +696,7 @@ private:
     void delete_track();
     void import_audio_for_track(bool relink);
     void verify_selected_audio_for_track();
+    void resolve_audio_assets_for_project();
 
     void apply_connections();
     void apply_safety();
@@ -1311,6 +1315,7 @@ void Application::create_pages() {
     add_button(page, L"Add Audio...", IdTrackAddAudio);
     add_button(page, L"Relink...", IdTrackRelinkAudio);
     add_button(page, L"Verify", IdTrackVerifyAudio);
+    add_button(page, L"Find in Folder...", IdTrackResolveAudioFolder);
     add_label(page, L"Legacy migration key (optional)", 0);
     add_edit(page, IdTrackAudioKey);
     add_label(page, L"Beat-addressed cues", 0);
@@ -1654,12 +1659,13 @@ void Application::layout_page(Page page, int width, int height) {
         move(10, x, 146, 115, 30);
         move(11, x + 125, 146, 100, 30);
         move(12, x + 235, 146, 100, 30);
-        move(13, x, 188, 190, 26);
-        move(14, x + 190, 188, form_width - 190, 27);
-        move(15, x, 228, form_width, 26);
-        move(16, x, 258, form_width, std::max(150, height - 425));
-        move(17, x, height - 130, form_width, 50);
-        move(18, x, height - 72, form_width, 30);
+        move(13, x + 345, 146, 135, 30);
+        move(14, x, 188, 190, 26);
+        move(15, x + 190, 188, form_width - 190, 27);
+        move(16, x, 228, form_width, 26);
+        move(17, x, 258, form_width, std::max(150, height - 425));
+        move(18, x, height - 130, form_width, 50);
+        move(19, x, height - 72, form_width, 30);
         break;
     }
     case Page::Midi:
@@ -2958,6 +2964,7 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdTrackAddAudio: import_audio_for_track(false); break;
     case IdTrackRelinkAudio: import_audio_for_track(true); break;
     case IdTrackVerifyAudio: verify_selected_audio_for_track(); break;
+    case IdTrackResolveAudioFolder: resolve_audio_assets_for_project(); break;
     case IdRefreshMidi: refresh_midi_ports(); break;
     case IdConnectionsApply: apply_connections(); break;
     case IdSafetyApply: apply_safety(); break;
@@ -4981,6 +4988,76 @@ void Application::verify_selected_audio_for_track() {
         std::string("Audio ") + emberlights::audio_asset_file_status_name(result.status) +
             ": " + result.message,
         true);
+}
+
+void Application::resolve_audio_assets_for_project() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    if (project_.audio_assets.empty()) {
+        set_page_message(
+            Page::Tracks,
+            IdTrackMessage,
+            "Add at least one audio asset before searching a music-library folder.",
+            true);
+        return;
+    }
+    BROWSEINFOW dialog{};
+    dialog.hwndOwner = window_;
+    dialog.lpszTitle = L"Choose the music-library folder EmberLights should search";
+    dialog.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    const auto selection = ::SHBrowseForFolderW(&dialog);
+    if (selection == nullptr) {
+        return;
+    }
+    std::array<wchar_t, MAX_PATH> directory{};
+    const auto resolved_path = ::SHGetPathFromIDListW(selection, directory.data()) != FALSE;
+    ::CoTaskMemFree(selection);
+    if (!resolved_path) {
+        set_page_message(
+            Page::Tracks,
+            IdTrackMessage,
+            "EmberLights could not read the selected music-library path.",
+            true);
+        return;
+    }
+
+    set_page_message(Page::Tracks, IdTrackMessage,
+                     "Searching supported audio files by recorded size and SHA-256...", false);
+    static_cast<void>(::UpdateWindow(window_));
+    auto candidate = project_;
+    const auto result = emberlights::resolve_audio_assets_in_directory(
+        candidate, std::filesystem::path(directory.data()));
+    if (!result.message.empty()) {
+        set_page_message(Page::Tracks, IdTrackMessage, result.message, true);
+        return;
+    }
+    if (result.updated_assets != 0U) {
+        project_ = std::move(candidate);
+        mark_dirty();
+        const auto selected_track = track_index_ >= 0 &&
+            static_cast<std::size_t>(track_index_) < project_.track_scripts.size()
+            ? project_.track_scripts[static_cast<std::size_t>(track_index_)].audio_asset_id
+            : std::string{};
+        refresh_track_audio_assets(selected_track);
+    }
+    std::ostringstream message;
+    message << "Examined " << result.files_examined << " supported file"
+            << (result.files_examined == 1U ? "" : "s")
+            << "; hashed " << result.hash_candidates << " size match"
+            << (result.hash_candidates == 1U ? "" : "es")
+            << "; matched " << result.matched_assets << " asset"
+            << (result.matched_assets == 1U ? "" : "s") << ".";
+    if (result.updated_assets != 0U) {
+        message << " Updated " << result.updated_assets << " local path hint"
+                << (result.updated_assets == 1U ? "." : "s.");
+    }
+    if (result.unreadable_files != 0U) {
+        message << " Skipped " << result.unreadable_files << " unreadable file"
+                << (result.unreadable_files == 1U ? "." : "s.");
+    }
+    if (result.limit_reached) {
+        message << " Scan limit reached; choose a narrower folder for a complete search.";
+    }
+    set_page_message(Page::Tracks, IdTrackMessage, message.str(), result.limit_reached);
 }
 
 void Application::apply_connections() {
