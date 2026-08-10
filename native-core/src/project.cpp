@@ -586,6 +586,12 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                       "MIDI mapping action is outside the supported range.");
             continue;
         }
+        if (mapping.action.type == showcore::ActionType::SelectAutoloopBank &&
+            mapping.action.target_id >= showcore::kMaxAutoloopBanks) {
+            add_issue(result, ProjectIssueSeverity::Error, "midi.bank", mapping.device_name,
+                      "MIDI Autoloop-bank selection must reference a valid bank.");
+            continue;
+        }
         const bool needs_look = mapping.action.type == showcore::ActionType::TriggerLook;
         const bool needs_autoloop = mapping.action.type == showcore::ActionType::TriggerAutoloop;
         const bool needs_fixture = mapping.action.type == showcore::ActionType::SetProperty;
