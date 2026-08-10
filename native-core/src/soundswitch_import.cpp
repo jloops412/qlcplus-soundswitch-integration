@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -291,6 +292,103 @@ void add_issue(
         [kind](const auto& artifact) { return artifact.kind == kind; });
 }
 
+inline constexpr std::size_t kMaximumComparisonRanges = 64U;
+inline constexpr std::size_t kComparisonBufferBytes = 64U * 1024U;
+
+void add_comparison_issue(
+    SoundSwitchComparison& comparison,
+    SoundSwitchIssueSeverity severity,
+    std::string code,
+    std::string subject,
+    std::string message) {
+    comparison.issues.push_back(
+        {severity, std::move(code), std::move(subject), std::move(message)});
+}
+
+void append_difference_range(
+    SoundSwitchArtifactComparison& artifact,
+    std::uint64_t offset,
+    std::uint64_t length) {
+    if (length == 0U) {
+        return;
+    }
+    if (!artifact.changed_ranges.empty()) {
+        auto& previous = artifact.changed_ranges.back();
+        if (previous.offset + previous.length == offset) {
+            previous.length += length;
+            return;
+        }
+    }
+    if (artifact.changed_ranges.size() >= kMaximumComparisonRanges) {
+        artifact.ranges_truncated = true;
+        return;
+    }
+    artifact.changed_ranges.push_back({offset, length});
+}
+
+[[nodiscard]] bool scan_binary_difference(
+    const std::filesystem::path& before_path,
+    const std::filesystem::path& after_path,
+    SoundSwitchArtifactComparison& artifact,
+    std::string& error_message) {
+    std::ifstream before(before_path, std::ios::binary);
+    std::ifstream after(after_path, std::ios::binary);
+    if (!before || !after) {
+        error_message = "A changed payload could not be reopened for byte comparison.";
+        return false;
+    }
+
+    const auto shared_size = std::min(artifact.before_size, artifact.after_size);
+    std::array<char, kComparisonBufferBytes> before_buffer{};
+    std::array<char, kComparisonBufferBytes> after_buffer{};
+    std::uint64_t offset = 0U;
+    bool range_open = false;
+    std::uint64_t range_offset = 0U;
+    std::uint64_t range_length = 0U;
+    auto close_range = [&]() {
+        if (!range_open) {
+            return;
+        }
+        append_difference_range(artifact, range_offset, range_length);
+        range_open = false;
+        range_length = 0U;
+    };
+
+    while (offset < shared_size) {
+        const auto requested = static_cast<std::size_t>(std::min<std::uint64_t>(
+            shared_size - offset, before_buffer.size()));
+        before.read(before_buffer.data(), static_cast<std::streamsize>(requested));
+        after.read(after_buffer.data(), static_cast<std::streamsize>(requested));
+        if (before.gcount() != static_cast<std::streamsize>(requested) ||
+            after.gcount() != static_cast<std::streamsize>(requested)) {
+            error_message = "A changed payload could not be read completely for byte comparison.";
+            return false;
+        }
+        for (std::size_t index = 0U; index < requested; ++index) {
+            if (before_buffer[index] != after_buffer[index]) {
+                ++artifact.changed_bytes;
+                if (!range_open) {
+                    range_open = true;
+                    range_offset = offset + index;
+                    range_length = 0U;
+                }
+                ++range_length;
+            } else {
+                close_range();
+            }
+        }
+        offset += requested;
+    }
+    close_range();
+
+    const auto tail_size = std::max(artifact.before_size, artifact.after_size) - shared_size;
+    if (tail_size > 0U) {
+        artifact.changed_bytes += tail_size;
+        append_difference_range(artifact, shared_size, tail_size);
+    }
+    return true;
+}
+
 void append_json_string(std::ostringstream& output, std::string_view value) {
     constexpr std::string_view digits = "0123456789abcdef";
     output << '"';
@@ -360,6 +458,20 @@ std::size_t SoundSwitchInspection::warning_count() const noexcept {
         }));
 }
 
+std::size_t SoundSwitchComparison::error_count() const noexcept {
+    return static_cast<std::size_t>(std::count_if(
+        issues.begin(), issues.end(), [](const auto& issue) {
+            return issue.severity == SoundSwitchIssueSeverity::Error;
+        }));
+}
+
+std::size_t SoundSwitchComparison::warning_count() const noexcept {
+    return static_cast<std::size_t>(std::count_if(
+        issues.begin(), issues.end(), [](const auto& issue) {
+            return issue.severity == SoundSwitchIssueSeverity::Warning;
+        }));
+}
+
 const char* soundswitch_artifact_kind_name(SoundSwitchArtifactKind kind) noexcept {
     switch (kind) {
     case SoundSwitchArtifactKind::ProjectManifest: return "projectManifest";
@@ -372,6 +484,17 @@ const char* soundswitch_artifact_kind_name(SoundSwitchArtifactKind kind) noexcep
     case SoundSwitchArtifactKind::RecordableData: return "recordableData";
     case SoundSwitchArtifactKind::Audio: return "audio";
     case SoundSwitchArtifactKind::Unknown: return "unknown";
+    }
+    return "unknown";
+}
+
+const char* soundswitch_artifact_change_name(SoundSwitchArtifactChange change) noexcept {
+    switch (change) {
+    case SoundSwitchArtifactChange::Unchanged: return "unchanged";
+    case SoundSwitchArtifactChange::Added: return "added";
+    case SoundSwitchArtifactChange::Removed: return "removed";
+    case SoundSwitchArtifactChange::Modified: return "modified";
+    case SoundSwitchArtifactChange::Reclassified: return "reclassified";
     }
     return "unknown";
 }
@@ -728,6 +851,224 @@ bool save_soundswitch_inspection_atomic(
     if (error) {
         std::filesystem::remove(temporary, error);
         error_message = "The verified inspection report could not be activated.";
+        return false;
+    }
+    return true;
+}
+
+SoundSwitchComparison compare_soundswitch_projects(
+    const std::filesystem::path& before_root,
+    const std::filesystem::path& after_root,
+    const SoundSwitchInspectionOptions& options) {
+    SoundSwitchComparison comparison;
+    comparison.before = inspect_soundswitch_project(before_root, options);
+    comparison.after = inspect_soundswitch_project(after_root, options);
+    if (!comparison.before.complete() || !comparison.after.complete()) {
+        add_comparison_issue(
+            comparison,
+            SoundSwitchIssueSeverity::Error,
+            "comparison.inspectionFailed",
+            "Source inspection",
+            "Both exports must pass read-only inspection before they can be compared.");
+        return comparison;
+    }
+
+    std::map<std::string, const SoundSwitchArtifact*> before_artifacts;
+    std::map<std::string, const SoundSwitchArtifact*> after_artifacts;
+    for (const auto& artifact : comparison.before.artifacts) {
+        before_artifacts.emplace(artifact.relative_path, &artifact);
+    }
+    for (const auto& artifact : comparison.after.artifacts) {
+        after_artifacts.emplace(artifact.relative_path, &artifact);
+    }
+    std::map<std::string, bool> paths;
+    for (const auto& [path, _] : before_artifacts) {
+        paths.emplace(path, true);
+    }
+    for (const auto& [path, _] : after_artifacts) {
+        paths.emplace(path, true);
+    }
+
+    const auto before_base = path_from_utf8(comparison.before.source_root);
+    const auto after_base = path_from_utf8(comparison.after.source_root);
+    for (const auto& [path, _] : paths) {
+        const auto before = before_artifacts.find(path);
+        const auto after = after_artifacts.find(path);
+        SoundSwitchArtifactComparison artifact;
+        artifact.relative_path = path;
+        if (before == before_artifacts.end()) {
+            const auto& source = *after->second;
+            artifact.kind = source.kind;
+            artifact.change = SoundSwitchArtifactChange::Added;
+            artifact.after_size = source.size;
+            artifact.after_sha256 = source.sha256;
+            ++comparison.added_artifacts;
+        } else if (after == after_artifacts.end()) {
+            const auto& source = *before->second;
+            artifact.kind = source.kind;
+            artifact.change = SoundSwitchArtifactChange::Removed;
+            artifact.before_size = source.size;
+            artifact.before_sha256 = source.sha256;
+            ++comparison.removed_artifacts;
+        } else {
+            const auto& first = *before->second;
+            const auto& second = *after->second;
+            artifact.kind = second.kind;
+            artifact.before_size = first.size;
+            artifact.after_size = second.size;
+            artifact.before_sha256 = first.sha256;
+            artifact.after_sha256 = second.sha256;
+            if (first.kind != second.kind) {
+                artifact.change = SoundSwitchArtifactChange::Reclassified;
+                ++comparison.reclassified_artifacts;
+            } else if (first.size == second.size && first.sha256 == second.sha256) {
+                artifact.change = SoundSwitchArtifactChange::Unchanged;
+                ++comparison.unchanged_artifacts;
+            } else {
+                artifact.change = SoundSwitchArtifactChange::Modified;
+                std::string scan_error;
+                if (!scan_binary_difference(
+                        before_base / path_from_utf8(path),
+                        after_base / path_from_utf8(path),
+                        artifact,
+                        scan_error)) {
+                    add_comparison_issue(
+                        comparison,
+                        SoundSwitchIssueSeverity::Error,
+                        "comparison.readFailed",
+                        path,
+                        std::move(scan_error));
+                }
+                if (artifact.ranges_truncated) {
+                    add_comparison_issue(
+                        comparison,
+                        SoundSwitchIssueSeverity::Warning,
+                        "comparison.rangeLimit",
+                        path,
+                        "More than 64 separated byte ranges changed; the report lists the first ranges only.");
+                }
+                ++comparison.modified_artifacts;
+            }
+        }
+        comparison.artifacts.push_back(std::move(artifact));
+    }
+    return comparison;
+}
+
+std::string serialize_soundswitch_comparison(
+    const SoundSwitchComparison& comparison) {
+    std::ostringstream output;
+    output << "{\n  \"format\": ";
+    append_json_string(output, comparison.format);
+    output << ",\n  \"formatVersion\": " << comparison.format_version
+           << ",\n  \"complete\": " << (comparison.complete() ? "true" : "false")
+           << ",\n  \"beforeSourceRoot\": ";
+    append_json_string(output, comparison.before.source_root);
+    output << ",\n  \"afterSourceRoot\": ";
+    append_json_string(output, comparison.after.source_root);
+    output << ",\n  \"summary\": {\n"
+           << "    \"unchanged\": " << comparison.unchanged_artifacts << ",\n"
+           << "    \"added\": " << comparison.added_artifacts << ",\n"
+           << "    \"removed\": " << comparison.removed_artifacts << ",\n"
+           << "    \"modified\": " << comparison.modified_artifacts << ",\n"
+           << "    \"reclassified\": " << comparison.reclassified_artifacts << ",\n"
+           << "    \"errors\": " << comparison.error_count() << ",\n"
+           << "    \"warnings\": " << comparison.warning_count() << "\n"
+           << "  },\n  \"artifacts\": [";
+    for (std::size_t index = 0U; index < comparison.artifacts.size(); ++index) {
+        const auto& artifact = comparison.artifacts[index];
+        output << (index == 0U ? "\n" : ",\n") << "    {\"path\": ";
+        append_json_string(output, artifact.relative_path);
+        output << ", \"kind\": ";
+        append_json_string(output, soundswitch_artifact_kind_name(artifact.kind));
+        output << ", \"change\": ";
+        append_json_string(output, soundswitch_artifact_change_name(artifact.change));
+        output << ", \"beforeSize\": " << artifact.before_size
+               << ", \"afterSize\": " << artifact.after_size
+               << ", \"beforeSha256\": ";
+        append_json_string(output, artifact.before_sha256);
+        output << ", \"afterSha256\": ";
+        append_json_string(output, artifact.after_sha256);
+        output << ", \"changedBytes\": " << artifact.changed_bytes
+               << ", \"rangesTruncated\": "
+               << (artifact.ranges_truncated ? "true" : "false")
+               << ", \"changedRanges\": [";
+        for (std::size_t range_index = 0U;
+             range_index < artifact.changed_ranges.size(); ++range_index) {
+            const auto& range = artifact.changed_ranges[range_index];
+            output << (range_index == 0U ? "" : ", ")
+                   << "{\"offset\": " << range.offset
+                   << ", \"length\": " << range.length << '}';
+        }
+        output << "]}";
+    }
+    if (!comparison.artifacts.empty()) {
+        output << '\n';
+    }
+    output << "  ],\n  \"issues\": [";
+    for (std::size_t index = 0U; index < comparison.issues.size(); ++index) {
+        const auto& issue = comparison.issues[index];
+        output << (index == 0U ? "\n" : ",\n") << "    {\"severity\": ";
+        append_json_string(
+            output,
+            issue.severity == SoundSwitchIssueSeverity::Error ? "error" : "warning");
+        output << ", \"code\": ";
+        append_json_string(output, issue.code);
+        output << ", \"subject\": ";
+        append_json_string(output, issue.subject);
+        output << ", \"message\": ";
+        append_json_string(output, issue.message);
+        output << '}';
+    }
+    if (!comparison.issues.empty()) {
+        output << '\n';
+    }
+    output << "  ]\n}\n";
+    return output.str();
+}
+
+bool save_soundswitch_comparison_atomic(
+    const std::filesystem::path& report_path,
+    const SoundSwitchComparison& comparison,
+    std::string& error_message) {
+    error_message.clear();
+    if (report_path.empty()) {
+        error_message = "The report path is empty.";
+        return false;
+    }
+    std::error_code error;
+    const auto parent = report_path.parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, error);
+        if (error) {
+            error_message = "The report directory could not be created.";
+            return false;
+        }
+    }
+    auto temporary = report_path;
+    temporary += ".tmp";
+    const auto serialized = serialize_soundswitch_comparison(comparison);
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output ||
+            !output.write(serialized.data(), static_cast<std::streamsize>(serialized.size())) ||
+            !output.flush()) {
+            output.close();
+            std::filesystem::remove(temporary, error);
+            error_message = "The complete comparison report could not be written.";
+            return false;
+        }
+    }
+    std::filesystem::rename(temporary, report_path, error);
+    if (error) {
+        error.clear();
+        std::filesystem::remove(report_path, error);
+        error.clear();
+        std::filesystem::rename(temporary, report_path, error);
+    }
+    if (error) {
+        std::filesystem::remove(temporary, error);
+        error_message = "The verified comparison report could not be activated.";
         return false;
     }
     return true;

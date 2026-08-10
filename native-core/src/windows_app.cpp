@@ -69,6 +69,7 @@ enum ControlId : int {
     IdFileSave,
     IdFileSaveAs,
     IdFileInspectSoundSwitch,
+    IdFileCompareSoundSwitch,
     IdFileBundleSoundSwitch,
     IdFileExit,
     IdShowValidate = 120,
@@ -536,6 +537,7 @@ private:
     void open_project_dialog();
     void import_qlc_fixture_dialog();
     void inspect_soundswitch_dialog();
+    void compare_soundswitch_dialog();
     void bundle_soundswitch_dialog();
     bool open_project(const std::filesystem::path& path);
     bool save_project(bool save_as);
@@ -829,6 +831,8 @@ void Application::create_menu_bar() {
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(
         file, MF_STRING, IdFileInspectSoundSwitch, L"Inspect SoundSwitch &Project..."));
+    static_cast<void>(::AppendMenuW(
+        file, MF_STRING, IdFileCompareSoundSwitch, L"Compare SoundSwitch &Exports..."));
     static_cast<void>(::AppendMenuW(
         file, MF_STRING, IdFileBundleSoundSwitch, L"Create SoundSwitch Migration &Bundle..."));
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
@@ -2153,6 +2157,7 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdFileSave: static_cast<void>(save_project(false)); break;
     case IdFileSaveAs: static_cast<void>(save_project(true)); break;
     case IdFileInspectSoundSwitch: inspect_soundswitch_dialog(); break;
+    case IdFileCompareSoundSwitch: compare_soundswitch_dialog(); break;
     case IdFileBundleSoundSwitch: bundle_soundswitch_dialog(); break;
     case IdFileExit: static_cast<void>(::SendMessageW(window_, WM_CLOSE, 0, 0)); break;
     case IdShowValidate:
@@ -2469,6 +2474,64 @@ void Application::inspect_soundswitch_dialog() {
     set_status(inspection.complete()
         ? L"SoundSwitch inspection complete. A real sample bundle is still required for verified semantic conversion."
         : L"SoundSwitch inspection found blocking issues; review the JSON report.");
+}
+
+void Application::compare_soundswitch_dialog() {
+    const auto before = choose_folder(
+        window_, L"Select the original SoundSwitch export (before one controlled change)");
+    if (!before.has_value()) {
+        return;
+    }
+    const auto after = choose_folder(
+        window_, L"Select the changed SoundSwitch export (after one controlled change)");
+    if (!after.has_value()) {
+        return;
+    }
+
+    set_status(L"Comparing SoundSwitch exports read-only and locating changed binary ranges...");
+    static_cast<void>(::UpdateWindow(window_));
+    const auto comparison = emberlights::compare_soundswitch_projects(*before, *after);
+
+    std::array<wchar_t, 32768> selected{};
+    constexpr std::wstring_view suggested = L"EmberLights-SoundSwitch-comparison.json";
+    std::copy(suggested.begin(), suggested.end(), selected.begin());
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window_;
+    dialog.lpstrFilter = L"JSON Reports (*.json)\0*.json\0All Files\0*.*\0";
+    dialog.lpstrFile = selected.data();
+    dialog.nMaxFile = static_cast<DWORD>(selected.size());
+    dialog.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    dialog.lpstrDefExt = L"json";
+    bool saved = false;
+    std::string report_error;
+    if (::GetSaveFileNameW(&dialog) != FALSE) {
+        saved = emberlights::save_soundswitch_comparison_atomic(
+            std::filesystem::path(selected.data()), comparison, report_error);
+    }
+
+    std::wostringstream summary;
+    summary << L"Read-only SoundSwitch export comparison\n\n"
+            << L"Compared payload paths: " << comparison.artifacts.size() << L"\n"
+            << L"Modified: " << comparison.modified_artifacts << L"\n"
+            << L"Added: " << comparison.added_artifacts << L"\n"
+            << L"Removed: " << comparison.removed_artifacts << L"\n"
+            << L"Unchanged: " << comparison.unchanged_artifacts << L"\n"
+            << L"Errors: " << comparison.error_count()
+            << L"    Warnings: " << comparison.warning_count() << L"\n\n";
+    if (!report_error.empty()) {
+        summary << widen(report_error);
+    } else if (saved) {
+        summary << L"The JSON comparison was saved. It contains hashes and byte ranges, not source payload bytes.";
+    } else {
+        summary << L"No report was saved. Neither SoundSwitch export was changed.";
+    }
+    ::MessageBoxW(
+        window_, summary.str().c_str(), L"SoundSwitch export comparison",
+        MB_OK | (comparison.complete() ? MB_ICONINFORMATION : MB_ICONWARNING));
+    set_status(comparison.complete()
+        ? L"SoundSwitch comparison complete. The report is ready for safe decoder mapping."
+        : L"SoundSwitch comparison found blocking source or read errors; review the report.");
 }
 
 void Application::bundle_soundswitch_dialog() {

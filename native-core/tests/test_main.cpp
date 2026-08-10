@@ -1668,12 +1668,17 @@ void test_runner_service_lifecycle() {
 
 void test_soundswitch_read_only_inspection_and_bundle() {
     const auto source = std::filesystem::path("build/soundswitch-inspection-source.ssproj");
+    const auto after = std::filesystem::path("build/soundswitch-inspection-after.ssproj");
     const auto bundle = std::filesystem::path("build/soundswitch-inspection-bundle");
     const auto report = std::filesystem::path("build/soundswitch-inspection-report.json");
+    const auto comparison_report =
+        std::filesystem::path("build/soundswitch-inspection-comparison.json");
     std::error_code ignored;
     std::filesystem::remove_all(source, ignored);
+    std::filesystem::remove_all(after, ignored);
     std::filesystem::remove_all(bundle, ignored);
     std::filesystem::remove(report, ignored);
+    std::filesystem::remove(comparison_report, ignored);
     std::filesystem::create_directories(source / "recordable", ignored);
     CHECK(!ignored);
     auto write_file = [](const std::filesystem::path& path, std::string_view bytes) {
@@ -1713,6 +1718,43 @@ void test_soundswitch_read_only_inspection_and_bundle() {
         report, inspection, report_error));
     CHECK(std::filesystem::file_size(report, ignored) > 0U);
 
+    std::filesystem::create_directories(after, ignored);
+    CHECK(!ignored);
+    CHECK(write_file(after / "Example.ssproj", "{\"project\":\"test\"}\n"));
+    CHECK(write_file(after / "SoundSwitchVenues.bin", "venue-updated"));
+    CHECK(write_file(
+        after / "01234567-89ab-cdef-0123-456789abcdef.ssfile",
+        std::string_view{"\xAA\xAA\x09\x55payload", 11U}));
+    CHECK(write_file(after / "future.payload", "preserve-me"));
+    CHECK(write_file(after / "SoundSwitchTrackMap.bin", "track-map"));
+
+    const auto comparison = emberlights::compare_soundswitch_projects(source, after);
+    CHECK(comparison.complete());
+    CHECK(comparison.artifacts.size() == 6U);
+    CHECK(comparison.unchanged_artifacts == 3U);
+    CHECK(comparison.added_artifacts == 1U);
+    CHECK(comparison.removed_artifacts == 1U);
+    CHECK(comparison.modified_artifacts == 1U);
+    const auto changed_venues = std::find_if(
+        comparison.artifacts.begin(), comparison.artifacts.end(), [](const auto& artifact) {
+            return artifact.relative_path == "SoundSwitchVenues.bin";
+        });
+    CHECK(changed_venues != comparison.artifacts.end());
+    if (changed_venues != comparison.artifacts.end()) {
+        CHECK(changed_venues->change == emberlights::SoundSwitchArtifactChange::Modified);
+        CHECK(changed_venues->before_size == 5U);
+        CHECK(changed_venues->after_size == 13U);
+        CHECK(changed_venues->changed_bytes >= 8U);
+        CHECK(!changed_venues->changed_ranges.empty());
+    }
+    const auto comparison_json = emberlights::serialize_soundswitch_comparison(comparison);
+    CHECK(comparison_json.find("emberlights-soundswitch-comparison") != std::string::npos);
+    CHECK(comparison_json.find("\"change\": \"modified\"") != std::string::npos);
+    CHECK(comparison_json.find("venue-updated") == std::string::npos);
+    CHECK(emberlights::save_soundswitch_comparison_atomic(
+        comparison_report, comparison, report_error));
+    CHECK(std::filesystem::file_size(comparison_report, ignored) > 0U);
+
     const auto bundled = emberlights::create_soundswitch_source_bundle(source, bundle);
     CHECK(bundled);
     CHECK(std::filesystem::is_regular_file(bundle / "inventory.json"));
@@ -1725,8 +1767,10 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     CHECK(duplicate.error == emberlights::SoundSwitchBundleError::DestinationExists);
 
     std::filesystem::remove_all(source, ignored);
+    std::filesystem::remove_all(after, ignored);
     std::filesystem::remove_all(bundle, ignored);
     std::filesystem::remove(report, ignored);
+    std::filesystem::remove(comparison_report, ignored);
 }
 
 }  // namespace

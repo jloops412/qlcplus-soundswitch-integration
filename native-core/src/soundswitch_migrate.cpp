@@ -15,11 +15,14 @@ void print_help() {
         << "EmberLights SoundSwitch migration evidence tool " << emberlights::kVersion << "\n\n"
         << "Usage:\n"
         << "  emberlights_migrate inspect <SoundSwitch project directory> [--report <file>] [--force]\n"
+        << "  emberlights_migrate compare <before export> <after export> [--report <file>] [--force]\n"
         << "  emberlights_migrate bundle <SoundSwitch project directory> <new bundle directory>\n\n"
         << "inspect reads and hashes the source without modifying it.\n"
         << "bundle copies every regular payload into payload/, verifies each SHA-256, and\n"
         << "publishes inventory.json only after the complete bundle verifies. The destination\n"
-        << "must not exist. No undocumented payload is interpreted or discarded.\n";
+        << "must not exist. No undocumented payload is interpreted or discarded.\n"
+        << "compare performs two read-only inspections and reports only changed paths, hashes,\n"
+        << "and bounded byte ranges. It never exports payload bytes.\n";
 }
 
 int run(const std::vector<std::filesystem::path>& arguments) {
@@ -67,6 +70,49 @@ int run(const std::vector<std::filesystem::path>& arguments) {
                   << inspection.error_count() << " error(s), "
                   << inspection.warning_count() << " warning(s).\n";
         return inspection.complete() ? 0 : 2;
+    }
+    if (command == "compare") {
+        if (arguments.size() < 3U) {
+            print_help();
+            return 1;
+        }
+        std::filesystem::path report;
+        bool force = false;
+        for (std::size_t index = 3U; index < arguments.size(); ++index) {
+            const auto option = arguments[index].string();
+            if (option == "--force") {
+                force = true;
+            } else if (option == "--report" && index + 1U < arguments.size()) {
+                report = arguments[++index];
+            } else {
+                std::cerr << "Unknown or incomplete option: " << option << '\n';
+                return 1;
+            }
+        }
+        const auto comparison = emberlights::compare_soundswitch_projects(
+            arguments[1], arguments[2]);
+        if (report.empty()) {
+            std::cout << emberlights::serialize_soundswitch_comparison(comparison);
+        } else {
+            std::error_code filesystem_error;
+            if (!force && std::filesystem::exists(report, filesystem_error)) {
+                std::cerr << "Report already exists; use --force to replace it.\n";
+                return 1;
+            }
+            std::string error;
+            if (!emberlights::save_soundswitch_comparison_atomic(report, comparison, error)) {
+                std::cerr << error << '\n';
+                return 2;
+            }
+            std::cout << "Comparison report saved to " << report.string() << '\n';
+        }
+        std::cerr << "Compared " << comparison.artifacts.size() << " payload path(s): "
+                  << comparison.modified_artifacts << " modified, "
+                  << comparison.added_artifacts << " added, "
+                  << comparison.removed_artifacts << " removed, "
+                  << comparison.error_count() << " error(s), "
+                  << comparison.warning_count() << " warning(s).\n";
+        return comparison.complete() ? 0 : 2;
     }
     if (command == "bundle") {
         if (arguments.size() != 3U) {

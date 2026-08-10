@@ -116,7 +116,7 @@ Statuses:
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
 | DAT-01 | Import/export projects between computers | Partial | Self-contained `.emberlights` projects open/save through native dialogs with checksums and unknown-record retention; assets/bundle packaging remains. |
-| DAT-02 | Inspect and migrate `.ssproj` venues, patch, groups, looks, positions, attributes, and Autoloops | Planned | User-owned sample corpus and deterministic report. |
+| DAT-02 | Inspect and migrate `.ssproj` venues, patch, groups, looks, positions, attributes, and Autoloops | Partial | Read-only inventory, lossless source bundle, and controlled two-export byte-range comparison exist; user-owned sample corpus and deterministic semantic conversion remain. |
 | DAT-03 | Recover packaged lighting files and copied audio-associated script metadata where decodable | Research | Read-only probes; unknown payloads preserved losslessly. |
 | DAT-04 | Relink moved audio and preserve scripted work | Planned | Multi-signal resolver and conflict UI. |
 | DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, and tests pass; multi-version history and live hot-swap remain. |
