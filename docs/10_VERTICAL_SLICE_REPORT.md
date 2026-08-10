@@ -38,7 +38,7 @@ Implemented:
 - latest-frame-wins output queue consumption so a temporarily blocked adapter does not replay stale frames after it recovers;
 - end-to-end two-universe `runner_lab` with separate adapter/status and scheduling threads, dry-run default, optional Art-Net output, finite-duration smoke mode, and live status/jitter counters;
 - versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, verified bounded 20-version restore history with safe Windows restore, 100-state Studio Undo/Redo, and unknown-record preservation;
-- fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, dedicated transient fixture Overrides, and Diagnostics workflows in the native Windows application, including Runner-published active-Autoloop repeat/progress/cycle and manual-override-count feedback;
+- fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, dedicated transient fixture/group Overrides, and Diagnostics workflows in the native Windows application, including Runner-published active-Autoloop repeat/progress/cycle and manual-override-count feedback;
 - bounded Studio-only QLC+ QXF import with OFL-export provenance detection, coarse/fine pairing, semantic/range conversion, native validation, approximation reports, and unsafe-mode quarantine;
 - fixed-capacity Runner health telemetry for uptime, last-frame age, p99/max jitter, deadline misses, and scheduler resynchronization;
 - an installed 128-fixture/two-universe qualification tool with safe no-DMX default, optional isolated Art-Net/sACN loopback, strict release ceilings, and machine-readable JSON evidence;
