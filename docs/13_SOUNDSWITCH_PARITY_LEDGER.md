@@ -51,7 +51,7 @@ Statuses:
 | EDT-14 | Phrase detection and phrase editing | Planned | Offline analysis worker, manual correction, and persistence tests. |
 | EDT-15 | AutoScript tracks, folders/playlists/crates, presets, styles, and custom settings | Planned | Deterministic precompiled generation and quality evaluation. |
 | EDT-16 | AutoScript Autoloops using categories, colors, positions, attributes, effects, and randomization | Planned | Reproducible seed/config output and editable result. |
-| EDT-17 | Save projects and per-track lightshows safely | Partial | Versioned checksummed project format, atomic save/verify/replace, backup recovery, unknown-record preservation, and fixed-capacity compiler tests pass; automatic history and track lightshows remain. |
+| EDT-17 | Save projects and per-track lightshows safely | Partial | Versioned checksummed project format, atomic save/verify/replace, backup recovery, unknown-record preservation, and fixed-capacity compiler tests pass. Normal saves create verified, bounded 20-version restore history with a Windows restore flow; per-track lightshow files and cross-machine history/export workflow remain. |
 
 ## Autoloops and live performance
 
