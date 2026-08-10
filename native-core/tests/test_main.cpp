@@ -1526,6 +1526,50 @@ void test_project_edit_history() {
         std::to_string(emberlights::kMaximumProjectUndoEntries + 1U));
 }
 
+void test_autoloop_placement_operations() {
+    auto project = make_test_project();
+    auto copy = project.autoloops.front();
+    copy.id = "second-loop";
+    copy.bank = 7U;
+    copy.slot = 4U;
+    project.autoloops.push_back(copy);
+
+    CHECK(emberlights::move_autoloop(
+              project, "red-blue", 7U, 4U) ==
+        emberlights::AutoloopPlacementResult::TargetOccupied);
+    CHECK(project.autoloops[0].slot == 3U);
+    CHECK(emberlights::move_autoloop(
+              project, "red-blue", 7U, 4U, true) ==
+        emberlights::AutoloopPlacementResult::Swapped);
+    CHECK(project.autoloops[0].slot == 4U);
+    CHECK(project.autoloops[1].slot == 3U);
+    CHECK(emberlights::move_autoloop_to_next_empty_slot(project, "red-blue") ==
+        emberlights::AutoloopPlacementResult::Moved);
+    CHECK(project.autoloops[0].bank == 7U);
+    CHECK(project.autoloops[0].slot == 5U);
+    CHECK(emberlights::move_autoloop(
+              project, "missing", 0U, 0U) ==
+        emberlights::AutoloopPlacementResult::SourceMissing);
+    CHECK(emberlights::move_autoloop(
+              project, "red-blue", 64U, 0U) ==
+        emberlights::AutoloopPlacementResult::InvalidAddress);
+
+    emberlights::ProjectDocument full;
+    full.autoloops.reserve(showcore::kMaxAutoloops);
+    for (std::size_t address = 0; address < showcore::kMaxAutoloops; ++address) {
+        full.autoloops.push_back({
+            "loop-" + std::to_string(address),
+            "Loop",
+            static_cast<std::uint16_t>(address / showcore::kAutoloopsPerBank),
+            static_cast<std::uint8_t>(address % showcore::kAutoloopsPerBank),
+            4.0F,
+            showcore::AutoloopRepeat::Infinite,
+            {}});
+    }
+    CHECK(emberlights::move_autoloop_to_next_empty_slot(full, "loop-0") ==
+        emberlights::AutoloopPlacementResult::LibraryFull);
+}
+
 void test_project_validation_io_and_compilation() {
     auto project = make_test_project();
     project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
@@ -1983,6 +2027,7 @@ int main() {
     test_performance_playback_has_no_allocations();
     test_deterministic_replay();
     test_project_edit_history();
+    test_autoloop_placement_operations();
     test_project_validation_io_and_compilation();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();
