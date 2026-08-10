@@ -596,7 +596,8 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         const bool needs_look = mapping.action.type == showcore::ActionType::TriggerLook;
         const bool needs_autoloop = mapping.action.type == showcore::ActionType::TriggerAutoloop;
         const bool needs_fixture = mapping.action.type == showcore::ActionType::SetProperty;
-        const bool needs_group = mapping.action.type == showcore::ActionType::SetGroupProperty;
+        const bool needs_group = mapping.action.type == showcore::ActionType::SetGroupProperty ||
+            mapping.action.type == showcore::ActionType::BlackoutGroup;
         const bool needs_track = mapping.action.type == showcore::ActionType::TriggerTrackScript;
         if ((needs_look && look_ids.find(mapping.target_ref) == look_ids.end()) ||
             (needs_autoloop && autoloop_ids.find(mapping.target_ref) == autoloop_ids.end()) ||
