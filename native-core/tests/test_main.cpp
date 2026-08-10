@@ -1664,6 +1664,23 @@ void test_audio_asset_identity_and_relinking() {
     project.audio_assets.push_back(asset);
     project.track_scripts.front().audio_asset_id = asset.id;
     CHECK(emberlights::validate_project(project).ok());
+    const auto library = directory / "Recovered Music";
+    std::filesystem::create_directories(library, ignored);
+    CHECK(!ignored);
+    const auto recovered = library / "Restored Song.mp3";
+    CHECK(std::filesystem::copy_file(
+        first, recovered, std::filesystem::copy_options::overwrite_existing, ignored));
+    CHECK(!ignored);
+    const auto resolve = emberlights::resolve_audio_assets_in_directory(project, library);
+    CHECK(resolve.complete());
+    CHECK(resolve.files_examined == 1U);
+    CHECK(resolve.hash_candidates == 1U);
+    CHECK(resolve.matched_assets == 1U);
+    CHECK(resolve.updated_assets == 1U);
+    CHECK(resolve.matched_asset_ids.size() == 1U);
+    CHECK(resolve.matched_asset_ids.front() == asset.id);
+    CHECK(project.audio_assets.front().local_path_hint.find("Restored Song.mp3") != std::string::npos);
+    CHECK(emberlights::verify_audio_asset(project.audio_assets.front()).available());
     const auto serialized = emberlights::serialize_project(project);
     emberlights::ProjectDocument parsed;
     CHECK(emberlights::parse_project(serialized, parsed));

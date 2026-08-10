@@ -7,7 +7,9 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace emberlights {
 namespace {
@@ -145,6 +147,99 @@ const char* audio_asset_file_status_name(AudioAssetFileStatus status) noexcept {
     case AudioAssetFileStatus::Invalid: return "invalid";
     }
     return "invalid";
+}
+
+AudioAssetDirectoryResolveResult resolve_audio_assets_in_directory(
+    ProjectDocument& project,
+    const std::filesystem::path& directory,
+    const AudioAssetDirectoryResolveOptions& options) {
+    AudioAssetDirectoryResolveResult result;
+    if (options.maximum_files == 0U || options.maximum_total_bytes == 0U) {
+        result.message = "The audio-library scan limits must be nonzero.";
+        return result;
+    }
+    std::error_code filesystem_error;
+    if (!std::filesystem::is_directory(directory, filesystem_error) || filesystem_error) {
+        result.message = "Choose a readable music-library folder.";
+        return result;
+    }
+
+    std::unordered_map<std::uint64_t, std::vector<std::size_t>> assets_by_size;
+    for (std::size_t index = 0; index < project.audio_assets.size(); ++index) {
+        assets_by_size[project.audio_assets[index].size_bytes].push_back(index);
+    }
+    if (assets_by_size.empty()) {
+        return result;
+    }
+
+    std::uint64_t total_bytes = 0U;
+    std::vector<bool> matched(project.audio_assets.size(), false);
+    std::filesystem::recursive_directory_iterator iterator(
+        directory,
+        std::filesystem::directory_options::skip_permission_denied,
+        filesystem_error);
+    const std::filesystem::recursive_directory_iterator end;
+    if (filesystem_error) {
+        result.message = "The selected music-library folder could not be enumerated.";
+        return result;
+    }
+    while (iterator != end) {
+        const auto entry = *iterator;
+        iterator.increment(filesystem_error);
+        if (filesystem_error) {
+            ++result.unreadable_files;
+            filesystem_error.clear();
+            continue;
+        }
+        std::error_code entry_error;
+        if (entry.is_symlink(entry_error) || entry_error || !entry.is_regular_file(entry_error) ||
+            entry_error || !supported_audio_extension(entry.path())) {
+            continue;
+        }
+        if (result.files_examined == options.maximum_files) {
+            result.limit_reached = true;
+            break;
+        }
+        const auto size = entry.file_size(entry_error);
+        if (entry_error) {
+            ++result.unreadable_files;
+            continue;
+        }
+        if (size > options.maximum_total_bytes - total_bytes) {
+            result.limit_reached = true;
+            break;
+        }
+        total_bytes += size;
+        ++result.files_examined;
+        const auto candidates = assets_by_size.find(size);
+        if (candidates == assets_by_size.end()) {
+            continue;
+        }
+        ++result.hash_candidates;
+        const auto identified = inspect_audio_asset_file(entry.path());
+        if (!identified.available()) {
+            ++result.unreadable_files;
+            continue;
+        }
+        for (const auto asset_index : candidates->second) {
+            if (matched[asset_index]) {
+                continue;
+            }
+            auto& asset = project.audio_assets[asset_index];
+            if (asset.sha256 != identified.sha256) {
+                continue;
+            }
+            matched[asset_index] = true;
+            ++result.matched_assets;
+            result.matched_asset_ids.push_back(asset.id);
+            const auto updated_path = utf8_path(entry.path());
+            if (asset.local_path_hint != updated_path) {
+                asset.local_path_hint = updated_path;
+                ++result.updated_assets;
+            }
+        }
+    }
+    return result;
 }
 
 }  // namespace emberlights
