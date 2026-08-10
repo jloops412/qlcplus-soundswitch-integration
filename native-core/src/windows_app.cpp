@@ -1937,6 +1937,7 @@ void listview_set_row(
     case showcore::ActionType::ArmSpark: return "Arm sparks";
     case showcore::ActionType::TriggerTrackScript: return "Start Track Script";
     case showcore::ActionType::ClearTrackScript: return "Clear Track Script";
+    case showcore::ActionType::ClearManualOverrides: return "Release All Manual Overrides";
     case showcore::ActionType::Count: return "Invalid";
     }
     return "Invalid";
@@ -2393,7 +2394,7 @@ void Application::refresh_midi() {
 
     const auto action = ::GetDlgItem(page, IdMidiAction);
     static_cast<void>(::SendMessageW(action, CB_RESETCONTENT, 0, 0));
-    constexpr std::array<showcore::ActionType, 16> actions{{
+    constexpr std::array<showcore::ActionType, 17> actions{{
         showcore::ActionType::Blackout,
         showcore::ActionType::WorkLight,
         showcore::ActionType::TriggerLook,
@@ -2402,6 +2403,7 @@ void Application::refresh_midi() {
         showcore::ActionType::ClearAutoloop,
         showcore::ActionType::TriggerTrackScript,
         showcore::ActionType::ClearTrackScript,
+        showcore::ActionType::ClearManualOverrides,
         showcore::ActionType::NextAutoloop,
         showcore::ActionType::PreviousAutoloop,
         showcore::ActionType::TapTempo,
