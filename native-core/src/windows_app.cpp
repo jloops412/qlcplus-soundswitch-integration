@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/project.hpp"
+#include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
@@ -74,6 +75,8 @@ enum ControlId : int {
     IdFileCompareSoundSwitch,
     IdFileBundleSoundSwitch,
     IdFileExit,
+    IdEditUndo = 110,
+    IdEditRedo,
     IdShowValidate = 120,
     IdShowStartStop,
     IdHelpAbout = 140,
@@ -246,6 +249,30 @@ enum ControlId : int {
 
 [[nodiscard]] HMENU control_menu(int id) noexcept {
     return reinterpret_cast<HMENU>(static_cast<INT_PTR>(id));
+}
+
+[[nodiscard]] bool is_authoring_edit_command(int id) noexcept {
+    switch (id) {
+    case IdProfileImportQlc:
+    case IdProfileSave:
+    case IdProfileDelete:
+    case IdPatchSave:
+    case IdPatchDelete:
+    case IdGroupSave:
+    case IdGroupDelete:
+    case IdLookSave:
+    case IdLookDelete:
+    case IdAutoloopSave:
+    case IdAutoloopDelete:
+    case IdTrackSave:
+    case IdTrackDelete:
+    case IdMidiDelete:
+    case IdConnectionsApply:
+    case IdSafetyApply:
+        return true;
+    default:
+        return false;
+    }
 }
 
 [[nodiscard]] std::wstring widen(std::string_view value) {
@@ -529,6 +556,12 @@ private:
     void layout_page(Page page, int width, int height);
     void show_page(Page page);
     void update_title();
+    void update_edit_menu();
+    void reset_authoring_selection();
+    void capture_saved_project();
+    void record_project_edit(const emberlights::ProjectDocument& before);
+    void undo_project_edit();
+    void redo_project_edit();
     void mark_dirty();
     void set_status(std::wstring text);
     void set_page_message(Page page, int id, std::string_view message, bool error = false);
@@ -619,8 +652,11 @@ private:
     Page active_page_{Page::Live};
 
     emberlights::ProjectDocument project_{emberlights::make_starter_project()};
+    emberlights::ProjectEditHistory edit_history_{};
+    std::string saved_project_serialized_{};
     std::filesystem::path current_path_{};
     bool dirty_{false};
+    bool recovery_save_required_{false};
     bool refreshing_{false};
     std::int32_t profile_index_{-1};
     std::int32_t fixture_index_{-1};
@@ -677,6 +713,7 @@ bool Application::register_classes() {
 int Application::run(
     int show_command,
     const std::optional<std::filesystem::path>& initial_file) {
+    saved_project_serialized_ = emberlights::serialize_project(project_);
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES | ICC_LISTVIEW_CLASSES};
     if (!::InitCommonControlsEx(&controls) || !register_classes() || !create_window(show_command)) {
         ::MessageBoxW(nullptr, L"EmberLights could not initialize its Windows interface.",
@@ -687,10 +724,12 @@ int Application::run(
         static_cast<void>(open_project(*initial_file));
     }
     MSG message{};
-    std::array<ACCEL, 5> accelerator_definitions{{
+    std::array<ACCEL, 7> accelerator_definitions{{
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('N'), IdFileNew},
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('O'), IdFileOpen},
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('S'), IdFileSave},
+        {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('Z'), IdEditUndo},
+        {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('Y'), IdEditRedo},
         {FVIRTKEY, VK_F5, IdShowStartStop},
         {FVIRTKEY, VK_F8, IdLiveBlackout}}};
     const auto accelerators = ::CreateAcceleratorTableW(
@@ -848,6 +887,7 @@ LRESULT Application::handle_message(UINT message, WPARAM wparam, LPARAM lparam) 
 void Application::create_menu_bar() {
     const auto menu = ::CreateMenu();
     const auto file = ::CreatePopupMenu();
+    const auto edit = ::CreatePopupMenu();
     const auto show = ::CreatePopupMenu();
     const auto help = ::CreatePopupMenu();
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileNew, L"&New\tCtrl+N"));
@@ -866,13 +906,17 @@ void Application::create_menu_bar() {
         file, MF_STRING, IdFileBundleSoundSwitch, L"Create SoundSwitch Migration &Bundle..."));
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileExit, L"E&xit"));
+    static_cast<void>(::AppendMenuW(edit, MF_STRING, IdEditUndo, L"&Undo\tCtrl+Z"));
+    static_cast<void>(::AppendMenuW(edit, MF_STRING, IdEditRedo, L"&Redo\tCtrl+Y"));
     static_cast<void>(::AppendMenuW(show, MF_STRING, IdShowValidate, L"&Validate Project"));
     static_cast<void>(::AppendMenuW(show, MF_STRING, IdShowStartStop, L"&Start Show"));
     static_cast<void>(::AppendMenuW(help, MF_STRING, IdHelpAbout, L"&About EmberLights"));
     static_cast<void>(::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(file), L"&File"));
+    static_cast<void>(::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(edit), L"&Edit"));
     static_cast<void>(::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(show), L"&Show"));
     static_cast<void>(::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(help), L"&Help"));
     static_cast<void>(::SetMenu(window_, menu));
+    update_edit_menu();
 }
 
 HWND Application::add_control(
@@ -1570,10 +1614,81 @@ void Application::update_title() {
     static_cast<void>(::SetWindowTextW(window_, title.c_str()));
 }
 
-void Application::mark_dirty() {
-    dirty_ = true;
+void Application::update_edit_menu() {
+    const auto menu = ::GetMenu(window_);
+    const auto edit = menu == nullptr ? nullptr : ::GetSubMenu(menu, 1);
+    if (edit == nullptr) {
+        return;
+    }
+    static_cast<void>(::EnableMenuItem(
+        edit,
+        IdEditUndo,
+        MF_BYCOMMAND | (edit_history_.can_undo() ? MF_ENABLED : MF_GRAYED)));
+    static_cast<void>(::EnableMenuItem(
+        edit,
+        IdEditRedo,
+        MF_BYCOMMAND | (edit_history_.can_redo() ? MF_ENABLED : MF_GRAYED)));
+    static_cast<void>(::DrawMenuBar(window_));
+}
+
+void Application::reset_authoring_selection() {
+    profile_index_ = -1;
+    fixture_index_ = -1;
+    group_index_ = -1;
+    look_index_ = -1;
+    autoloop_index_ = -1;
+    track_index_ = -1;
+}
+
+void Application::capture_saved_project() {
+    saved_project_serialized_ = emberlights::serialize_project(project_);
+    recovery_save_required_ = false;
+    dirty_ = false;
     update_title();
-    set_status(L"Unsaved changes");
+}
+
+void Application::record_project_edit(const emberlights::ProjectDocument& before) {
+    if (emberlights::serialize_project(before) == emberlights::serialize_project(project_)) {
+        return;
+    }
+    edit_history_.record_before_change(before);
+    update_edit_menu();
+}
+
+void Application::undo_project_edit() {
+    if (!edit_history_.undo(project_)) {
+        set_status(L"Nothing to undo.");
+        return;
+    }
+    reset_authoring_selection();
+    mark_dirty();
+    refresh_all();
+    update_edit_menu();
+    set_status(dirty_ ? L"Undo applied. Save when this revision is ready."
+                      : L"Undo applied. Project matches its saved revision.");
+}
+
+void Application::redo_project_edit() {
+    if (!edit_history_.redo(project_)) {
+        set_status(L"Nothing to redo.");
+        return;
+    }
+    reset_authoring_selection();
+    mark_dirty();
+    refresh_all();
+    update_edit_menu();
+    set_status(dirty_ ? L"Redo applied. Save when this revision is ready."
+                      : L"Redo applied. Project matches its saved revision.");
+}
+
+void Application::mark_dirty() {
+    if (saved_project_serialized_.empty()) {
+        saved_project_serialized_ = emberlights::serialize_project(project_);
+    }
+    dirty_ = recovery_save_required_ ||
+        emberlights::serialize_project(project_) != saved_project_serialized_;
+    update_title();
+    set_status(dirty_ ? L"Unsaved changes" : L"Project matches its saved revision.");
 }
 
 void Application::set_status(std::wstring text) {
@@ -2298,12 +2413,19 @@ void Application::handle_command(int id, int notification, HWND) {
         return;
     }
 
+    std::optional<emberlights::ProjectDocument> before_edit;
+    if (is_authoring_edit_command(id)) {
+        before_edit = project_;
+    }
+
     switch (id) {
     case IdFileNew: new_project(); break;
     case IdFileOpen: open_project_dialog(); break;
     case IdFileSave: static_cast<void>(save_project(false)); break;
     case IdFileSaveAs: static_cast<void>(save_project(true)); break;
     case IdFileRestoreHistory: restore_project_history_dialog(); break;
+    case IdEditUndo: undo_project_edit(); break;
+    case IdEditRedo: redo_project_edit(); break;
     case IdFileInspectSoundSwitch: inspect_soundswitch_dialog(); break;
     case IdFileCompareSoundSwitch: compare_soundswitch_dialog(); break;
     case IdFileBundleSoundSwitch: bundle_soundswitch_dialog(); break;
@@ -2443,6 +2565,9 @@ void Application::handle_command(int id, int notification, HWND) {
     default:
         break;
     }
+    if (before_edit.has_value()) {
+        record_project_edit(*before_edit);
+    }
 }
 
 bool Application::maybe_save_changes() {
@@ -2468,13 +2593,10 @@ void Application::new_project() {
     active_project_.reset();
     project_ = emberlights::make_starter_project();
     current_path_.clear();
-    dirty_ = false;
-    profile_index_ = -1;
-    fixture_index_ = -1;
-    group_index_ = -1;
-    look_index_ = -1;
-    autoloop_index_ = -1;
-    track_index_ = -1;
+    edit_history_.clear();
+    capture_saved_project();
+    reset_authoring_selection();
+    update_edit_menu();
     refresh_all();
     set_status(L"New project created. Add or import fixture profiles, then patch your rig.");
 }
@@ -2576,7 +2698,7 @@ void Application::restore_project_history_dialog() {
     runner_.stop();
     active_project_.reset();
     static_cast<void>(::ModifyMenuW(
-        ::GetSubMenu(::GetMenu(window_), 1),
+        ::GetSubMenu(::GetMenu(window_), 2),
         IdShowStartStop,
         MF_BYCOMMAND | MF_STRING,
         IdShowStartStop,
@@ -2591,13 +2713,10 @@ void Application::restore_project_history_dialog() {
         return;
     }
     project_ = std::move(restored);
-    dirty_ = false;
-    profile_index_ = -1;
-    fixture_index_ = -1;
-    group_index_ = -1;
-    look_index_ = -1;
-    autoloop_index_ = -1;
-    track_index_ = -1;
+    edit_history_.clear();
+    capture_saved_project();
+    reset_authoring_selection();
+    update_edit_menu();
     refresh_all();
     set_status(widen(result.message));
 }
@@ -2853,13 +2972,12 @@ bool Application::open_project(const std::filesystem::path& path) {
     active_project_.reset();
     project_ = std::move(loaded);
     current_path_ = path;
-    dirty_ = result.recovered_from_backup;
-    profile_index_ = -1;
-    fixture_index_ = -1;
-    group_index_ = -1;
-    look_index_ = -1;
-    autoloop_index_ = -1;
-    track_index_ = -1;
+    edit_history_.clear();
+    capture_saved_project();
+    recovery_save_required_ = result.recovered_from_backup;
+    mark_dirty();
+    reset_authoring_selection();
+    update_edit_menu();
     refresh_all();
     if (result.recovered_from_backup) {
         ::MessageBoxW(
@@ -2904,8 +3022,7 @@ bool Application::save_project(bool save_as) {
         return false;
     }
     current_path_ = std::move(path);
-    dirty_ = false;
-    update_title();
+    capture_saved_project();
     const auto runner_state = runner_.status().state;
     if (runner_state == emberlights::RunnerState::Running) {
         auto compilation = emberlights::compile_project(project_);
@@ -2993,7 +3110,7 @@ void Application::start_or_stop_show() {
         runner_.stop();
         active_project_.reset();
         static_cast<void>(::ModifyMenuW(
-            ::GetSubMenu(::GetMenu(window_), 1),
+            ::GetSubMenu(::GetMenu(window_), 2),
             IdShowStartStop,
             MF_BYCOMMAND | MF_STRING,
             IdShowStartStop,
@@ -3058,7 +3175,7 @@ void Application::start_or_stop_show() {
         }
     }
     static_cast<void>(::ModifyMenuW(
-        ::GetSubMenu(::GetMenu(window_), 1),
+        ::GetSubMenu(::GetMenu(window_), 2),
         IdShowStartStop,
         MF_BYCOMMAND | MF_STRING,
         IdShowStartStop,
@@ -4353,6 +4470,7 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
         (message.type == showcore::MidiMessageType::NoteOn && message.value == 0U)) {
         return;
     }
+    const auto before = project_;
     const auto page = pages_[static_cast<std::size_t>(Page::Midi)];
     emberlights::MidiMappingDefinition mapping;
     mapping.preferred_input_index = project_.connections.midi_input_index;
@@ -4400,6 +4518,7 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
     static_cast<void>(::SetWindowTextW(::GetDlgItem(page, IdMidiLearn),
                                        L"Learn Next MIDI Control"));
     mark_dirty();
+    record_project_edit(before);
     refresh_midi();
     set_page_message(
         Page::Midi,

@@ -37,6 +37,7 @@ add_library(showcore STATIC
     src/autoloop.cpp
     src/engine.cpp
     src/project.cpp
+    src/project_edit_history.cpp
     src/project_io.cpp
     src/qlc_fixture_import.cpp
     src/soundswitch_import.cpp

@@ -59,7 +59,7 @@ Statuses:
 | --- | --- | --- | --- |
 | RUN-01 | Beat-synchronized fallback Autoloops for unscripted tracks | Partial | Beat-driven native playback, compiled project loops, live selection, manual BPM, and OS2L timing exist; VirtualDJ/hardware qualification and automatic selection policy remain. |
 | RUN-02 | At least 128 Autoloops in four banks of 32 | Partial | Native catalog, project compiler, and authoring UI support 64 banks/2,048 loops; shipped default content and controller paging qualification remain. |
-| RUN-03 | Reorder, move between banks, duplicate, populate empty, and reset defaults safely | Planned | Studio operations with undo/history and non-destructive warnings. |
+| RUN-03 | Reorder, move between banks, duplicate, populate empty, and reset defaults safely | Partial | Studio supports duplicate/delete where applicable plus bounded 100-state Undo/Redo and durable restore history. Explicit reorder, cross-bank move, populate-empty, default reset, and guided non-destructive warnings remain. |
 | RUN-04 | Exclusive banks and return-to-all-banks behavior | Partial | 64-bank enable/exclusive masks, return-to-all, deterministic next/previous selection, duplicate, cross-bank slot-swap, and four-bank paging tests pass; UI pending. |
 | RUN-05 | Trigger an Autoloop over a script, show progress, then return naturally | Partial | Manual activation, progress/cycle status, musically complete one-shot release, and return to the still-running scripted layer pass; native TrackScript cues can now start/clear Autoloops and Live shows the active script. Progress UI and DJ/hardware qualification remain. |
 | RUN-06 | Infinite and track-duration repeat | Partial | Infinite cycling and track-stop release pass in native runtime; package/UI integration pending. |
@@ -119,7 +119,7 @@ Statuses:
 | DAT-02 | Inspect and migrate `.ssproj` venues, patch, groups, looks, positions, attributes, and Autoloops | Partial | Read-only inventory, lossless source bundle, and controlled two-export byte-range comparison exist; user-owned sample corpus and deterministic semantic conversion remain. |
 | DAT-03 | Recover packaged lighting files and copied audio-associated script metadata where decodable | Research | Read-only probes; unknown payloads preserved losslessly. |
 | DAT-04 | Relink moved audio and preserve scripted work | Planned | Multi-signal resolver and conflict UI. |
-| DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, and tests pass; multi-version history and live hot-swap remain. |
+| DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, verified bounded 20-version history/restore, 100-state Studio Undo/Redo, and generation-stamped live hot-swap pass. Cross-version compatibility corpus and asset-bundle rollback remain. |
 | DAT-06 | Fully offline show operation without a license server | Partial | Runner architecture requires no cloud; installer/activation proof pending. |
 | DAT-07 | Windows application and installer | Partial | Native Win32 application, per-user Inno Setup recipe, file association, portable ZIP, packaged qualification tool, checksums, and release manifest exist; signing, upgrade/rollback, and low-end qualification remain. |
 | DAT-08 | macOS parity | Planned | Explicitly follows the Windows production launch; portable core/adapter boundaries retained, platform qualification pending. |
