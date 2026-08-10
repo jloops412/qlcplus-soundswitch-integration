@@ -39,6 +39,7 @@ add_library(showcore STATIC
     src/project.cpp
     src/project_io.cpp
     src/qlc_fixture_import.cpp
+    src/soundswitch_import.cpp
     src/compiler.cpp
     src/runner.cpp)
 
@@ -79,6 +80,9 @@ if(WIN32)
     target_link_libraries(emberlights_qualify PRIVATE psapi)
 endif()
 
+add_executable(emberlights_migrate src/soundswitch_migrate.cpp)
+target_link_libraries(emberlights_migrate PRIVATE showcore)
+
 add_executable(core_tests tests/test_main.cpp)
 target_link_libraries(core_tests PRIVATE showcore)
 
@@ -96,7 +100,9 @@ if(WIN32)
         showcore
         comctl32
         comdlg32
-        shell32)
+        shell32
+        ole32
+        uuid)
     if(MSVC)
         # The executable already embeds our explicit DPI/compatibility manifest
         # through EmberLights.rc; suppress the linker's second default manifest.
@@ -106,13 +112,14 @@ if(WIN32)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
 
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
-    install(TARGETS emberlights_qualify RUNTIME DESTINATION Tools)
+    install(TARGETS emberlights_qualify emberlights_migrate RUNTIME DESTINATION Tools)
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/15_WINDOWS_V1_TESTING.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/16_QLC_FIXTURE_IMPORT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
         DESTINATION docs)
 endif()
 
@@ -126,3 +133,4 @@ add_test(
     NAME qualification_smoke
     COMMAND emberlights_qualify --duration 2 --network-loopback --report qualification-smoke.json)
 set_tests_properties(qualification_smoke PROPERTIES TIMEOUT 20)
+add_test(NAME migration_help COMMAND emberlights_migrate --help)
