@@ -23,7 +23,7 @@ The current build is a **testing preview**. Gig-qualified V1 is the next claim t
 | --- | --- | --- |
 | Deterministic scheduling | Allocation-free engine and measured native benchmarks pass. | Installed Windows p99 jitter, latency, cold-start, CPU, and memory evidence on minimum and typical PCs. |
 | Sustained reliability | Unit, sanitizer, smoke, and million-tick tests pass. | Eight-hour installed-app soak, system sleep/resume, clock discontinuity, queue-storm, and fault-injection reports. |
-| Runtime containment | Input/output work is off the scheduler thread. | Runner survives Studio/UI failure; atomic package activation and last-known-good rollback are verified without unsafe output. |
+| Runtime containment | Input/output work is off the scheduler thread; generation-stamped atomic package activation and persistent last-known-good snapshots are implemented. | Runner must still move to a separately contained process and survive Studio/UI failure; installed Windows fault-injection evidence remains required. |
 | Diagnostics | Live counters and project validation are visible. | Durable structured session log, crash evidence, redacted export, release/build identity, and supportable fault codes. |
 | Project durability | Atomic save, checksum, `.bak` recovery, and unknown-record retention pass. | Multi-version history, schema migration tests, cross-version open/save corpus, asset bundle import/export, and rollback UX. |
 | Fixture onboarding | Local profiles and bounded QXF/OFL-export import work. | Searchable pinned offline catalog, conformance corpus, safe updates/sharing, richer range editing, and cell-aware fixtures. |
@@ -47,7 +47,7 @@ The binding detail remains in `13_SOUNDSWITCH_PARITY_LEDGER.md`. Major unfinishe
 
 - durable audio identity, beatgrid/waveform editing, exact track timelines, manual scripting, and effect generators;
 - deterministic AutoScripting for tracks and Autoloops;
-- SoundSwitch project/content inspection, loss-preserving migration, relinking, and conflict resolution;
+- SoundSwitch read-only inspection and lossless source bundling now work; semantic conversion, relinking, and conflict resolution still require a representative versioned sample corpus;
 - full VirtualDJ mixer/transport behavior, audio fallback, then Serato and remaining documented integrations;
 - complete MIDI behavior/feedback, named position and attribute cues, multi-cell fixtures, and production fixture distribution;
 - smart-lighting and vendor-bound interoperability decisions where an official route exists.
