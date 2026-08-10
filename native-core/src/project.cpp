@@ -356,6 +356,10 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         add_issue(result, ProjectIssueSeverity::Error, "fixtures.capacity", project.id,
                   "The project exceeds the V1 fixture capacity.");
     }
+    if (project.groups.size() > kMaximumFixtureGroups) {
+        add_issue(result, ProjectIssueSeverity::Error, "groups.capacity", project.id,
+                  "The project exceeds the compiled fixture-group capacity.");
+    }
 
     std::unordered_map<std::string_view, const FixtureProfileDefinition*> profiles;
     std::size_t total_channels = 0;
@@ -439,10 +443,13 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     }
 
     std::unordered_set<std::string_view> group_ids;
+    std::unordered_map<std::string_view, const GroupDefinition*> groups_by_id;
     for (const auto& group : project.groups) {
         if (!valid_identifier(group.id) || !group_ids.insert(group.id).second) {
             add_issue(result, ProjectIssueSeverity::Error, "group.id", group.id,
                       "Group IDs must be unique and valid.");
+        } else {
+            groups_by_id.emplace(group.id, &group);
         }
         std::unordered_set<std::string_view> members;
         for (const auto& fixture_id : group.fixture_ids) {
@@ -582,10 +589,14 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         const bool needs_look = mapping.action.type == showcore::ActionType::TriggerLook;
         const bool needs_autoloop = mapping.action.type == showcore::ActionType::TriggerAutoloop;
         const bool needs_fixture = mapping.action.type == showcore::ActionType::SetProperty;
+        const bool needs_group = mapping.action.type == showcore::ActionType::SetGroupProperty;
         const bool needs_track = mapping.action.type == showcore::ActionType::TriggerTrackScript;
         if ((needs_look && look_ids.find(mapping.target_ref) == look_ids.end()) ||
             (needs_autoloop && autoloop_ids.find(mapping.target_ref) == autoloop_ids.end()) ||
             (needs_fixture && fixtures.find(mapping.target_ref) == fixtures.end()) ||
+            (needs_group &&
+             (groups_by_id.find(mapping.target_ref) == groups_by_id.end() ||
+              groups_by_id.find(mapping.target_ref)->second->fixture_ids.empty())) ||
             (needs_track && track_ids.find(mapping.target_ref) == track_ids.end())) {
             add_issue(result, ProjectIssueSeverity::Error, "midi.target", mapping.device_name,
                       "MIDI mapping target is missing or no longer exists.");
