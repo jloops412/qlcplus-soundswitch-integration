@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -33,6 +34,24 @@ enum class AdapterState : std::uint8_t {
     Waiting,
     Ready,
     Fault
+};
+
+enum class RunnerActivationError : std::uint8_t {
+    None,
+    NotRunning,
+    InvalidShow,
+    RestartRequired,
+    Busy,
+    Timeout
+};
+
+struct RunnerActivationResult {
+    RunnerActivationError error{RunnerActivationError::None};
+    std::uint64_t generation{0};
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == RunnerActivationError::None;
+    }
 };
 
 enum class RunnerCommandType : std::uint8_t {
@@ -56,6 +75,7 @@ struct RunnerCommand {
     float value{0.0F};
     bool active{false};
     std::uint64_t timestamp_ms{0};
+    std::uint64_t generation{0};
 };
 
 struct RunnerStatus {
@@ -98,10 +118,18 @@ struct RunnerStatus {
     std::uint64_t max_jitter_us{0};
     std::uint64_t deadline_misses{0};
     std::uint64_t scheduler_resyncs{0};
+    std::uint64_t package_generation{0};
+    std::uint64_t package_activations{0};
+    std::uint64_t package_activation_failures{0};
 };
 
 struct RunnerMidiMonitorEvent {
     showcore::MidiMessage message{};
+};
+
+struct RunnerMidiActionEvent {
+    showcore::MidiActionEvent event{};
+    std::uint64_t generation{0};
 };
 
 struct RunnerBeatEvent {
@@ -113,6 +141,7 @@ struct RunnerBeatEvent {
 struct RunnerOutputFrame {
     showcore::DmxFrames frames{};
     std::uint8_t sequence{0};
+    std::uint64_t generation{0};
 };
 
 class RunnerService {
@@ -126,6 +155,10 @@ public:
     [[nodiscard]] bool start(
         std::unique_ptr<CompiledShow> show,
         const ProjectDocument& project) noexcept;
+    [[nodiscard]] RunnerActivationResult activate(
+        std::unique_ptr<CompiledShow> show,
+        const ProjectDocument& project,
+        std::uint32_t timeout_ms = 2000U) noexcept;
     void stop() noexcept;
 
     [[nodiscard]] RunnerStatus status() const noexcept;
@@ -154,12 +187,13 @@ public:
 
 private:
     struct RuntimeState;
+    struct ActivationState;
     using OutputFrame = RunnerOutputFrame;
 
     using CommandQueue = showcore::SpscQueue<RunnerCommand, 513>;
     using BeatEvent = RunnerBeatEvent;
     using BeatQueue = showcore::SpscQueue<BeatEvent, 1025>;
-    using MidiActionQueue = showcore::SpscQueue<showcore::MidiActionEvent, 1025>;
+    using MidiActionQueue = showcore::SpscQueue<RunnerMidiActionEvent, 1025>;
     using MidiMonitorQueue = showcore::SpscQueue<RunnerMidiMonitorEvent, 257>;
     using OutputQueue = showcore::SpscQueue<OutputFrame, 9>;
 
@@ -172,12 +206,12 @@ private:
     void run_input() noexcept;
     void run_output() noexcept;
 
-    std::unique_ptr<CompiledShow> show_;
-    std::unique_ptr<RuntimeState> runtime_;
+    std::unique_ptr<ActivationState> active_activation_;
+    std::unique_ptr<ActivationState> pending_activation_;
+    std::atomic<ActivationState*> published_activation_{nullptr};
+    std::mutex activation_mutex_{};
     ConnectionSettings connections_{};
-    SafetySettings safety_{};
     std::string project_id_;
-    std::string project_name_;
 
     CommandQueue commands_{};
     BeatQueue beats_{};
@@ -227,6 +261,12 @@ private:
     std::atomic<std::uint64_t> max_jitter_us_{0};
     std::atomic<std::uint64_t> deadline_misses_{0};
     std::atomic<std::uint64_t> scheduler_resyncs_{0};
+    std::atomic<std::uint64_t> scheduler_activation_ack_{0};
+    std::atomic<std::uint64_t> input_activation_ack_{0};
+    std::atomic<std::uint64_t> output_activation_ack_{0};
+    std::atomic<std::uint64_t> package_generation_{0};
+    std::atomic<std::uint64_t> package_activations_{0};
+    std::atomic<std::uint64_t> package_activation_failures_{0};
 };
 
 }  // namespace emberlights

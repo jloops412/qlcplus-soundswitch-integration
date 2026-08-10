@@ -90,6 +90,14 @@ struct RunnerService::RuntimeState {
     bool applied_work_light{false};
 };
 
+struct RunnerService::ActivationState {
+    std::unique_ptr<CompiledShow> show;
+    std::unique_ptr<RuntimeState> runtime;
+    SafetySettings safety{};
+    std::string project_name;
+    std::uint64_t generation{0};
+};
+
 RunnerService::RunnerService() noexcept = default;
 
 RunnerService::~RunnerService() noexcept {
@@ -111,14 +119,18 @@ bool RunnerService::start(
     state_.store(RunnerState::Starting, std::memory_order_release);
     try {
         connections_ = project.connections;
-        safety_ = project.safety;
         project_id_ = project.id;
-        project_name_ = project.name.empty() ? "EmberLights" : project.name;
-        runtime_ = std::make_unique<RuntimeState>();
-        show_ = std::move(show);
+        active_activation_ = std::make_unique<ActivationState>();
+        active_activation_->show = std::move(show);
+        active_activation_->runtime = std::make_unique<RuntimeState>();
+        active_activation_->safety = project.safety;
+        active_activation_->project_name =
+            project.name.empty() ? "EmberLights" : project.name;
+        active_activation_->generation = 1U;
+        published_activation_.store(active_activation_.get(), std::memory_order_release);
     } catch (...) {
-        show_.reset();
-        runtime_.reset();
+        published_activation_.store(nullptr, std::memory_order_release);
+        active_activation_.reset();
         state_.store(RunnerState::Stopped, std::memory_order_release);
         return false;
     }
@@ -160,6 +172,12 @@ bool RunnerService::start(
     max_jitter_us_.store(0, std::memory_order_relaxed);
     deadline_misses_.store(0, std::memory_order_relaxed);
     scheduler_resyncs_.store(0, std::memory_order_relaxed);
+    scheduler_activation_ack_.store(0, std::memory_order_relaxed);
+    input_activation_ack_.store(0, std::memory_order_relaxed);
+    output_activation_ack_.store(0, std::memory_order_relaxed);
+    package_generation_.store(1U, std::memory_order_relaxed);
+    package_activations_.store(0, std::memory_order_relaxed);
+    package_activation_failures_.store(0, std::memory_order_relaxed);
     os2l_state_.store(
         connections_.os2l_enabled ? AdapterState::Starting : AdapterState::Disabled,
         std::memory_order_relaxed);
@@ -198,12 +216,77 @@ bool RunnerService::start(
         if (output_thread_.joinable()) {
             output_thread_.join();
         }
-        show_.reset();
-        runtime_.reset();
+        published_activation_.store(nullptr, std::memory_order_release);
+        active_activation_.reset();
         state_.store(RunnerState::Stopped, std::memory_order_release);
         return false;
     }
     return true;
+}
+
+RunnerActivationResult RunnerService::activate(
+    std::unique_ptr<CompiledShow> show,
+    const ProjectDocument& project,
+    std::uint32_t timeout_ms) noexcept {
+    if (show == nullptr) {
+        package_activation_failures_.fetch_add(1U, std::memory_order_relaxed);
+        return {RunnerActivationError::InvalidShow, package_generation_.load()};
+    }
+    if (state_.load(std::memory_order_acquire) != RunnerState::Running) {
+        package_activation_failures_.fetch_add(1U, std::memory_order_relaxed);
+        return {RunnerActivationError::NotRunning, package_generation_.load()};
+    }
+    if (project.connections != connections_ || project.id != project_id_) {
+        package_activation_failures_.fetch_add(1U, std::memory_order_relaxed);
+        return {RunnerActivationError::RestartRequired, package_generation_.load()};
+    }
+
+    std::unique_lock lock(activation_mutex_, std::try_to_lock);
+    if (!lock.owns_lock() || pending_activation_ != nullptr) {
+        package_activation_failures_.fetch_add(1U, std::memory_order_relaxed);
+        return {RunnerActivationError::Busy, package_generation_.load()};
+    }
+    try {
+        pending_activation_ = std::make_unique<ActivationState>();
+        pending_activation_->show = std::move(show);
+        pending_activation_->runtime = std::make_unique<RuntimeState>();
+        pending_activation_->safety = project.safety;
+        pending_activation_->project_name =
+            project.name.empty() ? "EmberLights" : project.name;
+        pending_activation_->generation =
+            package_generation_.load(std::memory_order_relaxed) + 1U;
+    } catch (...) {
+        pending_activation_.reset();
+        package_activation_failures_.fetch_add(1U, std::memory_order_relaxed);
+        return {RunnerActivationError::InvalidShow, package_generation_.load()};
+    }
+
+    const auto generation = pending_activation_->generation;
+    published_activation_.store(pending_activation_.get(), std::memory_order_release);
+    lock.unlock();
+
+    const auto deadline = SteadyClock::now() + std::chrono::milliseconds(timeout_ms);
+    while (state_.load(std::memory_order_acquire) == RunnerState::Running &&
+           SteadyClock::now() < deadline) {
+        if (scheduler_activation_ack_.load(std::memory_order_acquire) >= generation &&
+            input_activation_ack_.load(std::memory_order_acquire) >= generation &&
+            output_activation_ack_.load(std::memory_order_acquire) >= generation) {
+            std::unique_ptr<ActivationState> retired;
+            {
+                std::lock_guard ownership_lock(activation_mutex_);
+                retired = std::move(active_activation_);
+                active_activation_ = std::move(pending_activation_);
+            }
+            package_generation_.store(generation, std::memory_order_release);
+            package_activations_.fetch_add(1U, std::memory_order_relaxed);
+            retired.reset();
+            return {RunnerActivationError::None, generation};
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    package_activation_failures_.fetch_add(1U, std::memory_order_relaxed);
+    return {RunnerActivationError::Timeout, generation};
 }
 
 void RunnerService::stop() noexcept {
@@ -222,8 +305,12 @@ void RunnerService::stop() noexcept {
     if (output_thread_.joinable()) {
         output_thread_.join();
     }
-    show_.reset();
-    runtime_.reset();
+    published_activation_.store(nullptr, std::memory_order_release);
+    {
+        std::lock_guard lock(activation_mutex_);
+        pending_activation_.reset();
+        active_activation_.reset();
+    }
     state_.store(RunnerState::Stopped, std::memory_order_release);
 }
 
@@ -277,12 +364,20 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.max_jitter_us = max_jitter_us_.load(std::memory_order_relaxed);
     snapshot.deadline_misses = deadline_misses_.load(std::memory_order_relaxed);
     snapshot.scheduler_resyncs = scheduler_resyncs_.load(std::memory_order_relaxed);
+    snapshot.package_generation = package_generation_.load(std::memory_order_relaxed);
+    snapshot.package_activations = package_activations_.load(std::memory_order_relaxed);
+    snapshot.package_activation_failures =
+        package_activation_failures_.load(std::memory_order_relaxed);
     return snapshot;
 }
 
 bool RunnerService::post(const RunnerCommand& command) noexcept {
-    return state_.load(std::memory_order_acquire) == RunnerState::Running &&
-        commands_.try_push(command);
+    if (state_.load(std::memory_order_acquire) != RunnerState::Running) {
+        return false;
+    }
+    auto versioned = command;
+    versioned.generation = package_generation_.load(std::memory_order_acquire);
+    return commands_.try_push(versioned);
 }
 
 void RunnerService::set_blackout(bool active) noexcept {
@@ -404,6 +499,12 @@ void RunnerService::run_input() noexcept {
     auto next_midi_retry = SteadyClock::now();
 
     while (!stop_requested_.load(std::memory_order_acquire)) {
+        auto* activation = published_activation_.load(std::memory_order_acquire);
+        if (activation == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+        input_activation_ack_.store(activation->generation, std::memory_order_release);
         const auto now = SteadyClock::now();
         if (connections_.os2l_enabled && !os2l_open && now >= next_os2l_retry) {
             os2l_state_.store(AdapterState::Starting, std::memory_order_relaxed);
@@ -459,9 +560,9 @@ void RunnerService::run_input() noexcept {
                 midi_messages_.fetch_add(1, std::memory_order_relaxed);
                 static_cast<void>(midi_monitor_.try_push({message}));
                 std::array<showcore::MidiActionEvent, showcore::kMaxMidiActionsPerMessage> actions{};
-                const auto count = show_->midi_mappings().process(message, actions);
+                const auto count = activation->show->midi_mappings().process(message, actions);
                 for (std::size_t index = 0; index < count; ++index) {
-                    if (!midi_actions_.try_push(actions[index])) {
+                    if (!midi_actions_.try_push({actions[index], activation->generation})) {
                         dropped_midi_actions_.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
@@ -479,223 +580,107 @@ void RunnerService::run_scheduler() noexcept {
 #ifdef _WIN32
     static_cast<void>(::timeBeginPeriod(1U));
 #endif
-    auto& runtime = *runtime_;
-    auto& engine = show_->engine();
-    engine.safety().strobe_allowed = safety_.strobe_allowed;
-    engine.safety().max_strobe = safety_.max_strobe;
-    engine.safety().max_intensity = safety_.max_intensity;
-    engine.safety().fog_armed = !safety_.fog_requires_arm;
-    engine.safety().haze_armed = !safety_.haze_requires_arm;
-    engine.safety().laser_armed = !safety_.laser_requires_arm;
-    engine.safety().spark_armed = !safety_.spark_requires_arm;
-    fog_armed_.store(engine.safety().fog_armed, std::memory_order_relaxed);
-    haze_armed_.store(engine.safety().haze_armed, std::memory_order_relaxed);
-    laser_armed_.store(engine.safety().laser_armed, std::memory_order_relaxed);
-    spark_armed_.store(engine.safety().spark_armed, std::memory_order_relaxed);
-    runtime.sync.set_manual_bpm(connections_.manual_bpm, monotonic_ms());
-
-    auto default_address = show_->autoloops().next_available();
-    if (default_address.valid()) {
-        static_cast<void>(runtime.autonomous.trigger(
-            show_->autoloops(),
-            default_address,
-            showcore::AutoloopRepeat::Infinite,
-            0.0,
-            true,
-            engine.layers()));
-    }
-
     const auto frame_period = std::chrono::microseconds(1'000'000 / connections_.frame_rate);
     auto next_frame = SteadyClock::now();
     std::uint8_t sequence = 1U;
-    state_.store(RunnerState::Running, std::memory_order_release);
+    ActivationState* activation = nullptr;
 
-    auto trigger_loop = [&](showcore::AutoloopAddress address, double beat_position) noexcept {
-        if (!address.valid()) {
-            return;
+    auto configure_activation = [&](ActivationState* next,
+                                    ActivationState* previous,
+                                    std::uint64_t now_ms) noexcept {
+        auto& runtime = *next->runtime;
+        auto& engine = next->show->engine();
+        std::int32_t selected_look = -1;
+        showcore::AutoloopAddress selected_autoloop{};
+        if (previous != nullptr) {
+            const auto& prior = *previous->runtime;
+            runtime.sync = prior.sync;
+            runtime.tap_intervals = prior.tap_intervals;
+            runtime.tap_interval_count = prior.tap_interval_count;
+            runtime.tap_interval_cursor = prior.tap_interval_cursor;
+            runtime.last_tap_ms = prior.last_tap_ms;
+            runtime.jitter_histogram = prior.jitter_histogram;
+            runtime.jitter_sample_count = prior.jitter_sample_count;
+            runtime.track_playing = prior.track_playing;
+            selected_look = prior.selected_look;
+            selected_autoloop = prior.selected_autoloop;
+        } else {
+            runtime.sync.set_manual_bpm(connections_.manual_bpm, now_ms);
         }
-        if (runtime.manual_autoloop.trigger(
-                show_->autoloops(),
-                address,
-                show_->autoloop_repeat(address),
-                beat_position,
+
+        engine.safety().strobe_allowed = next->safety.strobe_allowed;
+        engine.safety().max_strobe = next->safety.max_strobe;
+        engine.safety().max_intensity = next->safety.max_intensity;
+        engine.safety().fog_armed = !next->safety.fog_requires_arm;
+        engine.safety().haze_armed = !next->safety.haze_requires_arm;
+        engine.safety().laser_armed = !next->safety.laser_requires_arm;
+        engine.safety().spark_armed = !next->safety.spark_requires_arm;
+        fog_armed_.store(engine.safety().fog_armed, std::memory_order_relaxed);
+        haze_armed_.store(engine.safety().haze_armed, std::memory_order_relaxed);
+        laser_armed_.store(engine.safety().laser_armed, std::memory_order_relaxed);
+        spark_armed_.store(engine.safety().spark_armed, std::memory_order_relaxed);
+
+        const auto clock = runtime.sync.tick(now_ms);
+        const auto default_address = next->show->autoloops().next_available();
+        if (default_address.valid()) {
+            static_cast<void>(runtime.autonomous.trigger(
+                next->show->autoloops(),
+                default_address,
+                showcore::AutoloopRepeat::Infinite,
+                clock.beat_position,
+                runtime.track_playing,
+                engine.layers()));
+        }
+        if (selected_look >= 0) {
+            const auto look_index = static_cast<std::size_t>(selected_look);
+            if (const auto* look = next->show->look(look_index); look != nullptr &&
+                runtime.static_look.trigger(*look, now_ms, 0U, engine.layers())) {
+                runtime.selected_look = selected_look;
+            }
+        }
+        if (selected_autoloop.valid() &&
+            next->show->autoloops().get(selected_autoloop) != nullptr &&
+            runtime.manual_autoloop.trigger(
+                next->show->autoloops(),
+                selected_autoloop,
+                next->show->autoloop_repeat(selected_autoloop),
+                clock.beat_position,
                 runtime.track_playing,
                 engine.layers())) {
-            runtime.selected_autoloop = address;
+            runtime.selected_autoloop = selected_autoloop;
         }
+        runtime.applied_work_light = false;
     };
 
-    auto arm_hazard = [&](showcore::Property property, bool armed) noexcept {
-        switch (property) {
-        case showcore::Property::Fog:
-            engine.safety().fog_armed = armed;
-            fog_armed_.store(armed, std::memory_order_relaxed);
-            break;
-        case showcore::Property::Haze:
-            engine.safety().haze_armed = armed;
-            haze_armed_.store(armed, std::memory_order_relaxed);
-            break;
-        case showcore::Property::Laser:
-            engine.safety().laser_armed = armed;
-            laser_armed_.store(armed, std::memory_order_relaxed);
-            break;
-        case showcore::Property::Spark:
-            engine.safety().spark_armed = armed;
-            spark_armed_.store(armed, std::memory_order_relaxed);
-            break;
-        default:
-            break;
-        }
-    };
-
-    auto apply_tap = [&](std::uint64_t timestamp_ms) noexcept {
-        if (runtime.last_tap_ms != 0U) {
-            const auto interval = timestamp_ms - runtime.last_tap_ms;
-            if (interval >= 200U && interval <= 3000U) {
-                runtime.tap_intervals[runtime.tap_interval_cursor] = interval;
-                runtime.tap_interval_cursor =
-                    (runtime.tap_interval_cursor + 1U) % runtime.tap_intervals.size();
-                runtime.tap_interval_count = std::min(
-                    runtime.tap_interval_count + 1U,
-                    runtime.tap_intervals.size());
-                std::uint64_t total = 0;
-                for (std::size_t index = 0; index < runtime.tap_interval_count; ++index) {
-                    total += runtime.tap_intervals[index];
-                }
-                const auto average = static_cast<double>(total) /
-                    static_cast<double>(runtime.tap_interval_count);
-                runtime.sync.set_manual_bpm(60000.0 / average, timestamp_ms);
-            } else {
-                runtime.tap_interval_count = 0;
-                runtime.tap_interval_cursor = 0;
-            }
-        }
-        runtime.last_tap_ms = timestamp_ms;
-    };
-
-    auto apply_action = [&](const showcore::MidiActionEvent& event,
-                            double beat_position,
-                            std::uint64_t now_ms) noexcept {
-        bool active = event.active;
-        auto& toggled = runtime.mapping_toggles[event.mapping_index];
-        switch (event.behavior) {
-        case showcore::MappingBehavior::Toggle:
-            if (!event.active) {
-                return;
-            }
-            toggled = !toggled;
-            active = toggled;
-            break;
-        case showcore::MappingBehavior::Latch:
-            if (!event.active) {
-                return;
-            }
-            toggled = true;
-            active = true;
-            break;
-        case showcore::MappingBehavior::Continuous:
-        case showcore::MappingBehavior::Relative:
-            active = true;
-            break;
-        case showcore::MappingBehavior::Momentary:
-            break;
-        }
-
-        const auto& action = event.action;
-        switch (action.type) {
-        case showcore::ActionType::SetProperty: {
-            if (action.target_id >= showcore::kMaxFixtures ||
-                action.property >= showcore::Property::Count) {
-                break;
-            }
-            auto& current = runtime.manual_values[action.target_id]
-                [static_cast<std::size_t>(action.property)];
-            if (event.relative) {
-                current = std::clamp(current + event.value * 0.05F, 0.0F, 1.0F);
-            } else {
-                current = event.value;
-            }
-            engine.layers().set(
-                showcore::LayerId::ManualOverride,
-                action.target_id,
-                action.property,
-                active ? showcore::PropertyValue::set(current)
-                       : showcore::PropertyValue::release());
-            break;
-        }
-        case showcore::ActionType::Blackout:
-            set_blackout(active);
-            break;
-        case showcore::ActionType::TriggerLook:
-            if (active) {
-                if (const auto* look = show_->look(action.target_id); look != nullptr &&
-                    runtime.static_look.trigger(
-                        *look, now_ms, show_->look_fade_ms(action.target_id), engine.layers())) {
-                    runtime.selected_look = action.target_id;
-                }
-            } else {
-                runtime.static_look.clear(now_ms, 100U, engine.layers());
-                runtime.selected_look = -1;
-            }
-            break;
-        case showcore::ActionType::TriggerAutoloop:
-            if (active) {
-                trigger_loop(decode_autoloop(action.target_id), beat_position);
-            } else {
-                runtime.manual_autoloop.clear(engine.layers());
-                runtime.selected_autoloop = {};
-            }
-            break;
-        case showcore::ActionType::TapTempo: {
-            apply_tap(now_ms);
-            break;
-        }
-        case showcore::ActionType::ArmFog:
-            arm_hazard(showcore::Property::Fog, active);
-            break;
-        case showcore::ActionType::ClearLook:
-            if (active) {
-                runtime.static_look.clear(now_ms, 100U, engine.layers());
-                runtime.selected_look = -1;
-            }
-            break;
-        case showcore::ActionType::ClearAutoloop:
-            if (active) {
-                runtime.manual_autoloop.clear(engine.layers());
-                runtime.selected_autoloop = {};
-            }
-            break;
-        case showcore::ActionType::NextAutoloop:
-            if (active) {
-                trigger_loop(show_->autoloops().next_available(runtime.selected_autoloop), beat_position);
-            }
-            break;
-        case showcore::ActionType::PreviousAutoloop:
-            if (active) {
-                trigger_loop(show_->autoloops().previous_available(runtime.selected_autoloop), beat_position);
-            }
-            break;
-        case showcore::ActionType::WorkLight:
-            set_work_light(active);
-            break;
-        case showcore::ActionType::ArmHaze:
-            arm_hazard(showcore::Property::Haze, active);
-            break;
-        case showcore::ActionType::ArmLaser:
-            arm_hazard(showcore::Property::Laser, active);
-            break;
-        case showcore::ActionType::ArmSpark:
-            arm_hazard(showcore::Property::Spark, active);
-            break;
-        case showcore::ActionType::None:
-        case showcore::ActionType::Count:
-            break;
-        }
-    };
+    activation = published_activation_.load(std::memory_order_acquire);
+    if (activation == nullptr) {
+        state_.store(RunnerState::Fault, std::memory_order_release);
+#ifdef _WIN32
+        static_cast<void>(::timeEndPeriod(1U));
+#endif
+        return;
+    }
+    configure_activation(activation, nullptr, monotonic_ms());
+    scheduler_activation_ack_.store(activation->generation, std::memory_order_release);
+    state_.store(RunnerState::Running, std::memory_order_release);
 
     while (!stop_requested_.load(std::memory_order_acquire)) {
         std::this_thread::sleep_until(next_frame);
         const auto now = SteadyClock::now();
+        const auto now_ms = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()).count());
+        if (auto* requested = published_activation_.load(std::memory_order_acquire);
+            requested != nullptr && requested != activation) {
+            configure_activation(requested, activation, now_ms);
+            activation = requested;
+            scheduler_activation_ack_.store(
+                activation->generation, std::memory_order_release);
+        }
+        auto& runtime = *activation->runtime;
+        auto& engine = activation->show->engine();
+        auto* show = activation->show.get();
+
         std::uint64_t late_us = 0U;
         if (now > next_frame) {
             late_us = static_cast<std::uint64_t>(
@@ -729,23 +714,213 @@ void RunnerService::run_scheduler() noexcept {
             }
             jitter_p99_us_.store(p99_us, std::memory_order_relaxed);
         }
-        const auto now_ms = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()).count());
-
         BeatEvent beat;
         while (beats_.try_pop(beat)) {
             runtime.sync.on_os2l_beat(beat.position, beat.bpm, beat.timestamp_ms);
         }
         auto clock = runtime.sync.tick(now_ms);
 
+        auto trigger_loop = [&](showcore::AutoloopAddress address,
+                                double beat_position) noexcept {
+            if (!address.valid()) {
+                return;
+            }
+            if (runtime.manual_autoloop.trigger(
+                    show->autoloops(),
+                    address,
+                    show->autoloop_repeat(address),
+                    beat_position,
+                    runtime.track_playing,
+                    engine.layers())) {
+                runtime.selected_autoloop = address;
+            }
+        };
+
+        auto arm_hazard = [&](showcore::Property property, bool armed) noexcept {
+            switch (property) {
+            case showcore::Property::Fog:
+                engine.safety().fog_armed = armed;
+                fog_armed_.store(armed, std::memory_order_relaxed);
+                break;
+            case showcore::Property::Haze:
+                engine.safety().haze_armed = armed;
+                haze_armed_.store(armed, std::memory_order_relaxed);
+                break;
+            case showcore::Property::Laser:
+                engine.safety().laser_armed = armed;
+                laser_armed_.store(armed, std::memory_order_relaxed);
+                break;
+            case showcore::Property::Spark:
+                engine.safety().spark_armed = armed;
+                spark_armed_.store(armed, std::memory_order_relaxed);
+                break;
+            default:
+                break;
+            }
+        };
+
+        auto apply_tap = [&](std::uint64_t timestamp_ms) noexcept {
+            if (runtime.last_tap_ms != 0U) {
+                const auto interval = timestamp_ms - runtime.last_tap_ms;
+                if (interval >= 200U && interval <= 3000U) {
+                    runtime.tap_intervals[runtime.tap_interval_cursor] = interval;
+                    runtime.tap_interval_cursor =
+                        (runtime.tap_interval_cursor + 1U) % runtime.tap_intervals.size();
+                    runtime.tap_interval_count = std::min(
+                        runtime.tap_interval_count + 1U,
+                        runtime.tap_intervals.size());
+                    std::uint64_t total = 0;
+                    for (std::size_t index = 0;
+                         index < runtime.tap_interval_count;
+                         ++index) {
+                        total += runtime.tap_intervals[index];
+                    }
+                    const auto average = static_cast<double>(total) /
+                        static_cast<double>(runtime.tap_interval_count);
+                    runtime.sync.set_manual_bpm(60000.0 / average, timestamp_ms);
+                } else {
+                    runtime.tap_interval_count = 0;
+                    runtime.tap_interval_cursor = 0;
+                }
+            }
+            runtime.last_tap_ms = timestamp_ms;
+        };
+
+        auto apply_action = [&](const showcore::MidiActionEvent& event,
+                                double beat_position) noexcept {
+            bool active = event.active;
+            auto& toggled = runtime.mapping_toggles[event.mapping_index];
+            switch (event.behavior) {
+            case showcore::MappingBehavior::Toggle:
+                if (!event.active) {
+                    return;
+                }
+                toggled = !toggled;
+                active = toggled;
+                break;
+            case showcore::MappingBehavior::Latch:
+                if (!event.active) {
+                    return;
+                }
+                toggled = true;
+                active = true;
+                break;
+            case showcore::MappingBehavior::Continuous:
+            case showcore::MappingBehavior::Relative:
+                active = true;
+                break;
+            case showcore::MappingBehavior::Momentary:
+                break;
+            }
+
+            const auto& action = event.action;
+            switch (action.type) {
+            case showcore::ActionType::SetProperty: {
+                if (action.target_id >= showcore::kMaxFixtures ||
+                    action.property >= showcore::Property::Count) {
+                    break;
+                }
+                auto& current = runtime.manual_values[action.target_id]
+                    [static_cast<std::size_t>(action.property)];
+                if (event.relative) {
+                    current = std::clamp(current + event.value * 0.05F, 0.0F, 1.0F);
+                } else {
+                    current = event.value;
+                }
+                engine.layers().set(
+                    showcore::LayerId::ManualOverride,
+                    action.target_id,
+                    action.property,
+                    active ? showcore::PropertyValue::set(current)
+                           : showcore::PropertyValue::release());
+                break;
+            }
+            case showcore::ActionType::Blackout:
+                set_blackout(active);
+                break;
+            case showcore::ActionType::TriggerLook:
+                if (active) {
+                    if (const auto* look = show->look(action.target_id); look != nullptr &&
+                        runtime.static_look.trigger(
+                            *look,
+                            now_ms,
+                            show->look_fade_ms(action.target_id),
+                            engine.layers())) {
+                        runtime.selected_look = action.target_id;
+                    }
+                } else {
+                    runtime.static_look.clear(now_ms, 100U, engine.layers());
+                    runtime.selected_look = -1;
+                }
+                break;
+            case showcore::ActionType::TriggerAutoloop:
+                if (active) {
+                    trigger_loop(decode_autoloop(action.target_id), beat_position);
+                } else {
+                    runtime.manual_autoloop.clear(engine.layers());
+                    runtime.selected_autoloop = {};
+                }
+                break;
+            case showcore::ActionType::TapTempo:
+                apply_tap(now_ms);
+                break;
+            case showcore::ActionType::ArmFog:
+                arm_hazard(showcore::Property::Fog, active);
+                break;
+            case showcore::ActionType::ClearLook:
+                if (active) {
+                    runtime.static_look.clear(now_ms, 100U, engine.layers());
+                    runtime.selected_look = -1;
+                }
+                break;
+            case showcore::ActionType::ClearAutoloop:
+                if (active) {
+                    runtime.manual_autoloop.clear(engine.layers());
+                    runtime.selected_autoloop = {};
+                }
+                break;
+            case showcore::ActionType::NextAutoloop:
+                if (active) {
+                    trigger_loop(
+                        show->autoloops().next_available(runtime.selected_autoloop),
+                        beat_position);
+                }
+                break;
+            case showcore::ActionType::PreviousAutoloop:
+                if (active) {
+                    trigger_loop(
+                        show->autoloops().previous_available(runtime.selected_autoloop),
+                        beat_position);
+                }
+                break;
+            case showcore::ActionType::WorkLight:
+                set_work_light(active);
+                break;
+            case showcore::ActionType::ArmHaze:
+                arm_hazard(showcore::Property::Haze, active);
+                break;
+            case showcore::ActionType::ArmLaser:
+                arm_hazard(showcore::Property::Laser, active);
+                break;
+            case showcore::ActionType::ArmSpark:
+                arm_hazard(showcore::Property::Spark, active);
+                break;
+            case showcore::ActionType::None:
+            case showcore::ActionType::Count:
+                break;
+            }
+        };
+
         RunnerCommand command;
         while (commands_.try_pop(command)) {
+            if (command.generation != activation->generation) {
+                continue;
+            }
             switch (command.type) {
             case RunnerCommandType::TriggerLook:
-                if (const auto* look = show_->look(command.target); look != nullptr &&
+                if (const auto* look = show->look(command.target); look != nullptr &&
                     runtime.static_look.trigger(
-                        *look, now_ms, show_->look_fade_ms(command.target), engine.layers())) {
+                        *look, now_ms, show->look_fade_ms(command.target), engine.layers())) {
                     runtime.selected_look = command.target;
                 }
                 break;
@@ -762,12 +937,12 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             case RunnerCommandType::NextAutoloop:
                 trigger_loop(
-                    show_->autoloops().next_available(runtime.selected_autoloop),
+                    show->autoloops().next_available(runtime.selected_autoloop),
                     clock.beat_position);
                 break;
             case RunnerCommandType::PreviousAutoloop:
                 trigger_loop(
-                    show_->autoloops().previous_available(runtime.selected_autoloop),
+                    show->autoloops().previous_available(runtime.selected_autoloop),
                     clock.beat_position);
                 break;
             case RunnerCommandType::SetManualBpm:
@@ -777,7 +952,7 @@ void RunnerService::run_scheduler() noexcept {
                 apply_tap(command.timestamp_ms);
                 break;
             case RunnerCommandType::SetProperty:
-                if (command.target < show_->fixture_count()) {
+                if (command.target < show->fixture_count()) {
                     runtime.manual_values[command.target]
                         [static_cast<std::size_t>(command.property)] = command.value;
                     engine.layers().set(
@@ -797,16 +972,18 @@ void RunnerService::run_scheduler() noexcept {
             }
         }
 
-        showcore::MidiActionEvent midi_action;
+        RunnerMidiActionEvent midi_action;
         while (midi_actions_.try_pop(midi_action)) {
-            apply_action(midi_action, clock.beat_position, now_ms);
+            if (midi_action.generation == activation->generation) {
+                apply_action(midi_action.event, clock.beat_position);
+            }
         }
 
         const bool work_light = work_light_requested_.load(std::memory_order_acquire);
         if (work_light != runtime.applied_work_light) {
             engine.layers().clear_layer(showcore::LayerId::Emergency);
             if (work_light) {
-                for (std::uint16_t fixture = 0; fixture < show_->fixture_count(); ++fixture) {
+                for (std::uint16_t fixture = 0; fixture < show->fixture_count(); ++fixture) {
                     for (const auto property : {
                              showcore::Property::Intensity,
                              showcore::Property::Red,
@@ -837,6 +1014,7 @@ void RunnerService::run_scheduler() noexcept {
             output.frames.clear();
         }
         output.sequence = sequence;
+        output.generation = activation->generation;
         if (!output_queue_.try_push(output)) {
             output_queue_drops_.fetch_add(1, std::memory_order_relaxed);
         }
@@ -936,6 +1114,12 @@ void RunnerService::run_output() noexcept {
     auto next_retry = SteadyClock::now() + std::chrono::seconds(2);
     OutputFrame frame;
     while (!stop_requested_.load(std::memory_order_acquire) || !output_queue_.empty()) {
+        auto* activation = published_activation_.load(std::memory_order_acquire);
+        if (activation == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+        output_activation_ack_.store(activation->generation, std::memory_order_release);
         if (!outputs_ready && SteadyClock::now() >= next_retry) {
             outputs_ready = open_missing_outputs();
             next_retry = SteadyClock::now() + std::chrono::seconds(2);
@@ -947,6 +1131,10 @@ void RunnerService::run_output() noexcept {
         }
         if (consumed > 1U) {
             output_superseded_frames_.fetch_add(consumed - 1U, std::memory_order_relaxed);
+        }
+        if (frame.generation != activation->generation) {
+            output_superseded_frames_.fetch_add(1U, std::memory_order_relaxed);
+            continue;
         }
 
         bool artnet_success = true;
@@ -966,7 +1154,7 @@ void RunnerService::run_output() noexcept {
                     static_cast<std::uint16_t>(connections_.sacn_universe_base + universe),
                     frame.sequence,
                     cid,
-                    project_name_);
+                    activation->project_name);
                 sacn_success = sacn[universe].send(packet) && sacn_success;
             }
             if (!connections_.dmx_usb_pro_ports[universe].empty() &&
@@ -999,6 +1187,10 @@ void RunnerService::run_output() noexcept {
 
     showcore::DmxFrames zero_frames;
     zero_frames.clear();
+    const auto* final_activation = published_activation_.load(std::memory_order_acquire);
+    const std::string_view final_project_name = final_activation == nullptr
+        ? std::string_view{"EmberLights"}
+        : std::string_view{final_activation->project_name};
     for (std::uint8_t repeat = 0; repeat < 3U; ++repeat) {
         for (std::uint16_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
             if (connections_.artnet_enabled && artnet.is_open()) {
@@ -1013,7 +1205,7 @@ void RunnerService::run_output() noexcept {
                     static_cast<std::uint16_t>(connections_.sacn_universe_base + universe),
                     static_cast<std::uint8_t>(frame.sequence + repeat + 1U),
                     cid,
-                    project_name_)));
+                    final_project_name)));
             }
             if (!connections_.dmx_usb_pro_ports[universe].empty() &&
                 dmx_usb_pro[universe].is_open()) {

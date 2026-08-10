@@ -115,6 +115,10 @@ struct ConnectionSettings {
     double manual_bpm{120.0};
     std::int32_t midi_input_index{-1};
     std::int32_t midi_output_index{-1};
+
+    [[nodiscard]] friend bool operator==(
+        const ConnectionSettings&,
+        const ConnectionSettings&) = default;
 };
 
 struct SafetySettings {
@@ -125,6 +129,10 @@ struct SafetySettings {
     bool strobe_allowed{true};
     float max_strobe{1.0F};
     float max_intensity{1.0F};
+
+    [[nodiscard]] friend bool operator==(
+        const SafetySettings&,
+        const SafetySettings&) = default;
 };
 
 struct ProjectDocument {

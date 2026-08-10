@@ -51,5 +51,7 @@ struct ProjectIoResult {
 
 [[nodiscard]] std::filesystem::path project_backup_path(
     const std::filesystem::path& path);
+[[nodiscard]] std::filesystem::path project_active_path(
+    const std::filesystem::path& path);
 
 }  // namespace emberlights
