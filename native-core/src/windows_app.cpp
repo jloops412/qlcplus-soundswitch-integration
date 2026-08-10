@@ -1942,6 +1942,7 @@ void listview_set_row(
     case showcore::ActionType::SelectAutoloopBank: return "Select Autoloop Bank";
     case showcore::ActionType::SelectAllAutoloopBanks: return "Select All Autoloop Banks";
     case showcore::ActionType::SetAutoloopBankEnabled: return "Set Autoloop Bank Enabled";
+    case showcore::ActionType::BlackoutGroup: return "Blackout fixture group";
     case showcore::ActionType::Count: return "Invalid";
     }
     return "Invalid";
@@ -2403,8 +2404,9 @@ void Application::refresh_midi() {
 
     const auto action = ::GetDlgItem(page, IdMidiAction);
     static_cast<void>(::SendMessageW(action, CB_RESETCONTENT, 0, 0));
-    constexpr std::array<showcore::ActionType, 21> actions{{
+    constexpr std::array<showcore::ActionType, 22> actions{{
         showcore::ActionType::Blackout,
+        showcore::ActionType::BlackoutGroup,
         showcore::ActionType::WorkLight,
         showcore::ActionType::TriggerLook,
         showcore::ActionType::ClearLook,
@@ -4934,9 +4936,10 @@ void Application::update_midi_targets() {
         for (std::size_t index = 0; index < project_.fixtures.size(); ++index) {
             combo_add(target, widen(project_.fixtures[index].name), static_cast<std::intptr_t>(index));
         }
-    } else if (action == showcore::ActionType::SetGroupProperty) {
+    } else if (action == showcore::ActionType::SetGroupProperty ||
+               action == showcore::ActionType::BlackoutGroup) {
         needs_target = true;
-        needs_property = true;
+        needs_property = action == showcore::ActionType::SetGroupProperty;
         for (std::size_t index = 0; index < project_.groups.size(); ++index) {
             combo_add(target, widen(project_.groups[index].name), static_cast<std::intptr_t>(index));
         }
@@ -4968,6 +4971,7 @@ void Application::begin_midi_learn() {
         action == showcore::ActionType::TriggerTrackScript ||
         action == showcore::ActionType::SetProperty ||
         action == showcore::ActionType::SetGroupProperty ||
+        action == showcore::ActionType::BlackoutGroup ||
         action == showcore::ActionType::SelectAutoloopBank ||
         action == showcore::ActionType::SetAutoloopBankEnabled;
     if (needs_target && combo_selected_data(::GetDlgItem(page, IdMidiTarget), -1) < 0) {
@@ -5052,7 +5056,8 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
     } else if (mapping.action.type == showcore::ActionType::SetProperty && target >= 0 &&
                static_cast<std::size_t>(target) < project_.fixtures.size()) {
         mapping.target_ref = project_.fixtures[static_cast<std::size_t>(target)].id;
-    } else if (mapping.action.type == showcore::ActionType::SetGroupProperty && target >= 0 &&
+    } else if ((mapping.action.type == showcore::ActionType::SetGroupProperty ||
+                mapping.action.type == showcore::ActionType::BlackoutGroup) && target >= 0 &&
                static_cast<std::size_t>(target) < project_.groups.size()) {
         mapping.target_ref = project_.groups[static_cast<std::size_t>(target)].id;
     } else if (mapping.action.type == showcore::ActionType::SelectAutoloopBank && target >= 0 &&
