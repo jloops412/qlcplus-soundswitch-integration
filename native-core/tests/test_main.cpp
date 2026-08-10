@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/project.hpp"
+#include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
@@ -1488,6 +1489,43 @@ emberlights::ProjectDocument make_test_project() {
     return project;
 }
 
+void test_project_edit_history() {
+    emberlights::ProjectEditHistory history;
+    auto project = make_test_project();
+    const auto original_name = project.name;
+
+    history.record_before_change(project);
+    project.name = "First Revision";
+    history.record_before_change(project);
+    project.name = "Second Revision";
+    CHECK(history.can_undo());
+    CHECK(!history.can_redo());
+    CHECK(history.undo_count() == 2U);
+    CHECK(history.undo(project));
+    CHECK(project.name == "First Revision");
+    CHECK(history.undo(project));
+    CHECK(project.name == original_name);
+    CHECK(!history.can_undo());
+    CHECK(history.can_redo());
+    CHECK(history.redo(project));
+    CHECK(project.name == "First Revision");
+
+    history.record_before_change(project);
+    project.name = "Branch Revision";
+    CHECK(!history.can_redo());
+    CHECK(history.redo_count() == 0U);
+
+    history.clear();
+    for (std::size_t index = 0; index < emberlights::kMaximumProjectUndoEntries + 3U; ++index) {
+        history.record_before_change(project);
+        project.name = "Revision " + std::to_string(index);
+    }
+    CHECK(history.undo_count() == emberlights::kMaximumProjectUndoEntries);
+    CHECK(history.undo(project));
+    CHECK(project.name == "Revision " +
+        std::to_string(emberlights::kMaximumProjectUndoEntries + 1U));
+}
+
 void test_project_validation_io_and_compilation() {
     auto project = make_test_project();
     project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
@@ -1944,6 +1982,7 @@ int main() {
     test_render_has_no_allocations();
     test_performance_playback_has_no_allocations();
     test_deterministic_replay();
+    test_project_edit_history();
     test_project_validation_io_and_compilation();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();
