@@ -61,6 +61,9 @@ enum class RunnerCommandType : std::uint8_t {
     ClearAutoloop,
     NextAutoloop,
     PreviousAutoloop,
+    SelectAllAutoloopBanks,
+    SelectExclusiveAutoloopBank,
+    SetAutoloopBankEnabled,
     TriggerTrackScript,
     ClearTrackScript,
     SetManualBpm,
@@ -96,6 +99,7 @@ struct RunnerStatus {
     double beat_position{0.0};
     std::int32_t active_look{-1};
     showcore::AutoloopAddress active_autoloop{};
+    std::uint64_t active_autoloop_bank_mask{~std::uint64_t{0}};
     std::int32_t active_track_script{-1};
     bool blackout{false};
     bool work_light{false};
@@ -174,6 +178,9 @@ public:
     [[nodiscard]] bool clear_autoloop() noexcept;
     [[nodiscard]] bool next_autoloop() noexcept;
     [[nodiscard]] bool previous_autoloop() noexcept;
+    [[nodiscard]] bool select_all_autoloop_banks() noexcept;
+    [[nodiscard]] bool select_exclusive_autoloop_bank(std::uint16_t bank) noexcept;
+    [[nodiscard]] bool set_autoloop_bank_enabled(std::uint16_t bank, bool enabled) noexcept;
     [[nodiscard]] bool trigger_track_script(std::uint16_t index) noexcept;
     [[nodiscard]] bool clear_track_script() noexcept;
     [[nodiscard]] bool set_manual_bpm(double bpm) noexcept;
@@ -244,6 +251,7 @@ private:
     std::atomic<std::int64_t> beat_milli_{0};
     std::atomic<std::int32_t> active_look_{-1};
     std::atomic<std::uint16_t> active_autoloop_{0xFFFFU};
+    std::atomic<std::uint64_t> active_autoloop_bank_mask_{~std::uint64_t{0}};
     std::atomic<std::int32_t> active_track_script_{-1};
     std::atomic<bool> fog_armed_{false};
     std::atomic<bool> haze_armed_{false};
