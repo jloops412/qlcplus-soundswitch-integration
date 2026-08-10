@@ -275,7 +275,8 @@ template <typename Value>
 [[nodiscard]] bool is_known_primary(std::string_view type) noexcept {
     return type == "PROJECT" || type == "CONNECTIONS" || type == "SAFETY" ||
         type == "PROFILE" || type == "FIXTURE" || type == "GROUP" ||
-        type == "LOOK" || type == "AUTOLOOP" || type == "TRACK" || type == "MIDI";
+        type == "LOOK" || type == "AUTOLOOP" || type == "AUDIO" ||
+        type == "TRACK" || type == "MIDI";
 }
 
 [[nodiscard]] bool is_known_secondary(std::string_view type) noexcept {
@@ -402,11 +403,32 @@ template <typename Collection>
                 return error(ProjectIoError::InvalidValue, record.line, "Invalid AUTOLOOP value.");
             }
             project.autoloops.push_back(std::move(loop));
+        } else if (f[0] == "AUDIO") {
+            if (f.size() != 7U) {
+                return error(ProjectIoError::InvalidRecord, record.line, "Invalid AUDIO record.");
+            }
+            AudioAssetDefinition asset;
+            asset.id = f[1];
+            asset.name = f[2];
+            asset.file_name = f[3];
+            asset.sha256 = f[4];
+            if (!parse_number(f[5], asset.size_bytes)) {
+                return error(ProjectIoError::InvalidValue, record.line, "Invalid AUDIO size.");
+            }
+            asset.local_path_hint = f[6];
+            project.audio_assets.push_back(std::move(asset));
         } else if (f[0] == "TRACK") {
-            if (f.size() != 4U) {
+            if (f.size() != 4U && f.size() != 5U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid TRACK record.");
             }
-            project.track_scripts.push_back({f[1], f[2], f[3], {}});
+            TrackScriptDefinition track;
+            track.id = f[1];
+            track.name = f[2];
+            track.audio_key = f[3];
+            if (f.size() == 5U) {
+                track.audio_asset_id = f[4];
+            }
+            project.track_scripts.push_back(std::move(track));
         } else if (f[0] == "MIDI") {
             if (f.size() != 22U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid MIDI record.");
@@ -742,8 +764,14 @@ std::string serialize_project(const ProjectDocument& project) {
                 std::string(transition_name(step.transition))});
         }
     }
+    for (const auto& asset : project.audio_assets) {
+        append_record(payload, {
+            "AUDIO", asset.id, asset.name, asset.file_name, asset.sha256,
+            number_text(asset.size_bytes), asset.local_path_hint});
+    }
     for (const auto& track : project.track_scripts) {
-        append_record(payload, {"TRACK", track.id, track.name, track.audio_key});
+        append_record(payload, {
+            "TRACK", track.id, track.name, track.audio_key, track.audio_asset_id});
         for (const auto& cue : track.cues) {
             append_record(payload, {
                 "TRACK_CUE", track.id, number_text(cue.at_beat),
