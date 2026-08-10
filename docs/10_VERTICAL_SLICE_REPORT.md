@@ -1,6 +1,6 @@
 # Native Vertical Slice Report
 
-Date: 2026-08-09.
+Date: 2026-08-10.
 
 ## Outcome
 
@@ -37,7 +37,7 @@ Implemented:
 - byte-exact ENTTEC DMX USB Pro serial framing, Windows COM discovery, one-device-per-universe mapping, bounded output-thread writes, retry/status handling, and zero-frame shutdown;
 - latest-frame-wins output queue consumption so a temporarily blocked adapter does not replay stale frames after it recovers;
 - end-to-end two-universe `runner_lab` with separate adapter/status and scheduling threads, dry-run default, optional Art-Net output, finite-duration smoke mode, and live status/jitter counters;
-- versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, and unknown-record preservation;
+- versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, verified bounded 20-version restore history with safe Windows restore, and unknown-record preservation;
 - fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, and Diagnostics workflows in the native Windows application;
 - bounded Studio-only QLC+ QXF import with OFL-export provenance detection, coarse/fine pairing, semantic/range conversion, native validation, approximation reports, and unsafe-mode quarantine;
 - fixed-capacity Runner health telemetry for uptime, last-frame age, p99/max jitter, deadline misses, and scheduler resynchronization;
@@ -98,7 +98,7 @@ At 40 DMX updates/second, 16.2 microseconds per render is roughly 0.065% of one 
 - Art-Net direct unicast delivery is loopback-verified; node/visualizer qualification and discovery/subscription compliance are pending.
 - Fixture mapping now covers a broad fixed semantic/custom surface and safely imports QLC+ QXF/OFL-export profiles. A searchable pinned OFL catalog, richer function-range editing, switching-channel aliases, and cell-aware multi-head/pixel topology remain pending.
 - The Autoloop runtime and editor have complete 64×32 capacity plus activation/return policies, but shipped default content, richer organization, and random/automatic selection policies remain pending.
-- The native Windows UI is functional but its look/profile/Autoloop authoring still needs guided controls, undo/history, and usability qualification.
+- The native Windows UI is functional but its look/profile/Autoloop authoring still needs guided controls, in-session undo/redo, and usability qualification. Durable project restore history is implemented separately.
 - The production qualification/report path is implemented, but the required eight-hour runs on the primary and minimum Windows machines, adapter fault injection, and durable session/crash logging remain pending.
 - Live-audio fallback, automatic DJ track association/waveform editing, AutoScripting, SoundSwitch semantic migration, Serato, smart-light integrations, and remaining parity-ledger items are still pending. Manual beat-addressed Track Scripts with Live and MIDI triggering are implemented but remain pending hardware and VirtualDJ qualification.
 
