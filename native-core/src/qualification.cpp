@@ -557,7 +557,10 @@ int main(int argc, char** argv) {
     const auto cpu_ceiling_percent = options.strict ? 5.0 : 100.0;
     const auto rss_ceiling_bytes = options.strict ? 100U * 1024U * 1024U
                                                   : 512U * 1024U * 1024U;
-    const auto deadline_ratio_passed = final_status.jitter_samples == 0U ||
+    // A short hosted/package smoke confirms continuous delivery and records
+    // scheduler health, but it is not timing qualification for a real DJ
+    // machine. The strict profile is the evidence gate for the 5 ms limit.
+    const auto deadline_ratio_passed = !options.strict || final_status.jitter_samples == 0U ||
         final_status.deadline_misses * 100U <= final_status.jitter_samples;
 
     std::vector<CheckResult> checks;
@@ -609,7 +612,8 @@ int main(int argc, char** argv) {
     checks.push_back({"scheduler.deadlineMissRate", deadline_ratio_passed,
                       number(final_status.deadline_misses) + "/" +
                           number(final_status.jitter_samples),
-                      "<= 1% over 5 ms"});
+                      options.strict ? "<= 1% over 5 ms"
+                                     : "recorded; strict profile requires <= 1% over 5 ms"});
     checks.push_back({"scheduler.resyncs",
                       !options.strict || final_status.scheduler_resyncs == 0U,
                       number(final_status.scheduler_resyncs),
