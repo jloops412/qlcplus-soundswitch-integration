@@ -69,6 +69,7 @@ enum ControlId : int {
     IdFileOpen,
     IdFileSave,
     IdFileSaveAs,
+    IdFileRestoreHistory,
     IdFileInspectSoundSwitch,
     IdFileCompareSoundSwitch,
     IdFileBundleSoundSwitch,
@@ -554,6 +555,7 @@ private:
     bool maybe_save_changes();
     void new_project();
     void open_project_dialog();
+    void restore_project_history_dialog();
     void import_qlc_fixture_dialog();
     void inspect_soundswitch_dialog();
     void compare_soundswitch_dialog();
@@ -853,6 +855,8 @@ void Application::create_menu_bar() {
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileSave, L"&Save\tCtrl+S"));
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileSaveAs, L"Save &As..."));
+    static_cast<void>(::AppendMenuW(
+        file, MF_STRING, IdFileRestoreHistory, L"Restore Saved &Version..."));
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(
         file, MF_STRING, IdFileInspectSoundSwitch, L"Inspect SoundSwitch &Project..."));
@@ -2207,6 +2211,11 @@ std::string Application::diagnostics_text() const {
            << (current_path_.empty()
                    ? "Unavailable (project is unsaved)"
                    : emberlights::project_active_path(current_path_).string())
+           << "\r\nSaved-version history: "
+           << (current_path_.empty()
+                   ? "Unavailable (project is unsaved)"
+                   : emberlights::project_history_directory(current_path_).string())
+           << " (up to " << emberlights::kMaximumProjectHistoryEntries << ")"
            << "\r\n\r\n";
     for (const auto& issue : validation.issues) {
         output << (issue.severity == emberlights::ProjectIssueSeverity::Error ? "ERROR" : "WARNING")
@@ -2294,6 +2303,7 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdFileOpen: open_project_dialog(); break;
     case IdFileSave: static_cast<void>(save_project(false)); break;
     case IdFileSaveAs: static_cast<void>(save_project(true)); break;
+    case IdFileRestoreHistory: restore_project_history_dialog(); break;
     case IdFileInspectSoundSwitch: inspect_soundswitch_dialog(); break;
     case IdFileCompareSoundSwitch: compare_soundswitch_dialog(); break;
     case IdFileBundleSoundSwitch: bundle_soundswitch_dialog(); break;
@@ -2485,6 +2495,111 @@ void Application::open_project_dialog() {
     if (::GetOpenFileNameW(&dialog) != FALSE) {
         static_cast<void>(open_project(std::filesystem::path(path.data())));
     }
+}
+
+void Application::restore_project_history_dialog() {
+    if (current_path_.empty()) {
+        ::MessageBoxW(
+            window_,
+            L"Save this project before using restore points.",
+            L"No saved versions yet",
+            MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    if (!maybe_save_changes()) {
+        return;
+    }
+
+    std::vector<emberlights::ProjectHistoryEntry> entries;
+    const auto listed = emberlights::list_project_history(current_path_, entries);
+    if (!listed) {
+        const auto message = widen(listed.message);
+        ::MessageBoxW(window_, message.c_str(), L"Could not read saved versions", MB_OK | MB_ICONERROR);
+        return;
+    }
+    if (entries.empty()) {
+        ::MessageBoxW(
+            window_,
+            L"EmberLights has not created a saved version for this project yet.",
+            L"No saved versions yet",
+            MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    std::array<wchar_t, 32768> selected{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window_;
+    dialog.lpstrFilter = L"EmberLights Saved Versions (*.emberlights)\0*.emberlights\0";
+    dialog.lpstrFile = selected.data();
+    dialog.nMaxFile = static_cast<DWORD>(selected.size());
+    const auto history_directory = emberlights::project_history_directory(current_path_);
+    const auto initial_directory = history_directory.wstring();
+    dialog.lpstrInitialDir = initial_directory.c_str();
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR;
+    dialog.lpstrDefExt = L"emberlights";
+    if (::GetOpenFileNameW(&dialog) == FALSE) {
+        return;
+    }
+    const std::filesystem::path selected_path(selected.data());
+    const auto is_listed = std::any_of(
+        entries.begin(), entries.end(), [&](const emberlights::ProjectHistoryEntry& entry) {
+            std::error_code filesystem_error;
+            return std::filesystem::equivalent(entry.path, selected_path, filesystem_error) &&
+                !filesystem_error;
+        });
+    if (!is_listed) {
+        ::MessageBoxW(
+            window_,
+            L"Select a version from this project's saved-version folder.",
+            L"Invalid restore point",
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+    emberlights::ProjectDocument preview;
+    const auto preview_result = emberlights::load_project(selected_path, preview, false);
+    if (!preview_result) {
+        const auto message = widen(preview_result.message);
+        ::MessageBoxW(
+            window_, message.c_str(), L"Invalid restore point", MB_OK | MB_ICONERROR);
+        return;
+    }
+    const auto prompt = L"Restore the saved version \"" + widen(preview.name) + L"\"?\n\n" +
+        L"EmberLights will stop live output, retain the current project as a new saved version, "
+        L"and replace the primary project file safely.";
+    if (::MessageBoxW(
+            window_, prompt.c_str(), L"Restore saved version",
+            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
+        return;
+    }
+
+    runner_.stop();
+    active_project_.reset();
+    static_cast<void>(::ModifyMenuW(
+        ::GetSubMenu(::GetMenu(window_), 1),
+        IdShowStartStop,
+        MF_BYCOMMAND | MF_STRING,
+        IdShowStartStop,
+        L"&Start Show"));
+    emberlights::ProjectDocument restored;
+    const auto result = emberlights::restore_project_history(current_path_, selected_path, restored);
+    if (!result) {
+        const auto message = widen(result.message);
+        ::MessageBoxW(window_, message.c_str(), L"Could not restore saved version", MB_OK | MB_ICONERROR);
+        refresh_live_lists();
+        refresh_live_status();
+        return;
+    }
+    project_ = std::move(restored);
+    dirty_ = false;
+    profile_index_ = -1;
+    fixture_index_ = -1;
+    group_index_ = -1;
+    look_index_ = -1;
+    autoloop_index_ = -1;
+    track_index_ = -1;
+    refresh_all();
+    set_status(widen(result.message));
 }
 
 void Application::import_qlc_fixture_dialog() {
@@ -2804,7 +2919,7 @@ bool Application::save_project(bool save_as) {
         if (activation) {
             active_project_ = project_;
             const auto snapshot = emberlights::save_project_atomic(
-                emberlights::project_active_path(current_path_), project_);
+                emberlights::project_active_path(current_path_), project_, false);
             refresh_live_lists();
             refresh_live_status();
             if (snapshot) {
@@ -2835,7 +2950,9 @@ bool Application::save_project(bool save_as) {
         set_status(L"Activation failed closed. Runner stopped; the project file was saved.");
         return true;
     }
-    set_status(L"Project saved with checksum and recovery backup protection.");
+    set_status(result.message.empty()
+        ? L"Project saved with checksum, recovery backup, and saved-version protection."
+        : widen(result.message));
     return true;
 }
 
@@ -2931,7 +3048,7 @@ void Application::start_or_stop_show() {
     active_project_ = run_project;
     if (!recovered_activation) {
         const auto snapshot = emberlights::save_project_atomic(
-            emberlights::project_active_path(current_path_), run_project);
+            emberlights::project_active_path(current_path_), run_project, false);
         if (!snapshot) {
             ::MessageBoxW(
                 window_,
