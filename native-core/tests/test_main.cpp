@@ -1475,6 +1475,15 @@ emberlights::ProjectDocument make_test_project() {
             {1.0F, emberlights::TrackCueAction::TriggerAutoloop, "red-blue"},
             {2.0F, emberlights::TrackCueAction::ClearLook, ""},
             {3.0F, emberlights::TrackCueAction::ClearAutoloop, ""}}});
+    emberlights::MidiMappingDefinition start_track;
+    start_track.device_name = "Test controller";
+    start_track.target_ref = "test-song";
+    start_track.message_type = showcore::MidiMessageType::NoteOn;
+    start_track.channel = 0U;
+    start_track.number = 24U;
+    start_track.behavior = showcore::MappingBehavior::Toggle;
+    start_track.action.type = showcore::ActionType::TriggerTrackScript;
+    project.midi_mappings.push_back(std::move(start_track));
     project.groups.push_back({"dance", "Dance Floor", {"wash-1"}});
     return project;
 }
@@ -1532,6 +1541,9 @@ void test_project_validation_io_and_compilation() {
     auto invalid_track = project;
     invalid_track.track_scripts[0].cues[1].target_ref = "missing-loop";
     CHECK(!emberlights::validate_project(invalid_track).ok());
+    auto invalid_track_mapping = project;
+    invalid_track_mapping.midi_mappings[0].target_ref = "missing-track";
+    CHECK(!emberlights::validate_project(invalid_track_mapping).ok());
 
     const auto serialized = emberlights::serialize_project(project);
     emberlights::ProjectDocument parsed;
@@ -1565,6 +1577,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(compilation.show->look_count() == 2U);
     CHECK(compilation.show->autoloops().get({7, 3}) != nullptr);
     CHECK(compilation.show->track_script_count() == 1U);
+    CHECK(compilation.show->midi_mappings().size() == 1U);
     const auto* compiled_track = compilation.show->track_script(0U);
     CHECK(compiled_track != nullptr);
     CHECK(compiled_track->cue_count == 4U);
