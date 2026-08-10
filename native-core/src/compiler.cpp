@@ -55,6 +55,10 @@ const CompiledTrackScript* CompiledShow::track_script(std::size_t index) const n
     return index < track_script_count_ ? &track_scripts_[index] : nullptr;
 }
 
+const showcore::FixtureGroup* CompiledShow::group(std::size_t index) const noexcept {
+    return index < group_count_ ? &groups_[index] : nullptr;
+}
+
 CompilationResult compile_project(const ProjectDocument& project) {
     CompilationResult result;
     result.validation = validate_project(project);
@@ -119,6 +123,32 @@ CompilationResult compile_project(const ProjectDocument& project) {
             return result;
         }
         fixture_by_id.emplace(fixture.id, runtime_id);
+    }
+
+    std::unordered_map<std::string_view, std::size_t> group_by_id;
+    for (std::size_t group_index = 0U; group_index < project.groups.size(); ++group_index) {
+        const auto& source = project.groups[group_index];
+        auto& target = compiled->groups_[group_index];
+        std::array<bool, showcore::kMaxFixtures> included{};
+        for (const auto& fixture_id : source.fixture_ids) {
+            const auto fixture = fixture_by_id.find(fixture_id);
+            if (fixture == fixture_by_id.end()) {
+                compilation_error(result.validation, "compile.group", source.id,
+                                  "Fixture group could not be compiled into the immutable show.");
+                return result;
+            }
+            if (included[fixture->second]) {
+                continue;
+            }
+            included[fixture->second] = true;
+            if (!target.add(fixture->second)) {
+                compilation_error(result.validation, "compile.group", source.id,
+                                  "Fixture group exceeded the immutable membership capacity.");
+                return result;
+            }
+        }
+        compiled->group_count_ = group_index + 1U;
+        group_by_id.emplace(source.id, group_index);
     }
 
     std::unordered_map<std::string_view, std::size_t> look_by_id;
@@ -250,6 +280,14 @@ CompilationResult compile_project(const ProjectDocument& project) {
                     return result;
                 }
                 action.target_id = target->second;
+            } else if (action.type == showcore::ActionType::SetGroupProperty) {
+                const auto target = group_by_id.find(source.target_ref);
+                if (target == group_by_id.end()) {
+                    compilation_error(result.validation, "compile.midiGroup", source.target_ref,
+                                      "MIDI mapping references a missing fixture group.");
+                    return result;
+                }
+                action.target_id = static_cast<std::uint16_t>(target->second);
             } else if (action.type == showcore::ActionType::TriggerTrackScript) {
                 const auto target = track_by_id.find(source.target_ref);
                 if (target == track_by_id.end()) {
