@@ -1603,27 +1603,70 @@ void test_project_validation_io_and_compilation() {
     std::filesystem::remove(path, ignored);
     std::filesystem::remove(emberlights::project_backup_path(path), ignored);
     std::filesystem::remove(emberlights::project_active_path(path), ignored);
+    std::filesystem::remove_all(emberlights::project_history_directory(path), ignored);
     CHECK(emberlights::save_project_atomic(path, project));
     project.name = "Second Save";
     CHECK(emberlights::save_project_atomic(path, project));
     CHECK(emberlights::load_project(path, parsed));
     CHECK(parsed.name == "Second Save");
     CHECK(emberlights::save_project_atomic(
-        emberlights::project_active_path(path), parsed));
+        emberlights::project_active_path(path), parsed, false));
     emberlights::ProjectDocument active_snapshot;
     CHECK(emberlights::load_project(
         emberlights::project_active_path(path), active_snapshot, false));
     CHECK(active_snapshot.name == "Second Save");
+    CHECK(!std::filesystem::exists(
+        emberlights::project_history_directory(emberlights::project_active_path(path))));
+
+    std::vector<emberlights::ProjectHistoryEntry> history;
+    CHECK(emberlights::list_project_history(path, history));
+    CHECK(history.size() == 2U);
+    const auto first_version = std::find_if(
+        history.begin(), history.end(), [](const emberlights::ProjectHistoryEntry& entry) {
+            emberlights::ProjectDocument version;
+            return emberlights::load_project(entry.path, version, false) && version.name == "Test Show";
+        });
+    CHECK(first_version != history.end());
+    if (first_version != history.end()) {
+        emberlights::ProjectDocument restored;
+        CHECK(emberlights::restore_project_history(path, first_version->path, restored));
+        CHECK(restored.name == "Test Show");
+        CHECK(emberlights::load_project(path, parsed));
+        CHECK(parsed.name == "Test Show");
+    }
+    emberlights::ProjectDocument rejected_restore;
+    CHECK(!emberlights::restore_project_history(path, path, rejected_restore));
     {
         std::ofstream damage(path, std::ios::binary | std::ios::trunc);
         damage << "damaged";
     }
     const auto recovered = emberlights::load_project(path, parsed);
     CHECK(recovered && recovered.recovered_from_backup);
-    CHECK(parsed.name == "Test Show");
+    CHECK(parsed.name == "Second Save");
     std::filesystem::remove(path, ignored);
     std::filesystem::remove(emberlights::project_backup_path(path), ignored);
     std::filesystem::remove(emberlights::project_active_path(path), ignored);
+    std::filesystem::remove_all(emberlights::project_history_directory(path), ignored);
+
+    const auto history_path = std::filesystem::path("build/project-history-prune-test.emberlights");
+    std::filesystem::remove(history_path, ignored);
+    std::filesystem::remove(emberlights::project_backup_path(history_path), ignored);
+    std::filesystem::remove_all(emberlights::project_history_directory(history_path), ignored);
+    auto history_project = make_test_project();
+    for (std::size_t index = 0; index < emberlights::kMaximumProjectHistoryEntries + 3U; ++index) {
+        history_project.name = "Checkpoint " + std::to_string(index);
+        CHECK(emberlights::save_project_atomic(history_path, history_project));
+    }
+    history.clear();
+    CHECK(emberlights::list_project_history(history_path, history));
+    CHECK(history.size() == emberlights::kMaximumProjectHistoryEntries);
+    emberlights::ProjectDocument newest_history;
+    CHECK(emberlights::load_project(history.front().path, newest_history, false));
+    CHECK(newest_history.name == "Checkpoint " +
+        std::to_string(emberlights::kMaximumProjectHistoryEntries + 2U));
+    std::filesystem::remove(history_path, ignored);
+    std::filesystem::remove(emberlights::project_backup_path(history_path), ignored);
+    std::filesystem::remove_all(emberlights::project_history_directory(history_path), ignored);
 }
 
 void test_runner_service_lifecycle() {
