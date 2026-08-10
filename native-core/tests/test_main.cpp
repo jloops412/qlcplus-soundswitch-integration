@@ -1768,6 +1768,26 @@ void test_runner_service_lifecycle() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     CHECK(runner.status().state == emberlights::RunnerState::Running);
+    const auto all_banks = ~std::uint64_t{0};
+    auto wait_for_bank_mask = [&](std::uint64_t expected) {
+        const auto mask_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (runner.status().active_autoloop_bank_mask != expected &&
+               std::chrono::steady_clock::now() < mask_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return runner.status().active_autoloop_bank_mask == expected;
+    };
+    CHECK(wait_for_bank_mask(all_banks));
+    CHECK(runner.select_exclusive_autoloop_bank(7U));
+    CHECK(wait_for_bank_mask(std::uint64_t{1} << 7U));
+    CHECK(!runner.select_exclusive_autoloop_bank(showcore::kMaxAutoloopBanks));
+    CHECK(runner.set_autoloop_bank_enabled(2U, true));
+    CHECK(wait_for_bank_mask((std::uint64_t{1} << 7U) | (std::uint64_t{1} << 2U)));
+    CHECK(runner.set_autoloop_bank_enabled(7U, false));
+    CHECK(wait_for_bank_mask(std::uint64_t{1} << 2U));
+    CHECK(!runner.set_autoloop_bank_enabled(showcore::kMaxAutoloopBanks, true));
+    CHECK(runner.select_all_autoloop_banks());
+    CHECK(wait_for_bank_mask(all_banks));
     CHECK(runner.trigger_look(0));
     CHECK(runner.trigger_autoloop({7, 3}));
     CHECK(runner.trigger_track_script(0));
@@ -1793,6 +1813,8 @@ void test_runner_service_lifecycle() {
     CHECK(runner.clear_track_script());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     CHECK(runner.status().active_track_script == -1);
+    CHECK(runner.select_exclusive_autoloop_bank(7U));
+    CHECK(wait_for_bank_mask(std::uint64_t{1} << 7U));
 
     auto updated_project = project;
     updated_project.name = "Activated Test Show";
@@ -1813,6 +1835,7 @@ void test_runner_service_lifecycle() {
     CHECK(activated.frames > active.frames);
     CHECK(activated.active_look == 0);
     CHECK((activated.active_autoloop == showcore::AutoloopAddress{7, 3}));
+    CHECK(activated.active_autoloop_bank_mask == (std::uint64_t{1} << 7U));
 
     auto restart_project = updated_project;
     restart_project.connections.frame_rate = 39U;
