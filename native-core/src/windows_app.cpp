@@ -130,6 +130,7 @@ enum ControlId : int {
     IdLiveAutoloopBank3Only,
     IdLiveAutoloopBank4,
     IdLiveAutoloopBank4Only,
+    IdLiveAutoloopPlayback,
 
     IdProfileTitle = 2000,
     IdProfileList,
@@ -497,6 +498,15 @@ template <typename Value>
     case emberlights::AdapterState::Fault: return L"Fault";
     }
     return L"Unknown";
+}
+
+[[nodiscard]] const wchar_t* autoloop_repeat_name(showcore::AutoloopRepeat repeat) noexcept {
+    switch (repeat) {
+    case showcore::AutoloopRepeat::Once: return L"once";
+    case showcore::AutoloopRepeat::Infinite: return L"infinite";
+    case showcore::AutoloopRepeat::TrackDuration: return L"track duration";
+    }
+    return L"unknown repeat";
 }
 
 [[nodiscard]] std::optional<std::filesystem::path> choose_folder(
@@ -1116,6 +1126,7 @@ void Application::create_pages() {
     add_button(page, L"Only B3", IdLiveAutoloopBank3Only);
     add_button(page, L"Use B4", IdLiveAutoloopBank4, BS_AUTOCHECKBOX);
     add_button(page, L"Only B4", IdLiveAutoloopBank4Only);
+    add_label(page, L"", IdLiveAutoloopPlayback);
 
     page = pages_[static_cast<std::size_t>(Page::Profiles)];
     title = add_label(page, L"Fixture Profiles", IdProfileTitle);
@@ -1445,6 +1456,7 @@ void Application::layout_page(Page page, int width, int height) {
         move(20, margin, live_controls_bottom + 80, usable_width, 64);
         move(21, margin, live_controls_bottom + 150, 110, 30);
         move(22, margin + 120, live_controls_bottom + 150, 110, 30);
+        move(40, right, live_controls_bottom + 44, column_width, 26);
         move(23, margin, height - 110, 110, 28);
         move(24, margin + 120, height - 110, 110, 28);
         move(25, margin + 240, height - 110, 110, 28);
@@ -2066,6 +2078,28 @@ void Application::refresh_live_status() {
         static_cast<void>(::EnableWindow(only_control, can_change_banks));
     }
 
+    std::wostringstream playback;
+    if (!status.active_autoloop.valid()) {
+        playback << L"No active Autoloop.";
+    } else {
+        playback << L"Active B" << status.active_autoloop.bank + 1U << L" / S"
+                 << static_cast<unsigned int>(status.active_autoloop.slot + 1U);
+        const auto& live = live_project();
+        const auto matched_loop = std::find_if(
+            live.autoloops.begin(), live.autoloops.end(), [&](const auto& loop) {
+                return loop.bank == status.active_autoloop.bank &&
+                    loop.slot == status.active_autoloop.slot;
+            });
+        if (matched_loop != live.autoloops.end()) {
+            playback << L" — " << widen(matched_loop->name);
+        }
+        playback << L"  •  " << std::lround(status.active_autoloop_progress * 100.0F)
+                 << L"%  •  " << autoloop_repeat_name(status.active_autoloop_repeat)
+                 << L"  •  cycle " << status.active_autoloop_completed_cycles + 1U;
+    }
+    static_cast<void>(::SetWindowTextW(
+        ::GetDlgItem(page, IdLiveAutoloopPlayback), playback.str().c_str()));
+
     std::wostringstream metrics;
     metrics << L"OS2L: " << adapter_state_name(status.os2l)
             << L"    MIDI: " << adapter_state_name(status.midi_input)
@@ -2404,8 +2438,17 @@ std::string Application::diagnostics_text() const {
            << "  BPM: " << status.bpm << "  Beat: " << status.beat_position
            << "  Active script: " << status.active_track_script
            << "  Navigation bank mask: 0x" << std::hex
-           << status.active_autoloop_bank_mask << std::dec << "\r\n"
-           << "OS2L: " << narrow(adapter_state_name(status.os2l))
+           << status.active_autoloop_bank_mask << std::dec << "\r\n";
+    if (status.active_autoloop.valid()) {
+        output << "Active Autoloop: B" << status.active_autoloop.bank + 1U
+               << "/S" << static_cast<unsigned int>(status.active_autoloop.slot + 1U)
+               << "  Progress: " << std::lround(status.active_autoloop_progress * 100.0F)
+               << "%  Repeat: " << narrow(autoloop_repeat_name(status.active_autoloop_repeat))
+               << "  Completed cycles: " << status.active_autoloop_completed_cycles << "\r\n";
+    } else {
+        output << "Active Autoloop: none\r\n";
+    }
+    output << "OS2L: " << narrow(adapter_state_name(status.os2l))
            << "  MIDI: " << narrow(adapter_state_name(status.midi_input))
            << "  Art-Net: " << narrow(adapter_state_name(status.artnet))
            << "  sACN: " << narrow(adapter_state_name(status.sacn))
