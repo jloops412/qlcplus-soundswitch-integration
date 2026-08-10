@@ -176,6 +176,8 @@ enum ControlId : int {
     IdAutoloopDuplicate,
     IdAutoloopSave,
     IdAutoloopDelete,
+    IdAutoloopNextEmpty,
+    IdAutoloopSwapTarget,
     IdAutoloopName,
     IdAutoloopBank,
     IdAutoloopSlot,
@@ -264,6 +266,8 @@ enum ControlId : int {
     case IdLookDelete:
     case IdAutoloopSave:
     case IdAutoloopDelete:
+    case IdAutoloopNextEmpty:
+    case IdAutoloopSwapTarget:
     case IdTrackSave:
     case IdTrackDelete:
     case IdMidiDelete:
@@ -343,6 +347,17 @@ void set_control_text(HWND control, std::string_view value) {
     }
     const auto last = value.find_last_not_of(" \t\r\n");
     return std::string(value.substr(first, last - first + 1U));
+}
+
+[[nodiscard]] std::string normalize_newlines(std::string_view value) {
+    std::string normalized;
+    normalized.reserve(value.size());
+    for (const auto character : value) {
+        if (character != '\r') {
+            normalized.push_back(character);
+        }
+    }
+    return normalized;
 }
 
 template <typename Value>
@@ -622,6 +637,9 @@ private:
     void duplicate_autoloop();
     void save_autoloop();
     void delete_autoloop();
+    void move_autoloop_to_next_empty();
+    void swap_autoloop_into_target_slot();
+    [[nodiscard]] bool autoloop_editor_has_unsaved_content() const;
     void select_track(std::int32_t index);
     void new_track();
     void duplicate_track();
@@ -1176,6 +1194,8 @@ void Application::create_pages() {
     add_button(page, L"Duplicate", IdAutoloopDuplicate);
     add_button(page, L"Save Autoloop", IdAutoloopSave);
     add_button(page, L"Delete", IdAutoloopDelete);
+    add_button(page, L"Next Open Slot", IdAutoloopNextEmpty);
+    add_button(page, L"Swap Target Slot", IdAutoloopSwapTarget);
     add_label(page, L"Name", 0);
     add_edit(page, IdAutoloopName);
     add_label(page, L"Bank (1–64)", 0);
@@ -1475,20 +1495,22 @@ void Application::layout_page(Page page, int width, int height) {
         move(5, margin + 284, height - 68, 70, 30);
         const auto x = margin + left_width + 24;
         const auto form_width = usable_width - left_width - 24;
-        move(6, x, 70, 105, 26);
-        move(7, x + 105, 70, form_width - 105, 27);
-        move(8, x, 108, 105, 26);
-        move(9, x + 105, 108, 70, 27);
-        move(10, x + 190, 108, 90, 26);
-        move(11, x + 280, 108, 70, 27);
-        move(12, x + 365, 108, 100, 26);
-        move(13, x + 465, 108, 80, 27);
-        move(14, x + 560, 108, 70, 26);
-        move(15, x + 630, 108, std::max(120, form_width - 630), 200);
-        move(16, x, 150, form_width, 26);
-        move(17, x, 180, form_width, std::max(190, height - 345));
-        move(18, x, height - 130, form_width, 50);
-        move(19, x, height - 72, form_width, 30);
+        move(6, x, 148, 130, 30);
+        move(7, x + 140, 148, 140, 30);
+        move(8, x, 70, 105, 26);
+        move(9, x + 105, 70, form_width - 105, 27);
+        move(10, x, 108, 105, 26);
+        move(11, x + 105, 108, 70, 27);
+        move(12, x + 190, 108, 90, 26);
+        move(13, x + 280, 108, 70, 27);
+        move(14, x + 365, 108, 100, 26);
+        move(15, x + 465, 108, 80, 27);
+        move(16, x + 560, 108, 70, 26);
+        move(17, x + 630, 108, std::max(120, form_width - 630), 200);
+        move(18, x, 188, form_width, 26);
+        move(19, x, 218, form_width, std::max(170, height - 385));
+        move(20, x, height - 130, form_width, 50);
+        move(21, x, height - 72, form_width, 30);
         break;
     }
     case Page::Tracks: {
@@ -2543,6 +2565,8 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdAutoloopDuplicate: duplicate_autoloop(); break;
     case IdAutoloopSave: save_autoloop(); break;
     case IdAutoloopDelete: delete_autoloop(); break;
+    case IdAutoloopNextEmpty: move_autoloop_to_next_empty(); break;
+    case IdAutoloopSwapTarget: swap_autoloop_into_target_slot(); break;
     case IdTrackNew: new_track(); break;
     case IdTrackDuplicate: duplicate_track(); break;
     case IdTrackSave: save_track(); break;
@@ -4024,6 +4048,8 @@ void Application::select_autoloop(std::int32_t index) {
                       static_cast<std::intptr_t>(loop.repeat));
     set_control_text(::GetDlgItem(page, IdAutoloopSteps), autoloop_steps_text(loop));
     ::EnableWindow(::GetDlgItem(page, IdAutoloopDelete), TRUE);
+    ::EnableWindow(::GetDlgItem(page, IdAutoloopNextEmpty), TRUE);
+    ::EnableWindow(::GetDlgItem(page, IdAutoloopSwapTarget), TRUE);
     set_page_message(Page::Autoloops, IdAutoloopMessage,
                      "Editing Autoloop " + loop.id + ".");
 }
@@ -4054,6 +4080,8 @@ void Application::new_autoloop() {
                       static_cast<std::intptr_t>(showcore::AutoloopRepeat::Infinite));
     set_control_text(::GetDlgItem(page, IdAutoloopSteps), "0,look-id,cut\r\n");
     ::EnableWindow(::GetDlgItem(page, IdAutoloopDelete), FALSE);
+    ::EnableWindow(::GetDlgItem(page, IdAutoloopNextEmpty), FALSE);
+    ::EnableWindow(::GetDlgItem(page, IdAutoloopSwapTarget), FALSE);
     set_page_message(
         Page::Autoloops,
         IdAutoloopMessage,
@@ -4075,6 +4103,97 @@ void Application::duplicate_autoloop() {
     combo_select_data(::GetDlgItem(page, IdAutoloopRepeat),
                       static_cast<std::intptr_t>(source.repeat));
     set_control_text(::GetDlgItem(page, IdAutoloopSteps), autoloop_steps_text(source));
+}
+
+bool Application::autoloop_editor_has_unsaved_content() const {
+    if (autoloop_index_ < 0 ||
+        static_cast<std::size_t>(autoloop_index_) >= project_.autoloops.size()) {
+        return false;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoloops)];
+    const auto& loop = project_.autoloops[static_cast<std::size_t>(autoloop_index_)];
+    return trim(control_text(::GetDlgItem(page, IdAutoloopName))) != loop.name ||
+        trim(control_text(::GetDlgItem(page, IdAutoloopLength))) != number_text(loop.length_beats) ||
+        combo_selected_data(
+            ::GetDlgItem(page, IdAutoloopRepeat),
+            static_cast<std::intptr_t>(showcore::AutoloopRepeat::Infinite)) !=
+            static_cast<std::intptr_t>(loop.repeat) ||
+        normalize_newlines(control_text(::GetDlgItem(page, IdAutoloopSteps))) !=
+            autoloop_steps_text(loop);
+}
+
+void Application::move_autoloop_to_next_empty() {
+    if (autoloop_index_ < 0 ||
+        static_cast<std::size_t>(autoloop_index_) >= project_.autoloops.size()) {
+        return;
+    }
+    if (autoloop_editor_has_unsaved_content()) {
+        set_page_message(Page::Autoloops, IdAutoloopMessage,
+                         "Save content edits before changing this Autoloop's placement.", true);
+        return;
+    }
+    const auto id = project_.autoloops[static_cast<std::size_t>(autoloop_index_)].id;
+    const auto result = emberlights::move_autoloop_to_next_empty_slot(project_, id);
+    if (result != emberlights::AutoloopPlacementResult::Moved) {
+        set_page_message(
+            Page::Autoloops,
+            IdAutoloopMessage,
+            result == emberlights::AutoloopPlacementResult::LibraryFull
+                ? "Every one of the 2,048 Autoloop slots is occupied."
+                : "The selected Autoloop could not be moved safely.",
+            true);
+        return;
+    }
+    mark_dirty();
+    refresh_autoloops();
+    refresh_live_lists();
+    set_page_message(Page::Autoloops, IdAutoloopMessage,
+                     "Autoloop moved to the next open slot. Use Undo to revert it.");
+}
+
+void Application::swap_autoloop_into_target_slot() {
+    if (autoloop_index_ < 0 ||
+        static_cast<std::size_t>(autoloop_index_) >= project_.autoloops.size()) {
+        return;
+    }
+    if (autoloop_editor_has_unsaved_content()) {
+        set_page_message(Page::Autoloops, IdAutoloopMessage,
+                         "Save content edits before changing this Autoloop's placement.", true);
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoloops)];
+    std::uint16_t bank = 0U;
+    std::uint16_t slot = 0U;
+    if (!parse_number(control_text(::GetDlgItem(page, IdAutoloopBank)), bank) ||
+        bank == 0U || bank > showcore::kMaxAutoloopBanks ||
+        !parse_number(control_text(::GetDlgItem(page, IdAutoloopSlot)), slot) ||
+        slot == 0U || slot > showcore::kAutoloopsPerBank) {
+        set_page_message(Page::Autoloops, IdAutoloopMessage,
+                         "Enter a target bank 1–64 and slot 1–32 before swapping.", true);
+        return;
+    }
+    const auto id = project_.autoloops[static_cast<std::size_t>(autoloop_index_)].id;
+    const auto result = emberlights::move_autoloop(
+        project_,
+        id,
+        static_cast<std::uint16_t>(bank - 1U),
+        static_cast<std::uint8_t>(slot - 1U),
+        true);
+    if (result != emberlights::AutoloopPlacementResult::Moved &&
+        result != emberlights::AutoloopPlacementResult::Swapped) {
+        set_page_message(Page::Autoloops, IdAutoloopMessage,
+                         "The selected Autoloop could not be moved into that slot safely.", true);
+        return;
+    }
+    mark_dirty();
+    refresh_autoloops();
+    refresh_live_lists();
+    set_page_message(
+        Page::Autoloops,
+        IdAutoloopMessage,
+        result == emberlights::AutoloopPlacementResult::Swapped
+            ? "Autoloop slots swapped. Use Undo to revert the placement."
+            : "Autoloop moved into the requested open slot. Use Undo to revert it.");
 }
 
 void Application::save_autoloop() {
