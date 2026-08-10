@@ -155,6 +155,7 @@ bool RunnerService::start(
     beat_milli_.store(0, std::memory_order_relaxed);
     active_look_.store(-1, std::memory_order_relaxed);
     active_autoloop_.store(0xFFFFU, std::memory_order_relaxed);
+    active_autoloop_bank_mask_.store(~std::uint64_t{0}, std::memory_order_relaxed);
     active_track_script_.store(-1, std::memory_order_relaxed);
     fog_armed_.store(false, std::memory_order_relaxed);
     haze_armed_.store(false, std::memory_order_relaxed);
@@ -341,6 +342,8 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.active_look = active_look_.load(std::memory_order_relaxed);
     snapshot.active_autoloop = decode_autoloop(
         active_autoloop_.load(std::memory_order_relaxed));
+    snapshot.active_autoloop_bank_mask =
+        active_autoloop_bank_mask_.load(std::memory_order_relaxed);
     snapshot.active_track_script = active_track_script_.load(std::memory_order_relaxed);
     snapshot.blackout = blackout_requested_.load(std::memory_order_relaxed);
     snapshot.work_light = work_light_requested_.load(std::memory_order_relaxed);
@@ -418,6 +421,20 @@ bool RunnerService::next_autoloop() noexcept {
 
 bool RunnerService::previous_autoloop() noexcept {
     return post({RunnerCommandType::PreviousAutoloop});
+}
+
+bool RunnerService::select_all_autoloop_banks() noexcept {
+    return post({RunnerCommandType::SelectAllAutoloopBanks});
+}
+
+bool RunnerService::select_exclusive_autoloop_bank(std::uint16_t bank) noexcept {
+    return bank < showcore::kMaxAutoloopBanks &&
+        post({RunnerCommandType::SelectExclusiveAutoloopBank, bank});
+}
+
+bool RunnerService::set_autoloop_bank_enabled(std::uint16_t bank, bool enabled) noexcept {
+    return bank < showcore::kMaxAutoloopBanks &&
+        post({RunnerCommandType::SetAutoloopBankEnabled, bank, {}, 0.0F, enabled});
 }
 
 bool RunnerService::trigger_track_script(std::uint16_t index) noexcept {
@@ -606,8 +623,10 @@ void RunnerService::run_scheduler() noexcept {
                                     std::uint64_t now_ms) noexcept {
         auto& runtime = *next->runtime;
         auto& engine = next->show->engine();
+        auto& autoloops = next->show->autoloops();
         std::int32_t selected_look = -1;
         showcore::AutoloopAddress selected_autoloop{};
+        std::uint64_t active_bank_mask = ~std::uint64_t{0};
         if (previous != nullptr) {
             const auto& prior = *previous->runtime;
             runtime.sync = prior.sync;
@@ -620,9 +639,16 @@ void RunnerService::run_scheduler() noexcept {
             runtime.track_playing = prior.track_playing;
             selected_look = prior.selected_look;
             selected_autoloop = prior.selected_autoloop;
+            active_bank_mask = previous->show->autoloops().active_bank_mask();
         } else {
             runtime.sync.set_manual_bpm(connections_.manual_bpm, now_ms);
         }
+        for (std::uint16_t bank = 0U; bank < showcore::kMaxAutoloopBanks; ++bank) {
+            static_cast<void>(autoloops.set_bank_enabled(
+                bank, (active_bank_mask & (std::uint64_t{1} << bank)) != 0U));
+        }
+        active_autoloop_bank_mask_.store(
+            autoloops.active_bank_mask(), std::memory_order_relaxed);
 
         engine.safety().strobe_allowed = next->safety.strobe_allowed;
         engine.safety().max_strobe = next->safety.max_strobe;
@@ -1056,6 +1082,16 @@ void RunnerService::run_scheduler() noexcept {
                     show->autoloops().previous_available(runtime.selected_autoloop),
                     clock.beat_position);
                 break;
+            case RunnerCommandType::SelectAllAutoloopBanks:
+                show->autoloops().select_all_banks();
+                break;
+            case RunnerCommandType::SelectExclusiveAutoloopBank:
+                static_cast<void>(show->autoloops().select_exclusive_bank(command.target));
+                break;
+            case RunnerCommandType::SetAutoloopBankEnabled:
+                static_cast<void>(
+                    show->autoloops().set_bank_enabled(command.target, command.active));
+                break;
             case RunnerCommandType::TriggerTrackScript:
                 trigger_track_script(command.target, clock.beat_position);
                 break;
@@ -1154,6 +1190,8 @@ void RunnerService::run_scheduler() noexcept {
             encode_autoloop(manual_status.active ? manual_status.address
                 : (scripted_status.active ? scripted_status.address : autonomous_status.address)),
             std::memory_order_relaxed);
+        active_autoloop_bank_mask_.store(
+            show->autoloops().active_bank_mask(), std::memory_order_relaxed);
         active_look_.store(runtime.selected_look, std::memory_order_relaxed);
         active_track_script_.store(runtime.selected_track_script, std::memory_order_relaxed);
         sync_state_.store(clock.state, std::memory_order_relaxed);
