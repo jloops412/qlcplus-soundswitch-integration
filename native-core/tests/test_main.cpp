@@ -1530,6 +1530,15 @@ emberlights::ProjectDocument make_test_project() {
     select_all_banks.behavior = showcore::MappingBehavior::Momentary;
     select_all_banks.action.type = showcore::ActionType::SelectAllAutoloopBanks;
     project.midi_mappings.push_back(std::move(select_all_banks));
+    emberlights::MidiMappingDefinition blackout_group;
+    blackout_group.device_name = "Test controller";
+    blackout_group.target_ref = "dance";
+    blackout_group.message_type = showcore::MidiMessageType::NoteOn;
+    blackout_group.channel = 0U;
+    blackout_group.number = 30U;
+    blackout_group.behavior = showcore::MappingBehavior::Momentary;
+    blackout_group.action.type = showcore::ActionType::BlackoutGroup;
+    project.midi_mappings.push_back(std::move(blackout_group));
     return project;
 }
 
@@ -1681,6 +1690,9 @@ void test_project_validation_io_and_compilation() {
     invalid_bank_mapping.midi_mappings[4].action.target_id =
         static_cast<std::uint16_t>(showcore::kMaxAutoloopBanks);
     CHECK(!emberlights::validate_project(invalid_bank_mapping).ok());
+    auto invalid_blackout_mapping = project;
+    invalid_blackout_mapping.midi_mappings[6].target_ref = "missing-group";
+    CHECK(!emberlights::validate_project(invalid_blackout_mapping).ok());
 
     const auto serialized = emberlights::serialize_project(project);
     emberlights::ProjectDocument parsed;
@@ -1701,7 +1713,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.track_scripts[0].cues.size() == 4U);
     CHECK(parsed.track_scripts[0].cues[1].action ==
         emberlights::TrackCueAction::TriggerAutoloop);
-    CHECK(parsed.midi_mappings.size() == 6U);
+    CHECK(parsed.midi_mappings.size() == 7U);
     CHECK(parsed.midi_mappings[1].action.type == showcore::ActionType::ClearManualOverrides);
     CHECK(parsed.midi_mappings[2].action.type == showcore::ActionType::SetGroupProperty);
     CHECK(parsed.midi_mappings[3].action.type == showcore::ActionType::SelectAutoloopBank);
@@ -1709,6 +1721,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.midi_mappings[4].action.type == showcore::ActionType::SetAutoloopBankEnabled);
     CHECK(parsed.midi_mappings[4].action.target_id == 2U);
     CHECK(parsed.midi_mappings[5].action.type == showcore::ActionType::SelectAllAutoloopBanks);
+    CHECK(parsed.midi_mappings[6].action.type == showcore::ActionType::BlackoutGroup);
     CHECK(emberlights::serialize_project(parsed) == serialized);
 
     auto corrupted = serialized;
@@ -1722,7 +1735,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(compilation.show->look_count() == 2U);
     CHECK(compilation.show->autoloops().get({7, 3}) != nullptr);
     CHECK(compilation.show->track_script_count() == 1U);
-    CHECK(compilation.show->midi_mappings().size() == 6U);
+    CHECK(compilation.show->midi_mappings().size() == 7U);
     std::array<showcore::MidiActionEvent, showcore::kMaxMidiActionsPerMessage> clear_events{};
     CHECK(compilation.show->midi_mappings().process(
               {showcore::kAnyMidiDevice, showcore::MidiMessageType::NoteOn, 0U, 25U, 127U},
@@ -1755,6 +1768,12 @@ void test_project_validation_io_and_compilation() {
               {showcore::kAnyMidiDevice, showcore::MidiMessageType::NoteOn, 0U, 29U, 127U},
               all_bank_events) == 1U);
     CHECK(all_bank_events[0].action.type == showcore::ActionType::SelectAllAutoloopBanks);
+    std::array<showcore::MidiActionEvent, showcore::kMaxMidiActionsPerMessage> blackout_events{};
+    CHECK(compilation.show->midi_mappings().process(
+              {showcore::kAnyMidiDevice, showcore::MidiMessageType::NoteOn, 0U, 30U, 127U},
+              blackout_events) == 1U);
+    CHECK(blackout_events[0].action.type == showcore::ActionType::BlackoutGroup);
+    CHECK(blackout_events[0].action.target_id == 0U);
     const auto* compiled_track = compilation.show->track_script(0U);
     CHECK(compiled_track != nullptr);
     CHECK(compiled_track->cue_count == 4U);

@@ -280,7 +280,8 @@ CompilationResult compile_project(const ProjectDocument& project) {
                     return result;
                 }
                 action.target_id = target->second;
-            } else if (action.type == showcore::ActionType::SetGroupProperty) {
+            } else if (action.type == showcore::ActionType::SetGroupProperty ||
+                       action.type == showcore::ActionType::BlackoutGroup) {
                 const auto target = group_by_id.find(source.target_ref);
                 if (target == group_by_id.end()) {
                     compilation_error(result.validation, "compile.midiGroup", source.target_ref,

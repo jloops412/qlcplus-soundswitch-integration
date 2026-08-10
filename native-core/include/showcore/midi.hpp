@@ -81,6 +81,7 @@ enum class ActionType : std::uint8_t {
     SelectAutoloopBank,
     SelectAllAutoloopBanks,
     SetAutoloopBankEnabled,
+    BlackoutGroup,
     Count
 };
 
