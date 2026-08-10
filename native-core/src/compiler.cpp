@@ -51,6 +51,10 @@ showcore::AutoloopRepeat CompiledShow::autoloop_repeat(
     return address.valid() ? repeats_[autoloop_index(address)] : showcore::AutoloopRepeat::Once;
 }
 
+const CompiledTrackScript* CompiledShow::track_script(std::size_t index) const noexcept {
+    return index < track_script_count_ ? &track_scripts_[index] : nullptr;
+}
+
 CompilationResult compile_project(const ProjectDocument& project) {
     CompilationResult result;
     result.validation = validate_project(project);
@@ -175,6 +179,46 @@ CompilationResult compile_project(const ProjectDocument& project) {
         }
         compiled->repeats_[pattern_index] = source.repeat;
         autoloop_by_id.emplace(source.id, address);
+    }
+
+    for (std::size_t track_index = 0; track_index < project.track_scripts.size(); ++track_index) {
+        const auto& source = project.track_scripts[track_index];
+        const auto first_cue = compiled->track_cue_count_;
+        for (const auto& cue : source.cues) {
+            auto& target = compiled->track_cues_[compiled->track_cue_count_++];
+            target.at_beat = cue.at_beat;
+            target.action = cue.action;
+            switch (cue.action) {
+            case TrackCueAction::TriggerLook: {
+                const auto look = look_by_id.find(cue.target_ref);
+                if (look == look_by_id.end()) {
+                    compilation_error(result.validation, "compile.trackLook", source.id,
+                                      "Track cue references a missing Static Look.");
+                    return result;
+                }
+                target.target = static_cast<std::uint16_t>(look->second);
+                break;
+            }
+            case TrackCueAction::TriggerAutoloop: {
+                const auto autoloop = autoloop_by_id.find(cue.target_ref);
+                if (autoloop == autoloop_by_id.end()) {
+                    compilation_error(result.validation, "compile.trackAutoloop", source.id,
+                                      "Track cue references a missing Autoloop.");
+                    return result;
+                }
+                target.target = static_cast<std::uint16_t>(autoloop_index(autoloop->second));
+                break;
+            }
+            case TrackCueAction::ClearLook:
+            case TrackCueAction::ClearAutoloop:
+            case TrackCueAction::Count:
+                break;
+            }
+        }
+        compiled->track_scripts_[track_index] = {
+            compiled->track_cues_.data() + first_cue,
+            source.cues.size()};
+        compiled->track_script_count_ = track_index + 1U;
     }
 
     for (const auto& source : project.midi_mappings) {
