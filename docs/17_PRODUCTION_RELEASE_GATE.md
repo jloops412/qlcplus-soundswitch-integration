@@ -70,7 +70,7 @@ Production timing/soak run:
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_qualify.exe" --strict --duration 28800
 ```
 
-The strict profile enforces the current four-second Runner-start, 5% one-core CPU, 100 MB headless RSS, and 5 ms p99 scheduling ceilings, plus no scheduler resynchronization, no output queue drops/send failures, no command rejection, and continuous frame progress. Passing this synthetic test is necessary but not sufficient: it does not replace VirtualDJ, MIDI, receiver, fixture, or live-event qualification.
+The strict profile enforces the current four-second Runner-start, 5% one-core CPU, 100 MB headless RSS, and 5 ms p99 scheduling ceilings, plus no scheduler resynchronization, no output queue drops/send failures, no command rejection, and continuous frame progress. Short non-strict package smoke runs record timing observations but do not pass or fail an unstable hosted machine on the strict deadline-miss ratio. Passing this synthetic test is necessary but not sufficient: it does not replace VirtualDJ, MIDI, receiver, fixture, or live-event qualification.
 
 Keep the generated JSON with the exact installer version, Windows build, machine specifications, normal background workload, and test notes. A production claim requires reports from both the primary DJ computer and the minimum/reference computer.
 
