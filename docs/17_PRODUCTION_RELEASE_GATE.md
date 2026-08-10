@@ -45,7 +45,7 @@ The current build is a **testing preview**. Gig-qualified V1 is the next claim t
 
 The binding detail remains in `13_SOUNDSWITCH_PARITY_LEDGER.md`. Major unfinished tracks include:
 
-- library-scale audio resolution, beatgrid/waveform editing, exact track timelines, manual scripting, and effect generators; SHA-256/size media identity plus strict one-file relinking are now available in Studio;
+- metadata-assisted/cancellable audio-library resolution, beatgrid/waveform editing, exact track timelines, manual scripting, and effect generators; SHA-256/size media identity plus strict one-file and bounded folder relinking are now available in Studio;
 - deterministic AutoScripting for tracks and Autoloops;
 - SoundSwitch read-only inspection and lossless source bundling now work; semantic conversion, relinking, and conflict resolution still require a representative versioned sample corpus;
 - full VirtualDJ mixer/transport behavior, audio fallback, then Serato and remaining documented integrations;
