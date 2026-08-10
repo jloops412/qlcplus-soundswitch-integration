@@ -1842,7 +1842,7 @@ void Application::set_page_message(
 
 namespace {
 
-void listbox_add(HWND list, std::wstring_view text, std::size_t data) {
+void listbox_add(HWND list, std::wstring_view text, std::intptr_t data) {
     const auto index = static_cast<int>(::SendMessageW(
         list, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text.data())));
     if (index >= 0) {
@@ -2209,8 +2209,16 @@ void Application::refresh_overrides() {
     for (std::size_t index = 0; index < live.fixtures.size(); ++index) {
         const auto& fixture = live.fixtures[index];
         std::ostringstream label;
-        label << fixture.name << " — U" << fixture.universe << " @ " << fixture.address;
-        listbox_add(fixtures, widen(label.str()), index);
+        label << "Fixture — " << fixture.name << " — U" << fixture.universe << " @ "
+              << fixture.address;
+        listbox_add(fixtures, widen(label.str()), static_cast<std::intptr_t>(index));
+    }
+    for (std::size_t index = 0; index < live.groups.size(); ++index) {
+        const auto& group = live.groups[index];
+        std::ostringstream label;
+        label << "Group — " << group.name << " (" << group.fixture_ids.size()
+              << " fixture" << (group.fixture_ids.size() == 1U ? "" : "s") << ')';
+        listbox_add(fixtures, widen(label.str()), -static_cast<std::intptr_t>(index) - 1);
     }
     if (!live.fixtures.empty()) {
         static_cast<void>(::SendMessageW(fixtures, LB_SETCURSEL, 0, 0));
@@ -2227,7 +2235,7 @@ void Application::refresh_overrides() {
         IdOverridesMessage,
         live.fixtures.empty()
             ? "Patch at least one fixture before using Live Overrides."
-            : "Start the show to apply transient manual overrides.",
+            : "Select an active fixture or group, then start the show to apply transient manual overrides.",
         live.fixtures.empty());
 }
 
@@ -3523,14 +3531,9 @@ void Application::apply_fixture_override(bool active) {
                          "Select an active fixture before changing an override.", true);
         return;
     }
-    const auto fixture = static_cast<std::size_t>(::SendMessageW(
+    const auto target = static_cast<std::intptr_t>(::SendMessageW(
         fixtures, LB_GETITEMDATA, selected, 0));
     const auto& live = live_project();
-    if (fixture >= live.fixtures.size()) {
-        set_page_message(Page::Overrides, IdOverridesMessage,
-                         "The selected fixture is not in the active show package.", true);
-        return;
-    }
     const auto property = static_cast<showcore::Property>(combo_selected_data(
         ::GetDlgItem(page, IdOverridesProperty),
         static_cast<std::intptr_t>(showcore::Property::Intensity)));
@@ -3542,15 +3545,47 @@ void Application::apply_fixture_override(bool active) {
                          "Enter an override value from 0 through 100.", true);
         return;
     }
-    if (!runner_.set_property(
-            static_cast<std::uint16_t>(fixture), property, percentage / 100.0F, active)) {
+    std::string target_name;
+    bool applied = false;
+    if (target >= 0) {
+        const auto fixture = static_cast<std::size_t>(target);
+        if (fixture < live.fixtures.size()) {
+            target_name = live.fixtures[fixture].name;
+            applied = runner_.set_property(
+                static_cast<std::uint16_t>(fixture), property, percentage / 100.0F, active);
+        }
+    } else {
+        const auto group_index = static_cast<std::size_t>(-target - 1);
+        if (group_index < live.groups.size()) {
+            const auto& group = live.groups[group_index];
+            showcore::FixtureGroup fixtures_in_group;
+            bool complete = true;
+            for (const auto& fixture_id : group.fixture_ids) {
+                const auto fixture = std::find_if(
+                    live.fixtures.begin(), live.fixtures.end(), [&](const auto& candidate) {
+                        return candidate.id == fixture_id;
+                    });
+                if (fixture == live.fixtures.end() || !fixtures_in_group.add(
+                        static_cast<std::uint16_t>(fixture - live.fixtures.begin()))) {
+                    complete = false;
+                    break;
+                }
+            }
+            if (complete && fixtures_in_group.count != 0U) {
+                target_name = group.name;
+                applied = runner_.set_group_property(
+                    fixtures_in_group, property, percentage / 100.0F, active);
+            }
+        }
+    }
+    if (!applied) {
         set_page_message(Page::Overrides, IdOverridesMessage,
-                         "Start the show before changing manual overrides.", true);
+                         "The selected target is not available in the active show package. Start the show before changing manual overrides.", true);
         return;
     }
     std::ostringstream message;
     message << (active ? "Override queued: " : "Property release queued: ")
-            << live.fixtures[fixture].name << " — " << emberlights::property_name(property);
+            << target_name << " — " << emberlights::property_name(property);
     if (active) {
         message << " at " << percentage << "%";
     }
