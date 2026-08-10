@@ -3,6 +3,7 @@
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
+#include "emberlights/soundswitch_import.hpp"
 #include "showcore/artnet.hpp"
 #include "showcore/autoloop.hpp"
 #include "showcore/dmx_usb_pro.hpp"
@@ -1567,11 +1568,18 @@ void test_project_validation_io_and_compilation() {
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
     std::filesystem::remove(emberlights::project_backup_path(path), ignored);
+    std::filesystem::remove(emberlights::project_active_path(path), ignored);
     CHECK(emberlights::save_project_atomic(path, project));
     project.name = "Second Save";
     CHECK(emberlights::save_project_atomic(path, project));
     CHECK(emberlights::load_project(path, parsed));
     CHECK(parsed.name == "Second Save");
+    CHECK(emberlights::save_project_atomic(
+        emberlights::project_active_path(path), parsed));
+    emberlights::ProjectDocument active_snapshot;
+    CHECK(emberlights::load_project(
+        emberlights::project_active_path(path), active_snapshot, false));
+    CHECK(active_snapshot.name == "Second Save");
     {
         std::ofstream damage(path, std::ios::binary | std::ios::trunc);
         damage << "damaged";
@@ -1581,6 +1589,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.name == "Test Show");
     std::filesystem::remove(path, ignored);
     std::filesystem::remove(emberlights::project_backup_path(path), ignored);
+    std::filesystem::remove(emberlights::project_active_path(path), ignored);
 }
 
 void test_runner_service_lifecycle() {
@@ -1620,8 +1629,104 @@ void test_runner_service_lifecycle() {
     CHECK(active.sacn == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[0] == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[1] == emberlights::AdapterState::Disabled);
+
+    auto updated_project = project;
+    updated_project.name = "Activated Test Show";
+    updated_project.safety.max_intensity = 0.75F;
+    updated_project.looks[0].name = "Activated Red";
+    auto updated_compilation = emberlights::compile_project(updated_project);
+    CHECK(updated_compilation);
+    const auto activation = runner.activate(
+        std::move(updated_compilation.show), updated_project, 2000U);
+    CHECK(activation);
+    CHECK(activation.generation == 2U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(75));
+    const auto activated = runner.status();
+    CHECK(activated.state == emberlights::RunnerState::Running);
+    CHECK(activated.package_generation == 2U);
+    CHECK(activated.package_activations == 1U);
+    CHECK(activated.package_activation_failures == 0U);
+    CHECK(activated.frames > active.frames);
+    CHECK(activated.active_look == 0);
+    CHECK((activated.active_autoloop == showcore::AutoloopAddress{7, 3}));
+
+    auto restart_project = updated_project;
+    restart_project.connections.frame_rate = 39U;
+    auto restart_compilation = emberlights::compile_project(restart_project);
+    CHECK(restart_compilation);
+    const auto restart_required = runner.activate(
+        std::move(restart_compilation.show), restart_project, 2000U);
+    CHECK(restart_required.error == emberlights::RunnerActivationError::RestartRequired);
+    const auto still_active = runner.status();
+    CHECK(still_active.state == emberlights::RunnerState::Running);
+    CHECK(still_active.package_generation == 2U);
+    CHECK(still_active.package_activations == 1U);
+    CHECK(still_active.package_activation_failures == 1U);
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
+}
+
+void test_soundswitch_read_only_inspection_and_bundle() {
+    const auto source = std::filesystem::path("build/soundswitch-inspection-source.ssproj");
+    const auto bundle = std::filesystem::path("build/soundswitch-inspection-bundle");
+    const auto report = std::filesystem::path("build/soundswitch-inspection-report.json");
+    std::error_code ignored;
+    std::filesystem::remove_all(source, ignored);
+    std::filesystem::remove_all(bundle, ignored);
+    std::filesystem::remove(report, ignored);
+    std::filesystem::create_directories(source / "recordable", ignored);
+    CHECK(!ignored);
+    auto write_file = [](const std::filesystem::path& path, std::string_view bytes) {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        return static_cast<bool>(output);
+    };
+    CHECK(write_file(source / "Example.ssproj", "{\"project\":\"test\"}\n"));
+    CHECK(write_file(source / "SoundSwitchVenues.bin", "venue"));
+    CHECK(write_file(
+        source / "01234567-89ab-cdef-0123-456789abcdef.ssfile",
+        std::string_view{"\xAA\xAA\x09\x55payload", 11U}));
+    CHECK(write_file(source / "recordable" / "opaque.dat", "abc"));
+    CHECK(write_file(source / "future.payload", "preserve-me"));
+
+    const auto inspection = emberlights::inspect_soundswitch_project(source);
+    CHECK(inspection.complete());
+    CHECK(inspection.artifacts.size() == 5U);
+    CHECK(inspection.total_bytes == 49U);
+    CHECK(inspection.known_artifacts == 4U);
+    CHECK(inspection.unknown_artifacts == 1U);
+    CHECK(inspection.recognized_ssfiles == 1U);
+    const auto opaque = std::find_if(
+        inspection.artifacts.begin(), inspection.artifacts.end(), [](const auto& artifact) {
+            return artifact.relative_path == "recordable/opaque.dat";
+        });
+    CHECK(opaque != inspection.artifacts.end());
+    if (opaque != inspection.artifacts.end()) {
+        CHECK(opaque->sha256 ==
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+    const auto serialized = emberlights::serialize_soundswitch_inspection(inspection);
+    CHECK(serialized.find("emberlights-soundswitch-inspection") != std::string::npos);
+    CHECK(serialized.find("recognizedSsfileHeader\": true") != std::string::npos);
+    std::string report_error;
+    CHECK(emberlights::save_soundswitch_inspection_atomic(
+        report, inspection, report_error));
+    CHECK(std::filesystem::file_size(report, ignored) > 0U);
+
+    const auto bundled = emberlights::create_soundswitch_source_bundle(source, bundle);
+    CHECK(bundled);
+    CHECK(std::filesystem::is_regular_file(bundle / "inventory.json"));
+    CHECK(std::filesystem::is_regular_file(
+        bundle / "payload" / "01234567-89ab-cdef-0123-456789abcdef.ssfile"));
+    CHECK(std::filesystem::is_regular_file(bundle / "payload" / "future.payload"));
+    CHECK(write_file(source / "still-writable-after-inspection.txt", "untouched"));
+
+    const auto duplicate = emberlights::create_soundswitch_source_bundle(source, bundle);
+    CHECK(duplicate.error == emberlights::SoundSwitchBundleError::DestinationExists);
+
+    std::filesystem::remove_all(source, ignored);
+    std::filesystem::remove_all(bundle, ignored);
+    std::filesystem::remove(report, ignored);
 }
 
 }  // namespace
@@ -1715,6 +1820,7 @@ int main() {
     test_deterministic_replay();
     test_project_validation_io_and_compilation();
     test_runner_service_lifecycle();
+    test_soundswitch_read_only_inspection_and_bundle();
 
     cleanup_test_network();
 
