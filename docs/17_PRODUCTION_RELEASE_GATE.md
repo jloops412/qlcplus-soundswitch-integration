@@ -1,6 +1,6 @@
 # EmberLights Production Release Gate
 
-Last updated: 2026-08-09.
+Last updated: 2026-08-10.
 
 ## Release claims
 
@@ -25,7 +25,7 @@ The current build is a **testing preview**. Gig-qualified V1 is the next claim t
 | Sustained reliability | Unit, sanitizer, smoke, and million-tick tests pass. | Eight-hour installed-app soak, system sleep/resume, clock discontinuity, queue-storm, and fault-injection reports. |
 | Runtime containment | Input/output work is off the scheduler thread; generation-stamped atomic package activation and persistent last-known-good snapshots are implemented. | Runner must still move to a separately contained process and survive Studio/UI failure; installed Windows fault-injection evidence remains required. |
 | Diagnostics | Live counters and project validation are visible. | Durable structured session log, crash evidence, redacted export, release/build identity, and supportable fault codes. |
-| Project durability | Atomic save, checksum, `.bak` recovery, and unknown-record retention pass. | Multi-version history, schema migration tests, cross-version open/save corpus, asset bundle import/export, and rollback UX. |
+| Project durability | Atomic save, checksum, `.bak` recovery, verified 20-version local restore history, 100-state Studio Undo/Redo, and unknown-record retention pass. | Schema migration tests, cross-version open/save corpus, asset bundle import/export, and cross-machine rollback workflow. |
 | Fixture onboarding | Local profiles and bounded QXF/OFL-export import work. | Searchable pinned offline catalog, conformance corpus, safe updates/sharing, richer range editing, and cell-aware fixtures. |
 | Installer lifecycle | Per-user installer and portable ZIP are produced by CI. | Authenticode signing, clean install/upgrade/uninstall/rollback tests, checksums/release manifest, and supported Windows matrix. |
 | Network/security | OS2L defaults to loopback; Runner is offline-first. | Trusted-network warnings, endpoint threat review, dependency/SBOM evidence, malformed-input fuzzing, and no-internet operation proof. |
