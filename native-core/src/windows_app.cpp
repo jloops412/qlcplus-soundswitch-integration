@@ -3,6 +3,7 @@
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
+#include "emberlights/soundswitch_import.hpp"
 #include "emberlights/version.hpp"
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/winmm_midi.hpp"
@@ -13,6 +14,7 @@
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 
 #include <algorithm>
 #include <array>
@@ -66,6 +68,8 @@ enum ControlId : int {
     IdFileOpen,
     IdFileSave,
     IdFileSaveAs,
+    IdFileInspectSoundSwitch,
+    IdFileBundleSoundSwitch,
     IdFileExit,
     IdShowValidate = 120,
     IdShowStartStop,
@@ -421,6 +425,53 @@ template <typename Value>
     return L"Unknown";
 }
 
+[[nodiscard]] std::optional<std::filesystem::path> choose_folder(
+    HWND owner,
+    const wchar_t* title) {
+    IFileOpenDialog* dialog = nullptr;
+    const auto created = ::CoCreateInstance(
+        CLSID_FileOpenDialog,
+        nullptr,
+        CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&dialog));
+    if (FAILED(created) || dialog == nullptr) {
+        return std::nullopt;
+    }
+    DWORD options = 0U;
+    auto result = dialog->GetOptions(&options);
+    if (SUCCEEDED(result)) {
+        result = dialog->SetOptions(
+            options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST |
+            FOS_DONTADDTORECENT);
+    }
+    if (SUCCEEDED(result)) {
+        result = dialog->SetTitle(title);
+    }
+    if (SUCCEEDED(result)) {
+        result = dialog->Show(owner);
+    }
+    IShellItem* item = nullptr;
+    if (SUCCEEDED(result)) {
+        result = dialog->GetResult(&item);
+    }
+    PWSTR selected = nullptr;
+    if (SUCCEEDED(result) && item != nullptr) {
+        result = item->GetDisplayName(SIGDN_FILESYSPATH, &selected);
+    }
+    std::optional<std::filesystem::path> path;
+    if (SUCCEEDED(result) && selected != nullptr) {
+        path = std::filesystem::path(selected);
+    }
+    if (selected != nullptr) {
+        ::CoTaskMemFree(selected);
+    }
+    if (item != nullptr) {
+        item->Release();
+    }
+    dialog->Release();
+    return path;
+}
+
 class Application {
 public:
     explicit Application(HINSTANCE instance) noexcept : instance_(instance) {}
@@ -484,6 +535,8 @@ private:
     void new_project();
     void open_project_dialog();
     void import_qlc_fixture_dialog();
+    void inspect_soundswitch_dialog();
+    void bundle_soundswitch_dialog();
     bool open_project(const std::filesystem::path& path);
     bool save_project(bool save_as);
     void validate_project(bool show_success);
@@ -525,6 +578,7 @@ private:
     [[nodiscard]] std::string diagnostics_text() const;
     [[nodiscard]] bool copy_diagnostics_to_clipboard();
     [[nodiscard]] bool save_diagnostics_report();
+    [[nodiscard]] const emberlights::ProjectDocument& live_project() const noexcept;
 
     HINSTANCE instance_{nullptr};
     HWND window_{nullptr};
@@ -547,6 +601,7 @@ private:
     std::int32_t autoloop_index_{-1};
 
     emberlights::RunnerService runner_{};
+    std::optional<emberlights::ProjectDocument> active_project_{};
     showcore::WinMmMidiInput learn_input_{};
     bool midi_learning_{false};
     bool learn_uses_runner_{false};
@@ -771,6 +826,11 @@ void Application::create_menu_bar() {
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileSave, L"&Save\tCtrl+S"));
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileSaveAs, L"Save &As..."));
+    static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
+    static_cast<void>(::AppendMenuW(
+        file, MF_STRING, IdFileInspectSoundSwitch, L"Inspect SoundSwitch &Project..."));
+    static_cast<void>(::AppendMenuW(
+        file, MF_STRING, IdFileBundleSoundSwitch, L"Create SoundSwitch Migration &Bundle..."));
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(file, MF_STRING, IdFileExit, L"E&xit"));
     static_cast<void>(::AppendMenuW(show, MF_STRING, IdShowValidate, L"&Validate Project"));
@@ -1643,17 +1703,18 @@ void Application::refresh_live_lists() {
     const auto loops = ::GetDlgItem(page, IdLiveAutoloops);
     static_cast<void>(::SendMessageW(looks, LB_RESETCONTENT, 0, 0));
     static_cast<void>(::SendMessageW(loops, LB_RESETCONTENT, 0, 0));
-    for (std::size_t index = 0; index < project_.looks.size(); ++index) {
-        listbox_add(looks, widen(project_.looks[index].name), index);
+    const auto& live = live_project();
+    for (std::size_t index = 0; index < live.looks.size(); ++index) {
+        listbox_add(looks, widen(live.looks[index].name), index);
     }
-    for (std::size_t index = 0; index < project_.autoloops.size(); ++index) {
-        const auto& loop = project_.autoloops[index];
+    for (std::size_t index = 0; index < live.autoloops.size(); ++index) {
+        const auto& loop = live.autoloops[index];
         std::ostringstream label;
         label << "B" << loop.bank + 1U << " / S" << static_cast<unsigned int>(loop.slot + 1U)
               << " — " << loop.name;
         listbox_add(loops, widen(label.str()), index);
     }
-    set_control_text(::GetDlgItem(page, IdLiveBpm), number_text(project_.connections.manual_bpm));
+    set_control_text(::GetDlgItem(page, IdLiveBpm), number_text(live.connections.manual_bpm));
 }
 
 void Application::refresh_live_status() {
@@ -2000,7 +2061,15 @@ std::string Application::diagnostics_text() const {
            << "  max: " << status.max_jitter_us << " µs"
            << "  samples: " << status.jitter_samples << "\r\n"
            << "Deadline misses (>5 ms): " << status.deadline_misses
-           << "  scheduler resyncs: " << status.scheduler_resyncs << "\r\n\r\n";
+           << "  scheduler resyncs: " << status.scheduler_resyncs << "\r\n"
+           << "Package generation: " << status.package_generation
+           << "  activations: " << status.package_activations
+           << "  activation failures: " << status.package_activation_failures << "\r\n"
+           << "Last-known-good snapshot: "
+           << (current_path_.empty()
+                   ? "Unavailable (project is unsaved)"
+                   : emberlights::project_active_path(current_path_).string())
+           << "\r\n\r\n";
     for (const auto& issue : validation.issues) {
         output << (issue.severity == emberlights::ProjectIssueSeverity::Error ? "ERROR" : "WARNING")
                << " [" << issue.code << "] " << issue.subject << ": " << issue.message
@@ -2083,6 +2152,8 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdFileOpen: open_project_dialog(); break;
     case IdFileSave: static_cast<void>(save_project(false)); break;
     case IdFileSaveAs: static_cast<void>(save_project(true)); break;
+    case IdFileInspectSoundSwitch: inspect_soundswitch_dialog(); break;
+    case IdFileBundleSoundSwitch: bundle_soundswitch_dialog(); break;
     case IdFileExit: static_cast<void>(::SendMessageW(window_, WM_CLOSE, 0, 0)); break;
     case IdShowValidate:
     case IdDiagnosticsValidate: validate_project(true); break;
@@ -2131,8 +2202,9 @@ void Application::handle_command(int id, int notification, HWND) {
         if (selected >= 0) {
             const auto index = static_cast<std::size_t>(::SendMessageW(
                 list, LB_GETITEMDATA, selected, 0));
-            if (index < project_.autoloops.size()) {
-                const auto& loop = project_.autoloops[index];
+            const auto& live = live_project();
+            if (index < live.autoloops.size()) {
+                const auto& loop = live.autoloops[index];
                 static_cast<void>(runner_.trigger_autoloop({loop.bank, loop.slot}));
             }
         }
@@ -2225,6 +2297,7 @@ void Application::new_project() {
         return;
     }
     runner_.stop();
+    active_project_.reset();
     project_ = emberlights::make_starter_project();
     current_path_.clear();
     dirty_ = false;
@@ -2341,9 +2414,99 @@ void Application::import_qlc_fixture_dialog() {
                      ? MB_ICONWARNING : MB_ICONINFORMATION));
     if (added > 0U) {
         set_status(runner_.status().state == emberlights::RunnerState::Running
-            ? L"QLC+ profiles imported. Stop and restart the show to compile project changes."
+            ? L"QLC+ profiles imported. Save the project to preflight and atomically activate compatible changes."
             : L"QLC+ profiles imported. Patch fixtures, then validate and start the show.");
     }
+}
+
+void Application::inspect_soundswitch_dialog() {
+    const auto source = choose_folder(
+        window_, L"Select the exported SoundSwitch .ssproj project directory");
+    if (!source.has_value()) {
+        return;
+    }
+    set_status(L"Inspecting SoundSwitch project read-only and hashing every payload...");
+    static_cast<void>(::UpdateWindow(window_));
+    const auto inspection = emberlights::inspect_soundswitch_project(*source);
+
+    std::array<wchar_t, 32768> selected{};
+    constexpr std::wstring_view suggested = L"EmberLights-SoundSwitch-inspection.json";
+    std::copy(suggested.begin(), suggested.end(), selected.begin());
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window_;
+    dialog.lpstrFilter = L"JSON Reports (*.json)\0*.json\0All Files\0*.*\0";
+    dialog.lpstrFile = selected.data();
+    dialog.nMaxFile = static_cast<DWORD>(selected.size());
+    dialog.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    dialog.lpstrDefExt = L"json";
+    bool saved = false;
+    std::string report_error;
+    if (::GetSaveFileNameW(&dialog) != FALSE) {
+        saved = emberlights::save_soundswitch_inspection_atomic(
+            std::filesystem::path(selected.data()), inspection, report_error);
+    }
+
+    std::wostringstream summary;
+    summary << L"Read-only SoundSwitch inspection\n\n"
+            << L"Files: " << inspection.artifacts.size() << L"\n"
+            << L"Known payloads: " << inspection.known_artifacts << L"\n"
+            << L"Unknown payloads preserved by inventory: "
+            << inspection.unknown_artifacts << L"\n"
+            << L"Recognized .ssfile headers: " << inspection.recognized_ssfiles << L"\n"
+            << L"Errors: " << inspection.error_count()
+            << L"    Warnings: " << inspection.warning_count() << L"\n\n";
+    if (!report_error.empty()) {
+        summary << widen(report_error);
+    } else if (saved) {
+        summary << L"The JSON evidence report was saved. No source file was changed.";
+    } else {
+        summary << L"No report was saved. No source file was changed.";
+    }
+    ::MessageBoxW(
+        window_, summary.str().c_str(), L"SoundSwitch inspection",
+        MB_OK | (inspection.complete() ? MB_ICONINFORMATION : MB_ICONWARNING));
+    set_status(inspection.complete()
+        ? L"SoundSwitch inspection complete. A real sample bundle is still required for verified semantic conversion."
+        : L"SoundSwitch inspection found blocking issues; review the JSON report.");
+}
+
+void Application::bundle_soundswitch_dialog() {
+    const auto source = choose_folder(
+        window_, L"Select the exported SoundSwitch .ssproj project directory");
+    if (!source.has_value()) {
+        return;
+    }
+    const auto parent = choose_folder(
+        window_, L"Select where the verified EmberLights migration bundle should be created");
+    if (!parent.has_value()) {
+        return;
+    }
+    auto name = source->filename().wstring();
+    if (name.empty()) {
+        name = L"SoundSwitch-project";
+    }
+    const auto destination = *parent / (name + L"-EmberLights-migration");
+    set_status(L"Copying and SHA-256 verifying the SoundSwitch migration bundle...");
+    static_cast<void>(::UpdateWindow(window_));
+    const auto result = emberlights::create_soundswitch_source_bundle(
+        *source, destination);
+    if (!result) {
+        const auto message = widen(result.message);
+        ::MessageBoxW(
+            window_, message.c_str(), L"Migration bundle not created",
+            MB_OK | MB_ICONERROR);
+        set_status(L"SoundSwitch bundle failed safely; the source was not changed.");
+        return;
+    }
+    const auto message = L"Verified migration bundle created at:\n\n" +
+        result.destination.wstring() +
+        L"\n\nEvery regular source payload was copied and matched its SHA-256 inventory. "
+        L"The SoundSwitch source was not changed.";
+    ::MessageBoxW(
+        window_, message.c_str(), L"SoundSwitch bundle complete",
+        MB_OK | MB_ICONINFORMATION);
+    set_status(L"Verified SoundSwitch migration bundle created.");
 }
 
 bool Application::open_project(const std::filesystem::path& path) {
@@ -2355,6 +2518,7 @@ bool Application::open_project(const std::filesystem::path& path) {
         return false;
     }
     runner_.stop();
+    active_project_.reset();
     project_ = std::move(loaded);
     current_path_ = path;
     dirty_ = result.recovered_from_backup;
@@ -2409,6 +2573,50 @@ bool Application::save_project(bool save_as) {
     current_path_ = std::move(path);
     dirty_ = false;
     update_title();
+    const auto runner_state = runner_.status().state;
+    if (runner_state == emberlights::RunnerState::Running) {
+        auto compilation = emberlights::compile_project(project_);
+        if (!compilation) {
+            set_status(
+                L"Project saved, but preflight failed. The last activated show remains live.");
+            refresh_diagnostics();
+            return true;
+        }
+        const auto activation = runner_.activate(std::move(compilation.show), project_);
+        if (activation) {
+            active_project_ = project_;
+            const auto snapshot = emberlights::save_project_atomic(
+                emberlights::project_active_path(current_path_), project_);
+            refresh_live_lists();
+            refresh_live_status();
+            if (snapshot) {
+                set_status(
+                    L"Project saved and atomically activated. The prior show stayed live until handoff.");
+            } else {
+                set_status(
+                    L"Project activated, but its last-known-good activation snapshot could not be saved.");
+            }
+            return true;
+        }
+        if (activation.error == emberlights::RunnerActivationError::RestartRequired) {
+            set_status(
+                L"Project saved. Connection or identity changes require Stop Show, then Start Show; the prior show remains live.");
+            return true;
+        }
+
+        runner_.stop();
+        active_project_.reset();
+        refresh_live_lists();
+        refresh_live_status();
+        ::MessageBoxW(
+            window_,
+            L"The live package handoff did not complete safely. EmberLights stopped output and sent "
+            L"zero frames. Start the show again after reviewing Diagnostics.",
+            L"Activation stopped safely",
+            MB_OK | MB_ICONERROR);
+        set_status(L"Activation failed closed. Runner stopped; the project file was saved.");
+        return true;
+    }
     set_status(L"Project saved with checksum and recovery backup protection.");
     return true;
 }
@@ -2448,6 +2656,7 @@ void Application::start_or_stop_show() {
     const auto current = runner_.status().state;
     if (current != emberlights::RunnerState::Stopped) {
         runner_.stop();
+        active_project_.reset();
         static_cast<void>(::ModifyMenuW(
             ::GetSubMenu(::GetMenu(window_), 1),
             IdShowStartStop,
@@ -2455,15 +2664,44 @@ void Application::start_or_stop_show() {
             IdShowStartStop,
             L"&Start Show"));
         refresh_live_status();
+        refresh_live_lists();
         set_status(L"Show stopped. EmberLights sent explicit zero frames to active outputs.");
         return;
     }
-    auto compilation = emberlights::compile_project(project_);
-    if (!compilation) {
-        validate_project(false);
+    if (current_path_.empty() && !save_project(false)) {
+        set_status(L"Save the project before starting so EmberLights can maintain a last-known-good show.");
         return;
     }
-    if (!runner_.start(std::move(compilation.show), project_)) {
+
+    auto run_project = project_;
+    auto compilation = emberlights::compile_project(run_project);
+    bool recovered_activation = false;
+    if (!compilation) {
+        emberlights::ProjectDocument last_active;
+        const auto loaded = emberlights::load_project(
+            emberlights::project_active_path(current_path_), last_active, true);
+        auto last_active_compilation = loaded
+            ? emberlights::compile_project(last_active)
+            : emberlights::CompilationResult{};
+        if (!loaded || !last_active_compilation) {
+            validate_project(false);
+            return;
+        }
+        const auto choice = ::MessageBoxW(
+            window_,
+            L"The current project does not pass preflight. Start the last successfully activated "
+            L"snapshot instead? Your current project file will not be changed.",
+            L"Start last-known-good show",
+            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+        if (choice != IDYES) {
+            validate_project(false);
+            return;
+        }
+        run_project = std::move(last_active);
+        compilation = std::move(last_active_compilation);
+        recovered_activation = true;
+    }
+    if (!runner_.start(std::move(compilation.show), run_project)) {
         ::MessageBoxW(
             window_,
             L"The Runner could not start. Stop other EmberLights instances and review Connections "
@@ -2472,6 +2710,18 @@ void Application::start_or_stop_show() {
             MB_OK | MB_ICONERROR);
         return;
     }
+    active_project_ = run_project;
+    if (!recovered_activation) {
+        const auto snapshot = emberlights::save_project_atomic(
+            emberlights::project_active_path(current_path_), run_project);
+        if (!snapshot) {
+            ::MessageBoxW(
+                window_,
+                L"The show started, but EmberLights could not persist its last-known-good activation snapshot.",
+                L"Recovery snapshot warning",
+                MB_OK | MB_ICONWARNING);
+        }
+    }
     static_cast<void>(::ModifyMenuW(
         ::GetSubMenu(::GetMenu(window_), 1),
         IdShowStartStop,
@@ -2479,7 +2729,14 @@ void Application::start_or_stop_show() {
         IdShowStartStop,
         L"&Stop Show"));
     show_page(Page::Live);
-    set_status(L"Runner starting. DMX output follows the enabled Connections settings.");
+    refresh_live_lists();
+    set_status(recovered_activation
+        ? L"Runner starting from the last-known-good snapshot; the current project remains unchanged."
+        : L"Runner starting. DMX output follows the enabled Connections settings.");
+}
+
+const emberlights::ProjectDocument& Application::live_project() const noexcept {
+    return active_project_.has_value() ? *active_project_ : project_;
 }
 
 std::string Application::unique_id(std::string_view prefix, std::string_view name) const {
@@ -3455,7 +3712,7 @@ void Application::apply_connections() {
         Page::Connections,
         IdConnectionsMessage,
         runner_.status().state == emberlights::RunnerState::Running
-            ? "Settings saved. Stop and restart the show to activate connection changes."
+            ? "Settings saved. Save the project, then stop/start the show to apply connection changes."
             : "Connection settings saved. Start Show from Live when the patch is ready.");
 }
 
@@ -3496,7 +3753,7 @@ void Application::apply_safety() {
         Page::Safety,
         IdSafetyMessage,
         runner_.status().state == emberlights::RunnerState::Running
-            ? "Safety policy saved. Stop and restart the show to activate it."
+            ? "Safety policy saved. Save the project to atomically activate it."
             : "Safety policy saved and will apply when the show starts.");
 }
 
@@ -3646,7 +3903,7 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
         Page::Midi,
         IdMidiMessage,
         runner_.status().state == emberlights::RunnerState::Running
-            ? "Mapping saved. Restart the show to activate the newly compiled map."
+            ? "Mapping saved. Save the project to atomically activate the newly compiled map."
             : "Mapping learned and saved to the project.");
 }
 
@@ -3666,6 +3923,7 @@ void Application::delete_midi_mapping() {
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
+    const auto com_result = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     std::optional<std::filesystem::path> initial_file;
     int argument_count = 0;
     auto** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &argument_count);
@@ -3711,6 +3969,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     const auto result = application.run(show_command, initial_file);
     if (instance_mutex != nullptr) {
         ::CloseHandle(instance_mutex);
+    }
+    if (SUCCEEDED(com_result)) {
+        ::CoUninitialize();
     }
     return result;
 }
