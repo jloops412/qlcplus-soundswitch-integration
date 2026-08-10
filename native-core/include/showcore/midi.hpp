@@ -78,6 +78,7 @@ enum class ActionType : std::uint8_t {
     ClearTrackScript,
     ClearManualOverrides,
     SetGroupProperty,
+    SelectAutoloopBank,
     Count
 };
 
