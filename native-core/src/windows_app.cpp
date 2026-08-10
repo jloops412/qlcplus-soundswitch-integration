@@ -2211,7 +2211,11 @@ void Application::refresh_live_status() {
         const auto index = static_cast<std::size_t>(status.active_track_script);
         metrics << L"\r\nTrack script: ";
         if (index < live.track_scripts.size()) {
-            metrics << widen(live.track_scripts[index].name);
+            const auto& track = live.track_scripts[index];
+            metrics << widen(track.name) << L"  •  beat " << std::fixed << std::setprecision(3)
+                    << status.active_track_script_beat << L"  •  "
+                    << status.active_track_script_consumed_cues << L"/" << track.cues.size()
+                    << L" cues";
         } else {
             metrics << L"Unknown";
         }
