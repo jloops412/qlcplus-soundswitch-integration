@@ -52,6 +52,7 @@ constexpr int kStatusHeight = 26;
 
 enum class Page : std::size_t {
     Live,
+    Overrides,
     Profiles,
     Patch,
     Groups,
@@ -82,6 +83,7 @@ enum ControlId : int {
     IdHelpAbout = 140,
 
     IdNavLive = 200,
+    IdNavOverrides,
     IdNavProfiles,
     IdNavPatch,
     IdNavGroups,
@@ -131,6 +133,17 @@ enum ControlId : int {
     IdLiveAutoloopBank4,
     IdLiveAutoloopBank4Only,
     IdLiveAutoloopPlayback,
+
+    IdOverridesTitle = 1500,
+    IdOverridesFixture,
+    IdOverridesProperty,
+    IdOverridesValue,
+    IdOverridesApply,
+    IdOverridesRelease,
+    IdOverridesReleaseAll,
+    IdOverridesHelp,
+    IdOverridesActiveCount,
+    IdOverridesMessage,
 
     IdProfileTitle = 2000,
     IdProfileList,
@@ -606,6 +619,7 @@ private:
     void refresh_all();
     void refresh_live_lists();
     void refresh_live_status();
+    void refresh_overrides();
     void refresh_profiles();
     void refresh_patch();
     void refresh_groups();
@@ -634,6 +648,8 @@ private:
     bool save_project(bool save_as);
     void validate_project(bool show_success);
     void start_or_stop_show();
+    void apply_fixture_override(bool active);
+    void clear_fixture_overrides();
 
     void select_profile(std::int32_t index);
     void new_profile();
@@ -1070,7 +1086,7 @@ HWND Application::create_page(Page page) {
 
 void Application::create_navigation() {
     constexpr std::array<const wchar_t*, static_cast<std::size_t>(Page::Count)> names{{
-        L"Live", L"Fixture Profiles", L"Patch", L"Groups", L"Static Looks",
+        L"Live", L"Live Overrides", L"Fixture Profiles", L"Patch", L"Groups", L"Static Looks",
         L"Autoloops", L"Track Scripts", L"MIDI", L"Connections", L"Safety", L"Diagnostics"}};
     for (std::size_t index = 0; index < navigation_.size(); ++index) {
         navigation_[index] = add_button(
@@ -1127,6 +1143,26 @@ void Application::create_pages() {
     add_button(page, L"Use B4", IdLiveAutoloopBank4, BS_AUTOCHECKBOX);
     add_button(page, L"Only B4", IdLiveAutoloopBank4Only);
     add_label(page, L"", IdLiveAutoloopPlayback);
+
+    page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    title = add_label(page, L"Live Fixture Overrides", IdOverridesTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_label(
+        page,
+        L"Immediate fixture/property controls. Overrides are transient, sit above Looks and Autoloops, "
+        L"and remain subject to the Runner's safety limits. They never edit the project.",
+        IdOverridesHelp);
+    add_label(page, L"Active fixture", 0);
+    add_listbox(page, IdOverridesFixture);
+    add_label(page, L"Property", 0);
+    add_combo(page, IdOverridesProperty);
+    add_label(page, L"Value (0–100)", 0);
+    add_edit(page, IdOverridesValue);
+    add_button(page, L"Apply Override", IdOverridesApply);
+    add_button(page, L"Release Property", IdOverridesRelease);
+    add_button(page, L"Release All Overrides", IdOverridesReleaseAll);
+    add_label(page, L"", IdOverridesActiveCount);
+    add_label(page, L"", IdOverridesMessage);
 
     page = pages_[static_cast<std::size_t>(Page::Profiles)];
     title = add_label(page, L"Fixture Profiles", IdProfileTitle);
@@ -1462,6 +1498,24 @@ void Application::layout_page(Page page, int width, int height) {
         move(25, margin + 240, height - 110, 110, 28);
         move(26, margin + 360, height - 110, 120, 28);
         move(27, margin, height - 76, usable_width, 54);
+        break;
+    }
+    case Page::Overrides: {
+        const auto left_width = std::min(360, usable_width / 2);
+        const auto x = margin + left_width + 28;
+        const auto form_width = usable_width - left_width - 28;
+        move(1, margin, 70, usable_width, 44);
+        move(2, margin, 128, left_width, 26);
+        move(3, margin, 156, left_width, std::max(260, height - 250));
+        move(4, x, 128, 160, 26);
+        move(5, x, 156, form_width, 27);
+        move(6, x, 196, 160, 26);
+        move(7, x, 224, 140, 27);
+        move(8, x, 268, 150, 32);
+        move(9, x + 162, 268, 150, 32);
+        move(10, x, 312, 190, 32);
+        move(11, x, 364, form_width, 28);
+        move(12, x, 400, form_width, 48);
         break;
     }
     case Page::Profiles: {
@@ -1975,6 +2029,7 @@ void Application::refresh_all() {
     refresh_autoloops();
     refresh_tracks();
     refresh_midi();
+    refresh_overrides();
     refresh_connections();
     refresh_safety();
     refresh_live_lists();
@@ -2123,6 +2178,57 @@ void Application::refresh_live_status() {
         }
     }
     static_cast<void>(::SetWindowTextW(::GetDlgItem(page, IdLiveMetrics), metrics.str().c_str()));
+
+    const auto overrides_page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    if (overrides_page != nullptr) {
+        std::wostringstream override_count;
+        override_count << L"Runner manual overrides: " << status.manual_override_count
+                       << (status.manual_override_count == 1U ? L" property" : L" properties");
+        static_cast<void>(::SetWindowTextW(
+            ::GetDlgItem(overrides_page, IdOverridesActiveCount), override_count.str().c_str()));
+        const bool can_override = status.state == emberlights::RunnerState::Running;
+        static_cast<void>(::EnableWindow(
+            ::GetDlgItem(overrides_page, IdOverridesApply), can_override));
+        static_cast<void>(::EnableWindow(
+            ::GetDlgItem(overrides_page, IdOverridesRelease), can_override));
+        static_cast<void>(::EnableWindow(
+            ::GetDlgItem(overrides_page, IdOverridesReleaseAll), can_override));
+    }
+}
+
+void Application::refresh_overrides() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    if (page == nullptr) {
+        return;
+    }
+    const auto fixtures = ::GetDlgItem(page, IdOverridesFixture);
+    const auto properties = ::GetDlgItem(page, IdOverridesProperty);
+    static_cast<void>(::SendMessageW(fixtures, LB_RESETCONTENT, 0, 0));
+    static_cast<void>(::SendMessageW(properties, CB_RESETCONTENT, 0, 0));
+    const auto& live = live_project();
+    for (std::size_t index = 0; index < live.fixtures.size(); ++index) {
+        const auto& fixture = live.fixtures[index];
+        std::ostringstream label;
+        label << fixture.name << " — U" << fixture.universe << " @ " << fixture.address;
+        listbox_add(fixtures, widen(label.str()), index);
+    }
+    if (!live.fixtures.empty()) {
+        static_cast<void>(::SendMessageW(fixtures, LB_SETCURSEL, 0, 0));
+    }
+    for (std::size_t index = 0U; index < showcore::kPropertyCount; ++index) {
+        const auto property = static_cast<showcore::Property>(index);
+        combo_add(properties, widen(emberlights::property_name(property)),
+                  static_cast<std::intptr_t>(property));
+    }
+    static_cast<void>(::SendMessageW(properties, CB_SETCURSEL, 0, 0));
+    set_control_text(::GetDlgItem(page, IdOverridesValue), "100");
+    set_page_message(
+        Page::Overrides,
+        IdOverridesMessage,
+        live.fixtures.empty()
+            ? "Patch at least one fixture before using Live Overrides."
+            : "Start the show to apply transient manual overrides.",
+        live.fixtures.empty());
 }
 
 void Application::refresh_profiles() {
@@ -2438,7 +2544,8 @@ std::string Application::diagnostics_text() const {
            << "  BPM: " << status.bpm << "  Beat: " << status.beat_position
            << "  Active script: " << status.active_track_script
            << "  Navigation bank mask: 0x" << std::hex
-           << status.active_autoloop_bank_mask << std::dec << "\r\n";
+           << status.active_autoloop_bank_mask << std::dec
+           << "  Manual overrides: " << status.manual_override_count << "\r\n";
     if (status.active_autoloop.valid()) {
         output << "Active Autoloop: B" << status.active_autoloop.bank + 1U
                << "/S" << static_cast<unsigned int>(status.active_autoloop.slot + 1U)
@@ -2598,6 +2705,9 @@ void Application::handle_command(int id, int notification, HWND) {
             MB_OK | MB_ICONINFORMATION);
         break;
     }
+    case IdOverridesApply: apply_fixture_override(true); break;
+    case IdOverridesRelease: apply_fixture_override(false); break;
+    case IdOverridesReleaseAll: clear_fixture_overrides(); break;
     case IdLiveBlackout: runner_.set_blackout(!runner_.status().blackout); break;
     case IdLiveWorkLight: runner_.set_work_light(!runner_.status().work_light); break;
     case IdLiveApplyBpm: {
@@ -3251,6 +3361,7 @@ bool Application::save_project(bool save_as) {
             const auto snapshot = emberlights::save_project_atomic(
                 emberlights::project_active_path(current_path_), project_, false);
             refresh_live_lists();
+            refresh_overrides();
             refresh_live_status();
             if (snapshot) {
                 set_status(
@@ -3270,6 +3381,7 @@ bool Application::save_project(bool save_as) {
         runner_.stop();
         active_project_.reset();
         refresh_live_lists();
+        refresh_overrides();
         refresh_live_status();
         ::MessageBoxW(
             window_,
@@ -3330,6 +3442,7 @@ void Application::start_or_stop_show() {
             L"&Start Show"));
         refresh_live_status();
         refresh_live_lists();
+        refresh_overrides();
         set_status(L"Show stopped. EmberLights sent explicit zero frames to active outputs.");
         return;
     }
@@ -3395,9 +3508,64 @@ void Application::start_or_stop_show() {
         L"&Stop Show"));
     show_page(Page::Live);
     refresh_live_lists();
+    refresh_overrides();
     set_status(recovered_activation
         ? L"Runner starting from the last-known-good snapshot; the current project remains unchanged."
         : L"Runner starting. DMX output follows the enabled Connections settings.");
+}
+
+void Application::apply_fixture_override(bool active) {
+    const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    const auto fixtures = ::GetDlgItem(page, IdOverridesFixture);
+    const auto selected = static_cast<int>(::SendMessageW(fixtures, LB_GETCURSEL, 0, 0));
+    if (selected < 0) {
+        set_page_message(Page::Overrides, IdOverridesMessage,
+                         "Select an active fixture before changing an override.", true);
+        return;
+    }
+    const auto fixture = static_cast<std::size_t>(::SendMessageW(
+        fixtures, LB_GETITEMDATA, selected, 0));
+    const auto& live = live_project();
+    if (fixture >= live.fixtures.size()) {
+        set_page_message(Page::Overrides, IdOverridesMessage,
+                         "The selected fixture is not in the active show package.", true);
+        return;
+    }
+    const auto property = static_cast<showcore::Property>(combo_selected_data(
+        ::GetDlgItem(page, IdOverridesProperty),
+        static_cast<std::intptr_t>(showcore::Property::Intensity)));
+    float percentage = 0.0F;
+    if (active && (!parse_number(
+                       control_text(::GetDlgItem(page, IdOverridesValue)), percentage) ||
+                   percentage < 0.0F || percentage > 100.0F)) {
+        set_page_message(Page::Overrides, IdOverridesMessage,
+                         "Enter an override value from 0 through 100.", true);
+        return;
+    }
+    if (!runner_.set_property(
+            static_cast<std::uint16_t>(fixture), property, percentage / 100.0F, active)) {
+        set_page_message(Page::Overrides, IdOverridesMessage,
+                         "Start the show before changing manual overrides.", true);
+        return;
+    }
+    std::ostringstream message;
+    message << (active ? "Override queued: " : "Property release queued: ")
+            << live.fixtures[fixture].name << " — " << emberlights::property_name(property);
+    if (active) {
+        message << " at " << percentage << "%";
+    }
+    message << ". Runner safety limits still apply.";
+    set_page_message(Page::Overrides, IdOverridesMessage, message.str());
+}
+
+void Application::clear_fixture_overrides() {
+    if (!runner_.clear_manual_overrides()) {
+        set_page_message(Page::Overrides, IdOverridesMessage,
+                         "Start the show before releasing manual overrides.", true);
+        return;
+    }
+    set_page_message(Page::Overrides, IdOverridesMessage,
+                     "All transient manual overrides are queued for release.");
 }
 
 const emberlights::ProjectDocument& Application::live_project() const noexcept {
