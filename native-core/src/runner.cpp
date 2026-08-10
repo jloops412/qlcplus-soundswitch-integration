@@ -103,6 +103,9 @@ struct RunnerService::RuntimeState {
     std::array<bool, showcore::kMaxMidiMappings> mapping_toggles{};
     std::array<std::array<float, showcore::kPropertyCount>, showcore::kMaxFixtures>
         manual_values{};
+    std::array<std::array<bool, showcore::kPropertyCount>, showcore::kMaxFixtures>
+        manual_override_active{};
+    std::uint16_t manual_override_count{0};
     std::array<std::uint64_t, 8> tap_intervals{};
     std::size_t tap_interval_count{0};
     std::size_t tap_interval_cursor{0};
@@ -184,6 +187,7 @@ bool RunnerService::start(
     haze_armed_.store(false, std::memory_order_relaxed);
     laser_armed_.store(false, std::memory_order_relaxed);
     spark_armed_.store(false, std::memory_order_relaxed);
+    manual_override_count_.store(0U, std::memory_order_relaxed);
     frames_.store(0, std::memory_order_relaxed);
     output_frames_.store(0, std::memory_order_relaxed);
     output_queue_drops_.store(0, std::memory_order_relaxed);
@@ -342,6 +346,7 @@ void RunnerService::stop() noexcept {
         pending_activation_.reset();
         active_activation_.reset();
     }
+    manual_override_count_.store(0U, std::memory_order_relaxed);
     state_.store(RunnerState::Stopped, std::memory_order_release);
 }
 
@@ -385,6 +390,7 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.haze_armed = haze_armed_.load(std::memory_order_relaxed);
     snapshot.laser_armed = laser_armed_.load(std::memory_order_relaxed);
     snapshot.spark_armed = spark_armed_.load(std::memory_order_relaxed);
+    snapshot.manual_override_count = manual_override_count_.load(std::memory_order_relaxed);
     snapshot.frames = frames_.load(std::memory_order_relaxed);
     snapshot.output_frames = output_frames_.load(std::memory_order_relaxed);
     snapshot.output_queue_drops = output_queue_drops_.load(std::memory_order_relaxed);
@@ -512,6 +518,10 @@ bool RunnerService::set_property(
     command.value = std::clamp(value, 0.0F, 1.0F);
     command.active = active;
     return post(command);
+}
+
+bool RunnerService::clear_manual_overrides() noexcept {
+    return post({RunnerCommandType::ClearManualOverrides});
 }
 
 bool RunnerService::set_hazard_armed(
@@ -683,6 +693,7 @@ void RunnerService::run_scheduler() noexcept {
         }
         active_autoloop_bank_mask_.store(
             autoloops.active_bank_mask(), std::memory_order_relaxed);
+        manual_override_count_.store(0U, std::memory_order_relaxed);
 
         engine.safety().strobe_allowed = next->safety.strobe_allowed;
         engine.safety().max_strobe = next->safety.max_strobe;
@@ -918,6 +929,48 @@ void RunnerService::run_scheduler() noexcept {
             }
         };
 
+        auto set_manual_property = [&](std::uint16_t fixture,
+                                       showcore::Property property,
+                                       float value,
+                                       bool active) noexcept {
+            if (fixture >= show->fixture_count() || property >= showcore::Property::Count) {
+                return;
+            }
+            const auto property_index = static_cast<std::size_t>(property);
+            auto& current = runtime.manual_values[fixture][property_index];
+            auto& override_active = runtime.manual_override_active[fixture][property_index];
+            if (active) {
+                current = std::clamp(value, 0.0F, 1.0F);
+                if (!override_active) {
+                    override_active = true;
+                    ++runtime.manual_override_count;
+                }
+            } else {
+                current = 0.0F;
+                if (override_active) {
+                    override_active = false;
+                    --runtime.manual_override_count;
+                }
+            }
+            engine.layers().set(
+                showcore::LayerId::ManualOverride,
+                fixture,
+                property,
+                active ? showcore::PropertyValue::set(current)
+                       : showcore::PropertyValue::release());
+        };
+
+        auto clear_manual_overrides = [&]() noexcept {
+            engine.layers().clear_layer(showcore::LayerId::ManualOverride);
+            for (auto& fixture_values : runtime.manual_values) {
+                fixture_values.fill(0.0F);
+            }
+            for (auto& fixture_active : runtime.manual_override_active) {
+                fixture_active.fill(false);
+            }
+            runtime.manual_override_count = 0U;
+        };
+
         auto apply_tap = [&](std::uint64_t timestamp_ms) noexcept {
             if (runtime.last_tap_ms != 0U) {
                 const auto interval = timestamp_ms - runtime.last_tap_ms;
@@ -984,14 +1037,9 @@ void RunnerService::run_scheduler() noexcept {
                 if (event.relative) {
                     current = std::clamp(current + event.value * 0.05F, 0.0F, 1.0F);
                 } else {
-                    current = event.value;
+                    current = std::clamp(event.value, 0.0F, 1.0F);
                 }
-                engine.layers().set(
-                    showcore::LayerId::ManualOverride,
-                    action.target_id,
-                    action.property,
-                    active ? showcore::PropertyValue::set(current)
-                           : showcore::PropertyValue::release());
+                set_manual_property(action.target_id, action.property, current, active);
                 break;
             }
             case showcore::ActionType::Blackout:
@@ -1139,22 +1187,17 @@ void RunnerService::run_scheduler() noexcept {
                 apply_tap(command.timestamp_ms);
                 break;
             case RunnerCommandType::SetProperty:
-                if (command.target < show->fixture_count()) {
-                    runtime.manual_values[command.target]
-                        [static_cast<std::size_t>(command.property)] = command.value;
-                    engine.layers().set(
-                        showcore::LayerId::ManualOverride,
-                        command.target,
-                        command.property,
-                        command.active ? showcore::PropertyValue::set(command.value)
-                                       : showcore::PropertyValue::release());
-                }
+                set_manual_property(
+                    command.target, command.property, command.value, command.active);
                 break;
             case RunnerCommandType::ArmHazard:
                 arm_hazard(command.property, command.active);
                 break;
             case RunnerCommandType::SetTrackPlaying:
                 runtime.track_playing = command.active;
+                break;
+            case RunnerCommandType::ClearManualOverrides:
+                clear_manual_overrides();
                 break;
             }
         }
@@ -1228,6 +1271,7 @@ void RunnerService::run_scheduler() noexcept {
             encode_autoloop_playback(active_loop), std::memory_order_relaxed);
         active_autoloop_bank_mask_.store(
             show->autoloops().active_bank_mask(), std::memory_order_relaxed);
+        manual_override_count_.store(runtime.manual_override_count, std::memory_order_relaxed);
         active_look_.store(runtime.selected_look, std::memory_order_relaxed);
         active_track_script_.store(runtime.selected_track_script, std::memory_order_relaxed);
         sync_state_.store(clock.state, std::memory_order_relaxed);

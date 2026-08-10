@@ -70,7 +70,8 @@ enum class RunnerCommandType : std::uint8_t {
     TapTempo,
     SetProperty,
     ArmHazard,
-    SetTrackPlaying
+    SetTrackPlaying,
+    ClearManualOverrides
 };
 
 struct RunnerCommand {
@@ -110,6 +111,7 @@ struct RunnerStatus {
     bool haze_armed{false};
     bool laser_armed{false};
     bool spark_armed{false};
+    std::uint16_t manual_override_count{0};
     std::uint64_t frames{0};
     std::uint64_t output_frames{0};
     std::uint64_t output_queue_drops{0};
@@ -193,6 +195,7 @@ public:
         showcore::Property property,
         float value,
         bool active = true) noexcept;
+    [[nodiscard]] bool clear_manual_overrides() noexcept;
     [[nodiscard]] bool set_hazard_armed(
         showcore::Property property,
         bool armed) noexcept;
@@ -260,6 +263,7 @@ private:
     std::atomic<bool> haze_armed_{false};
     std::atomic<bool> laser_armed_{false};
     std::atomic<bool> spark_armed_{false};
+    std::atomic<std::uint16_t> manual_override_count_{0};
     std::atomic<std::uint64_t> frames_{0};
     std::atomic<std::uint64_t> output_frames_{0};
     std::atomic<std::uint64_t> output_queue_drops_{0};
