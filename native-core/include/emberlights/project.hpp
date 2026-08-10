@@ -18,6 +18,7 @@ inline constexpr std::uint32_t kProjectFormatVersion = 1;
 inline constexpr std::string_view kProjectExtension = ".emberlights";
 inline constexpr std::size_t kMaximumTrackScripts = 1024;
 inline constexpr std::size_t kMaximumTrackCues = 32768;
+inline constexpr std::size_t kMaximumFixtureGroups = showcore::kMaxFixtures;
 
 struct ChannelDefinition {
     showcore::Property property{showcore::Property::Intensity};
