@@ -509,6 +509,24 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                   "The project exceeds the compiled track-cue capacity.");
     }
 
+    for (const auto& mapping : project.midi_mappings) {
+        if (mapping.action.type >= showcore::ActionType::Count) {
+            add_issue(result, ProjectIssueSeverity::Error, "midi.action", mapping.device_name,
+                      "MIDI mapping action is outside the supported range.");
+            continue;
+        }
+        const bool needs_look = mapping.action.type == showcore::ActionType::TriggerLook;
+        const bool needs_autoloop = mapping.action.type == showcore::ActionType::TriggerAutoloop;
+        const bool needs_fixture = mapping.action.type == showcore::ActionType::SetProperty;
+        const bool needs_track = mapping.action.type == showcore::ActionType::TriggerTrackScript;
+        if ((needs_look && look_ids.find(mapping.target_ref) == look_ids.end()) ||
+            (needs_autoloop && autoloop_ids.find(mapping.target_ref) == autoloop_ids.end()) ||
+            (needs_fixture && fixtures.find(mapping.target_ref) == fixtures.end()) ||
+            (needs_track && track_ids.find(mapping.target_ref) == track_ids.end())) {
+            add_issue(result, ProjectIssueSeverity::Error, "midi.target", mapping.device_name,
+                      "MIDI mapping target is missing or no longer exists.");
+        }
+    }
     if (project.midi_mappings.size() > showcore::kMaxMidiMappings) {
         add_issue(result, ProjectIssueSeverity::Error, "midi.capacity", project.id,
                   "The project exceeds the V1 MIDI mapping capacity.");

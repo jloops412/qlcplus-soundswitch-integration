@@ -181,6 +181,7 @@ CompilationResult compile_project(const ProjectDocument& project) {
         autoloop_by_id.emplace(source.id, address);
     }
 
+    std::unordered_map<std::string_view, std::size_t> track_by_id;
     for (std::size_t track_index = 0; track_index < project.track_scripts.size(); ++track_index) {
         const auto& source = project.track_scripts[track_index];
         const auto first_cue = compiled->track_cue_count_;
@@ -219,6 +220,7 @@ CompilationResult compile_project(const ProjectDocument& project) {
             compiled->track_cues_.data() + first_cue,
             source.cues.size()};
         compiled->track_script_count_ = track_index + 1U;
+        track_by_id.emplace(source.id, track_index);
     }
 
     for (const auto& source : project.midi_mappings) {
@@ -248,6 +250,14 @@ CompilationResult compile_project(const ProjectDocument& project) {
                     return result;
                 }
                 action.target_id = target->second;
+            } else if (action.type == showcore::ActionType::TriggerTrackScript) {
+                const auto target = track_by_id.find(source.target_ref);
+                if (target == track_by_id.end()) {
+                    compilation_error(result.validation, "compile.midiTrack", source.target_ref,
+                                      "MIDI mapping references a missing track script.");
+                    return result;
+                }
+                action.target_id = static_cast<std::uint16_t>(target->second);
             }
         }
         showcore::MidiMapping mapping;

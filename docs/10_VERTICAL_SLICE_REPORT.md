@@ -100,7 +100,7 @@ At 40 DMX updates/second, 16.2 microseconds per render is roughly 0.065% of one 
 - The Autoloop runtime and editor have complete 64×32 capacity plus activation/return policies, but shipped default content, richer organization, and random/automatic selection policies remain pending.
 - The native Windows UI is functional but its look/profile/Autoloop authoring still needs guided controls, undo/history, and usability qualification.
 - The production qualification/report path is implemented, but the required eight-hour runs on the primary and minimum Windows machines, adapter fault injection, and durable session/crash logging remain pending.
-- Live-audio fallback, track scripting, AutoScripting, SoundSwitch migration, Serato, smart-light integrations, and remaining parity-ledger items are still pending.
+- Live-audio fallback, automatic DJ track association/waveform editing, AutoScripting, SoundSwitch semantic migration, Serato, smart-light integrations, and remaining parity-ledger items are still pending. Manual beat-addressed Track Scripts with Live and MIDI triggering are implemented but remain pending hardware and VirtualDJ qualification.
 
 ## Next gate
 

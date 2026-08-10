@@ -90,7 +90,7 @@ Statuses:
 
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
-| MID-01 | MIDI Learn and mapping for any available controller | Partial | Device-agnostic mapping engine, WinMM port selection, native MIDI Learn, persistence, and compilation exist; Windows hardware/hot-plug qualification remains. |
+| MID-01 | MIDI Learn and mapping for any available controller | Partial | Device-agnostic mapping engine, WinMM port selection, native MIDI Learn, persistence, and compilation exist; named Track Scripts can now be started or cleared from MIDI alongside Looks, Autoloops, and properties. Windows hardware/hot-plug qualification remains. |
 | MID-02 | Notes, CC, pitch, 7/14-bit, absolute/relative encoders, curves, inversion, scaling | Partial | Native mapping tests pass; additional encoder dialects pending. |
 | MID-03 | Multiple simultaneous MIDI inputs/outputs | Partial | WinMM adapter represents 16 simultaneous inputs and outputs with isolated per-input queues; Windows compile, hardware, hot-plug, and fault tests remain. |
 | MID-04 | Soft takeover, modifiers/layers, momentary/toggle/latch/timed/musical release | Partial | Soft takeover passes; complete behavior state engine pending. |

@@ -74,6 +74,8 @@ enum class ActionType : std::uint8_t {
     ArmHaze,
     ArmLaser,
     ArmSpark,
+    TriggerTrackScript,
+    ClearTrackScript,
     Count
 };
 
