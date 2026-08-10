@@ -221,6 +221,70 @@ LookTargetExpansion expand_look_target(
     return {true, group->fixture_ids.size()};
 }
 
+AutoloopPlacementResult move_autoloop(
+    ProjectDocument& project,
+    std::string_view autoloop_id,
+    std::uint16_t target_bank,
+    std::uint8_t target_slot,
+    bool swap_if_occupied) noexcept {
+    if (target_bank >= showcore::kMaxAutoloopBanks ||
+        target_slot >= showcore::kAutoloopsPerBank) {
+        return AutoloopPlacementResult::InvalidAddress;
+    }
+    const auto source = std::find_if(
+        project.autoloops.begin(), project.autoloops.end(),
+        [&](const AutoloopDefinition& loop) { return loop.id == autoloop_id; });
+    if (source == project.autoloops.end()) {
+        return AutoloopPlacementResult::SourceMissing;
+    }
+    if (source->bank == target_bank && source->slot == target_slot) {
+        return AutoloopPlacementResult::Moved;
+    }
+    const auto target = std::find_if(
+        project.autoloops.begin(), project.autoloops.end(),
+        [&](const AutoloopDefinition& loop) {
+            return loop.bank == target_bank && loop.slot == target_slot;
+        });
+    if (target == project.autoloops.end()) {
+        source->bank = target_bank;
+        source->slot = target_slot;
+        return AutoloopPlacementResult::Moved;
+    }
+    if (!swap_if_occupied) {
+        return AutoloopPlacementResult::TargetOccupied;
+    }
+    std::swap(source->bank, target->bank);
+    std::swap(source->slot, target->slot);
+    return AutoloopPlacementResult::Swapped;
+}
+
+AutoloopPlacementResult move_autoloop_to_next_empty_slot(
+    ProjectDocument& project,
+    std::string_view autoloop_id) noexcept {
+    const auto source = std::find_if(
+        project.autoloops.begin(), project.autoloops.end(),
+        [&](const AutoloopDefinition& loop) { return loop.id == autoloop_id; });
+    if (source == project.autoloops.end()) {
+        return AutoloopPlacementResult::SourceMissing;
+    }
+    const auto source_address = static_cast<std::size_t>(source->bank) *
+        showcore::kAutoloopsPerBank + source->slot;
+    for (std::size_t offset = 1U; offset < showcore::kMaxAutoloops; ++offset) {
+        const auto address = (source_address + offset) % showcore::kMaxAutoloops;
+        const auto bank = static_cast<std::uint16_t>(address / showcore::kAutoloopsPerBank);
+        const auto slot = static_cast<std::uint8_t>(address % showcore::kAutoloopsPerBank);
+        const auto occupied = std::any_of(
+            project.autoloops.begin(), project.autoloops.end(),
+            [&](const AutoloopDefinition& loop) { return loop.bank == bank && loop.slot == slot; });
+        if (!occupied) {
+            source->bank = bank;
+            source->slot = slot;
+            return AutoloopPlacementResult::Moved;
+        }
+    }
+    return AutoloopPlacementResult::LibraryFull;
+}
+
 ProjectValidation validate_project(const ProjectDocument& project) {
     ProjectValidation result;
     if (project.format_version != kProjectFormatVersion) {

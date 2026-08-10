@@ -85,6 +85,15 @@ struct AutoloopDefinition {
     std::vector<AutoloopStepDefinition> steps;
 };
 
+enum class AutoloopPlacementResult : std::uint8_t {
+    Moved,
+    Swapped,
+    SourceMissing,
+    InvalidAddress,
+    TargetOccupied,
+    LibraryFull
+};
+
 // Track scripts deliberately carry semantic references rather than fixture-channel
 // data. A cue starts at the supplied beat relative to the script trigger, making
 // the same authored show portable across compatible DJ timing sources.
@@ -212,6 +221,15 @@ struct ProjectValidation {
     showcore::Property property,
     showcore::PropertyValue value,
     std::vector<LookAssignmentDefinition>& assignments);
+[[nodiscard]] AutoloopPlacementResult move_autoloop(
+    ProjectDocument& project,
+    std::string_view autoloop_id,
+    std::uint16_t target_bank,
+    std::uint8_t target_slot,
+    bool swap_if_occupied = false) noexcept;
+[[nodiscard]] AutoloopPlacementResult move_autoloop_to_next_empty_slot(
+    ProjectDocument& project,
+    std::string_view autoloop_id) noexcept;
 [[nodiscard]] ProjectValidation validate_project(const ProjectDocument& project);
 
 [[nodiscard]] std::string_view property_name(showcore::Property property) noexcept;
