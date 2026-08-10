@@ -99,6 +99,9 @@ struct RunnerStatus {
     double beat_position{0.0};
     std::int32_t active_look{-1};
     showcore::AutoloopAddress active_autoloop{};
+    showcore::AutoloopRepeat active_autoloop_repeat{showcore::AutoloopRepeat::Once};
+    float active_autoloop_progress{0.0F};
+    std::uint32_t active_autoloop_completed_cycles{0};
     std::uint64_t active_autoloop_bank_mask{~std::uint64_t{0}};
     std::int32_t active_track_script{-1};
     bool blackout{false};
@@ -250,7 +253,7 @@ private:
     std::atomic<std::uint32_t> bpm_milli_{0};
     std::atomic<std::int64_t> beat_milli_{0};
     std::atomic<std::int32_t> active_look_{-1};
-    std::atomic<std::uint16_t> active_autoloop_{0xFFFFU};
+    std::atomic<std::uint64_t> active_autoloop_playback_{0x0FFFU};
     std::atomic<std::uint64_t> active_autoloop_bank_mask_{~std::uint64_t{0}};
     std::atomic<std::int32_t> active_track_script_{-1};
     std::atomic<bool> fog_armed_{false};
