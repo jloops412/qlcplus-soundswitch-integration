@@ -33,6 +33,11 @@ using SteadyClock = std::chrono::steady_clock;
 inline constexpr std::uint64_t kJitterBucketWidthUs = 50U;
 inline constexpr std::size_t kJitterBucketCount = 201U;
 inline constexpr std::uint64_t kDeadlineMissUs = 5'000U;
+inline constexpr std::uint64_t kPackedAutoloopAddressMask = 0x0FFFU;
+inline constexpr std::uint64_t kPackedInvalidAutoloopAddress = 0x0FFFU;
+inline constexpr std::uint64_t kPackedAutoloopRepeatShift = 12U;
+inline constexpr std::uint64_t kPackedAutoloopProgressShift = 14U;
+inline constexpr std::uint64_t kPackedAutoloopCycleShift = 24U;
 
 [[nodiscard]] std::uint16_t encode_autoloop(showcore::AutoloopAddress address) noexcept {
     return address.valid()
@@ -49,6 +54,24 @@ inline constexpr std::uint64_t kDeadlineMissUs = 5'000U;
     return {
         static_cast<std::uint16_t>(encoded / showcore::kAutoloopsPerBank),
         static_cast<std::uint8_t>(encoded % showcore::kAutoloopsPerBank)};
+}
+
+[[nodiscard]] std::uint64_t encode_autoloop_playback(
+    const showcore::AutoloopPlaybackStatus* status) noexcept {
+    if (status == nullptr) {
+        return kPackedInvalidAutoloopAddress;
+    }
+    const auto encoded_address = encode_autoloop(status->address);
+    const auto packed_address = encoded_address < showcore::kMaxAutoloops
+        ? static_cast<std::uint64_t>(encoded_address)
+        : kPackedInvalidAutoloopAddress;
+    const auto progress = static_cast<std::uint64_t>(std::lround(
+        std::clamp(status->progress, 0.0F, 1.0F) * 1000.0F));
+    return packed_address |
+        ((static_cast<std::uint64_t>(status->repeat) & 0x03U) <<
+         kPackedAutoloopRepeatShift) |
+        ((progress & 0x03FFU) << kPackedAutoloopProgressShift) |
+        (static_cast<std::uint64_t>(status->completed_cycles) << kPackedAutoloopCycleShift);
 }
 
 void update_maximum(
@@ -154,7 +177,7 @@ bool RunnerService::start(
     bpm_milli_.store(0, std::memory_order_relaxed);
     beat_milli_.store(0, std::memory_order_relaxed);
     active_look_.store(-1, std::memory_order_relaxed);
-    active_autoloop_.store(0xFFFFU, std::memory_order_relaxed);
+    active_autoloop_playback_.store(kPackedInvalidAutoloopAddress, std::memory_order_relaxed);
     active_autoloop_bank_mask_.store(~std::uint64_t{0}, std::memory_order_relaxed);
     active_track_script_.store(-1, std::memory_order_relaxed);
     fog_armed_.store(false, std::memory_order_relaxed);
@@ -340,8 +363,19 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.beat_position =
         static_cast<double>(beat_milli_.load(std::memory_order_relaxed)) / 1000.0;
     snapshot.active_look = active_look_.load(std::memory_order_relaxed);
-    snapshot.active_autoloop = decode_autoloop(
-        active_autoloop_.load(std::memory_order_relaxed));
+    const auto active_autoloop_playback =
+        active_autoloop_playback_.load(std::memory_order_relaxed);
+    const auto encoded_autoloop = static_cast<std::uint16_t>(
+        active_autoloop_playback & kPackedAutoloopAddressMask);
+    snapshot.active_autoloop = encoded_autoloop < showcore::kMaxAutoloops
+        ? decode_autoloop(encoded_autoloop)
+        : showcore::AutoloopAddress{};
+    snapshot.active_autoloop_repeat = static_cast<showcore::AutoloopRepeat>(
+        (active_autoloop_playback >> kPackedAutoloopRepeatShift) & 0x03U);
+    snapshot.active_autoloop_progress = static_cast<float>(
+        (active_autoloop_playback >> kPackedAutoloopProgressShift) & 0x03FFU) / 1000.0F;
+    snapshot.active_autoloop_completed_cycles = static_cast<std::uint32_t>(
+        active_autoloop_playback >> kPackedAutoloopCycleShift);
     snapshot.active_autoloop_bank_mask =
         active_autoloop_bank_mask_.load(std::memory_order_relaxed);
     snapshot.active_track_script = active_track_script_.load(std::memory_order_relaxed);
@@ -1186,10 +1220,12 @@ void RunnerService::run_scheduler() noexcept {
         const auto& manual_status = runtime.manual_autoloop.status();
         const auto& scripted_status = runtime.scripted_autoloop.status();
         const auto& autonomous_status = runtime.autonomous.status();
-        active_autoloop_.store(
-            encode_autoloop(manual_status.active ? manual_status.address
-                : (scripted_status.active ? scripted_status.address : autonomous_status.address)),
-            std::memory_order_relaxed);
+        const showcore::AutoloopPlaybackStatus* active_loop = manual_status.active
+            ? &manual_status
+            : (scripted_status.active ? &scripted_status
+                                      : (autonomous_status.active ? &autonomous_status : nullptr));
+        active_autoloop_playback_.store(
+            encode_autoloop_playback(active_loop), std::memory_order_relaxed);
         active_autoloop_bank_mask_.store(
             show->autoloops().active_bank_mask(), std::memory_order_relaxed);
         active_look_.store(runtime.selected_look, std::memory_order_relaxed);
