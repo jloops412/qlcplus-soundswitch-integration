@@ -1,6 +1,6 @@
 # SoundSwitch Functional Parity Ledger
 
-Last audited: 2026-08-08 against SoundSwitch 2.10 public product/support documentation.
+Last audited: 2026-08-10 against SoundSwitch 2.10 public product/support documentation.
 
 ## Contract
 
@@ -47,7 +47,7 @@ Statuses:
 | EDT-10 | Strobe blocks with start/end rates | Partial | Safe strobe property/cap exists; ramp authoring pending. |
 | EDT-11 | Drag/drop Effects Generator with musical durations | Planned | Effect catalog, parameter editor, and deterministic traces. |
 | EDT-12 | Static Looks with sparse fixture inclusion and explicit off | Partial | Compiled SET/RELEASE/FORCE_ZERO assignments, crossfaded activation/clear, authoring UI, and live triggering exist; richer palette/cue tools and user tests remain. |
-| EDT-13 | Scripted tracks precisely tied to beatgrid/playhead | Planned | Seek/loop/reverse/pitch/cue-jump replay corpus. |
+| EDT-13 | Scripted tracks precisely tied to beatgrid/playhead | Partial | Native projects now persist optional portable audio keys and ordered beat-addressed semantic cues; fixed-capacity compilation, TrackScript-layer playback, Live start/clear controls, and rewind replay pass core tests. Automatic track association, waveform/beatgrid Studio editing, loop/reverse/pitch/cue-jump replay corpus, and DJ-software qualification remain. |
 | EDT-14 | Phrase detection and phrase editing | Planned | Offline analysis worker, manual correction, and persistence tests. |
 | EDT-15 | AutoScript tracks, folders/playlists/crates, presets, styles, and custom settings | Planned | Deterministic precompiled generation and quality evaluation. |
 | EDT-16 | AutoScript Autoloops using categories, colors, positions, attributes, effects, and randomization | Planned | Reproducible seed/config output and editable result. |
@@ -61,7 +61,7 @@ Statuses:
 | RUN-02 | At least 128 Autoloops in four banks of 32 | Partial | Native catalog, project compiler, and authoring UI support 64 banks/2,048 loops; shipped default content and controller paging qualification remain. |
 | RUN-03 | Reorder, move between banks, duplicate, populate empty, and reset defaults safely | Planned | Studio operations with undo/history and non-destructive warnings. |
 | RUN-04 | Exclusive banks and return-to-all-banks behavior | Partial | 64-bank enable/exclusive masks, return-to-all, deterministic next/previous selection, duplicate, cross-bank slot-swap, and four-bank paging tests pass; UI pending. |
-| RUN-05 | Trigger an Autoloop over a script, show progress, then return naturally | Partial | Manual activation, progress/cycle status, musically complete one-shot release, and return to the still-running scripted layer pass; UI pending. |
+| RUN-05 | Trigger an Autoloop over a script, show progress, then return naturally | Partial | Manual activation, progress/cycle status, musically complete one-shot release, and return to the still-running scripted layer pass; native TrackScript cues can now start/clear Autoloops and Live shows the active script. Progress UI and DJ/hardware qualification remain. |
 | RUN-06 | Infinite and track-duration repeat | Partial | Infinite cycling and track-stop release pass in native runtime; package/UI integration pending. |
 | RUN-07 | Static Looks in performance mode | Partial | Latched generic look player, crossfaded clearing/switching, native Live UI, and MIDI action routing exist; feedback and hardware qualification remain. |
 | RUN-08 | Live Override FX for color, movement, intensity, strobe, white/UV, blackout, and effect actions | Partial | MIDI action/property routing, raw-zero blackout, work light, explicit hazard arming, editable safety caps, and live controls exist; richer movement/color FX tools and hardware qualification remain. |

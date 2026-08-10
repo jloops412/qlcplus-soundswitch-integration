@@ -1469,6 +1469,12 @@ emberlights::ProjectDocument make_test_project() {
         "red-blue", "Red / Blue", 7, 3, 4.0F, showcore::AutoloopRepeat::Infinite,
         {{0.0F, "red", showcore::AutoloopTransition::Linear},
          {2.0F, "blue", showcore::AutoloopTransition::Linear}}});
+    project.track_scripts.push_back({
+        "test-song", "Test Song", "audio:test-song", {
+            {0.0F, emberlights::TrackCueAction::TriggerLook, "red"},
+            {1.0F, emberlights::TrackCueAction::TriggerAutoloop, "red-blue"},
+            {2.0F, emberlights::TrackCueAction::ClearLook, ""},
+            {3.0F, emberlights::TrackCueAction::ClearAutoloop, ""}}});
     project.groups.push_back({"dance", "Dance Floor", {"wash-1"}});
     return project;
 }
@@ -1523,6 +1529,9 @@ void test_project_validation_io_and_compilation() {
     const auto duplicate_role_validation = emberlights::validate_project(duplicate_role);
     CHECK(duplicate_role_validation.ok());
     CHECK(duplicate_role_validation.warning_count() >= 1U);
+    auto invalid_track = project;
+    invalid_track.track_scripts[0].cues[1].target_ref = "missing-loop";
+    CHECK(!emberlights::validate_project(invalid_track).ok());
 
     const auto serialized = emberlights::serialize_project(project);
     emberlights::ProjectDocument parsed;
@@ -1538,6 +1547,11 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.looks.size() == 2U);
     CHECK(parsed.autoloops.size() == 1U);
     CHECK(parsed.autoloops[0].bank == 7U && parsed.autoloops[0].slot == 3U);
+    CHECK(parsed.track_scripts.size() == 1U);
+    CHECK(parsed.track_scripts[0].audio_key == "audio:test-song");
+    CHECK(parsed.track_scripts[0].cues.size() == 4U);
+    CHECK(parsed.track_scripts[0].cues[1].action ==
+        emberlights::TrackCueAction::TriggerAutoloop);
     CHECK(emberlights::serialize_project(parsed) == serialized);
 
     auto corrupted = serialized;
@@ -1550,6 +1564,13 @@ void test_project_validation_io_and_compilation() {
     CHECK(compilation.show->fixture_count() == 1U);
     CHECK(compilation.show->look_count() == 2U);
     CHECK(compilation.show->autoloops().get({7, 3}) != nullptr);
+    CHECK(compilation.show->track_script_count() == 1U);
+    const auto* compiled_track = compilation.show->track_script(0U);
+    CHECK(compiled_track != nullptr);
+    CHECK(compiled_track->cue_count == 4U);
+    CHECK(compiled_track->cues[0].target == 0U);
+    CHECK(compiled_track->cues[1].target ==
+        static_cast<std::uint16_t>(7U * showcore::kAutoloopsPerBank + 3U));
     auto look_player_storage = std::make_unique<showcore::StaticLookPlayer>();
     auto& look_player = *look_player_storage;
     CHECK(look_player.trigger(
@@ -1611,6 +1632,7 @@ void test_runner_service_lifecycle() {
     CHECK(runner.status().state == emberlights::RunnerState::Running);
     CHECK(runner.trigger_look(0));
     CHECK(runner.trigger_autoloop({7, 3}));
+    CHECK(runner.trigger_track_script(0));
     CHECK(runner.set_manual_bpm(128.0));
     runner.set_blackout(true);
     runner.set_work_light(true);
@@ -1620,6 +1642,7 @@ void test_runner_service_lifecycle() {
     CHECK(active.output_frames >= 1U);
     CHECK(active.active_look == 0);
     CHECK((active.active_autoloop == showcore::AutoloopAddress{7, 3}));
+    CHECK(active.active_track_script == 0);
     CHECK(active.blackout && active.work_light);
     CHECK(active.uptime_ms >= 100U);
     CHECK(active.last_frame_age_ms < 250U);
@@ -1629,6 +1652,9 @@ void test_runner_service_lifecycle() {
     CHECK(active.sacn == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[0] == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[1] == emberlights::AdapterState::Disabled);
+    CHECK(runner.clear_track_script());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().active_track_script == -1);
 
     auto updated_project = project;
     updated_project.name = "Activated Test Show";

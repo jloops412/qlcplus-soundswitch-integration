@@ -271,12 +271,12 @@ template <typename Value>
 [[nodiscard]] bool is_known_primary(std::string_view type) noexcept {
     return type == "PROJECT" || type == "CONNECTIONS" || type == "SAFETY" ||
         type == "PROFILE" || type == "FIXTURE" || type == "GROUP" ||
-        type == "LOOK" || type == "AUTOLOOP" || type == "MIDI";
+        type == "LOOK" || type == "AUTOLOOP" || type == "TRACK" || type == "MIDI";
 }
 
 [[nodiscard]] bool is_known_secondary(std::string_view type) noexcept {
     return type == "CHANNEL" || type == "ROLE" || type == "GROUP_MEMBER" ||
-        type == "LOOK_VALUE" || type == "STEP";
+        type == "LOOK_VALUE" || type == "STEP" || type == "TRACK_CUE";
 }
 
 template <typename Collection>
@@ -398,6 +398,11 @@ template <typename Collection>
                 return error(ProjectIoError::InvalidValue, record.line, "Invalid AUTOLOOP value.");
             }
             project.autoloops.push_back(std::move(loop));
+        } else if (f[0] == "TRACK") {
+            if (f.size() != 4U) {
+                return error(ProjectIoError::InvalidRecord, record.line, "Invalid TRACK record.");
+            }
+            project.track_scripts.push_back({f[1], f[2], f[3], {}});
         } else if (f[0] == "MIDI") {
             if (f.size() != 22U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid MIDI record.");
@@ -517,6 +522,22 @@ template <typename Collection>
             }
             step.look_id = f[3];
             loop->steps.push_back(std::move(step));
+        } else if (f[0] == "TRACK_CUE") {
+            if (f.size() != 5U) {
+                return error(ProjectIoError::InvalidRecord, record.line, "Invalid TRACK_CUE record.");
+            }
+            const auto track = find_id(project.track_scripts, f[1]);
+            if (track == project.track_scripts.end()) {
+                return error(ProjectIoError::MissingReference, record.line,
+                             "TRACK_CUE references a missing track script.");
+            }
+            TrackCueDefinition cue;
+            if (!parse_number(f[2], cue.at_beat) || !parse_track_cue_action(f[3], cue.action)) {
+                return error(ProjectIoError::InvalidValue, record.line,
+                             "Invalid TRACK_CUE value.");
+            }
+            cue.target_ref = f[4];
+            track->cues.push_back(std::move(cue));
         } else if (!is_known_primary(f[0]) && !is_known_secondary(f[0])) {
             project.unknown_records.push_back(record.raw);
         }
@@ -629,6 +650,14 @@ std::string serialize_project(const ProjectDocument& project) {
             append_record(payload, {
                 "STEP", loop.id, number_text(step.at_beat), step.look_id,
                 std::string(transition_name(step.transition))});
+        }
+    }
+    for (const auto& track : project.track_scripts) {
+        append_record(payload, {"TRACK", track.id, track.name, track.audio_key});
+        for (const auto& cue : track.cues) {
+            append_record(payload, {
+                "TRACK_CUE", track.id, number_text(cue.at_beat),
+                std::string(track_cue_action_name(cue.action)), cue.target_ref});
         }
     }
     for (const auto& mapping : project.midi_mappings) {

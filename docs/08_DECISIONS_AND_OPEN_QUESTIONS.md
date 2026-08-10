@@ -1,6 +1,6 @@
 # Decisions and Open Questions
 
-Last updated: 2026-08-09.
+Last updated: 2026-08-10.
 
 ## Accepted decisions
 
@@ -41,6 +41,7 @@ Last updated: 2026-08-09.
 | D-033 | Release claims are evidence-tiered: testing preview, gig-qualified V1, public beta, then parity-complete general public 1.0. | Joshua asked for a true production release while continuing quickly. Explicit gates prevent an installer or version label from being mistaken for hardware qualification or the accepted full-SoundSwitch-parity finish line. |
 | D-034 | Live show-package replacement uses generation-stamped atomic handoff; compiled semantic/safety changes may activate without stopping, while connection or project-identity changes require an explicit restart. | Scheduler, input, and output must all acknowledge the new immutable package before the old package is retired. Invalid candidates never replace the running show, and stale commands/frames cannot cross generations. |
 | D-035 | SoundSwitch migration begins with a read-only, SHA-256 inventoried source bundle and controlled export comparison; semantic decoding remains sample-corpus gated. | Official guidance separates project data, lightshow data, and copied audio. The comparison records paths, hashes, and changed byte ranges without exporting source bytes, so one known change at a time can produce reproducible decoder evidence. Independently observed binary layouts are useful evidence but are insufficient for a lossless production decoder across versions. Unknown payloads must remain byte-identical and third-party unlicensed decoder code is not incorporated. |
+| D-036 | The first native scripted-track slice is a manually triggered, beat-relative semantic cue list in the existing `TrackScript` layer. | It provides portable authored playback immediately without pretending OS2L exposes enough track identity/transport detail for automatic association. Projects persist optional non-path audio keys; compilation resolves cue targets into fixed arrays before activation; rewind/seek clears and replays state deterministically. A scripted Static Look and scripted Autoloop are deliberately mutually exclusive handoffs within that one layer, while manual performance controls remain higher-priority overlays. Direct VirtualDJ association, waveform/beatgrid editing, and complete transport semantics remain explicit parity work. |
 
 ## Superseded recommendations
 

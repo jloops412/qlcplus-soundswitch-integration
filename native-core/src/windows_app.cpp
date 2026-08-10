@@ -56,6 +56,7 @@ enum class Page : std::size_t {
     Groups,
     Looks,
     Autoloops,
+    Tracks,
     Midi,
     Connections,
     Safety,
@@ -82,6 +83,7 @@ enum ControlId : int {
     IdNavGroups,
     IdNavLooks,
     IdNavAutoloops,
+    IdNavTracks,
     IdNavMidi,
     IdNavConnections,
     IdNavSafety,
@@ -103,6 +105,10 @@ enum ControlId : int {
     IdLivePreviousAutoloop,
     IdLiveNextAutoloop,
     IdLiveClearAutoloop,
+    IdLiveTrackLabel,
+    IdLiveTracks,
+    IdLiveTriggerTrack,
+    IdLiveClearTrack,
     IdLiveFogArm,
     IdLiveHazeArm,
     IdLiveLaserArm,
@@ -174,6 +180,18 @@ enum ControlId : int {
     IdAutoloopSteps,
     IdAutoloopHelp,
     IdAutoloopMessage,
+
+    IdTrackTitle = 5500,
+    IdTrackList,
+    IdTrackNew,
+    IdTrackDuplicate,
+    IdTrackSave,
+    IdTrackDelete,
+    IdTrackName,
+    IdTrackAudioKey,
+    IdTrackCues,
+    IdTrackHelp,
+    IdTrackMessage,
 
     IdMidiTitle = 6000,
     IdMidiList,
@@ -522,6 +540,7 @@ private:
     void refresh_groups();
     void refresh_looks();
     void refresh_autoloops();
+    void refresh_tracks();
     void refresh_midi();
     void refresh_connections();
     void refresh_safety();
@@ -568,6 +587,11 @@ private:
     void duplicate_autoloop();
     void save_autoloop();
     void delete_autoloop();
+    void select_track(std::int32_t index);
+    void new_track();
+    void duplicate_track();
+    void save_track();
+    void delete_track();
 
     void apply_connections();
     void apply_safety();
@@ -601,6 +625,7 @@ private:
     std::int32_t group_index_{-1};
     std::int32_t look_index_{-1};
     std::int32_t autoloop_index_{-1};
+    std::int32_t track_index_{-1};
 
     emberlights::RunnerService runner_{};
     std::optional<emberlights::ProjectDocument> active_project_{};
@@ -957,7 +982,7 @@ HWND Application::create_page(Page page) {
 void Application::create_navigation() {
     constexpr std::array<const wchar_t*, static_cast<std::size_t>(Page::Count)> names{{
         L"Live", L"Fixture Profiles", L"Patch", L"Groups", L"Static Looks",
-        L"Autoloops", L"MIDI", L"Connections", L"Safety", L"Diagnostics"}};
+        L"Autoloops", L"Track Scripts", L"MIDI", L"Connections", L"Safety", L"Diagnostics"}};
     for (std::size_t index = 0; index < navigation_.size(); ++index) {
         navigation_[index] = add_button(
             window_, names[index], IdNavLive + static_cast<int>(index), BS_LEFT);
@@ -991,6 +1016,10 @@ void Application::create_pages() {
     add_button(page, L"Previous", IdLivePreviousAutoloop);
     add_button(page, L"Next", IdLiveNextAutoloop);
     add_button(page, L"Clear", IdLiveClearAutoloop);
+    add_label(page, L"Track Scripts", IdLiveTrackLabel);
+    add_listbox(page, IdLiveTracks);
+    add_button(page, L"Start Script", IdLiveTriggerTrack);
+    add_button(page, L"Clear Script", IdLiveClearTrack);
     add_button(page, L"Arm Fog", IdLiveFogArm, BS_AUTOCHECKBOX);
     add_button(page, L"Arm Haze", IdLiveHazeArm, BS_AUTOCHECKBOX);
     add_button(page, L"Arm Laser", IdLiveLaserArm, BS_AUTOCHECKBOX);
@@ -1116,6 +1145,27 @@ void Application::create_pages() {
         L"One step per line: beat, look-id, cut|linear. The first step must be beat 0.",
         IdAutoloopHelp);
     add_label(page, L"", IdAutoloopMessage);
+
+    page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    title = add_label(page, L"Track Scripts", IdTrackTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_listbox(page, IdTrackList);
+    add_button(page, L"New", IdTrackNew);
+    add_button(page, L"Duplicate", IdTrackDuplicate);
+    add_button(page, L"Save Script", IdTrackSave);
+    add_button(page, L"Delete", IdTrackDelete);
+    add_label(page, L"Name", 0);
+    add_edit(page, IdTrackName);
+    add_label(page, L"Audio key (optional)", 0);
+    add_edit(page, IdTrackAudioKey);
+    add_label(page, L"Beat-addressed cues", 0);
+    add_edit(page, IdTrackCues, true);
+    add_label(
+        page,
+        L"One cue per line: beat, triggerLook|clearLook|triggerAutoloop|clearAutoloop, target-id. "
+        L"Clear actions leave target-id blank. Start a script from Live; cues replay safely after a beat seek.",
+        IdTrackHelp);
+    add_label(page, L"", IdTrackMessage);
 
     page = pages_[static_cast<std::size_t>(Page::Midi)];
     title = add_label(page, L"MIDI Mapping", IdMidiTitle);
@@ -1267,22 +1317,28 @@ void Application::layout_page(Page page, int width, int height) {
         move(8, margin + 948, 62, 70, 28);
         const auto column_gap = 20;
         const auto column_width = (usable_width - column_gap) / 2;
+        const auto list_height = std::max(120, height - 450);
+        const auto list_bottom = 140 + list_height;
         move(9, margin, 112, column_width, 26);
-        move(10, margin, 140, column_width, std::max(170, height - 330));
-        move(11, margin, height - 180, 100, 30);
-        move(12, margin + 110, height - 180, 100, 30);
+        move(10, margin, 140, column_width, list_height);
+        move(11, margin, list_bottom + 10, 100, 30);
+        move(12, margin + 110, list_bottom + 10, 100, 30);
         const auto right = margin + column_width + column_gap;
         move(13, right, 112, column_width, 26);
-        move(14, right, 140, column_width, std::max(170, height - 330));
-        move(15, right, height - 180, 90, 30);
-        move(16, right + 100, height - 180, 90, 30);
-        move(17, right + 200, height - 180, 90, 30);
-        move(18, right + 300, height - 180, 90, 30);
-        move(19, margin, height - 128, 110, 28);
-        move(20, margin + 120, height - 128, 110, 28);
-        move(21, margin + 240, height - 128, 110, 28);
-        move(22, margin + 360, height - 128, 120, 28);
-        move(23, margin, height - 90, usable_width, 66);
+        move(14, right, 140, column_width, list_height);
+        move(15, right, list_bottom + 10, 90, 30);
+        move(16, right + 100, list_bottom + 10, 90, 30);
+        move(17, right + 200, list_bottom + 10, 90, 30);
+        move(18, right + 300, list_bottom + 10, 90, 30);
+        move(19, margin, list_bottom + 54, 180, 26);
+        move(20, margin, list_bottom + 80, usable_width, 64);
+        move(21, margin, list_bottom + 150, 110, 30);
+        move(22, margin + 120, list_bottom + 150, 110, 30);
+        move(23, margin, height - 110, 110, 28);
+        move(24, margin + 120, height - 110, 110, 28);
+        move(25, margin + 240, height - 110, 110, 28);
+        move(26, margin + 360, height - 110, 120, 28);
+        move(27, margin, height - 76, usable_width, 54);
         break;
     }
     case Page::Profiles: {
@@ -1385,6 +1441,25 @@ void Application::layout_page(Page page, int width, int height) {
         move(17, x, 180, form_width, std::max(190, height - 345));
         move(18, x, height - 130, form_width, 50);
         move(19, x, height - 72, form_width, 30);
+        break;
+    }
+    case Page::Tracks: {
+        const auto left_width = std::min(330, usable_width / 3);
+        move(1, margin, 70, left_width, height - 150);
+        move(2, margin, height - 68, 70, 30);
+        move(3, margin + 78, height - 68, 90, 30);
+        move(4, margin + 176, height - 68, 100, 30);
+        move(5, margin + 284, height - 68, 70, 30);
+        const auto x = margin + left_width + 24;
+        const auto form_width = usable_width - left_width - 24;
+        move(6, x, 70, 130, 26);
+        move(7, x + 130, 70, form_width - 130, 27);
+        move(8, x, 108, 130, 26);
+        move(9, x + 130, 108, form_width - 130, 27);
+        move(10, x, 148, form_width, 26);
+        move(11, x, 178, form_width, std::max(190, height - 345));
+        move(12, x, height - 130, form_width, 50);
+        move(13, x, height - 72, form_width, 30);
         break;
     }
     case Page::Midi:
@@ -1682,6 +1757,15 @@ void listview_set_row(
     return stream.str();
 }
 
+[[nodiscard]] std::string track_cues_text(const emberlights::TrackScriptDefinition& track) {
+    std::ostringstream stream;
+    for (const auto& cue : track.cues) {
+        stream << cue.at_beat << ',' << emberlights::track_cue_action_name(cue.action) << ','
+               << cue.target_ref << '\n';
+    }
+    return stream.str();
+}
+
 }  // namespace
 
 void Application::refresh_all() {
@@ -1691,6 +1775,7 @@ void Application::refresh_all() {
     refresh_groups();
     refresh_looks();
     refresh_autoloops();
+    refresh_tracks();
     refresh_midi();
     refresh_connections();
     refresh_safety();
@@ -1705,8 +1790,10 @@ void Application::refresh_live_lists() {
     const auto page = pages_[static_cast<std::size_t>(Page::Live)];
     const auto looks = ::GetDlgItem(page, IdLiveLooks);
     const auto loops = ::GetDlgItem(page, IdLiveAutoloops);
+    const auto tracks = ::GetDlgItem(page, IdLiveTracks);
     static_cast<void>(::SendMessageW(looks, LB_RESETCONTENT, 0, 0));
     static_cast<void>(::SendMessageW(loops, LB_RESETCONTENT, 0, 0));
+    static_cast<void>(::SendMessageW(tracks, LB_RESETCONTENT, 0, 0));
     const auto& live = live_project();
     for (std::size_t index = 0; index < live.looks.size(); ++index) {
         listbox_add(looks, widen(live.looks[index].name), index);
@@ -1717,6 +1804,17 @@ void Application::refresh_live_lists() {
         label << "B" << loop.bank + 1U << " / S" << static_cast<unsigned int>(loop.slot + 1U)
               << " — " << loop.name;
         listbox_add(loops, widen(label.str()), index);
+    }
+    for (std::size_t index = 0; index < live.track_scripts.size(); ++index) {
+        const auto& track = live.track_scripts[index];
+        std::ostringstream label;
+        label << track.name;
+        if (!track.audio_key.empty()) {
+            label << " — " << track.audio_key;
+        }
+        label << " (" << track.cues.size() << " cue" << (track.cues.size() == 1U ? "" : "s")
+              << ')';
+        listbox_add(tracks, widen(label.str()), index);
     }
     set_control_text(::GetDlgItem(page, IdLiveBpm), number_text(live.connections.manual_bpm));
 }
@@ -1753,6 +1851,16 @@ void Application::refresh_live_status() {
             << L"    Queue drops: " << status.output_queue_drops
             << L"    Superseded: " << status.output_superseded_frames
             << L"    Max jitter: " << status.max_jitter_us << L" µs";
+    if (status.active_track_script >= 0) {
+        const auto& live = live_project();
+        const auto index = static_cast<std::size_t>(status.active_track_script);
+        metrics << L"\r\nTrack script: ";
+        if (index < live.track_scripts.size()) {
+            metrics << widen(live.track_scripts[index].name);
+        } else {
+            metrics << L"Unknown";
+        }
+    }
     static_cast<void>(::SetWindowTextW(::GetDlgItem(page, IdLiveMetrics), metrics.str().c_str()));
 }
 
@@ -1865,6 +1973,26 @@ void Application::refresh_autoloops() {
         select_autoloop(autoloop_index_);
     } else {
         new_autoloop();
+    }
+}
+
+void Application::refresh_tracks() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    const auto list = ::GetDlgItem(page, IdTrackList);
+    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
+    for (std::size_t index = 0; index < project_.track_scripts.size(); ++index) {
+        const auto& track = project_.track_scripts[index];
+        std::ostringstream label;
+        label << track.name << " (" << track.cues.size() << " cue"
+              << (track.cues.size() == 1U ? "" : "s") << ')';
+        listbox_add(list, widen(label.str()), index);
+    }
+    if (track_index_ >= 0 &&
+        static_cast<std::size_t>(track_index_) < project_.track_scripts.size()) {
+        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, track_index_, 0));
+        select_track(track_index_);
+    } else {
+        new_track();
     }
 }
 
@@ -2039,11 +2167,13 @@ std::string Application::diagnostics_text() const {
            << "  Groups: " << project_.groups.size()
            << "  Static Looks: " << project_.looks.size()
            << "  Autoloops: " << project_.autoloops.size()
+           << "  Track scripts: " << project_.track_scripts.size()
            << "  MIDI mappings: " << project_.midi_mappings.size() << "\r\n"
            << "Validation: " << validation.error_count() << " error(s), "
            << validation.warning_count() << " warning(s)\r\n\r\n"
            << "Runner: " << narrow(runner_state_name(status.state))
-           << "  BPM: " << status.bpm << "  Beat: " << status.beat_position << "\r\n"
+           << "  BPM: " << status.bpm << "  Beat: " << status.beat_position
+           << "  Active script: " << status.active_track_script << "\r\n"
            << "OS2L: " << narrow(adapter_state_name(status.os2l))
            << "  MIDI: " << narrow(adapter_state_name(status.midi_input))
            << "  Art-Net: " << narrow(adapter_state_name(status.artnet))
@@ -2143,6 +2273,10 @@ void Application::handle_command(int id, int notification, HWND) {
             select_autoloop(static_cast<std::int32_t>(::SendMessageW(
                 ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Autoloops)], IdAutoloopList),
                 LB_GETCURSEL, 0, 0)));
+        } else if (id == IdTrackList) {
+            select_track(static_cast<std::int32_t>(::SendMessageW(
+                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Tracks)], IdTrackList),
+                LB_GETCURSEL, 0, 0)));
         }
         return;
     }
@@ -2218,6 +2352,17 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdLivePreviousAutoloop: static_cast<void>(runner_.previous_autoloop()); break;
     case IdLiveNextAutoloop: static_cast<void>(runner_.next_autoloop()); break;
     case IdLiveClearAutoloop: static_cast<void>(runner_.clear_autoloop()); break;
+    case IdLiveTriggerTrack: {
+        const auto list = ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Live)], IdLiveTracks);
+        const auto selected = static_cast<int>(::SendMessageW(list, LB_GETCURSEL, 0, 0));
+        if (selected >= 0) {
+            const auto index = static_cast<std::uint16_t>(::SendMessageW(
+                list, LB_GETITEMDATA, selected, 0));
+            static_cast<void>(runner_.trigger_track_script(index));
+        }
+        break;
+    }
+    case IdLiveClearTrack: static_cast<void>(runner_.clear_track_script()); break;
     case IdLiveFogArm:
         static_cast<void>(runner_.set_hazard_armed(
             showcore::Property::Fog,
@@ -2262,6 +2407,10 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdAutoloopDuplicate: duplicate_autoloop(); break;
     case IdAutoloopSave: save_autoloop(); break;
     case IdAutoloopDelete: delete_autoloop(); break;
+    case IdTrackNew: new_track(); break;
+    case IdTrackDuplicate: duplicate_track(); break;
+    case IdTrackSave: save_track(); break;
+    case IdTrackDelete: delete_track(); break;
     case IdRefreshMidi: refresh_midi_ports(); break;
     case IdConnectionsApply: apply_connections(); break;
     case IdSafetyApply: apply_safety(); break;
@@ -2311,6 +2460,7 @@ void Application::new_project() {
     group_index_ = -1;
     look_index_ = -1;
     autoloop_index_ = -1;
+    track_index_ = -1;
     refresh_all();
     set_status(L"New project created. Add or import fixture profiles, then patch your rig.");
 }
@@ -2590,6 +2740,7 @@ bool Application::open_project(const std::filesystem::path& path) {
     group_index_ = -1;
     look_index_ = -1;
     autoloop_index_ = -1;
+    track_index_ = -1;
     refresh_all();
     if (result.recovered_from_backup) {
         ::MessageBoxW(
@@ -3462,6 +3613,37 @@ namespace {
     return true;
 }
 
+[[nodiscard]] bool parse_track_cue_rows(
+    std::string_view text,
+    std::vector<emberlights::TrackCueDefinition>& cues,
+    std::string& error_message) {
+    cues.clear();
+    std::size_t row = 0;
+    for (const auto& line : lines(text)) {
+        ++row;
+        const auto fields = split_csv(line);
+        emberlights::TrackCueDefinition cue;
+        if (fields.size() != 3U || !parse_number(fields[0], cue.at_beat) ||
+            cue.at_beat < 0.0F || !emberlights::parse_track_cue_action(fields[1], cue.action)) {
+            error_message = "Cue row " + number_text(row) +
+                " must be beat, action, and target-id (blank for clear actions).";
+            return false;
+        }
+        cue.target_ref = fields[2];
+        const bool needs_target = cue.action == emberlights::TrackCueAction::TriggerLook ||
+            cue.action == emberlights::TrackCueAction::TriggerAutoloop;
+        const bool clear_action = cue.action == emberlights::TrackCueAction::ClearLook ||
+            cue.action == emberlights::TrackCueAction::ClearAutoloop;
+        if ((needs_target && cue.target_ref.empty()) || (clear_action && !cue.target_ref.empty())) {
+            error_message = "Cue row " + number_text(row) +
+                " needs a target only for triggerLook and triggerAutoloop.";
+            return false;
+        }
+        cues.push_back(std::move(cue));
+    }
+    return true;
+}
+
 }  // namespace
 
 void Application::select_look(std::int32_t index) {
@@ -3543,6 +3725,7 @@ void Application::save_look() {
     mark_dirty();
     refresh_looks();
     refresh_autoloops();
+    refresh_tracks();
     refresh_live_lists();
     set_page_message(Page::Looks, IdLookMessage, "Static Look saved.");
 }
@@ -3562,6 +3745,18 @@ void Application::delete_look() {
                          "This Static Look is used by an Autoloop. Reassign those steps first.", true);
         return;
     }
+    if (std::any_of(
+            project_.track_scripts.begin(), project_.track_scripts.end(), [&](const auto& track) {
+                return std::any_of(
+                    track.cues.begin(), track.cues.end(), [&](const auto& cue) {
+                        return cue.action == emberlights::TrackCueAction::TriggerLook &&
+                            cue.target_ref == id;
+                    });
+            })) {
+        set_page_message(Page::Looks, IdLookMessage,
+                         "This Static Look is used by a track script. Reassign those cues first.", true);
+        return;
+    }
     if (::MessageBoxW(window_, L"Delete this Static Look?", L"Delete Static Look",
                       MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
@@ -3570,6 +3765,7 @@ void Application::delete_look() {
     look_index_ = -1;
     mark_dirty();
     refresh_looks();
+    refresh_tracks();
     refresh_live_lists();
 }
 
@@ -3692,6 +3888,7 @@ void Application::save_autoloop() {
     }
     mark_dirty();
     refresh_autoloops();
+    refresh_tracks();
     refresh_live_lists();
     set_page_message(Page::Autoloops, IdAutoloopMessage, "Autoloop saved.");
 }
@@ -3699,6 +3896,19 @@ void Application::save_autoloop() {
 void Application::delete_autoloop() {
     if (autoloop_index_ < 0 ||
         static_cast<std::size_t>(autoloop_index_) >= project_.autoloops.size()) {
+        return;
+    }
+    const auto id = project_.autoloops[static_cast<std::size_t>(autoloop_index_)].id;
+    if (std::any_of(
+            project_.track_scripts.begin(), project_.track_scripts.end(), [&](const auto& track) {
+                return std::any_of(
+                    track.cues.begin(), track.cues.end(), [&](const auto& cue) {
+                        return cue.action == emberlights::TrackCueAction::TriggerAutoloop &&
+                            cue.target_ref == id;
+                    });
+            })) {
+        set_page_message(Page::Autoloops, IdAutoloopMessage,
+                         "This Autoloop is used by a track script. Reassign those cues first.", true);
         return;
     }
     if (::MessageBoxW(window_, L"Delete this Autoloop?", L"Delete Autoloop",
@@ -3709,6 +3919,104 @@ void Application::delete_autoloop() {
     autoloop_index_ = -1;
     mark_dirty();
     refresh_autoloops();
+    refresh_tracks();
+    refresh_live_lists();
+}
+
+void Application::select_track(std::int32_t index) {
+    if (index < 0 || static_cast<std::size_t>(index) >= project_.track_scripts.size()) {
+        new_track();
+        return;
+    }
+    track_index_ = index;
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    const auto& track = project_.track_scripts[static_cast<std::size_t>(index)];
+    set_control_text(::GetDlgItem(page, IdTrackName), track.name);
+    set_control_text(::GetDlgItem(page, IdTrackAudioKey), track.audio_key);
+    set_control_text(::GetDlgItem(page, IdTrackCues), track_cues_text(track));
+    ::EnableWindow(::GetDlgItem(page, IdTrackDuplicate), TRUE);
+    ::EnableWindow(::GetDlgItem(page, IdTrackDelete), TRUE);
+    set_page_message(Page::Tracks, IdTrackMessage,
+                     "Editing track script " + track.id + ".");
+}
+
+void Application::new_track() {
+    track_index_ = -1;
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    set_control_text(::GetDlgItem(page, IdTrackName), "");
+    set_control_text(::GetDlgItem(page, IdTrackAudioKey), "");
+    set_control_text(::GetDlgItem(page, IdTrackCues), "");
+    ::EnableWindow(::GetDlgItem(page, IdTrackDuplicate), FALSE);
+    ::EnableWindow(::GetDlgItem(page, IdTrackDelete), FALSE);
+    set_page_message(Page::Tracks, IdTrackMessage,
+                     "Create a portable beat script. Audio association is optional at this stage.");
+}
+
+void Application::duplicate_track() {
+    if (track_index_ < 0 ||
+        static_cast<std::size_t>(track_index_) >= project_.track_scripts.size()) {
+        return;
+    }
+    const auto source = project_.track_scripts[static_cast<std::size_t>(track_index_)];
+    new_track();
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    set_control_text(::GetDlgItem(page, IdTrackName), source.name + " Copy");
+    set_control_text(::GetDlgItem(page, IdTrackAudioKey), source.audio_key);
+    set_control_text(::GetDlgItem(page, IdTrackCues), track_cues_text(source));
+}
+
+void Application::save_track() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    emberlights::TrackScriptDefinition track;
+    track.name = trim(control_text(::GetDlgItem(page, IdTrackName)));
+    track.audio_key = trim(control_text(::GetDlgItem(page, IdTrackAudioKey)));
+    if (track.name.empty()) {
+        set_page_message(Page::Tracks, IdTrackMessage, "A track-script name is required.", true);
+        return;
+    }
+    std::string parse_error;
+    if (!parse_track_cue_rows(
+            control_text(::GetDlgItem(page, IdTrackCues)), track.cues, parse_error)) {
+        set_page_message(Page::Tracks, IdTrackMessage, parse_error, true);
+        return;
+    }
+    track.id = track_index_ >= 0
+        ? project_.track_scripts[static_cast<std::size_t>(track_index_)].id
+        : unique_id("track", track.name);
+    auto candidate = project_;
+    if (track_index_ >= 0) {
+        candidate.track_scripts[static_cast<std::size_t>(track_index_)] = track;
+    } else {
+        candidate.track_scripts.push_back(track);
+    }
+    const auto validation = emberlights::validate_project(candidate);
+    if (!validation.ok()) {
+        set_page_message(Page::Tracks, IdTrackMessage, first_validation_error(validation), true);
+        return;
+    }
+    project_ = std::move(candidate);
+    if (track_index_ < 0) {
+        track_index_ = static_cast<std::int32_t>(project_.track_scripts.size() - 1U);
+    }
+    mark_dirty();
+    refresh_tracks();
+    refresh_live_lists();
+    set_page_message(Page::Tracks, IdTrackMessage, "Track script saved.");
+}
+
+void Application::delete_track() {
+    if (track_index_ < 0 ||
+        static_cast<std::size_t>(track_index_) >= project_.track_scripts.size()) {
+        return;
+    }
+    if (::MessageBoxW(window_, L"Delete this track script?", L"Delete Track Script",
+                      MB_YESNO | MB_ICONWARNING) != IDYES) {
+        return;
+    }
+    project_.track_scripts.erase(project_.track_scripts.begin() + track_index_);
+    track_index_ = -1;
+    mark_dirty();
+    refresh_tracks();
     refresh_live_lists();
 }
 

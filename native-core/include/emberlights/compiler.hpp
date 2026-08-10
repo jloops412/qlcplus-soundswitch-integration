@@ -18,6 +18,17 @@ inline constexpr std::size_t kMaximumCompiledLooks = 256;
 inline constexpr std::size_t kMaximumCompiledLookAssignments = 32768;
 inline constexpr std::size_t kCompiledNameCapacity = 96;
 
+struct CompiledTrackCue {
+    float at_beat{0.0F};
+    TrackCueAction action{TrackCueAction::TriggerLook};
+    std::uint16_t target{0};
+};
+
+struct CompiledTrackScript {
+    const CompiledTrackCue* cues{nullptr};
+    std::size_t cue_count{0};
+};
+
 struct CompilationResult;
 
 class CompiledShow {
@@ -42,6 +53,10 @@ public:
     [[nodiscard]] std::uint32_t look_fade_ms(std::size_t index) const noexcept;
     [[nodiscard]] showcore::AutoloopRepeat autoloop_repeat(
         showcore::AutoloopAddress address) const noexcept;
+    [[nodiscard]] std::size_t track_script_count() const noexcept {
+        return track_script_count_;
+    }
+    [[nodiscard]] const CompiledTrackScript* track_script(std::size_t index) const noexcept;
     [[nodiscard]] std::size_t fixture_count() const noexcept {
         return engine_.patch().size();
     }
@@ -63,9 +78,13 @@ private:
     std::array<showcore::AutoloopPattern, showcore::kMaxAutoloops> patterns_{};
     std::array<showcore::AutoloopRepeat, showcore::kMaxAutoloops> repeats_{};
     showcore::AutoloopCatalog catalog_{};
+    std::array<CompiledTrackCue, kMaximumTrackCues> track_cues_{};
+    std::array<CompiledTrackScript, kMaximumTrackScripts> track_scripts_{};
     showcore::MidiMappingEngine midi_mappings_{};
     std::size_t look_count_{0};
     std::size_t look_assignment_count_{0};
+    std::size_t track_cue_count_{0};
+    std::size_t track_script_count_{0};
 };
 
 struct CompilationResult {

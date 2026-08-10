@@ -6,6 +6,7 @@
 #include "showcore/midi.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -15,6 +16,8 @@ namespace emberlights {
 
 inline constexpr std::uint32_t kProjectFormatVersion = 1;
 inline constexpr std::string_view kProjectExtension = ".emberlights";
+inline constexpr std::size_t kMaximumTrackScripts = 1024;
+inline constexpr std::size_t kMaximumTrackCues = 32768;
 
 struct ChannelDefinition {
     showcore::Property property{showcore::Property::Intensity};
@@ -82,6 +85,32 @@ struct AutoloopDefinition {
     std::vector<AutoloopStepDefinition> steps;
 };
 
+// Track scripts deliberately carry semantic references rather than fixture-channel
+// data. A cue starts at the supplied beat relative to the script trigger, making
+// the same authored show portable across compatible DJ timing sources.
+enum class TrackCueAction : std::uint8_t {
+    TriggerLook,
+    ClearLook,
+    TriggerAutoloop,
+    ClearAutoloop,
+    Count
+};
+
+struct TrackCueDefinition {
+    float at_beat{0.0F};
+    TrackCueAction action{TrackCueAction::TriggerLook};
+    std::string target_ref;
+};
+
+struct TrackScriptDefinition {
+    std::string id;
+    std::string name;
+    // Optional portable association key. It is intentionally not a local path;
+    // content hashing and media relinking will build on this stable hook.
+    std::string audio_key;
+    std::vector<TrackCueDefinition> cues;
+};
+
 struct MidiMappingDefinition {
     std::string device_name;
     std::string target_ref;
@@ -146,6 +175,7 @@ struct ProjectDocument {
     std::vector<GroupDefinition> groups;
     std::vector<LookDefinition> looks;
     std::vector<AutoloopDefinition> autoloops;
+    std::vector<TrackScriptDefinition> track_scripts;
     std::vector<MidiMappingDefinition> midi_mappings;
     std::vector<std::string> unknown_records;
 };
@@ -190,5 +220,9 @@ struct ProjectValidation {
 [[nodiscard]] bool parse_channel_encoding(
     std::string_view text,
     showcore::ChannelEncoding& encoding) noexcept;
+[[nodiscard]] std::string_view track_cue_action_name(TrackCueAction action) noexcept;
+[[nodiscard]] bool parse_track_cue_action(
+    std::string_view text,
+    TrackCueAction& action) noexcept;
 
 }  // namespace emberlights

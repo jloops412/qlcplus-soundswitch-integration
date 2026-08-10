@@ -74,6 +74,8 @@ struct RunnerService::RuntimeState {
     showcore::SyncManager sync{};
     showcore::StaticLookPlayer static_look{showcore::LayerId::EventMoment};
     showcore::AutoloopPlayer autonomous{showcore::LayerId::Autonomous};
+    showcore::StaticLookPlayer scripted_look{showcore::LayerId::TrackScript};
+    showcore::AutoloopPlayer scripted_autoloop{showcore::LayerId::TrackScript};
     showcore::AutoloopPlayer manual_autoloop{showcore::LayerId::ManualAutoloop};
     std::array<bool, showcore::kMaxMidiMappings> mapping_toggles{};
     std::array<std::array<float, showcore::kPropertyCount>, showcore::kMaxFixtures>
@@ -86,6 +88,10 @@ struct RunnerService::RuntimeState {
     std::uint64_t jitter_sample_count{0};
     showcore::AutoloopAddress selected_autoloop{};
     std::int32_t selected_look{-1};
+    std::int32_t selected_track_script{-1};
+    std::size_t next_track_cue{0};
+    double track_script_start_beat{0.0};
+    double last_track_script_beat{-1.0};
     bool track_playing{true};
     bool applied_work_light{false};
 };
@@ -149,6 +155,7 @@ bool RunnerService::start(
     beat_milli_.store(0, std::memory_order_relaxed);
     active_look_.store(-1, std::memory_order_relaxed);
     active_autoloop_.store(0xFFFFU, std::memory_order_relaxed);
+    active_track_script_.store(-1, std::memory_order_relaxed);
     fog_armed_.store(false, std::memory_order_relaxed);
     haze_armed_.store(false, std::memory_order_relaxed);
     laser_armed_.store(false, std::memory_order_relaxed);
@@ -334,6 +341,7 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.active_look = active_look_.load(std::memory_order_relaxed);
     snapshot.active_autoloop = decode_autoloop(
         active_autoloop_.load(std::memory_order_relaxed));
+    snapshot.active_track_script = active_track_script_.load(std::memory_order_relaxed);
     snapshot.blackout = blackout_requested_.load(std::memory_order_relaxed);
     snapshot.work_light = work_light_requested_.load(std::memory_order_relaxed);
     snapshot.fog_armed = fog_armed_.load(std::memory_order_relaxed);
@@ -410,6 +418,14 @@ bool RunnerService::next_autoloop() noexcept {
 
 bool RunnerService::previous_autoloop() noexcept {
     return post({RunnerCommandType::PreviousAutoloop});
+}
+
+bool RunnerService::trigger_track_script(std::uint16_t index) noexcept {
+    return post({RunnerCommandType::TriggerTrackScript, index});
+}
+
+bool RunnerService::clear_track_script() noexcept {
+    return post({RunnerCommandType::ClearTrackScript});
 }
 
 bool RunnerService::set_manual_bpm(double bpm) noexcept {
@@ -736,6 +752,89 @@ void RunnerService::run_scheduler() noexcept {
             }
         };
 
+        auto clear_track_script = [&]() noexcept {
+            runtime.scripted_look.clear(now_ms, 0U, engine.layers());
+            runtime.scripted_autoloop.clear(engine.layers());
+            runtime.selected_track_script = -1;
+            runtime.next_track_cue = 0U;
+            runtime.track_script_start_beat = 0.0;
+            runtime.last_track_script_beat = -1.0;
+        };
+
+        auto apply_track_cue = [&](const CompiledTrackCue& cue,
+                                   double beat_position) noexcept {
+            switch (cue.action) {
+            case TrackCueAction::TriggerLook:
+                if (const auto* look = show->look(cue.target); look != nullptr) {
+                    // A scripted scene and a scripted Autoloop share one semantic
+                    // layer. Triggering either is an intentional handoff, not an
+                    // accidental whole-layer overwrite on the scheduler tick.
+                    runtime.scripted_autoloop.clear(engine.layers());
+                    static_cast<void>(runtime.scripted_look.trigger(
+                        *look, now_ms, show->look_fade_ms(cue.target), engine.layers()));
+                }
+                break;
+            case TrackCueAction::ClearLook:
+                runtime.scripted_look.clear(now_ms, 0U, engine.layers());
+                break;
+            case TrackCueAction::TriggerAutoloop: {
+                const auto address = decode_autoloop(cue.target);
+                if (address.valid()) {
+                    runtime.scripted_look.clear(now_ms, 0U, engine.layers());
+                    static_cast<void>(runtime.scripted_autoloop.trigger(
+                        show->autoloops(),
+                        address,
+                        show->autoloop_repeat(address),
+                        beat_position,
+                        runtime.track_playing,
+                        engine.layers()));
+                }
+                break;
+            }
+            case TrackCueAction::ClearAutoloop:
+                runtime.scripted_autoloop.clear(engine.layers());
+                break;
+            case TrackCueAction::Count:
+                break;
+            }
+        };
+
+        auto run_track_script = [&](double beat_position) noexcept {
+            if (runtime.selected_track_script < 0) {
+                return;
+            }
+            const auto script_index = static_cast<std::size_t>(runtime.selected_track_script);
+            const auto* script = show->track_script(script_index);
+            if (script == nullptr) {
+                clear_track_script();
+                return;
+            }
+            const auto relative_beat = std::max(0.0, beat_position - runtime.track_script_start_beat);
+            constexpr double kSeekToleranceBeats = 0.001;
+            if (runtime.last_track_script_beat >= 0.0 &&
+                relative_beat + kSeekToleranceBeats < runtime.last_track_script_beat) {
+                runtime.scripted_look.clear(now_ms, 0U, engine.layers());
+                runtime.scripted_autoloop.clear(engine.layers());
+                runtime.next_track_cue = 0U;
+            }
+            while (runtime.next_track_cue < script->cue_count &&
+                   static_cast<double>(script->cues[runtime.next_track_cue].at_beat) <=
+                       relative_beat + kSeekToleranceBeats) {
+                apply_track_cue(script->cues[runtime.next_track_cue], beat_position);
+                ++runtime.next_track_cue;
+            }
+            runtime.last_track_script_beat = relative_beat;
+        };
+
+        auto trigger_track_script = [&](std::uint16_t index, double beat_position) noexcept {
+            if (show->track_script(index) == nullptr) {
+                return;
+            }
+            clear_track_script();
+            runtime.selected_track_script = static_cast<std::int32_t>(index);
+            runtime.track_script_start_beat = beat_position;
+        };
+
         auto arm_hazard = [&](showcore::Property property, bool armed) noexcept {
             switch (property) {
             case showcore::Property::Fog:
@@ -945,6 +1044,12 @@ void RunnerService::run_scheduler() noexcept {
                     show->autoloops().previous_available(runtime.selected_autoloop),
                     clock.beat_position);
                 break;
+            case RunnerCommandType::TriggerTrackScript:
+                trigger_track_script(command.target, clock.beat_position);
+                break;
+            case RunnerCommandType::ClearTrackScript:
+                clear_track_script();
+                break;
             case RunnerCommandType::SetManualBpm:
                 runtime.sync.set_manual_bpm(command.value, command.timestamp_ms);
                 break;
@@ -1003,6 +1108,13 @@ void RunnerService::run_scheduler() noexcept {
 
         clock = runtime.sync.tick(now_ms);
         runtime.autonomous.tick(clock.beat_position, runtime.track_playing, engine.layers());
+        run_track_script(clock.beat_position);
+        if (runtime.scripted_autoloop.status().active) {
+            runtime.scripted_autoloop.tick(
+                clock.beat_position, runtime.track_playing, engine.layers());
+        } else {
+            runtime.scripted_look.tick(now_ms, engine.layers());
+        }
         runtime.manual_autoloop.tick(
             clock.beat_position, runtime.track_playing, engine.layers());
         runtime.static_look.tick(now_ms, engine.layers());
@@ -1024,12 +1136,14 @@ void RunnerService::run_scheduler() noexcept {
         }
 
         const auto& manual_status = runtime.manual_autoloop.status();
+        const auto& scripted_status = runtime.scripted_autoloop.status();
         const auto& autonomous_status = runtime.autonomous.status();
         active_autoloop_.store(
             encode_autoloop(manual_status.active ? manual_status.address
-                                                 : autonomous_status.address),
+                : (scripted_status.active ? scripted_status.address : autonomous_status.address)),
             std::memory_order_relaxed);
         active_look_.store(runtime.selected_look, std::memory_order_relaxed);
+        active_track_script_.store(runtime.selected_track_script, std::memory_order_relaxed);
         sync_state_.store(clock.state, std::memory_order_relaxed);
         clock_source_.store(clock.source, std::memory_order_relaxed);
         bpm_milli_.store(
