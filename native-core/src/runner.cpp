@@ -91,6 +91,20 @@ void update_maximum(
         property == showcore::Property::Laser || property == showcore::Property::Spark;
 }
 
+constexpr std::array<showcore::Property, 12> kVisualBlackoutProperties{{
+    showcore::Property::Intensity,
+    showcore::Property::Red,
+    showcore::Property::Green,
+    showcore::Property::Blue,
+    showcore::Property::White,
+    showcore::Property::Amber,
+    showcore::Property::UV,
+    showcore::Property::Cyan,
+    showcore::Property::Magenta,
+    showcore::Property::Yellow,
+    showcore::Property::Lime,
+    showcore::Property::Indigo}};
+
 }  // namespace
 
 struct RunnerService::RuntimeState {
@@ -956,7 +970,8 @@ void RunnerService::run_scheduler() noexcept {
         auto set_manual_property = [&](std::uint16_t fixture,
                                        showcore::Property property,
                                        float value,
-                                       bool active) noexcept {
+                                       bool active,
+                                       bool force_zero) noexcept {
             if (fixture >= show->fixture_count() || property >= showcore::Property::Count) {
                 return;
             }
@@ -980,8 +995,17 @@ void RunnerService::run_scheduler() noexcept {
                 showcore::LayerId::ManualOverride,
                 fixture,
                 property,
-                active ? showcore::PropertyValue::set(current)
+                active ? (force_zero ? showcore::PropertyValue::force_zero()
+                                     : showcore::PropertyValue::set(current))
                        : showcore::PropertyValue::release());
+        };
+
+        auto set_group_blackout = [&](const showcore::FixtureGroup& group, bool active) noexcept {
+            for (std::size_t member = 0U; member < group.count; ++member) {
+                for (const auto property : kVisualBlackoutProperties) {
+                    set_manual_property(group.fixture_ids[member], property, 0.0F, active, true);
+                }
+            }
         };
 
         auto clear_manual_overrides = [&]() noexcept {
@@ -1063,7 +1087,7 @@ void RunnerService::run_scheduler() noexcept {
                 } else {
                     current = std::clamp(event.value, 0.0F, 1.0F);
                 }
-                set_manual_property(action.target_id, action.property, current, active);
+                set_manual_property(action.target_id, action.property, current, active, false);
                 break;
             }
             case showcore::ActionType::SetGroupProperty: {
@@ -1081,10 +1105,16 @@ void RunnerService::run_scheduler() noexcept {
                     } else {
                         current = std::clamp(event.value, 0.0F, 1.0F);
                     }
-                    set_manual_property(fixture, action.property, current, active);
+                    set_manual_property(fixture, action.property, current, active, false);
                 }
                 break;
             }
+            case showcore::ActionType::BlackoutGroup:
+                if (const auto* group = show->group(action.target_id);
+                    group != nullptr && group->count > 0U) {
+                    set_group_blackout(*group, active);
+                }
+                break;
             case showcore::ActionType::Blackout:
                 set_blackout(active);
                 break;
@@ -1249,7 +1279,7 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             case RunnerCommandType::SetProperty:
                 set_manual_property(
-                    command.target, command.property, command.value, command.active);
+                    command.target, command.property, command.value, command.active, false);
                 break;
             case RunnerCommandType::ArmHazard:
                 arm_hazard(command.property, command.active);
@@ -1285,7 +1315,7 @@ void RunnerService::run_scheduler() noexcept {
                     if ((command.fixture_mask[fixture / 64U] &
                          (std::uint64_t{1} << (fixture % 64U))) != 0U) {
                         set_manual_property(
-                            fixture, command.property, command.value, command.active);
+                            fixture, command.property, command.value, command.active, false);
                     }
                 }
                 break;
