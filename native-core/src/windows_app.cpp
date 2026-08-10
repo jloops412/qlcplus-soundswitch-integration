@@ -1938,6 +1938,7 @@ void listview_set_row(
     case showcore::ActionType::TriggerTrackScript: return "Start Track Script";
     case showcore::ActionType::ClearTrackScript: return "Clear Track Script";
     case showcore::ActionType::ClearManualOverrides: return "Release All Manual Overrides";
+    case showcore::ActionType::SetGroupProperty: return "Set group property";
     case showcore::ActionType::Count: return "Invalid";
     }
     return "Invalid";
@@ -2394,7 +2395,7 @@ void Application::refresh_midi() {
 
     const auto action = ::GetDlgItem(page, IdMidiAction);
     static_cast<void>(::SendMessageW(action, CB_RESETCONTENT, 0, 0));
-    constexpr std::array<showcore::ActionType, 17> actions{{
+    constexpr std::array<showcore::ActionType, 18> actions{{
         showcore::ActionType::Blackout,
         showcore::ActionType::WorkLight,
         showcore::ActionType::TriggerLook,
@@ -2408,6 +2409,7 @@ void Application::refresh_midi() {
         showcore::ActionType::PreviousAutoloop,
         showcore::ActionType::TapTempo,
         showcore::ActionType::SetProperty,
+        showcore::ActionType::SetGroupProperty,
         showcore::ActionType::ArmFog,
         showcore::ActionType::ArmHaze,
         showcore::ActionType::ArmLaser,
@@ -4915,6 +4917,12 @@ void Application::update_midi_targets() {
         for (std::size_t index = 0; index < project_.fixtures.size(); ++index) {
             combo_add(target, widen(project_.fixtures[index].name), static_cast<std::intptr_t>(index));
         }
+    } else if (action == showcore::ActionType::SetGroupProperty) {
+        needs_target = true;
+        needs_property = true;
+        for (std::size_t index = 0; index < project_.groups.size(); ++index) {
+            combo_add(target, widen(project_.groups[index].name), static_cast<std::intptr_t>(index));
+        }
     } else {
         combo_add(target, L"Not required", -1);
     }
@@ -4941,7 +4949,8 @@ void Application::begin_midi_learn() {
     const bool needs_target = action == showcore::ActionType::TriggerLook ||
         action == showcore::ActionType::TriggerAutoloop ||
         action == showcore::ActionType::TriggerTrackScript ||
-        action == showcore::ActionType::SetProperty;
+        action == showcore::ActionType::SetProperty ||
+        action == showcore::ActionType::SetGroupProperty;
     if (needs_target && combo_selected_data(::GetDlgItem(page, IdMidiTarget), -1) < 0) {
         set_page_message(Page::Midi, IdMidiMessage,
                          "Create and select the required fixture, Static Look, Autoloop, or track script first.", true);
@@ -5024,6 +5033,9 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
     } else if (mapping.action.type == showcore::ActionType::SetProperty && target >= 0 &&
                static_cast<std::size_t>(target) < project_.fixtures.size()) {
         mapping.target_ref = project_.fixtures[static_cast<std::size_t>(target)].id;
+    } else if (mapping.action.type == showcore::ActionType::SetGroupProperty && target >= 0 &&
+               static_cast<std::size_t>(target) < project_.groups.size()) {
+        mapping.target_ref = project_.groups[static_cast<std::size_t>(target)].id;
     }
     project_.midi_mappings.push_back(std::move(mapping));
     midi_learning_ = false;
