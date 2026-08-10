@@ -107,6 +107,8 @@ struct RunnerStatus {
     std::uint32_t active_autoloop_completed_cycles{0};
     std::uint64_t active_autoloop_bank_mask{~std::uint64_t{0}};
     std::int32_t active_track_script{-1};
+    double active_track_script_beat{0.0};
+    std::uint32_t active_track_script_consumed_cues{0};
     bool blackout{false};
     bool work_light{false};
     bool fog_armed{false};
@@ -268,6 +270,8 @@ private:
     std::atomic<std::uint64_t> active_autoloop_playback_{0x0FFFU};
     std::atomic<std::uint64_t> active_autoloop_bank_mask_{~std::uint64_t{0}};
     std::atomic<std::int32_t> active_track_script_{-1};
+    std::atomic<std::int64_t> active_track_script_beat_milli_{0};
+    std::atomic<std::uint32_t> active_track_script_consumed_cues_{0};
     std::atomic<bool> fog_armed_{false};
     std::atomic<bool> haze_armed_{false};
     std::atomic<bool> laser_armed_{false};

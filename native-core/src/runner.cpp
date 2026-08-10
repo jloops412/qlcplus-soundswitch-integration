@@ -197,6 +197,8 @@ bool RunnerService::start(
     active_autoloop_playback_.store(kPackedInvalidAutoloopAddress, std::memory_order_relaxed);
     active_autoloop_bank_mask_.store(~std::uint64_t{0}, std::memory_order_relaxed);
     active_track_script_.store(-1, std::memory_order_relaxed);
+    active_track_script_beat_milli_.store(0, std::memory_order_relaxed);
+    active_track_script_consumed_cues_.store(0U, std::memory_order_relaxed);
     fog_armed_.store(false, std::memory_order_relaxed);
     haze_armed_.store(false, std::memory_order_relaxed);
     laser_armed_.store(false, std::memory_order_relaxed);
@@ -398,6 +400,10 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.active_autoloop_bank_mask =
         active_autoloop_bank_mask_.load(std::memory_order_relaxed);
     snapshot.active_track_script = active_track_script_.load(std::memory_order_relaxed);
+    snapshot.active_track_script_beat = static_cast<double>(
+        active_track_script_beat_milli_.load(std::memory_order_relaxed)) / 1000.0;
+    snapshot.active_track_script_consumed_cues =
+        active_track_script_consumed_cues_.load(std::memory_order_relaxed);
     snapshot.blackout = blackout_requested_.load(std::memory_order_relaxed);
     snapshot.work_light = work_light_requested_.load(std::memory_order_relaxed);
     snapshot.fog_armed = fog_armed_.load(std::memory_order_relaxed);
@@ -868,6 +874,8 @@ void RunnerService::run_scheduler() noexcept {
             runtime.next_track_cue = 0U;
             runtime.track_script_start_beat = 0.0;
             runtime.last_track_script_beat = -1.0;
+            active_track_script_beat_milli_.store(0, std::memory_order_relaxed);
+            active_track_script_consumed_cues_.store(0U, std::memory_order_relaxed);
         };
 
         auto apply_track_cue = [&](const CompiledTrackCue& cue,
@@ -933,6 +941,10 @@ void RunnerService::run_scheduler() noexcept {
                 ++runtime.next_track_cue;
             }
             runtime.last_track_script_beat = relative_beat;
+            active_track_script_beat_milli_.store(
+                static_cast<std::int64_t>(relative_beat * 1000.0), std::memory_order_relaxed);
+            active_track_script_consumed_cues_.store(
+                static_cast<std::uint32_t>(runtime.next_track_cue), std::memory_order_relaxed);
         };
 
         auto trigger_track_script = [&](std::uint16_t index, double beat_position) noexcept {
@@ -942,6 +954,8 @@ void RunnerService::run_scheduler() noexcept {
             clear_track_script();
             runtime.selected_track_script = static_cast<std::int32_t>(index);
             runtime.track_script_start_beat = beat_position;
+            active_track_script_beat_milli_.store(0, std::memory_order_relaxed);
+            active_track_script_consumed_cues_.store(0U, std::memory_order_relaxed);
         };
 
         auto arm_hazard = [&](showcore::Property property, bool armed) noexcept {
