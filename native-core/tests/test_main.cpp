@@ -1788,6 +1788,23 @@ void test_runner_service_lifecycle() {
     CHECK(!runner.set_autoloop_bank_enabled(showcore::kMaxAutoloopBanks, true));
     CHECK(runner.select_all_autoloop_banks());
     CHECK(wait_for_bank_mask(all_banks));
+    auto wait_for_override_count = [&](std::uint16_t expected) {
+        const auto override_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (runner.status().manual_override_count != expected &&
+               std::chrono::steady_clock::now() < override_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return runner.status().manual_override_count == expected;
+    };
+    CHECK(runner.set_property(0U, showcore::Property::Intensity, 0.75F));
+    CHECK(wait_for_override_count(1U));
+    CHECK(runner.set_property(0U, showcore::Property::Red, 0.25F));
+    CHECK(wait_for_override_count(2U));
+    CHECK(runner.set_property(0U, showcore::Property::Intensity, 0.0F, false));
+    CHECK(wait_for_override_count(1U));
+    CHECK(runner.clear_manual_overrides());
+    CHECK(wait_for_override_count(0U));
+    CHECK(!runner.set_property(0U, showcore::Property::Count, 0.5F));
     CHECK(runner.trigger_look(0));
     CHECK(runner.trigger_autoloop({7, 3}));
     CHECK(runner.trigger_track_script(0));
@@ -1841,6 +1858,7 @@ void test_runner_service_lifecycle() {
     CHECK(activated.active_autoloop_repeat == showcore::AutoloopRepeat::Infinite);
     CHECK(activated.active_autoloop_progress >= 0.0F && activated.active_autoloop_progress <= 1.0F);
     CHECK(activated.active_autoloop_bank_mask == (std::uint64_t{1} << 7U));
+    CHECK(activated.manual_override_count == 0U);
 
     auto restart_project = updated_project;
     restart_project.connections.frame_rate = 39U;
@@ -1856,6 +1874,7 @@ void test_runner_service_lifecycle() {
     CHECK(still_active.package_activation_failures == 1U);
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
+    CHECK(runner.status().manual_override_count == 0U);
 }
 
 void test_soundswitch_read_only_inspection_and_bundle() {
