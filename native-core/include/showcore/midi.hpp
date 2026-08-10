@@ -77,6 +77,7 @@ enum class ActionType : std::uint8_t {
     TriggerTrackScript,
     ClearTrackScript,
     ClearManualOverrides,
+    SetGroupProperty,
     Count
 };
 

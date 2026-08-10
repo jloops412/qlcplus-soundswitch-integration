@@ -1066,6 +1066,25 @@ void RunnerService::run_scheduler() noexcept {
                 set_manual_property(action.target_id, action.property, current, active);
                 break;
             }
+            case showcore::ActionType::SetGroupProperty: {
+                const auto* group = show->group(action.target_id);
+                if (group == nullptr || group->count == 0U ||
+                    action.property >= showcore::Property::Count) {
+                    break;
+                }
+                for (std::size_t member = 0U; member < group->count; ++member) {
+                    const auto fixture = group->fixture_ids[member];
+                    auto& current = runtime.manual_values[fixture]
+                        [static_cast<std::size_t>(action.property)];
+                    if (event.relative) {
+                        current = std::clamp(current + event.value * 0.05F, 0.0F, 1.0F);
+                    } else {
+                        current = std::clamp(event.value, 0.0F, 1.0F);
+                    }
+                    set_manual_property(fixture, action.property, current, active);
+                }
+                break;
+            }
             case showcore::ActionType::Blackout:
                 set_blackout(active);
                 break;

@@ -24,7 +24,7 @@ Implemented:
 - OS2L healthy/predictive/audio/recovery/manual/safe synchronization states;
 - fixed-capacity SPSC beat delivery from adapter to scheduler, with explicit overflow accounting;
 - non-droppable OS2L blackout state independent of the beat queue;
-- device-agnostic MIDI mappings, multiple-device matching, curves, inversion, relative encoders, soft takeover, and a targetless Release All Manual Overrides action that shares the bounded Runner path with the Live control;
+- device-agnostic MIDI mappings, multiple-device matching, curves, inversion, relative encoders, soft takeover, a targetless Release All Manual Overrides action, and compiled named-group property control; all share bounded Runner paths with the Live controls;
 - portable WinMM short-message encode/decode with ingress timestamps, plus an isolated Windows adapter for enumeration, up to 16 simultaneous input/output ports, per-input callback queues, dropped-message counters, and short-message feedback output;
 - `midi_capture` utility for listing ports and recording one, several, or all Windows MIDI inputs, ready for Control One protocol capture;
 - fixture-agnostic compiled Static Looks with sparse SET/RELEASE/FORCE_ZERO assignments, interruption-safe switching, configurable fade-in, and crossfaded clearing;
@@ -38,7 +38,7 @@ Implemented:
 - latest-frame-wins output queue consumption so a temporarily blocked adapter does not replay stale frames after it recovers;
 - end-to-end two-universe `runner_lab` with separate adapter/status and scheduling threads, dry-run default, optional Art-Net output, finite-duration smoke mode, and live status/jitter counters;
 - versioned/checksummed `.emberlights` projects, atomic save/verify/replace, last-known-good backup recovery, verified bounded 20-version restore history with safe Windows restore, 100-state Studio Undo/Redo, and unknown-record preservation;
-- fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, dedicated transient fixture/group Overrides, and Diagnostics workflows in the native Windows application, including Runner-published active-Autoloop repeat/progress/cycle and manual-override-count feedback; the same clear-overrides action is bindable from any supported MIDI controller;
+- fixture/profile/patch/group/role, Static Look, Autoloop, MIDI Learn, Connections, Safety, Live, dedicated transient fixture/group Overrides, and Diagnostics workflows in the native Windows application, including Runner-published active-Autoloop repeat/progress/cycle and manual-override-count feedback; clear-overrides and named-group property controls are bindable from any supported MIDI controller;
 - bounded Studio-only QLC+ QXF import with OFL-export provenance detection, coarse/fine pairing, semantic/range conversion, native validation, approximation reports, and unsafe-mode quarantine;
 - fixed-capacity Runner health telemetry for uptime, last-frame age, p99/max jitter, deadline misses, and scheduler resynchronization;
 - an installed 128-fixture/two-universe qualification tool with safe no-DMX default, optional isolated Art-Net/sACN loopback, strict release ceilings, and machine-readable JSON evidence;

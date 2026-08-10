@@ -16,6 +16,7 @@ namespace emberlights {
 
 inline constexpr std::size_t kMaximumCompiledLooks = 256;
 inline constexpr std::size_t kMaximumCompiledLookAssignments = 32768;
+inline constexpr std::size_t kMaximumCompiledGroups = kMaximumFixtureGroups;
 inline constexpr std::size_t kCompiledNameCapacity = 96;
 
 struct CompiledTrackCue {
@@ -60,6 +61,7 @@ public:
     [[nodiscard]] std::size_t fixture_count() const noexcept {
         return engine_.patch().size();
     }
+    [[nodiscard]] const showcore::FixtureGroup* group(std::size_t index) const noexcept;
 
 private:
     friend struct CompilationResult;
@@ -80,11 +82,13 @@ private:
     showcore::AutoloopCatalog catalog_{};
     std::array<CompiledTrackCue, kMaximumTrackCues> track_cues_{};
     std::array<CompiledTrackScript, kMaximumTrackScripts> track_scripts_{};
+    std::array<showcore::FixtureGroup, kMaximumCompiledGroups> groups_{};
     showcore::MidiMappingEngine midi_mappings_{};
     std::size_t look_count_{0};
     std::size_t look_assignment_count_{0};
     std::size_t track_cue_count_{0};
     std::size_t track_script_count_{0};
+    std::size_t group_count_{0};
 };
 
 struct CompilationResult {
