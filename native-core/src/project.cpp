@@ -466,6 +466,49 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         }
     }
 
+    if (project.track_scripts.size() > kMaximumTrackScripts) {
+        add_issue(result, ProjectIssueSeverity::Error, "track.capacity", project.id,
+                  "The project exceeds the compiled track-script capacity.");
+    }
+    std::unordered_set<std::string_view> track_ids;
+    std::size_t track_cue_count = 0;
+    for (const auto& track : project.track_scripts) {
+        if (!valid_identifier(track.id) || !track_ids.insert(track.id).second) {
+            add_issue(result, ProjectIssueSeverity::Error, "track.id", track.id,
+                      "Track-script IDs must be unique and valid.");
+        }
+        if (track.name.empty()) {
+            add_issue(result, ProjectIssueSeverity::Error, "track.name", track.id,
+                      "A track script needs a display name.");
+        }
+        if (!track.audio_key.empty() && !valid_identifier(track.audio_key)) {
+            add_issue(result, ProjectIssueSeverity::Error, "track.audioKey", track.id,
+                      "A track audio key must be 96 characters or fewer.");
+        }
+        track_cue_count += track.cues.size();
+        float previous = -1.0F;
+        for (const auto& cue : track.cues) {
+            const bool references_look = cue.action == TrackCueAction::TriggerLook;
+            const bool references_autoloop = cue.action == TrackCueAction::TriggerAutoloop;
+            const bool clears = cue.action == TrackCueAction::ClearLook ||
+                cue.action == TrackCueAction::ClearAutoloop;
+            if (!std::isfinite(cue.at_beat) || cue.at_beat < 0.0F ||
+                cue.at_beat < previous || cue.action >= TrackCueAction::Count ||
+                (references_look && look_ids.find(cue.target_ref) == look_ids.end()) ||
+                (references_autoloop && autoloop_ids.find(cue.target_ref) == autoloop_ids.end()) ||
+                (clears && !cue.target_ref.empty())) {
+                add_issue(result, ProjectIssueSeverity::Error, "track.cue", track.id,
+                          "Track cues must be ordered, use supported actions, and reference a valid target.");
+                break;
+            }
+            previous = cue.at_beat;
+        }
+    }
+    if (track_cue_count > kMaximumTrackCues) {
+        add_issue(result, ProjectIssueSeverity::Error, "track.cueCapacity", project.id,
+                  "The project exceeds the compiled track-cue capacity.");
+    }
+
     if (project.midi_mappings.size() > showcore::kMaxMidiMappings) {
         add_issue(result, ProjectIssueSeverity::Error, "midi.capacity", project.id,
                   "The project exceeds the V1 MIDI mapping capacity.");
@@ -521,6 +564,32 @@ bool parse_channel_encoding(
         encoding = showcore::ChannelEncoding::Ranged8;
     } else if (text == "constant8") {
         encoding = showcore::ChannelEncoding::Constant8;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+std::string_view track_cue_action_name(TrackCueAction action) noexcept {
+    switch (action) {
+    case TrackCueAction::TriggerLook: return "triggerLook";
+    case TrackCueAction::ClearLook: return "clearLook";
+    case TrackCueAction::TriggerAutoloop: return "triggerAutoloop";
+    case TrackCueAction::ClearAutoloop: return "clearAutoloop";
+    case TrackCueAction::Count: break;
+    }
+    return "invalid";
+}
+
+bool parse_track_cue_action(std::string_view text, TrackCueAction& action) noexcept {
+    if (text == "triggerLook") {
+        action = TrackCueAction::TriggerLook;
+    } else if (text == "clearLook") {
+        action = TrackCueAction::ClearLook;
+    } else if (text == "triggerAutoloop") {
+        action = TrackCueAction::TriggerAutoloop;
+    } else if (text == "clearAutoloop") {
+        action = TrackCueAction::ClearAutoloop;
     } else {
         return false;
     }
