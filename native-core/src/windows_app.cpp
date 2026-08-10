@@ -1685,6 +1685,8 @@ void listview_set_row(
     case showcore::ActionType::ArmHaze: return "Arm haze";
     case showcore::ActionType::ArmLaser: return "Arm laser";
     case showcore::ActionType::ArmSpark: return "Arm sparks";
+    case showcore::ActionType::TriggerTrackScript: return "Start Track Script";
+    case showcore::ActionType::ClearTrackScript: return "Clear Track Script";
     case showcore::ActionType::Count: return "Invalid";
     }
     return "Invalid";
@@ -2018,13 +2020,15 @@ void Application::refresh_midi() {
 
     const auto action = ::GetDlgItem(page, IdMidiAction);
     static_cast<void>(::SendMessageW(action, CB_RESETCONTENT, 0, 0));
-    constexpr std::array<showcore::ActionType, 14> actions{{
+    constexpr std::array<showcore::ActionType, 16> actions{{
         showcore::ActionType::Blackout,
         showcore::ActionType::WorkLight,
         showcore::ActionType::TriggerLook,
         showcore::ActionType::ClearLook,
         showcore::ActionType::TriggerAutoloop,
         showcore::ActionType::ClearAutoloop,
+        showcore::ActionType::TriggerTrackScript,
+        showcore::ActionType::ClearTrackScript,
         showcore::ActionType::NextAutoloop,
         showcore::ActionType::PreviousAutoloop,
         showcore::ActionType::TapTempo,
@@ -4152,6 +4156,12 @@ void Application::update_midi_targets() {
                   << static_cast<unsigned int>(loop.slot + 1U) << " — " << loop.name;
             combo_add(target, widen(label.str()), static_cast<std::intptr_t>(index));
         }
+    } else if (action == showcore::ActionType::TriggerTrackScript) {
+        needs_target = true;
+        for (std::size_t index = 0; index < project_.track_scripts.size(); ++index) {
+            const auto& track = project_.track_scripts[index];
+            combo_add(target, widen(track.name), static_cast<std::intptr_t>(index));
+        }
     } else if (action == showcore::ActionType::SetProperty) {
         needs_target = true;
         needs_property = true;
@@ -4183,10 +4193,11 @@ void Application::begin_midi_learn() {
         static_cast<std::intptr_t>(showcore::ActionType::Blackout)));
     const bool needs_target = action == showcore::ActionType::TriggerLook ||
         action == showcore::ActionType::TriggerAutoloop ||
+        action == showcore::ActionType::TriggerTrackScript ||
         action == showcore::ActionType::SetProperty;
     if (needs_target && combo_selected_data(::GetDlgItem(page, IdMidiTarget), -1) < 0) {
         set_page_message(Page::Midi, IdMidiMessage,
-                         "Create and select the required fixture, Static Look, or Autoloop first.", true);
+                         "Create and select the required fixture, Static Look, Autoloop, or track script first.", true);
         return;
     }
     const auto runner_status = runner_.status();
@@ -4259,6 +4270,9 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
     } else if (mapping.action.type == showcore::ActionType::TriggerAutoloop && target >= 0 &&
                static_cast<std::size_t>(target) < project_.autoloops.size()) {
         mapping.target_ref = project_.autoloops[static_cast<std::size_t>(target)].id;
+    } else if (mapping.action.type == showcore::ActionType::TriggerTrackScript && target >= 0 &&
+               static_cast<std::size_t>(target) < project_.track_scripts.size()) {
+        mapping.target_ref = project_.track_scripts[static_cast<std::size_t>(target)].id;
     } else if (mapping.action.type == showcore::ActionType::SetProperty && target >= 0 &&
                static_cast<std::size_t>(target) < project_.fixtures.size()) {
         mapping.target_ref = project_.fixtures[static_cast<std::size_t>(target)].id;
