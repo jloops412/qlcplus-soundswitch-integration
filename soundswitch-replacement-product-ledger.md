@@ -2,7 +2,7 @@
 
 Status: native vertical slice implemented and verified; Windows hardware laboratory next
 
-Last updated: 2026-08-08
+Last updated: 2026-08-10
 
 ## Product direction
 
@@ -109,6 +109,7 @@ This matches SoundSwitch's documented Autoloop behavior while making Static Look
 - Dependency-light C++20 native reference core created under `native-core/`.
 - Implemented and tested: sparse property layers; strict fixture-profile/patch validation; broad semantic and custom attribute lanes; defaults, constants, inverted/discrete 8-bit and 16-bit fixture rendering; literal raw-zero safety; fail-closed fog/haze/laser/spark policy; two universe frames; OS2L flat-message parsing; sync failover; MIDI mapping/soft takeover; Autoloop pattern; ArtDMX encoding; IPv4 unicast; deterministic replay; and zero-allocation rendering.
 - Added a fixed compiled fixture-profile store with provenance and fail-independent quarantine, generic Static Look playback with interruption-safe crossfades, and a scalable 64×32 Autoloop catalog/player with a pageable four-bank control window, one-shot natural return, infinite repeat, track-duration repeat, progress, bank selection, duplication, and slot movement.
+- Added transient Live Overrides for fixtures and named groups with a one-touch, MIDI-bindable Release All action. The action is targetless, shares the bounded MIDI-to-Runner path, clears only the ManualOverride layer, preserves prior persisted MIDI action values, and reports its active override count back to Live and Diagnostics.
 - Release benchmark with 128 fixtures and one million full renders measured approximately 16.2 microseconds per tick, an 875,552-byte engine object, and about 4.5 MB max RSS in the current Linux environment.
 - A 128-fixture full performance benchmark with continuous Autoloop interpolation and Static Look transitions measured approximately 113.6 microseconds per update, about 0.45% of one CPU core at 40 Hz, and about 5.2 MB max RSS in this environment.
 - This checkpoint does not constitute Windows, VirtualDJ, Control One, or live-event qualification.
