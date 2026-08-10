@@ -586,7 +586,8 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                       "MIDI mapping action is outside the supported range.");
             continue;
         }
-        if (mapping.action.type == showcore::ActionType::SelectAutoloopBank &&
+        if ((mapping.action.type == showcore::ActionType::SelectAutoloopBank ||
+             mapping.action.type == showcore::ActionType::SetAutoloopBankEnabled) &&
             mapping.action.target_id >= showcore::kMaxAutoloopBanks) {
             add_issue(result, ProjectIssueSeverity::Error, "midi.bank", mapping.device_name,
                       "MIDI Autoloop-bank selection must reference a valid bank.");
