@@ -1,4 +1,5 @@
 #include "emberlights/compiler.hpp"
+#include "emberlights/audio_assets.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
@@ -220,6 +221,10 @@ enum ControlId : int {
     IdTrackSave,
     IdTrackDelete,
     IdTrackName,
+    IdTrackAudioAsset,
+    IdTrackAddAudio,
+    IdTrackRelinkAudio,
+    IdTrackVerifyAudio,
     IdTrackAudioKey,
     IdTrackCues,
     IdTrackHelp,
@@ -296,6 +301,8 @@ enum ControlId : int {
     case IdAutoloopSwapTarget:
     case IdTrackSave:
     case IdTrackDelete:
+    case IdTrackAddAudio:
+    case IdTrackRelinkAudio:
     case IdMidiDelete:
     case IdConnectionsApply:
     case IdSafetyApply:
@@ -626,6 +633,7 @@ private:
     void refresh_looks();
     void refresh_autoloops();
     void refresh_tracks();
+    void refresh_track_audio_assets(std::string_view selected_asset_id);
     void refresh_midi();
     void refresh_connections();
     void refresh_safety();
@@ -683,6 +691,8 @@ private:
     void duplicate_track();
     void save_track();
     void delete_track();
+    void import_audio_for_track(bool relink);
+    void verify_selected_audio_for_track();
 
     void apply_connections();
     void apply_safety();
@@ -1296,14 +1306,20 @@ void Application::create_pages() {
     add_button(page, L"Delete", IdTrackDelete);
     add_label(page, L"Name", 0);
     add_edit(page, IdTrackName);
-    add_label(page, L"Audio key (optional)", 0);
+    add_label(page, L"Audio asset (optional)", 0);
+    add_combo(page, IdTrackAudioAsset);
+    add_button(page, L"Add Audio...", IdTrackAddAudio);
+    add_button(page, L"Relink...", IdTrackRelinkAudio);
+    add_button(page, L"Verify", IdTrackVerifyAudio);
+    add_label(page, L"Legacy migration key (optional)", 0);
     add_edit(page, IdTrackAudioKey);
     add_label(page, L"Beat-addressed cues", 0);
     add_edit(page, IdTrackCues, true);
     add_label(
         page,
         L"One cue per line: beat, triggerLook|clearLook|triggerAutoloop|clearAutoloop, target-id. "
-        L"Clear actions leave target-id blank. Start a script from Live; cues replay safely after a beat seek.",
+        L"Add Audio records a content identity without copying or modifying your music. Relink accepts only "
+        L"the same SHA-256/size. Clear actions leave target-id blank; cues replay safely after a beat seek.",
         IdTrackHelp);
     add_label(page, L"", IdTrackMessage);
 
@@ -1634,11 +1650,16 @@ void Application::layout_page(Page page, int width, int height) {
         move(6, x, 70, 130, 26);
         move(7, x + 130, 70, form_width - 130, 27);
         move(8, x, 108, 130, 26);
-        move(9, x + 130, 108, form_width - 130, 27);
-        move(10, x, 148, form_width, 26);
-        move(11, x, 178, form_width, std::max(190, height - 345));
-        move(12, x, height - 130, form_width, 50);
-        move(13, x, height - 72, form_width, 30);
+        move(9, x + 130, 108, form_width - 130, 200);
+        move(10, x, 146, 115, 30);
+        move(11, x + 125, 146, 100, 30);
+        move(12, x + 235, 146, 100, 30);
+        move(13, x, 188, 190, 26);
+        move(14, x + 190, 188, form_width - 190, 27);
+        move(15, x, 228, form_width, 26);
+        move(16, x, 258, form_width, std::max(150, height - 425));
+        move(17, x, height - 130, form_width, 50);
+        move(18, x, height - 72, form_width, 30);
         break;
     }
     case Page::Midi:
@@ -2068,7 +2089,13 @@ void Application::refresh_live_lists() {
         const auto& track = live.track_scripts[index];
         std::ostringstream label;
         label << track.name;
-        if (!track.audio_key.empty()) {
+        const auto asset = std::find_if(
+            live.audio_assets.begin(), live.audio_assets.end(), [&](const auto& candidate) {
+                return candidate.id == track.audio_asset_id;
+            });
+        if (asset != live.audio_assets.end()) {
+            label << " — " << asset->name;
+        } else if (!track.audio_key.empty()) {
             label << " — " << track.audio_key;
         }
         label << " (" << track.cues.size() << " cue" << (track.cues.size() == 1U ? "" : "s")
@@ -2364,7 +2391,17 @@ void Application::refresh_tracks() {
     for (std::size_t index = 0; index < project_.track_scripts.size(); ++index) {
         const auto& track = project_.track_scripts[index];
         std::ostringstream label;
-        label << track.name << " (" << track.cues.size() << " cue"
+        label << track.name;
+        const auto asset = std::find_if(
+            project_.audio_assets.begin(), project_.audio_assets.end(), [&](const auto& candidate) {
+                return candidate.id == track.audio_asset_id;
+            });
+        if (asset != project_.audio_assets.end()) {
+            label << " — " << asset->name;
+        } else if (!track.audio_key.empty()) {
+            label << " — migration key";
+        }
+        label << " (" << track.cues.size() << " cue"
               << (track.cues.size() == 1U ? "" : "s") << ')';
         listbox_add(list, widen(label.str()), index);
     }
@@ -2375,6 +2412,28 @@ void Application::refresh_tracks() {
     } else {
         new_track();
     }
+}
+
+void Application::refresh_track_audio_assets(std::string_view selected_asset_id) {
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    const auto combo = ::GetDlgItem(page, IdTrackAudioAsset);
+    static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+    combo_add(combo, L"No linked audio asset", -1);
+    std::intptr_t selected = -1;
+    for (std::size_t index = 0; index < project_.audio_assets.size(); ++index) {
+        const auto& asset = project_.audio_assets[index];
+        std::ostringstream label;
+        label << asset.name;
+        if (asset.file_name != asset.name) {
+            label << " — " << asset.file_name;
+        }
+        label << " (" << asset.size_bytes << " bytes)";
+        combo_add(combo, widen(label.str()), static_cast<std::intptr_t>(index));
+        if (asset.id == selected_asset_id) {
+            selected = static_cast<std::intptr_t>(index);
+        }
+    }
+    combo_select_data(combo, selected);
 }
 
 void Application::refresh_midi() {
@@ -2562,6 +2621,7 @@ std::string Application::diagnostics_text() const {
            << "  Static Looks: " << project_.looks.size()
            << "  Autoloops: " << project_.autoloops.size()
            << "  Track scripts: " << project_.track_scripts.size()
+           << "  Audio assets: " << project_.audio_assets.size()
            << "  MIDI mappings: " << project_.midi_mappings.size() << "\r\n"
            << "Validation: " << validation.error_count() << " error(s), "
            << validation.warning_count() << " warning(s)\r\n\r\n"
@@ -2895,6 +2955,9 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdTrackDuplicate: duplicate_track(); break;
     case IdTrackSave: save_track(); break;
     case IdTrackDelete: delete_track(); break;
+    case IdTrackAddAudio: import_audio_for_track(false); break;
+    case IdTrackRelinkAudio: import_audio_for_track(true); break;
+    case IdTrackVerifyAudio: verify_selected_audio_for_track(); break;
     case IdRefreshMidi: refresh_midi_ports(); break;
     case IdConnectionsApply: apply_connections(); break;
     case IdSafetyApply: apply_safety(); break;
@@ -3639,7 +3702,10 @@ std::string Application::unique_id(std::string_view prefix, std::string_view nam
         const auto loop = std::any_of(
             project_.autoloops.begin(), project_.autoloops.end(),
             [&](const auto& value) { return value.id == candidate; });
-        return profile || fixture || look || loop;
+        const auto audio = std::any_of(
+            project_.audio_assets.begin(), project_.audio_assets.end(),
+            [&](const auto& value) { return value.id == candidate; });
+        return profile || fixture || look || loop || audio;
     };
     if (!exists(base)) {
         return base;
@@ -4698,6 +4764,7 @@ void Application::select_track(std::int32_t index) {
     const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
     const auto& track = project_.track_scripts[static_cast<std::size_t>(index)];
     set_control_text(::GetDlgItem(page, IdTrackName), track.name);
+    refresh_track_audio_assets(track.audio_asset_id);
     set_control_text(::GetDlgItem(page, IdTrackAudioKey), track.audio_key);
     set_control_text(::GetDlgItem(page, IdTrackCues), track_cues_text(track));
     ::EnableWindow(::GetDlgItem(page, IdTrackDuplicate), TRUE);
@@ -4710,12 +4777,13 @@ void Application::new_track() {
     track_index_ = -1;
     const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
     set_control_text(::GetDlgItem(page, IdTrackName), "");
+    refresh_track_audio_assets({});
     set_control_text(::GetDlgItem(page, IdTrackAudioKey), "");
     set_control_text(::GetDlgItem(page, IdTrackCues), "");
     ::EnableWindow(::GetDlgItem(page, IdTrackDuplicate), FALSE);
     ::EnableWindow(::GetDlgItem(page, IdTrackDelete), FALSE);
     set_page_message(Page::Tracks, IdTrackMessage,
-                     "Create a portable beat script. Audio association is optional at this stage.");
+                     "Create a portable beat script. Link audio by content identity when it is available.");
 }
 
 void Application::duplicate_track() {
@@ -4727,6 +4795,7 @@ void Application::duplicate_track() {
     new_track();
     const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
     set_control_text(::GetDlgItem(page, IdTrackName), source.name + " Copy");
+    refresh_track_audio_assets(source.audio_asset_id);
     set_control_text(::GetDlgItem(page, IdTrackAudioKey), source.audio_key);
     set_control_text(::GetDlgItem(page, IdTrackCues), track_cues_text(source));
 }
@@ -4736,6 +4805,12 @@ void Application::save_track() {
     emberlights::TrackScriptDefinition track;
     track.name = trim(control_text(::GetDlgItem(page, IdTrackName)));
     track.audio_key = trim(control_text(::GetDlgItem(page, IdTrackAudioKey)));
+    const auto audio_asset_index = combo_selected_data(
+        ::GetDlgItem(page, IdTrackAudioAsset), -1);
+    if (audio_asset_index >= 0 &&
+        static_cast<std::size_t>(audio_asset_index) < project_.audio_assets.size()) {
+        track.audio_asset_id = project_.audio_assets[static_cast<std::size_t>(audio_asset_index)].id;
+    }
     if (track.name.empty()) {
         set_page_message(Page::Tracks, IdTrackMessage, "A track-script name is required.", true);
         return;
@@ -4784,6 +4859,128 @@ void Application::delete_track() {
     mark_dirty();
     refresh_tracks();
     refresh_live_lists();
+}
+
+void Application::import_audio_for_track(bool relink) {
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    if (track_index_ < 0 ||
+        static_cast<std::size_t>(track_index_) >= project_.track_scripts.size()) {
+        set_page_message(
+            Page::Tracks,
+            IdTrackMessage,
+            "Save the track script before attaching or relinking its audio.",
+            true);
+        return;
+    }
+
+    const auto selected_asset = combo_selected_data(
+        ::GetDlgItem(page, IdTrackAudioAsset), -1);
+    if (relink && (selected_asset < 0 ||
+                    static_cast<std::size_t>(selected_asset) >= project_.audio_assets.size())) {
+        set_page_message(
+            Page::Tracks,
+            IdTrackMessage,
+            "Select an existing audio asset before relinking it.",
+            true);
+        return;
+    }
+
+    std::array<wchar_t, 32768> path{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window_;
+    dialog.lpstrFilter =
+        L"Audio Files (*.aac;*.aif;*.aiff;*.alac;*.flac;*.m4a;*.mp3;*.mp4;*.ogg;*.opus;*.wav;*.wma)\0"
+        L"*.aac;*.aif;*.aiff;*.alac;*.flac;*.m4a;*.mp3;*.mp4;*.ogg;*.opus;*.wav;*.wma\0"
+        L"All Files\0*.*\0";
+    dialog.lpstrFile = path.data();
+    dialog.nMaxFile = static_cast<DWORD>(path.size());
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    if (::GetOpenFileNameW(&dialog) == FALSE) {
+        return;
+    }
+
+    const std::filesystem::path selected_path(path.data());
+    auto candidate = project_;
+    std::string selected_id;
+    emberlights::AudioAssetFileResult result;
+    if (relink) {
+        auto& asset = candidate.audio_assets[static_cast<std::size_t>(selected_asset)];
+        result = emberlights::relink_audio_asset(asset, selected_path);
+        selected_id = asset.id;
+    } else {
+        emberlights::AudioAssetDefinition imported;
+        auto id_name = narrow(selected_path.stem().wstring());
+        if (id_name.empty()) {
+            id_name = "asset";
+        }
+        result = emberlights::make_audio_asset(
+            selected_path,
+            unique_id("audio", id_name),
+            imported);
+        if (result.available()) {
+            const auto duplicate = std::find_if(
+                candidate.audio_assets.begin(), candidate.audio_assets.end(),
+                [&](const auto& asset) {
+                    return asset.size_bytes == imported.size_bytes && asset.sha256 == imported.sha256;
+                });
+            if (duplicate != candidate.audio_assets.end()) {
+                result = emberlights::relink_audio_asset(*duplicate, selected_path);
+                selected_id = duplicate->id;
+            } else {
+                selected_id = imported.id;
+                candidate.audio_assets.push_back(std::move(imported));
+            }
+        }
+    }
+    if (!result.available()) {
+        set_page_message(Page::Tracks, IdTrackMessage, result.message, true);
+        return;
+    }
+    const auto validation = emberlights::validate_project(candidate);
+    if (!validation.ok()) {
+        set_page_message(Page::Tracks, IdTrackMessage, first_validation_error(validation), true);
+        return;
+    }
+    project_ = std::move(candidate);
+    mark_dirty();
+    refresh_track_audio_assets(selected_id);
+    set_page_message(
+        Page::Tracks,
+        IdTrackMessage,
+        relink
+            ? "Audio location updated after SHA-256 and byte-size verification."
+            : "Audio identity added. Save the track script to attach this asset.");
+}
+
+void Application::verify_selected_audio_for_track() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
+    const auto selected_asset = combo_selected_data(
+        ::GetDlgItem(page, IdTrackAudioAsset), -1);
+    if (selected_asset < 0 ||
+        static_cast<std::size_t>(selected_asset) >= project_.audio_assets.size()) {
+        set_page_message(
+            Page::Tracks,
+            IdTrackMessage,
+            "Select a linked audio asset before verifying it.",
+            true);
+        return;
+    }
+    const auto& asset = project_.audio_assets[static_cast<std::size_t>(selected_asset)];
+    const auto result = emberlights::verify_audio_asset(asset);
+    if (result.available()) {
+        set_page_message(
+            Page::Tracks,
+            IdTrackMessage,
+            "Audio identity verified: " + asset.file_name + ".");
+        return;
+    }
+    set_page_message(
+        Page::Tracks,
+        IdTrackMessage,
+        std::string("Audio ") + emberlights::audio_asset_file_status_name(result.status) +
+            ": " + result.message,
+        true);
 }
 
 void Application::apply_connections() {
