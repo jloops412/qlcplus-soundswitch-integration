@@ -8,44 +8,86 @@ Before acting, read only the binding core needed for every workstream:
 
 1. `AGENTS.md`
 2. `docs/00_START_HERE.md`
-3. `docs/01_PRODUCT_REQUIREMENTS.md`
-4. `docs/03_ARCHITECTURE.md`
-5. `docs/04_V1_SCOPE_AND_ACCEPTANCE.md`
-6. `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md`
-7. `docs/09_BUILD_AND_TEST_STANDARDS.md`
-8. The backlog/parity/research file directly related to your bounded deliverable
+3. `docs/21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` while its gates remain open
+4. `docs/01_PRODUCT_REQUIREMENTS.md`
+5. `docs/03_ARCHITECTURE.md`
+6. `docs/04_V1_SCOPE_AND_ACCEPTANCE.md`
+7. `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md`
+8. `docs/09_BUILD_AND_TEST_STANDARDS.md`
+9. The backlog/parity/research file directly related to your bounded deliverable
 
 Treat accepted decisions as binding. The product is not a full QLC+ fork, not a Wolfmix clone, and not a generic scene console. It uses an original semantic, sparse, per-property layered core; QLC+ is optional compatibility infrastructure. V1 is Windows/VirtualDJ/OS2L first, supports two universes, treats MIDI as device-agnostic, and keeps AI out of the live path.
 
-## Additional UI/UX pre-read
+Do not let broad UI work displace open raw hardware, fixture-truth, OS2L-startup, connection-state, or Static Look ownership gates. UI agents may build the accepted architecture in parallel only within the dependency rules in the UI program.
 
-Only agents touching UI, commands/state, mappings, persistence UX, skins, screenshots, visual qualification, or `native-core/src/windows_app.cpp` additionally read:
+## UI/UX route selection
+
+Only agents touching UI, commands/state, mappings, persistence UX, skins, screenshots, visual qualification, or `native-core/src/windows_app.cpp` additionally read the smallest matching route.
+
+### UI foundation — always
 
 1. `docs/18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md`
 2. `docs/21_UI_IMPLEMENTATION_PROGRAM.md`
 3. `spec/ui/command-state-skin-contract-v0.md`
+
+### Win32 / command / state / binding / persistence
+
 4. `spec/ui/current-win32-command-state-inventory-v0.md`
-5. `docs/19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` when collecting/analyzing evidence or building the Reference skin
-6. `docs/22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md`
-7. `docs/20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` when building or qualifying the Reference skin
+5. `spec/ui/schema/command-definition.schema.json`
+6. `spec/ui/schema/state-definition.schema.json`
+7. `spec/ui/schema/binding-definition.schema.json`
+
+### Toolkit spike / skin runtime / package / components
+
+4. `docs/23_UI_TOOLKIT_EVALUATION_AND_SPIKE_PLAN.md`
+5. `spec/ui/emberskin-package-and-safety-limits-v0.md`
+6. `spec/ui/native-component-contracts-v0.md`
+7. `spec/ui/schema/skin-manifest.schema.json`
+
+### EmberLights Default skin
+
+4. `docs/24_DEFAULT_UI_INFORMATION_ARCHITECTURE_AND_JOURNEYS.md`
+5. `docs/25_EMBERLIGHTS_UI_DESIGN_SYSTEM_AND_BRAND_DIRECTION.md`
+6. `spec/ui/native-component-contracts-v0.md`
+
+### SoundSwitch evidence / Reference skin
+
+4. `docs/19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md`
+5. `docs/22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md`
+6. `docs/20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md`
+7. `docs/25_EMBERLIGHTS_UI_DESIGN_SYSTEM_AND_BRAND_DIRECTION.md`
+8. `research/ui/soundswitch/README.md` and the relevant manifest/analysis/deviation template
+
+### UI qualification
+
+4. `docs/26_UI_QUALIFICATION_MATRIX.md`
+5. The exact platform, package, component, skin, and persistence specs under test
 
 Do not spend tokens re-reading or re-explaining unrelated research files.
 
-UI work must follow the shared command/state/skin architecture. Do not implement new behavior as layout-specific callbacks when it can be represented as a stable product command and observable state. The default EmberLights UI, bundled SoundSwitch Reference skin, MIDI/keyboard/controller mappings, and future user skins must target the same capability contracts. Preserve Runner determinism and footprint; skins are presentation/binding packages, never alternate lighting engines.
+## Binding UI rules
 
-Before changing `native-core/src/windows_app.cpp`, inventory the affected `ControlId` callbacks, visible state, realtime class, persistence scope, command IDs, and state keys. Prefer the specified strangler migration: route existing behavior through command/state facades, preserve tests, then move presentation into the skin path. Do not begin with a visual rewrite that duplicates domain behavior.
+UI work must follow the shared command/state/skin architecture. Do not implement new behavior as layout-specific callbacks when it can be represented as a stable product command and observable state. EmberLights Default, SoundSwitch Reference, MIDI/keyboard/controller mappings, and future user skins must target the same capability contracts. Skins are presentation/binding packages, never alternate lighting engines.
 
-For SoundSwitch-reference work, use the forensic evidence tiers and capture matrix. Mark values as `MEASURED`, `ESTIMATED`, `DESIGN_TARGET`, or `BEHAVIORAL`; never present compressed public screenshot measurements as exact SoundSwitch implementation values. Use original EmberLights assets and preserve the explicit deviation ledger.
+Before changing `native-core/src/windows_app.cpp`, inventory the affected `ControlId` callbacks, visible state, realtime class, persistence scope, command IDs, and state keys. Follow the strangler migration: route current behavior through command/state facades, preserve tests, then move presentation into the skin path. Do not begin with a visual rewrite that duplicates domain behavior.
+
+The production toolkit is not preselected. Issue #37 measures product-shaped Slint, WinUI control, and Direct2D Safe workloads. Do not commit #32 to a framework before that evidence is recorded and reconciled with #31.
+
+A skin package is untrusted data. Enforce the package/safety limits, no code execution, no direct device/network/filesystem access, bounded expressions/subscriptions/assets, transactional activation, and trusted Safe fallback. Invalid reload preserves the current view; invalid first load reaches Safe; Runner/DMX stay active.
+
+For SoundSwitch-reference work, use forensic evidence tiers and the capture matrix. Mark every claim `MEASURED`, `ESTIMATED`, `DESIGN_TARGET`, or `BEHAVIORAL`; never present compressed public screenshot measurements as exact SoundSwitch implementation values. Use original EmberLights assets and maintain the explicit Preserve/Improve/Reject ledger.
 
 ## Work contract
 
 Start by stating:
 
 - the exact bounded deliverable;
-- dependencies and files/contracts owned;
+- dependency gate and issue number;
+- files/contracts owned;
 - explicit non-goals;
 - acceptance tests;
-- smallest relevant test commands.
+- smallest relevant test commands;
+- expected completion evidence.
 
 Do not change architecture or promise hardware support without evidence. Preserve unknown migration data and never operate destructively on the user's only media/project files.
 
@@ -53,8 +95,21 @@ During implementation:
 
 - run narrow tests first;
 - avoid repeated full suites for cosmetic changes;
-- reserve full matrix, soak, and golden regeneration for documented gates;
-- record decisions and evidence in the repository rather than long chat explanations;
-- do not add a direct UI callback bypass after command/state extraction begins.
+- reserve full DPI/golden/fuzz/soak matrices for documented gates;
+- record decisions and machine-readable evidence in the repository rather than long chat explanations;
+- do not add a direct UI callback bypass after command/state extraction begins;
+- do not create Reference-only or Default-only domain behavior;
+- do not silently update goldens or benchmark baselines to hide regressions;
+- do not add dead/fake controls for parity features the engine does not support.
 
-At completion, update tests and affected decision/backlog/spec documents. Report measured outcomes, unresolved risks, explicit legacy bridges, and the next dependency—never only a prose claim that the feature is done.
+At completion, update tests and affected decisions/backlog/specs/issues. Report:
+
+- deliverable and files changed;
+- commands/states/schema/components added or changed;
+- exact tests run and results;
+- measured startup/memory/CPU/repaint/DPI/accessibility results when applicable;
+- unresolved risks;
+- explicit legacy bridges;
+- next dependency.
+
+Never report only that the UI “looks good” or that a feature is “done.”
