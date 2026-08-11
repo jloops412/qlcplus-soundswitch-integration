@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "workspace": "live",
+  "variant": "standard",
+  "metadata": {
+    "descriptionKey": "skin.default.live.standard.description",
+    "defaultFocus": "default.live.pageTabs",
+    "minimumWidth": 1440,
+    "minimumHeight": 800
+  },
+  "root": {
+    "type": "Column",
+    "id": "default.live.root",
+    "gap": 8,
+    "children": [
+      {
+        "type": "Row",
+        "id": "default.live.healthStrip",
+        "styleClass": ["gigHealthStrip"],
+        "padding": 8,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "type": "Label",
+            "id": "default.live.project",
+            "labelKey": "project.active.label",
+            "value": { "state": "project.active.name", "format": "plain" }
+          },
+          {
+            "type": "Label",
+            "id": "default.live.venue",
+            "labelKey": "venue.active.label",
+            "value": { "state": "project.activeVenue.name", "format": "plain" }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "default.live.dj",
+            "labelKey": "connection.dj.label",
+            "state": { "state": "connection.dj.status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "djConnection" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "Label",
+            "id": "default.live.bpm",
+            "labelKey": "transport.bpm.label",
+            "value": { "state": "transport.bpm", "format": "bpm" }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "default.live.controller",
+            "labelKey": "controller.status.label",
+            "state": { "state": "controller.status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "controllers" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "default.live.u1",
+            "labelKey": "output.universe1.label",
+            "state": { "state": "output.universe[0].status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "outputs" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "default.live.u2",
+            "labelKey": "output.universe2.label",
+            "state": { "state": "output.universe[1].status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "outputs" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "default.live.safety",
+            "labelKey": "safety.status.label",
+            "state": { "state": "safety.summary", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "safety" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "Spacer",
+            "id": "default.live.healthSpacer",
+            "flexGrow": 1
+          },
+          {
+            "type": "Toggle",
+            "id": "default.live.workLight",
+            "labelKey": "action.workLight",
+            "state": { "state": "output.workLight", "format": "boolean" },
+            "on": { "command": "output.workLight.toggle", "event": "press" }
+          },
+          {
+            "type": "Button",
+            "id": "default.live.blackout",
+            "labelKey": "action.blackout",
+            "danger": true,
+            "emergency": true,
+            "state": { "state": "output.blackout", "format": "boolean" },
+            "on": { "command": "output.blackout.toggle", "event": "press" }
+          }
+        ]
+      },
+      {
+        "type": "SplitPane",
+        "id": "default.live.mainSplit",
+        "orientation": "horizontal",
+        "ratios": [0.72, 0.28],
+        "persistenceKey": "default.live.mainSplit",
+        "flexGrow": 1,
+        "children": [
+          {
+            "type": "Column",
+            "id": "default.live.primary",
+            "padding": 12,
+            "gap": 12,
+            "children": [
+              {
+                "type": "NativeComponent",
+                "id": "default.live.activeLayers",
+                "componentType": "ember.activeLayers",
+                "minimumVersion": 1,
+                "variant": "default-now-playing",
+                "minimumHeight": 100,
+                "properties": {
+                  "showProgress": true,
+                  "showElapsed": true,
+                  "showCycles": true,
+                  "showOverrideCount": true,
+                  "showFallback": true
+                }
+              },
+              {
+                "type": "Row",
+                "id": "default.live.performanceRow",
+                "gap": 12,
+                "children": [
+                  {
+                    "type": "NativeComponent",
+                    "id": "default.live.primaryKnobs",
+                    "componentType": "ember.performanceKnobGroup",
+                    "minimumVersion": 1,
+                    "variant": "default-primary",
+                    "flexGrow": 1,
+                    "properties": {
+                      "parameters": ["masterIntensity", "movementRate", "movementSize", "strobeRate"],
+                      "showValues": true,
+                      "showReset": true
+                    }
+                  },
+                  {
+                    "type": "NativeComponent",
+                    "id": "default.live.overridePalette",
+                    "componentType": "ember.overridePalette",
+                    "minimumVersion": 1,
+                    "variant": "compact",
+                    "minimumWidth": 320,
+                    "properties": {
+                      "families": ["color", "movement", "strobe"],
+                      "showRelease": true
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Tabs",
+                "id": "default.live.pageTabs",
+                "selectionState": "view.live.page",
+                "placement": "top",
+                "flexGrow": 1,
+                "children": [
+                  {
+                    "type": "Panel",
+                    "id": "default.live.page.home",
+                    "titleKey": "live.page.home",
+                    "children": [
+                      {
+                        "type": "Column",
+                        "id": "default.live.homeContent",
+                        "gap": 12,
+                        "children": [
+                          {
+                            "type": "CustomSlot",
+                            "id": "default.live.quickActionsSlot",
+                            "slotId": "live.quickActions",
+                            "allowedTypes": ["Button", "Toggle", "Pad", "Fader", "Knob", "Status", "Progress"],
+                            "maximumNodes": 32,
+                            "layout": "wrapGrid",
+                            "columns": 8,
+                            "mandatoryControlsProtected": true,
+                            "minimumHeight": 100
+                          },
+                          {
+                            "type": "NativeComponent",
+                            "id": "default.live.homeLooks",
+                            "componentType": "ember.staticLookMatrix",
+                            "minimumVersion": 1,
+                            "variant": "favorites",
+                            "flexGrow": 1,
+                            "properties": {
+                              "category": "favorites",
+                              "showSearch": false,
+                              "showClear": true
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "Panel",
+                    "id": "default.live.page.autoloops",
+                    "titleKey": "live.page.autoloops",
+                    "children": [
+                      {
+                        "type": "NativeComponent",
+                        "id": "default.live.autoloopMatrix",
+                        "componentType": "ember.autoloopMatrix",
+                        "minimumVersion": 1,
+                        "variant": "default-live",
+                        "properties": {
+                          "mode": "live",
+                          "bankWindowSize": 4,
+                          "slotsPerBank": 32,
+                          "showEmptySlots": true,
+                          "showProgress": true,
+                          "showSlotNumbers": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "Panel",
+                    "id": "default.live.page.looks",
+                    "titleKey": "live.page.staticLooks",
+                    "children": [
+                      {
+                        "type": "NativeComponent",
+                        "id": "default.live.lookMatrix",
+                        "componentType": "ember.staticLookMatrix",
+                        "minimumVersion": 1,
+                        "variant": "default-live",
+                        "properties": {
+                          "showSearch": true,
+                          "showCategories": true,
+                          "showClear": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "Panel",
+                    "id": "default.live.page.moments",
+                    "titleKey": "live.page.moments",
+                    "children": [
+                      {
+                        "type": "CustomSlot",
+                        "id": "default.live.momentsSlot",
+                        "slotId": "live.moments",
+                        "allowedTypes": ["Button", "Toggle", "Pad", "Status", "Progress"],
+                        "maximumNodes": 64,
+                        "layout": "grid",
+                        "columns": 6,
+                        "mandatoryControlsProtected": true
+                      }
+                    ]
+                  },
+                  {
+                    "type": "Panel",
+                    "id": "default.live.page.overrides",
+                    "titleKey": "live.page.overrides",
+                    "children": [
+                      {
+                        "type": "NativeComponent",
+                        "id": "default.live.overrideEditor",
+                        "componentType": "ember.overridePalette",
+                        "minimumVersion": 1,
+                        "variant": "full",
+                        "properties": {
+                          "families": ["color", "intensity", "movement", "position", "strobe", "whiteUv", "beam"],
+                          "showTargetPicker": true,
+                          "showRelease": true,
+                          "showReleaseAll": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "id": "default.live.side",
+            "padding": 12,
+            "gap": 12,
+            "children": [
+              {
+                "type": "NativeComponent",
+                "id": "default.live.faders",
+                "componentType": "ember.performanceFaderGroup",
+                "minimumVersion": 1,
+                "variant": "default-side",
+                "flexGrow": 1,
+                "properties": {
+                  "includeMaster": false,
+                  "includeAutoloop": true,
+                  "includeTrackScript": true,
+                  "includeGroups": true,
+                  "maximumVisibleGroups": 8,
+                  "showSoftTakeover": true
+                }
+              },
+              {
+                "type": "Button",
+                "id": "default.live.releaseAll",
+                "labelKey": "action.releaseAllOverrides",
+                "on": { "command": "override.releaseAll", "event": "press" }
+              },
+              {
+                "type": "Button",
+                "id": "default.live.diagnostics",
+                "labelKey": "action.openDiagnostics",
+                "on": {
+                  "command": "view.panel.open",
+                  "arguments": { "panel": "diagnostics" },
+                  "event": "press"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
