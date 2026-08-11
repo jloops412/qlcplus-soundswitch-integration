@@ -91,6 +91,10 @@ target_link_libraries(emberlights_migrate PRIVATE showcore)
 add_executable(core_tests tests/test_main.cpp)
 target_link_libraries(core_tests PRIVATE showcore)
 
+add_executable(soundswitch_micro_session_tests
+    tests/test_soundswitch_micro_session.cpp)
+target_link_libraries(soundswitch_micro_session_tests PRIVATE showcore)
+
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
 
@@ -159,6 +163,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/16_QLC_FIXTURE_IMPORT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
 endif()
 
@@ -170,6 +175,7 @@ if(WIN32)
         COMMAND soundswitch_micro_probe --self-test)
 endif()
 add_test(NAME core_tests COMMAND core_tests)
+add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke
