@@ -256,6 +256,8 @@ enum ControlId : int {
     IdSacnBase,
     IdDmxUsbProUniverse1,
     IdDmxUsbProUniverse2,
+    IdSoundSwitchMicroUniverse,
+    IdSoundSwitchMicroFraming,
     IdFrameRate,
     IdManualBpm,
     IdMidiInput,
@@ -1443,6 +1445,10 @@ void Application::create_pages() {
     add_combo(page, IdDmxUsbProUniverse1);
     add_label(page, L"USB-DMX Pro — universe 2", 0);
     add_combo(page, IdDmxUsbProUniverse2);
+    add_label(page, L"SoundSwitch Micro (WinUSB)", 0);
+    add_combo(page, IdSoundSwitchMicroUniverse);
+    add_label(page, L"Micro framing", 0);
+    add_combo(page, IdSoundSwitchMicroFraming);
     add_label(page, L"Frame rate", 0);
     add_edit(page, IdFrameRate);
     add_label(page, L"Manual fallback BPM", 0);
@@ -2271,6 +2277,7 @@ void Application::refresh_live_status() {
             << L"    sACN: " << adapter_state_name(status.sacn)
             << L"    USB U1/U2: " << adapter_state_name(status.dmx_usb_pro[0])
             << L"/" << adapter_state_name(status.dmx_usb_pro[1])
+            << L"    Micro: " << adapter_state_name(status.soundswitch_micro)
             << L"\r\nFrames: " << status.frames
             << L"    Output failures: " << status.output_send_failures
             << L"    Queue drops: " << status.output_queue_drops
@@ -2644,6 +2651,32 @@ void Application::refresh_connections() {
         IdDmxUsbProUniverse1, project_.connections.dmx_usb_pro_ports[0]);
     populate_dmx_port(
         IdDmxUsbProUniverse2, project_.connections.dmx_usb_pro_ports[1]);
+
+    const auto micro_universe = ::GetDlgItem(page, IdSoundSwitchMicroUniverse);
+    static_cast<void>(::SendMessageW(micro_universe, CB_RESETCONTENT, 0, 0));
+    combo_add(micro_universe, L"Disabled", 0);
+    combo_add(micro_universe, L"Universe 1", 1);
+    combo_add(micro_universe, L"Universe 2", 2);
+    combo_select_data(micro_universe, project_.connections.soundswitch_micro_universe);
+
+    const auto micro_framing = ::GetDlgItem(page, IdSoundSwitchMicroFraming);
+    static_cast<void>(::SendMessageW(micro_framing, CB_RESETCONTENT, 0, 0));
+    combo_add(
+        micro_framing,
+        L"A — raw DMX start code + 512 slots",
+        static_cast<std::intptr_t>(
+            showcore::SoundSwitchMicroFraming::RawDmxWithStartCode));
+    combo_add(
+        micro_framing,
+        L"B — 512 raw slots",
+        static_cast<std::intptr_t>(showcore::SoundSwitchMicroFraming::RawSlotsOnly));
+    combo_add(
+        micro_framing,
+        L"C — DMX USB Pro framing",
+        static_cast<std::intptr_t>(showcore::SoundSwitchMicroFraming::EnttecUsbPro));
+    combo_select_data(
+        micro_framing,
+        static_cast<std::intptr_t>(project_.connections.soundswitch_micro_framing));
     set_control_text(::GetDlgItem(page, IdFrameRate), number_text(project_.connections.frame_rate));
     set_control_text(::GetDlgItem(page, IdManualBpm), number_text(project_.connections.manual_bpm));
 
@@ -2725,7 +2758,9 @@ std::string Application::diagnostics_text() const {
            << "  Art-Net: " << narrow(adapter_state_name(status.artnet))
            << "  sACN: " << narrow(adapter_state_name(status.sacn))
            << "  USB U1: " << narrow(adapter_state_name(status.dmx_usb_pro[0]))
-           << "  USB U2: " << narrow(adapter_state_name(status.dmx_usb_pro[1])) << "\r\n"
+           << "  USB U2: " << narrow(adapter_state_name(status.dmx_usb_pro[1]))
+           << "  SoundSwitch Micro: "
+           << narrow(adapter_state_name(status.soundswitch_micro)) << "\r\n"
            << "Frames: " << status.frames << "  Output frames: " << status.output_frames
            << "  Send failures: " << status.output_send_failures
            << "  Queue drops: " << status.output_queue_drops
@@ -5159,6 +5194,13 @@ void Application::apply_connections() {
         IdDmxUsbProUniverse1, project_.connections.dmx_usb_pro_ports[0]);
     updated.dmx_usb_pro_ports[1] = selected_dmx_port(
         IdDmxUsbProUniverse2, project_.connections.dmx_usb_pro_ports[1]);
+    updated.soundswitch_micro_universe = static_cast<std::uint8_t>(
+        combo_selected_data(::GetDlgItem(page, IdSoundSwitchMicroUniverse), 0));
+    updated.soundswitch_micro_framing = static_cast<showcore::SoundSwitchMicroFraming>(
+        combo_selected_data(
+            ::GetDlgItem(page, IdSoundSwitchMicroFraming),
+            static_cast<std::intptr_t>(
+                showcore::SoundSwitchMicroFraming::RawDmxWithStartCode)));
     if (project_name.empty() || updated.os2l_bind.empty() ||
         (updated.artnet_enabled && updated.artnet_destination.empty()) ||
         (updated.sacn_enabled && updated.sacn_destination.empty()) ||
