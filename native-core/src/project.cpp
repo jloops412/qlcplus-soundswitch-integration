@@ -351,6 +351,34 @@ ProjectValidation validate_project(const ProjectDocument& project) {
             project.id,
             "DMX USB Pro output is limited to a 40 Hz project frame rate.");
     }
+    if (project.connections.soundswitch_micro_universe > showcore::kV1UniverseCount) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "connections.soundSwitchMicroUniverse",
+            project.id,
+            "SoundSwitch Micro must be disabled or assigned to universe 1 or 2.");
+    }
+    if (showcore::soundswitch_micro_framing_value(
+            project.connections.soundswitch_micro_framing) >
+        showcore::soundswitch_micro_framing_value(
+            showcore::SoundSwitchMicroFraming::EnttecUsbPro)) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "connections.soundSwitchMicroFraming",
+            project.id,
+            "SoundSwitch Micro framing selection is invalid.");
+    }
+    if (project.connections.soundswitch_micro_universe != 0U &&
+        project.connections.frame_rate > 40U) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "connections.soundSwitchMicroFrameRate",
+            project.id,
+            "SoundSwitch Micro output is limited to a 40 Hz project frame rate.");
+    }
     if (!finite_normalized(project.safety.max_strobe) ||
         !finite_normalized(project.safety.max_intensity)) {
         add_issue(result, ProjectIssueSeverity::Error, "safety.range", project.id,
