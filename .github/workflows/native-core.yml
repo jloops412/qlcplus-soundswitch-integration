@@ -102,6 +102,15 @@ jobs:
           if ($launch.ExitCode -ne 0) {
             throw "Installed GUI startup smoke test failed with exit code $($launch.ExitCode)."
           }
+          $probe = Join-Path $installDir "Tools/soundswitch_micro_probe.exe"
+          if (-not (Test-Path -LiteralPath $probe -PathType Leaf)) {
+            throw "The installer did not produce the SoundSwitch Micro probe."
+          }
+          $probeTest = Start-Process -FilePath $probe -ArgumentList "--self-test" -PassThru -Wait
+          if ($probeTest.ExitCode -ne 0) {
+            throw "Installed SoundSwitch Micro probe self-test failed with exit code $($probeTest.ExitCode)."
+          }
+
       - name: Generate release evidence
         shell: pwsh
         run: |
