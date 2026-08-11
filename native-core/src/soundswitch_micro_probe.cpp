@@ -474,42 +474,15 @@ struct ActiveTestResult {
         showcore::SoundSwitchMicroFraming::NativeJls1};
     DWORD error{ERROR_SUCCESS};
     std::uint16_t address{1U};
+    showcore::SoundSwitchMicroSessionStatus session{};
 };
 
-[[nodiscard]] bool write_packet(
-    WINUSB_INTERFACE_HANDLE usb,
-    const showcore::SoundSwitchMicroPacket& packet,
-    DWORD& error) noexcept {
-    const BOOL terminate = FALSE;
-    if (::WinUsb_SetPipePolicy(
-            usb, kBulkOutPipe, SHORT_PACKET_TERMINATE,
-            sizeof(terminate), const_cast<BOOL*>(&terminate)) == FALSE) {
-        error = ::GetLastError();
-        return false;
-    }
-    ULONG transferred = 0U;
-    if (::WinUsb_WritePipe(
-            usb, kBulkOutPipe,
-            const_cast<PUCHAR>(packet.bytes.data()),
-            static_cast<ULONG>(packet.length), &transferred, nullptr) == FALSE) {
-        error = ::GetLastError();
-        return false;
-    }
-    if (transferred != packet.length) {
-        error = ERROR_WRITE_FAULT;
-        return false;
-    }
-    error = ERROR_SUCCESS;
-    return true;
-}
-
-[[nodiscard]] bool stream_packet(
-    WINUSB_INTERFACE_HANDLE usb,
-    const showcore::SoundSwitchMicroPacket& packet,
-    unsigned frames,
-    DWORD& error) {
+[[nodiscard]] bool stream_universe(
+    showcore::SoundSwitchMicroSession& session,
+    const showcore::DmxUniverse& universe,
+    unsigned frames) {
     for (unsigned frame = 0U; frame < frames; ++frame) {
-        if (!write_packet(usb, packet, error)) {
+        if (!session.send(universe)) {
             return false;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -522,97 +495,45 @@ struct ActiveTestResult {
     std::uint16_t address) {
     ActiveTestResult result;
     result.address = address;
-    FileHandle file(::CreateFileW(
-        path.c_str(), GENERIC_READ | GENERIC_WRITE,
-        0U, nullptr, OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr));
-    if (!file.valid()) {
-        result.error = ::GetLastError();
+    if (path.empty()) {
+        result.error = ERROR_DEVICE_NOT_CONNECTED;
         return result;
     }
-    WINUSB_INTERFACE_HANDLE raw_usb = nullptr;
-    if (::WinUsb_Initialize(file.get(), &raw_usb) == FALSE) {
-        result.error = ::GetLastError();
-        return result;
-    }
-    WinUsbHandle usb(raw_usb);
-    result.opened = true;
 
-    USB_INTERFACE_DESCRIPTOR descriptor{};
-    if (::WinUsb_QueryInterfaceSettings(usb.get(), 0U, &descriptor) == FALSE) {
-        result.error = ::GetLastError();
+    showcore::SoundSwitchMicroSession session;
+    showcore::SoundSwitchMicroSessionConfig config;
+    config.framing = showcore::SoundSwitchMicroFraming::NativeJls1;
+    if (!session.open(config)) {
+        result.error = session.last_error();
+        result.session = session.status();
         return result;
     }
-    bool expected_pipe = false;
-    for (UCHAR index = 0U; index < descriptor.bNumEndpoints; ++index) {
-        WINUSB_PIPE_INFORMATION pipe{};
-        if (::WinUsb_QueryPipe(usb.get(), 0U, index, &pipe) != FALSE &&
-            pipe.PipeId == kBulkOutPipe && pipe.PipeType == UsbdPipeTypeBulk &&
-            pipe.MaximumPacketSize == 64U) {
-            expected_pipe = true;
-        }
-    }
-    if (!expected_pipe) {
-        result.error = ERROR_BAD_DEVICE;
-        return result;
-    }
-    ULONG timeout = 500U;
-    if (::WinUsb_SetPipePolicy(
-            usb.get(), kBulkOutPipe, PIPE_TRANSFER_TIMEOUT,
-            sizeof(timeout), &timeout) == FALSE) {
-        result.error = ::GetLastError();
-        return result;
-    }
-    for (const auto& initialization : showcore::kSoundSwitchMicroInitializationPackets) {
-        showcore::SoundSwitchMicroPacket packet;
-        packet.length = initialization.size();
-        std::copy(initialization.begin(), initialization.end(), packet.bytes.begin());
-        if (!write_packet(usb.get(), packet, result.error)) {
-            return result;
-        }
-    }
+    result.opened = true;
 
     showcore::DmxUniverse off{};
     showcore::DmxUniverse test{};
     const auto first = static_cast<std::size_t>(address - 1U);
     test[first] = 255U;
-    if (first + 1U < test.size()) {
-        test[first + 1U] = 255U;
-    }
-
-    constexpr std::array framings{
-        showcore::SoundSwitchMicroFraming::NativeJls1};
-    for (const auto framing : framings) {
-        result.framing = framing;
-        const auto off_packet = showcore::build_soundswitch_micro_packet(off, framing);
-        const auto test_packet = showcore::build_soundswitch_micro_packet(test, framing);
-        std::wcout << L"\nTesting " << framing_name(framing) << L".\n"
-                   << L"The isolated bench fixture may respond for about three seconds.\n";
-        DWORD error = ERROR_SUCCESS;
-        if (!stream_packet(usb.get(), off_packet, 8U, error) ||
-            !stream_packet(usb.get(), test_packet, 120U, error) ||
-            !stream_packet(usb.get(), off_packet, 8U, error)) {
-            result.error = error;
-            std::wcout << L"USB write failed (" << error << L": "
-                       << win32_message(error) << L").\n";
-            continue;
-        }
-        result.writes_succeeded = true;
+    result.framing = config.framing;
+    std::wcout << L"\nTesting " << framing_name(config.framing) << L".\n"
+               << L"The isolated bench fixture may respond on exactly DMX channel "
+               << address << L" for about three seconds.\n";
+    const auto pre_blackout = session.send_blackout(8U);
+    const auto active_stream = pre_blackout && stream_universe(session, test, 120U);
+    const auto post_blackout = session.send_blackout(8U);
+    result.writes_succeeded = pre_blackout && active_stream && post_blackout;
+    result.error = session.last_error();
+    result.session = session.status();
+    if (!result.writes_succeeded) {
+        std::wcout << L"USB write failed (" << result.error << L": "
+                   << win32_message(result.error) << L").\n";
+    } else {
         std::wcout << L"Did the isolated fixture visibly respond? [y/N]: ";
         std::wstring answer;
         std::getline(std::wcin, answer);
-        if (affirmative(answer)) {
-            result.visible_match = true;
-            result.error = ERROR_SUCCESS;
-            break;
-        }
+        result.visible_match = affirmative(answer);
     }
-
-    if (result.visible_match) {
-        const auto off_packet = showcore::build_soundswitch_micro_packet(off, result.framing);
-        DWORD ignored = ERROR_SUCCESS;
-        static_cast<void>(stream_packet(usb.get(), off_packet, 3U, ignored));
-    }
+    session.close();
     return result;
 }
 
@@ -632,11 +553,24 @@ void save_active_report(const ActiveTestResult& result) {
     }
     output << L"EmberLights SoundSwitch Micro active test\n"
            << L"Version: " << EMBERLIGHTS_VERSION << L"\n"
+           << L"Source commit: " << EMBERLIGHTS_COMMIT << L"\n"
            << L"DMX address: " << result.address << L"\n"
            << L"Device opened: " << (result.opened ? L"yes" : L"no") << L"\n"
            << L"USB writes completed: " << (result.writes_succeeded ? L"yes" : L"no") << L"\n"
            << L"Visible DMX match: " << (result.visible_match ? L"yes" : L"no") << L"\n"
            << L"Selected framing: " << framing_name(result.framing) << L"\n"
+           << L"Lifecycle at test end: "
+           << showcore::soundswitch_micro_lifecycle_name(result.session.state) << L"\n"
+           << L"Configuration: " << static_cast<unsigned int>(result.session.configuration_value)
+           << L"  alternate setting: "
+           << static_cast<unsigned int>(result.session.alternate_setting) << L"\n"
+           << L"Bulk OUT pipe: " << static_cast<unsigned int>(result.session.bulk_out_pipe)
+           << L"  max packet: " << result.session.maximum_packet_size << L"\n"
+           << L"Warm-up frames: " << result.session.warmup_frames_completed
+           << L"  complete: " << (result.session.warmup_complete ? L"yes" : L"no") << L"\n"
+           << L"Frames attempted/accepted/failed: " << result.session.frames_attempted
+           << L"/" << result.session.frames_accepted
+           << L"/" << result.session.frames_failed << L"\n"
            << L"Last Windows error: " << result.error << L"\n";
 }
 
@@ -660,6 +594,7 @@ void save_active_report(const ActiveTestResult& result) {
     std::wostringstream report;
     report << L"EmberLights SoundSwitch Micro Probe\n"
            << L"Probe version: " << EMBERLIGHTS_VERSION << L"\n"
+           << L"Source commit: " << EMBERLIGHTS_COMMIT << L"\n"
            << L"Captured: " << now.wYear << L"-" << now.wMonth << L"-" << now.wDay
            << L" " << now.wHour << L":" << now.wMinute << L":" << now.wSecond << L" local\n"
            << L"Safety: descriptor-only; no control, bulk, or interrupt transfers sent\n\n"
@@ -738,12 +673,12 @@ int wmain(int argc, wchar_t** argv) {
         argc == 2 && std::wstring_view(argv[1]) == L"--active-test";
 
     std::wcout
-        << L"EmberLights SoundSwitch Micro Output Test\n"
-        << L"====================================\n\n"
+        << L"EmberLights Hardware Test\n"
+        << L"=========================\n\n"
         << L"This tool only opens the SoundSwitch Micro device (VID 15E4, PID 0053).\n"
         << L"Descriptor collection is passive. EmberLights itself now owns the normal\n"
-        << L"full-universe output path; this probe does not transmit unless launched\n"
-        << L"manually with the --active-test argument.\n\n"
+        << L"full-universe output path; this tool does not transmit unless launched\n"
+        << L"through the Hardware Test shortcut or with --active-test.\n\n"
         << L"Plug the SoundSwitch Micro dongle into this PC now.\n"
         << L"Waiting up to 60 seconds...\n";
 
