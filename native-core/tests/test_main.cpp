@@ -783,7 +783,7 @@ void test_output_backend_contract_and_health() {
     CHECK(micro.implementation == showcore::OutputImplementationStage::Implemented);
     CHECK(micro.evidence == showcore::OutputEvidenceStage::HostAccepted);
     CHECK(micro.emberlights_supported_universes == 1U);
-    CHECK(micro.direct_configuration_allowed);
+    CHECK(showcore::output_backend_is_configurable(micro));
     CHECK(showcore::has_output_capability(
         micro.capabilities, showcore::OutputCapability::HotReconnect));
     CHECK(showcore::has_output_capability(
@@ -796,7 +796,10 @@ void test_output_backend_contract_and_health() {
     CHECK(control_one.evidence == showcore::OutputEvidenceStage::ContractTested);
     CHECK(control_one.hardware_max_universes == 2U);
     CHECK(control_one.emberlights_supported_universes == 2U);
-    CHECK(!control_one.direct_configuration_allowed);
+    CHECK(control_one.configuration_policy ==
+          showcore::OutputBackendDescriptor::ConfigurationPolicy::ExperimentalOptIn);
+    CHECK(!showcore::output_backend_is_configurable(control_one));
+    CHECK(showcore::output_backend_is_configurable(control_one, true));
     CHECK(showcore::has_output_capability(
         control_one.capabilities,
         showcore::OutputCapability::DirectHostOutput));
@@ -808,7 +811,7 @@ void test_output_backend_contract_and_health() {
         showcore::OutputBackendKind::WolfmixDmxInputBridge);
     CHECK(wolfmix.implementation == showcore::OutputImplementationStage::BridgeOnly);
     CHECK(wolfmix.emberlights_supported_universes == 0U);
-    CHECK(!wolfmix.direct_configuration_allowed);
+    CHECK(!showcore::output_backend_is_configurable(wolfmix, true));
     CHECK(showcore::has_output_capability(
         wolfmix.capabilities, showcore::OutputCapability::ExternalDmxInput));
 
@@ -1848,6 +1851,7 @@ void test_project_validation_io_and_compilation() {
     project.connections.soundswitch_micro_universe = 2U;
     project.connections.soundswitch_micro_framing =
         showcore::SoundSwitchMicroFraming::NativeJls1;
+    project.connections.soundswitch_control_one_experimental = true;
     const auto validation = emberlights::validate_project(project);
     CHECK(validation.ok());
 
@@ -1860,6 +1864,9 @@ void test_project_validation_io_and_compilation() {
     auto fast_usb_output = project;
     fast_usb_output.connections.frame_rate = 41U;
     CHECK(!emberlights::validate_project(fast_usb_output).ok());
+    auto control_one_warning = emberlights::validate_project(project);
+    CHECK(control_one_warning.ok());
+    CHECK(control_one_warning.warning_count() >= 1U);
 
     std::vector<emberlights::LookAssignmentDefinition> expanded;
     const auto fixture_target = emberlights::expand_look_target(
@@ -1930,6 +1937,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.connections.soundswitch_micro_universe == 2U);
     CHECK(parsed.connections.soundswitch_micro_framing ==
           showcore::SoundSwitchMicroFraming::NativeJls1);
+    CHECK(parsed.connections.soundswitch_control_one_experimental);
     CHECK(parsed.fixtures[0].roles.size() == 1U);
     CHECK(parsed.looks.size() == 2U);
     CHECK(parsed.autoloops.size() == 1U);
@@ -2320,6 +2328,7 @@ void test_runner_service_lifecycle() {
     CHECK(active.dmx_usb_pro[0] == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[1] == emberlights::AdapterState::Disabled);
     CHECK(active.soundswitch_micro == emberlights::AdapterState::Disabled);
+    CHECK(active.soundswitch_control_one == emberlights::AdapterState::Disabled);
     CHECK(active.soundswitch_micro_write_frames == 0U);
     CHECK(active.soundswitch_micro_write_failures == 0U);
     CHECK(active.soundswitch_micro_last_error == 0U);
@@ -2332,6 +2341,8 @@ void test_runner_service_lifecycle() {
     CHECK(active.output_backends[3U].first_source_universe == 2U);
     CHECK(active.output_backends[4U].kind ==
           showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(active.output_backends[5U].kind ==
+          showcore::OutputBackendKind::SoundSwitchControlOne);
     CHECK(std::all_of(
         active.output_backends.begin(), active.output_backends.end(),
         [](const auto& output) {
