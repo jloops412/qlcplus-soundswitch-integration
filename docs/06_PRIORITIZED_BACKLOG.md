@@ -2,9 +2,24 @@
 
 Priority is based on replacing SoundSwitch safely, not feature novelty.
 
+## Immediate core recovery and hardware qualification gate
+
+`21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the binding implementation program until its core-ready acceptance definition passes on Joshua's owned Windows hardware. UI/skin expansion is subordinate to these gates.
+
+- **CR-1 — P0:** Ship a safe standalone Hardware Test using the production SoundSwitch Micro session; prove raw channel output independently of projects and fixture profiles.
+- **CR-2 — P0:** Harden the Micro open/init/settle/blackout-warm-up/stream/reconnect/blackout-close lifecycle with exact stage telemetry and golden tests.
+- **CR-3 — P0:** Add bounded frame/channel/value/source inspection and make the conservative SoundSwitch migration patch visibly unverified until physical addresses, modes, and profiles are confirmed.
+- **CR-4 — P0:** Build and qualify one exact one-fixture bench project; compare its Runner frame byte-for-byte with a successful raw Hardware Test frame.
+- **CR-5 — P0:** Repair Connections so Save & Apply is always visible at supported sizes/DPI; persist desired state and report Saved, Applied, and Active outcomes truthfully.
+- **CR-6 — P0:** Make VirtualDJ direct-IP startup deterministic with a copyable ONINIT action, persistent listener lifecycle, actionable OS2L states, and reconnect tests.
+- **CR-7 — P0/P1:** Implement Static Look Toggle/Hold through shared commands with activation ownership, authoritative feedback, EventMoment priority, and background Autoloop continuation/return tests.
+- **CR-8 — P1:** Extract the first ConnectionCoordinator/DjTransportService/OutputRouter boundaries without delaying raw hardware proof; preserve deterministic Runner and newest-frame-wins output.
+- **CR-9 — P1:** Profile and reduce the observed scheduler jitter after physical output is proven; pass a ten-minute hardware stream before the eight-hour qualification gate.
+- **CR-10 — Gate:** Do not claim SoundSwitch Micro support from device-open or accepted-write counters. Physical response, blackout, repeat open, and unplug/replug evidence are required.
+
 ## Cross-cutting UI/UX and skin spine
 
-`18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is binding for all UI work. These items cut across the milestone bands below and should be implemented before large amounts of additional hard-coded UI accumulate.
+`18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is binding for all UI work. These items cut across the milestone bands below and should be implemented before large amounts of additional hard-coded UI accumulate, but broad skin work must not displace the immediate core recovery gate above.
 
 - **U1 — P0:** Inventory existing Studio/Live callbacks and define stable typed command and state registries for every current user action/status.
 - **U2 — P1:** Route compatible keyboard/MIDI/controller actions through the shared command model; add command metadata, validation, and safe feedback/state lookup.
