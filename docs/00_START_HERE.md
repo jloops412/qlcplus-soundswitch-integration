@@ -15,11 +15,13 @@ This is not a generic DMX console and not a Wolfmix clone.
 - The compiled/tested native vertical slice and first end-to-end `runner_lab` exist.
 - EmberLights now has a versioned/checksummed project model and compiler, a deterministic service Runner, Art-Net, sACN, and initial ENTTEC DMX USB Pro serial output, WinMM MIDI/learn foundations, a bounded Studio-only QLC+ QXF fixture importer, a native Windows Studio/Live shell, and machine-readable production qualification/report foundations. Windows/Linux CI and installer packaging pass on the preceding merged checkpoint; searchable fixture-library distribution, VirtualDJ, MIDI, USB-DMX, broader output-hardware, eight-hour Windows soak, and live-event qualification remain active gates.
 - Joshua clarified on 2026-08-08 that his fixtures are later validation inputs, not the product scope, and that full SoundSwitch feature parity is the minimum finished-product bar.
+- Preview.314 proved active Runner, OS2L parsing, frame generation, output routing, and host-side SoundSwitch Micro writes, but it did not produce physical fixture response. It also exposed a Connections layout/accessibility defect and VirtualDJ's need for a first OS2L command in the current direct-IP workflow.
+- `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the binding immediate implementation program while its gates remain open. It requires raw Micro proof independent of projects, reusable adapter/session hardening, frame and fixture truth, visible Connections, deterministic OS2L startup, and Static Look Toggle/Hold before broad UI/skin implementation proceeds.
 - `13_SOUNDSWITCH_PARITY_LEDGER.md` is the binding completeness checklist. Milestone exclusions sequence delivery; they do not remove features from the finished product.
 - `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is the binding UI direction: one shared command/state model must power the default UI, bundled SoundSwitch Reference skin, future user skins, keyboard/MIDI/controller mappings, and external control surfaces. Do not hard-code new UI behavior around one layout or controller.
 - `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` defines the required screenshot/evidence corpus, screen-state matrix, measurement method, current Win32 UI audit, and preserve/improve/reject analysis.
 - `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` defines the build-ready Studio/Live reference layouts, responsive behavior, component/state requirements, parity journeys, and golden-screen gates.
-- `21_UI_IMPLEMENTATION_PROGRAM.md` defines UI stage gates, dependencies, agent ownership, merge order, risk controls, and token/test-efficiency rules.
+- `21_UI_IMPLEMENTATION_PROGRAM.md` defines UI stage gates, dependencies, agent ownership, merge order, risk controls, and token/test-efficiency rules. Its broad implementation stages remain subordinate to the open core hardware recovery gates.
 - `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md` records current SoundSwitch interface findings and approved modernization targets.
 - `../spec/ui/command-state-skin-contract-v0.md` defines the typed command registry, shared state registry, bindings, skin package/runtime, validation, safe fallback, and strangler migration from the existing hard-coded Win32 shell.
 - `../spec/ui/current-win32-command-state-inventory-v0.md` maps the present Win32 controls and callbacks into proposed product-semantic commands, states, priority classes, and persistence scopes.
@@ -48,12 +50,14 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Native SoundSwitch screenshots are research evidence and parity baselines, not source-code/CSS recovery; exact visual tokens remain evidence-tagged until controlled captures exist.
 - No arbitrary skin code, embedded browser requirement, or user script VM may become mandatory in Runner's live path.
 - The product name is EmberLights, and full-V1 Windows testing builds are distributed through an installer while qualification continues.
+- Host-accepted USB writes are a software boundary, not proof of physical DMX output.
+- Conservative migration projects must disclose unverified physical patch/profile data even when internal schema validation passes.
+- Static Looks use one core EventMoment layer above Autoloops, with Toggle/Hold implemented as shared command/binding behavior rather than a UI-specific engine.
 
 ## What is not accepted yet
 
 - Production implementation language and UI toolkit.
-- Exact native support for MyDMX Buddy or SoundSwitch USB interfaces.
-- Default live-control takeover/return semantics.
+- Exact native support for MyDMX Buddy or SoundSwitch USB interfaces until physical qualification gates pass.
 - Exact first-use balance between manual song scripting and AutoScripting.
 - Any claim that proprietary Control One DMX or OLED functions are supported.
 - Exact SoundSwitch Reference visual dimensions before the controlled native screenshot corpus is measured.
@@ -63,12 +67,13 @@ This is not a generic DMX console and not a Wolfmix clone.
 All agents read only the smallest binding set needed for their work:
 
 1. This file.
-2. `01_PRODUCT_REQUIREMENTS.md`.
-3. `03_ARCHITECTURE.md`.
-4. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
-5. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
-6. `09_BUILD_AND_TEST_STANDARDS.md`.
-7. The parity/backlog/research file directly relevant to the bounded assignment.
+2. `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` while its recovery gates remain open.
+3. `01_PRODUCT_REQUIREMENTS.md`.
+4. `03_ARCHITECTURE.md`.
+5. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
+6. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
+7. `09_BUILD_AND_TEST_STANDARDS.md`.
+8. The parity/backlog/research file directly relevant to the bounded assignment.
 
 ## Additional required reading for UI/UX or skin work
 
@@ -82,7 +87,7 @@ Read in this order after the core set:
 6. `../spec/ui/command-state-skin-contract-v0.md`.
 7. `../spec/ui/current-win32-command-state-inventory-v0.md` when changing the Win32 shell, command facade, state facade, mappings, or persistence UX.
 
-Do not make non-UI agents consume the entire UI research corpus unless their bounded work touches those contracts.
+Do not make non-UI agents consume the entire UI research corpus unless their bounded work touches those contracts. Do not let UI stage work displace the raw hardware and fixture-truth gates.
 
 ## Definition of progress
 
@@ -95,6 +100,15 @@ Progress is measured by a working, testable replacement path:
 - footprint and latency measured;
 - real hardware and VirtualDJ verified;
 - user workflow tested.
+
+During the active core recovery program, progress specifically requires:
+
+- raw Micro output proven without fixture/profile assumptions;
+- physical adapter evidence separated from software-open/write evidence;
+- one exact fixture/profile/address matched to a successful raw frame;
+- truthful desired/saved/applied/active connection state;
+- deterministic VirtualDJ startup behavior;
+- Static Look Toggle/Hold ownership and Autoloop return tests.
 
 For UI work, progress additionally requires:
 
