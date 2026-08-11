@@ -51,6 +51,8 @@ add_library(showcore STATIC
     src/soundswitch_import.cpp
     src/soundswitch_v1.cpp
     src/compiler.cpp
+    src/ui_command.cpp
+    src/ui_state.cpp
     src/runner.cpp)
 
 target_include_directories(showcore PUBLIC include)
@@ -107,6 +109,10 @@ target_link_libraries(soundswitch_micro_session_tests PRIVATE showcore)
 add_executable(soundswitch_control_one_tests
     tests/test_soundswitch_control_one.cpp)
 target_link_libraries(soundswitch_control_one_tests PRIVATE showcore)
+
+add_executable(ui_command_state_tests
+    tests/test_ui_command_state.cpp)
+target_link_libraries(ui_command_state_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -266,6 +272,7 @@ endif()
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
 add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)
+add_test(NAME ui_command_state_tests COMMAND ui_command_state_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke
