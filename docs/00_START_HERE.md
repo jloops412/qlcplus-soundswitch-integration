@@ -42,8 +42,8 @@ This is not a generic DMX console and not a Wolfmix clone.
 
 - Production implementation language and UI toolkit.
 - Exact native support for MyDMX Buddy; Control One DMX now has a
-  contract-tested isolated Windows transport but still needs owned-device
-  physical qualification before normal selection.
+  contract-tested Windows Runner transport and explicit experimental opt-in,
+  but still needs owned-device physical qualification before a support claim.
 - Default live-control takeover/return semantics.
 - Exact first-use balance between manual song scripting and AutoScripting.
 - Any claim that Control One DMX is physically verified or gig-qualified, or

@@ -67,9 +67,16 @@ Retain the generated JSON and add the observed results to the hardware issue.
 Until that evidence exists, Control One DMX is implemented and
 contract-tested—not physically verified or gig-qualified.
 
+The main Connections page may enable the same transport through the explicit
+`Experimental (unqualified) — Jack 1 = U1, Jack 2 = U2` project option. That
+option is default-off, requires a safety acknowledgement, and never changes
+the evidence tier. Prefer this qualifier first; then exercise the production
+Runner route with only safe test fixtures connected.
+
 ## Recovery
 
 If open fails, close SoundSwitch, reconnect the Control One, and verify the
 official Control One driver is installed. Do not replace the device's driver
 during a gig. If any stage drives the wrong jack or blackout fails, disconnect
-USB and DMX, keep direct selection disabled, and attach the JSON report.
+USB and DMX, disable the experimental Connections option, and attach the JSON
+report.

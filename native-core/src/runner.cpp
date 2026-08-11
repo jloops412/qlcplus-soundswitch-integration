@@ -6,6 +6,7 @@
 #include "showcore/os2l_server.hpp"
 #include "showcore/sacn.hpp"
 #include "showcore/soundswitch_micro.hpp"
+#include "showcore/soundswitch_control_one.hpp"
 #include "showcore/winmm_midi.hpp"
 
 #include <algorithm>
@@ -44,6 +45,7 @@ inline constexpr std::size_t kSacnOutputHealth = 1U;
 inline constexpr std::size_t kDmxUsbProUniverseOneHealth = 2U;
 inline constexpr std::size_t kDmxUsbProUniverseTwoHealth = 3U;
 inline constexpr std::size_t kSoundSwitchMicroOutputHealth = 4U;
+inline constexpr std::size_t kSoundSwitchControlOneOutputHealth = 5U;
 
 [[nodiscard]] std::uint16_t nonzero_slot_count(
     const showcore::DmxUniverse& universe) noexcept {
@@ -278,6 +280,11 @@ bool RunnerService::start(
             ? AdapterState::Disabled
             : AdapterState::Starting,
         std::memory_order_relaxed);
+    soundswitch_control_one_state_.store(
+        connections_.soundswitch_control_one_experimental
+            ? AdapterState::Starting
+            : AdapterState::Disabled,
+        std::memory_order_relaxed);
     output_health_[kArtNetOutputHealth].configure(
         showcore::OutputBackendKind::ArtNet, 1U, showcore::kV1UniverseCount,
         connections_.artnet_enabled);
@@ -295,6 +302,13 @@ bool RunnerService::start(
         connections_.soundswitch_micro_universe,
         connections_.soundswitch_micro_universe == 0U ? 0U : 1U,
         connections_.soundswitch_micro_universe != 0U);
+    output_health_[kSoundSwitchControlOneOutputHealth].configure(
+        showcore::OutputBackendKind::SoundSwitchControlOne,
+        connections_.soundswitch_control_one_experimental ? 1U : 0U,
+        connections_.soundswitch_control_one_experimental
+            ? showcore::kV1UniverseCount
+            : 0U,
+        connections_.soundswitch_control_one_experimental);
 
     try {
         output_thread_ = std::thread(&RunnerService::run_output, this);
@@ -424,6 +438,8 @@ RunnerStatus RunnerService::status() const noexcept {
     }
     snapshot.soundswitch_micro =
         soundswitch_micro_state_.load(std::memory_order_relaxed);
+    snapshot.soundswitch_control_one =
+        soundswitch_control_one_state_.load(std::memory_order_relaxed);
     for (std::size_t index = 0U; index < snapshot.output_backends.size(); ++index) {
         snapshot.output_backends[index] = output_health_[index].snapshot();
     }
@@ -1641,6 +1657,7 @@ void RunnerService::run_output() noexcept {
     std::array<showcore::SacnSender, showcore::kV1UniverseCount> sacn;
     std::array<showcore::DmxUsbProSender, showcore::kV1UniverseCount> dmx_usb_pro;
     showcore::SoundSwitchMicroSender soundswitch_micro;
+    showcore::SoundSwitchControlOneSession soundswitch_control_one;
     const auto cid = showcore::make_sacn_cid(project_id_);
 
     auto open_missing_outputs = [&]() noexcept {
@@ -1742,6 +1759,27 @@ void RunnerService::run_output() noexcept {
                 opened ? AdapterState::Ready : AdapterState::Fault,
                 std::memory_order_relaxed);
         }
+        if (!connections_.soundswitch_control_one_experimental) {
+            soundswitch_control_one_state_.store(
+                AdapterState::Disabled, std::memory_order_relaxed);
+        } else {
+            if (!soundswitch_control_one.is_open()) {
+                output_health_[kSoundSwitchControlOneOutputHealth].mark_opening();
+                soundswitch_control_one_state_.store(
+                    AdapterState::Starting, std::memory_order_relaxed);
+                if (!soundswitch_control_one.open()) {
+                    output_health_[kSoundSwitchControlOneOutputHealth].mark_fault(
+                        soundswitch_control_one.last_error());
+                } else {
+                    output_health_[kSoundSwitchControlOneOutputHealth].mark_ready();
+                }
+            }
+            const bool opened = soundswitch_control_one.is_open();
+            usb_ready = usb_ready && opened;
+            soundswitch_control_one_state_.store(
+                opened ? AdapterState::Ready : AdapterState::Fault,
+                std::memory_order_relaxed);
+        }
         return artnet_ready && sacn_ready && usb_ready;
     };
 
@@ -1838,6 +1876,23 @@ void RunnerService::run_output() noexcept {
                     nonzero, std::memory_order_relaxed);
             }
         }
+        if (connections_.soundswitch_control_one_experimental &&
+            soundswitch_control_one.is_open()) {
+            const bool sent = soundswitch_control_one.send_pair(frame.frames.universes);
+            const auto nonzero = static_cast<std::uint16_t>(
+                nonzero_slot_count(frame.frames.universes[0U]) +
+                nonzero_slot_count(frame.frames.universes[1U]));
+            output_health_[kSoundSwitchControlOneOutputHealth].record_send(
+                sent,
+                sent ? 0U : soundswitch_control_one.last_error(),
+                nonzero);
+            if (!sent) {
+                usb_success = false;
+                soundswitch_control_one.close();
+                soundswitch_control_one_state_.store(
+                    AdapterState::Fault, std::memory_order_relaxed);
+            }
+        }
         const bool success = artnet_success && sacn_success && usb_success;
         if (!success) {
             output_send_failures_.fetch_add(1, std::memory_order_relaxed);
@@ -1896,6 +1951,10 @@ void RunnerService::run_output() noexcept {
                 connections_.soundswitch_micro_universe - 1U);
             static_cast<void>(soundswitch_micro.send(zero_frames.universes[universe]));
         }
+        if (connections_.soundswitch_control_one_experimental &&
+            soundswitch_control_one.is_open()) {
+            static_cast<void>(soundswitch_control_one.send_pair(zero_frames.universes));
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
     }
 
@@ -1907,6 +1966,7 @@ void RunnerService::run_output() noexcept {
         sender.close();
     }
     soundswitch_micro.close();
+    soundswitch_control_one.close();
     for (auto& health : output_health_) {
         health.mark_disabled();
     }

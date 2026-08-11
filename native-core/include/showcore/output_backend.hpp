@@ -71,7 +71,11 @@ struct OutputBackendDescriptor {
     OutputCapability capabilities{OutputCapability::None};
     std::uint8_t hardware_max_universes{0U};
     std::uint8_t emberlights_supported_universes{0U};
-    bool direct_configuration_allowed{false};
+    enum class ConfigurationPolicy : std::uint8_t {
+        Unavailable,
+        Normal,
+        ExperimentalOptIn
+    } configuration_policy{ConfigurationPolicy::Unavailable};
 };
 
 inline constexpr std::array<OutputBackendDescriptor,
@@ -86,7 +90,7 @@ inline constexpr std::array<OutputBackendDescriptor,
              OutputCapability::MultipleUniverses,
          0U,
          2U,
-         true},
+         OutputBackendDescriptor::ConfigurationPolicy::Normal},
         {OutputBackendKind::Sacn,
          "sACN",
          OutputImplementationStage::Implemented,
@@ -96,7 +100,7 @@ inline constexpr std::array<OutputBackendDescriptor,
              OutputCapability::MultipleUniverses,
          0U,
          2U,
-         true},
+         OutputBackendDescriptor::ConfigurationPolicy::Normal},
         {OutputBackendKind::DmxUsbPro,
          "DMX USB Pro",
          OutputImplementationStage::Implemented,
@@ -106,7 +110,7 @@ inline constexpr std::array<OutputBackendDescriptor,
              OutputCapability::SafeBlackout,
          1U,
          1U,
-         true},
+         OutputBackendDescriptor::ConfigurationPolicy::Normal},
         {OutputBackendKind::SoundSwitchMicro,
          "SoundSwitch Micro",
          OutputImplementationStage::Implemented,
@@ -116,7 +120,7 @@ inline constexpr std::array<OutputBackendDescriptor,
              OutputCapability::SafeBlackout,
          1U,
          1U,
-         true},
+         OutputBackendDescriptor::ConfigurationPolicy::Normal},
         {OutputBackendKind::SoundSwitchControlOne,
          "SoundSwitch Control One DMX",
          OutputImplementationStage::Implemented,
@@ -128,7 +132,7 @@ inline constexpr std::array<OutputBackendDescriptor,
              OutputCapability::MultipleUniverses,
          2U,
          2U,
-         false},
+         OutputBackendDescriptor::ConfigurationPolicy::ExperimentalOptIn},
         {OutputBackendKind::WolfmixDmxInputBridge,
          "WOLFmix DMX-input bridge",
          OutputImplementationStage::BridgeOnly,
@@ -138,8 +142,17 @@ inline constexpr std::array<OutputBackendDescriptor,
              OutputCapability::MultipleUniverses,
          4U,
          0U,
-         false},
+         OutputBackendDescriptor::ConfigurationPolicy::Unavailable},
     }};
+
+[[nodiscard]] constexpr bool output_backend_is_configurable(
+    const OutputBackendDescriptor& descriptor,
+    bool allow_experimental = false) noexcept {
+    return descriptor.configuration_policy ==
+               OutputBackendDescriptor::ConfigurationPolicy::Normal ||
+        (allow_experimental && descriptor.configuration_policy ==
+             OutputBackendDescriptor::ConfigurationPolicy::ExperimentalOptIn);
+}
 
 [[nodiscard]] constexpr const OutputBackendDescriptor& output_backend_descriptor(
     OutputBackendKind kind) noexcept {

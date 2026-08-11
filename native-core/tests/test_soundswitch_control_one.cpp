@@ -95,7 +95,10 @@ int main() {
     CHECK(backend.evidence == showcore::OutputEvidenceStage::ContractTested);
     CHECK(backend.hardware_max_universes == 2U);
     CHECK(backend.emberlights_supported_universes == 2U);
-    CHECK(!backend.direct_configuration_allowed);
+    CHECK(backend.configuration_policy ==
+          showcore::OutputBackendDescriptor::ConfigurationPolicy::ExperimentalOptIn);
+    CHECK(!showcore::output_backend_is_configurable(backend));
+    CHECK(showcore::output_backend_is_configurable(backend, true));
     CHECK(showcore::has_output_capability(
         backend.capabilities, showcore::OutputCapability::HotReconnect));
     CHECK(showcore::has_output_capability(

@@ -100,7 +100,8 @@ struct RunnerStatus {
         AdapterState::Disabled,
         AdapterState::Disabled};
     AdapterState soundswitch_micro{AdapterState::Disabled};
-    std::array<showcore::OutputBackendHealth, 5U> output_backends{};
+    AdapterState soundswitch_control_one{AdapterState::Disabled};
+    std::array<showcore::OutputBackendHealth, 6U> output_backends{};
     showcore::SyncState sync_state{showcore::SyncState::Waiting};
     showcore::ClockSource clock_source{showcore::ClockSource::None};
     double bpm{0.0};
@@ -285,7 +286,8 @@ private:
     std::array<std::atomic<AdapterState>, showcore::kV1UniverseCount>
         dmx_usb_pro_state_{};
     std::atomic<AdapterState> soundswitch_micro_state_{AdapterState::Disabled};
-    std::array<showcore::AtomicOutputBackendHealth, 5U> output_health_{};
+    std::atomic<AdapterState> soundswitch_control_one_state_{AdapterState::Disabled};
+    std::array<showcore::AtomicOutputBackendHealth, 6U> output_health_{};
     std::atomic<showcore::SyncState> sync_state_{showcore::SyncState::Waiting};
     std::atomic<showcore::ClockSource> clock_source_{showcore::ClockSource::None};
     std::atomic<std::uint32_t> bpm_milli_{0};

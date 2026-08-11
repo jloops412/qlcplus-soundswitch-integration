@@ -168,6 +168,9 @@ struct ConnectionSettings {
     std::uint8_t soundswitch_micro_universe{0};
     showcore::SoundSwitchMicroFraming soundswitch_micro_framing{
         showcore::SoundSwitchMicroFraming::NativeJls1};
+    // Explicit, default-off opt-in. The transport is contract-tested but not
+    // physically qualified on an owned Control One yet.
+    bool soundswitch_control_one_experimental{false};
     std::uint16_t frame_rate{40};
     double manual_bpm{120.0};
     std::int32_t midi_input_index{-1};
