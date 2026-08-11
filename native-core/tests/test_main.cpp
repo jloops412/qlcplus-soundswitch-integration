@@ -792,13 +792,17 @@ void test_output_backend_contract_and_health() {
     const auto& control_one = showcore::output_backend_descriptor(
         showcore::OutputBackendKind::SoundSwitchControlOne);
     CHECK(control_one.implementation ==
-          showcore::OutputImplementationStage::IsolatedExperiment);
+          showcore::OutputImplementationStage::Implemented);
+    CHECK(control_one.evidence == showcore::OutputEvidenceStage::ContractTested);
     CHECK(control_one.hardware_max_universes == 2U);
-    CHECK(control_one.emberlights_supported_universes == 0U);
+    CHECK(control_one.emberlights_supported_universes == 2U);
     CHECK(!control_one.direct_configuration_allowed);
     CHECK(showcore::has_output_capability(
         control_one.capabilities,
-        showcore::OutputCapability::RequiresIsolatedBroker));
+        showcore::OutputCapability::DirectHostOutput));
+    CHECK(showcore::has_output_capability(
+        control_one.capabilities,
+        showcore::OutputCapability::SafeBlackout));
 
     const auto& wolfmix = showcore::output_backend_descriptor(
         showcore::OutputBackendKind::WolfmixDmxInputBridge);

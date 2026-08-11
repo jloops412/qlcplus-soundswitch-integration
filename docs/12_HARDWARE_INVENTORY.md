@@ -5,7 +5,7 @@ Status: user-reported names captured; exact USB identities and modes pending.
 | Device | Role | Confidence | Next evidence |
 | --- | --- | --- | --- |
 | Pioneer DDJ-REV7 | Primary VirtualDJ DJ controller | Confirmed | VirtualDJ version, firmware, Windows device details, transport captures. |
-| SoundSwitch Control One | Primary lighting MIDI surface; two proprietary DMX outputs | Confirmed | MIDI port names, VID/PID, complete input map, safe output-feedback map. |
+| SoundSwitch Control One | Primary lighting MIDI surface; two DMX outputs | DMX transport: `VID_15E4/PID_0054`, configuration/interface `1/0`, bulk OUT `0x01`, JLC1/JLS1 two-port frame/startup contract implemented and contract-tested | Run installed two-jack/blackout/replug qualifier; separately capture MIDI port names, complete input map, and safe output-feedback map. |
 | WOLFmix W1 family | Possible later standalone controller / DMX-input bridge; not a documented PC USB-DMX interface | User requested later compatibility; exact model/ownership unverified | Exact model/firmware, activated feature set, DMX-input availability, connector routing, and controlled bridge test. |
 | ADJ MyDMX Buddy | Possible USB-DMX adapter | User believes owned; exact model unverified | Label/photo, VID/PID, driver, QLC+ compatibility, channel/license limits. |
 | SoundSwitch DMX Micro Interface | Native one-universe WinUSB output candidate | `VID_15E4/PID_0053`, interface GUID and bulk OUT `0x01` verified on Joshua's PC; preview.310 A/B/C payloads physically disproved; native JLS1 initialization and 522-byte frame independently established from SoundSwitch 2.10.3 | Physical response with the JLS1 build, disconnect/reconnect, sustained frame output. |

@@ -29,6 +29,7 @@ add_library(showcore STATIC
     src/fixture_library.cpp
     src/dmx_usb_pro.cpp
     src/soundswitch_micro.cpp
+    src/soundswitch_control_one.cpp
     src/output_backend.cpp
     src/artnet.cpp
     src/sacn.cpp
@@ -68,7 +69,8 @@ endif()
 
 if(WIN32)
     target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0A00)
-    target_link_libraries(showcore PUBLIC ws2_32 winmm setupapi winusb ole32 uuid)
+    target_link_libraries(showcore PUBLIC
+        ws2_32 winmm setupapi winusb advapi32 ole32 uuid)
 endif()
 
 add_executable(runner_demo src/demo.cpp)
@@ -102,6 +104,10 @@ add_executable(soundswitch_micro_session_tests
     tests/test_soundswitch_micro_session.cpp)
 target_link_libraries(soundswitch_micro_session_tests PRIVATE showcore)
 
+add_executable(soundswitch_control_one_tests
+    tests/test_soundswitch_control_one.cpp)
+target_link_libraries(soundswitch_control_one_tests PRIVATE showcore)
+
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
 
@@ -111,19 +117,36 @@ target_link_libraries(performance_bench PRIVATE showcore)
 if(WIN32)
     set(EMBERLIGHTS_V1_TEMPLATE
         "${CMAKE_CURRENT_BINARY_DIR}/EmberLights-2026-V1-Template.emberlights")
-    add_custom_command(
-        OUTPUT "${EMBERLIGHTS_V1_TEMPLATE}"
-        COMMAND $<TARGET_FILE:emberlights_migrate>
-            template-v1 "${EMBERLIGHTS_V1_TEMPLATE}" --force
-        DEPENDS emberlights_migrate
-        COMMENT "Generating the output-disabled V1 starter project"
-        VERBATIM)
+    set(EMBERLIGHTS_PREBUILT_V1_TEMPLATE "" CACHE FILEPATH
+        "Existing V1 template for a cross-build that cannot run Windows tools")
+    if(EMBERLIGHTS_PREBUILT_V1_TEMPLATE)
+        add_custom_command(
+            OUTPUT "${EMBERLIGHTS_V1_TEMPLATE}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${EMBERLIGHTS_PREBUILT_V1_TEMPLATE}"
+                "${EMBERLIGHTS_V1_TEMPLATE}"
+            DEPENDS "${EMBERLIGHTS_PREBUILT_V1_TEMPLATE}"
+            COMMENT "Staging the prebuilt output-disabled V1 starter project"
+            VERBATIM)
+    else()
+        add_custom_command(
+            OUTPUT "${EMBERLIGHTS_V1_TEMPLATE}"
+            COMMAND $<TARGET_FILE:emberlights_migrate>
+                template-v1 "${EMBERLIGHTS_V1_TEMPLATE}" --force
+            DEPENDS emberlights_migrate
+            COMMENT "Generating the output-disabled V1 starter project"
+            VERBATIM)
+    endif()
     add_custom_target(emberlights_v1_template ALL
         DEPENDS "${EMBERLIGHTS_V1_TEMPLATE}")
 
-    add_executable(EmberLights WIN32
-        src/windows_app.cpp
-        windows/EmberLights.rc)
+    option(EMBERLIGHTS_SKIP_WINDOWS_RESOURCE
+        "Skip the Windows resource file for local cross-builds" OFF)
+    set(EMBERLIGHTS_WINDOWS_APP_SOURCES src/windows_app.cpp)
+    if(NOT EMBERLIGHTS_SKIP_WINDOWS_RESOURCE)
+        list(APPEND EMBERLIGHTS_WINDOWS_APP_SOURCES windows/EmberLights.rc)
+    endif()
+    add_executable(EmberLights WIN32 ${EMBERLIGHTS_WINDOWS_APP_SOURCES})
     target_link_libraries(EmberLights PRIVATE
         showcore
         comctl32
@@ -163,8 +186,29 @@ if(WIN32)
         target_link_options(soundswitch_micro_probe PRIVATE -municode)
     endif()
 
+    add_executable(soundswitch_control_one_probe
+        src/soundswitch_control_one_probe.cpp)
+    target_link_libraries(soundswitch_control_one_probe PRIVATE
+        showcore
+        setupapi
+        winusb
+        advapi32
+        ole32
+        uuid)
+    target_compile_definitions(soundswitch_control_one_probe PRIVATE
+        UNICODE
+        _UNICODE
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+        EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}")
+    if(MSVC)
+        target_compile_options(soundswitch_control_one_probe PRIVATE
+            /W4 /WX /permissive-)
+    endif()
+
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
     install(TARGETS emberlights_qualify emberlights_migrate soundswitch_micro_probe
+        soundswitch_control_one_probe
         RUNTIME DESTINATION Tools)
     install(FILES "${EMBERLIGHTS_V1_TEMPLATE}" DESTINATION Templates)
     install(FILES
@@ -174,6 +218,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/16_QLC_FIXTURE_IMPORT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/20_CONTROL_ONE_DMX_QUALIFICATION.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
 else()
@@ -220,6 +265,7 @@ if(WIN32)
 endif()
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
+add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke

@@ -119,14 +119,15 @@ inline constexpr std::array<OutputBackendDescriptor,
          true},
         {OutputBackendKind::SoundSwitchControlOne,
          "SoundSwitch Control One DMX",
-         OutputImplementationStage::IsolatedExperiment,
-         OutputEvidenceStage::None,
-         OutputCapability::Dmx512Frames | OutputCapability::UsbTransport |
+         OutputImplementationStage::Implemented,
+         OutputEvidenceStage::ContractTested,
+         OutputCapability::Dmx512Frames | OutputCapability::DirectHostOutput |
+             OutputCapability::UsbTransport | OutputCapability::HotReconnect |
+             OutputCapability::SafeBlackout |
              OutputCapability::ControllerSurface |
-             OutputCapability::RequiresIsolatedBroker |
              OutputCapability::MultipleUniverses,
          2U,
-         0U,
+         2U,
          false},
         {OutputBackendKind::WolfmixDmxInputBridge,
          "WOLFmix DMX-input bridge",

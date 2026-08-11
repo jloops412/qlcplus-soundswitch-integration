@@ -62,7 +62,7 @@ Every configured output now publishes the same allocation-free health snapshot: 
 Backend descriptors separately record implementation stage, evidence stage, capabilities, advertised hardware universe count, EmberLights-supported universe count, and whether direct configuration is allowed. Host-accepted writes, loopback delivery, physical DMX response, and gig qualification remain distinct evidence levels.
 
 - SoundSwitch Micro, DMX USB Pro, Art-Net, and sACN use the implemented contract today.
-- SoundSwitch Control One's standard MIDI surface remains independent from its two proprietary DMX outputs. Native DMX work stays an isolated broker experiment until owned-device identity/protocol captures exist; it cannot appear as a selectable direct output before then.
+- SoundSwitch Control One's standard MIDI surface remains independent from its two DMX outputs. The isolated Windows JLC1/JLS1 transport now verifies `VID_15E4/PID_0054`, configuration 1, interface 0, bulk OUT `0x01`, sends the four established startup controls, and routes complete 522-byte frames to zero-based ports 0 and 1. It has the shared safe-close and health contract but cannot appear as a selectable direct output until the installed two-jack/blackout/replug procedure is physically verified.
 - WOLFmix is treated as a standalone lighting engine. Its documented DMX-input capability may become a bounded hardware bridge after owned-device verification, but its USB service is not represented as an EmberLights USB-DMX adapter.
 
 Adding either device later therefore changes an adapter/broker or bridge implementation and qualification matrix, not fixtures, show packages, rendering, scheduling, project semantics, or safety rules.
