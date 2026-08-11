@@ -2875,6 +2875,7 @@ std::string Application::diagnostics_text() const {
            << "OS2L connections: " << status.os2l_connections
            << "  messages: " << status.os2l_messages
            << "  decode errors: " << status.os2l_decode_errors
+           << "  dropped named actions: " << status.dropped_os2l_actions
            << "  listening: " << project_.connections.os2l_bind << ":"
            << status.os2l_listen_port
            << "  last socket error: " << status.os2l_last_error << "\r\n"

@@ -2036,6 +2036,11 @@ void test_project_validation_io_and_compilation() {
 
 void test_runner_os2l_startup_without_button_trigger() {
     auto project = make_test_project();
+    auto alternate_loop = project.autoloops.front();
+    alternate_loop.id = "alternate-red-blue";
+    alternate_loop.name = "Alternate Red / Blue";
+    alternate_loop.slot = 4U;
+    project.autoloops.push_back(std::move(alternate_loop));
     project.connections.os2l_enabled = true;
     project.connections.os2l_bind = "127.0.0.1";
     project.connections.os2l_port = reserve_loopback_port();
@@ -2085,6 +2090,48 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(status.os2l_decode_errors == 0U);
         CHECK(std::abs(status.bpm - 137.25) < 0.01);
         CHECK(status.clock_source == showcore::ClockSource::Os2l);
+
+        auto wait_for_live_state = [&](std::int32_t look,
+                                       showcore::AutoloopAddress loop,
+                                       std::uint64_t messages) {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            status = runner.status();
+            while ((status.active_look != look || status.active_autoloop != loop ||
+                    status.os2l_messages < messages) &&
+                   std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            return status.active_look == look && status.active_autoloop == loop &&
+                status.os2l_messages >= messages;
+        };
+
+        constexpr std::string_view red_on =
+            R"({"evt":"btn","name":"Red","state":"on"})";
+        constexpr std::string_view blue_on =
+            R"({"evt":"btn","name":"Look: Blue","state":"on"})";
+        constexpr std::string_view red_off =
+            R"({"evt":"btn","name":"Red","state":"off"})";
+        constexpr std::string_view blue_off =
+            R"({"evt":"btn","name":"Look: Blue","state":"off"})";
+        constexpr std::string_view alternate_on =
+            R"({"evt":"btn","name":"Autoloop: Alternate Red / Blue","state":"on"})";
+        constexpr std::string_view alternate_off =
+            R"({"evt":"btn","name":"Autoloop: Alternate Red / Blue","state":"off"})";
+
+        CHECK(send_all(client, red_on));
+        CHECK(wait_for_live_state(0, {7U, 3U}, 2U));
+        CHECK(send_all(client, blue_on));
+        CHECK(wait_for_live_state(1, {7U, 3U}, 3U));
+        CHECK(send_all(client, red_off));
+        CHECK(wait_for_live_state(1, {7U, 3U}, 4U));
+        CHECK(send_all(client, blue_off));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 5U));
+        CHECK(send_all(client, alternate_on));
+        CHECK(wait_for_live_state(-1, {7U, 4U}, 6U));
+        CHECK(send_all(client, alternate_off));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 7U));
+        CHECK(status.dropped_os2l_actions == 0U);
         close_test_socket(client);
     }
     runner.stop();

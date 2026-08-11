@@ -134,6 +134,7 @@ struct RunnerStatus {
     std::uint16_t os2l_listen_port{0};
     std::int32_t os2l_last_error{0};
     std::uint64_t dropped_beats{0};
+    std::uint64_t dropped_os2l_actions{0};
     std::uint64_t midi_messages{0};
     std::uint64_t dropped_midi_actions{0};
     std::uint64_t uptime_ms{0};
@@ -161,6 +162,12 @@ struct RunnerBeatEvent {
     std::int64_t position{0};
     double bpm{0.0};
     std::uint64_t timestamp_ms{0};
+};
+
+struct RunnerOs2lButtonEvent {
+    showcore::FixedText<96> name{};
+    bool on{false};
+    std::uint64_t generation{0};
 };
 
 struct RunnerOutputFrame {
@@ -233,6 +240,7 @@ private:
     using CommandQueue = showcore::SpscQueue<RunnerCommand, 513>;
     using BeatEvent = RunnerBeatEvent;
     using BeatQueue = showcore::SpscQueue<BeatEvent, 1025>;
+    using Os2lButtonQueue = showcore::SpscQueue<RunnerOs2lButtonEvent, 257>;
     using MidiActionQueue = showcore::SpscQueue<RunnerMidiActionEvent, 1025>;
     using MidiMonitorQueue = showcore::SpscQueue<RunnerMidiMonitorEvent, 257>;
     using OutputQueue = showcore::SpscQueue<OutputFrame, 9>;
@@ -255,6 +263,7 @@ private:
 
     CommandQueue commands_{};
     BeatQueue beats_{};
+    Os2lButtonQueue os2l_buttons_{};
     MidiActionQueue midi_actions_{};
     MidiMonitorQueue midi_monitor_{};
     OutputQueue output_queue_{};
@@ -304,6 +313,7 @@ private:
     std::atomic<std::uint16_t> os2l_listen_port_{0};
     std::atomic<std::int32_t> os2l_last_error_{0};
     std::atomic<std::uint64_t> dropped_beats_{0};
+    std::atomic<std::uint64_t> dropped_os2l_actions_{0};
     std::atomic<std::uint64_t> midi_messages_{0};
     std::atomic<std::uint64_t> dropped_midi_actions_{0};
     std::atomic<std::uint64_t> started_at_ms_{0};

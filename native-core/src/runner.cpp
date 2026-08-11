@@ -184,6 +184,7 @@ bool RunnerService::start(
 
     commands_.reset();
     beats_.reset();
+    os2l_buttons_.reset();
     midi_actions_.reset();
     midi_monitor_.reset();
     output_queue_.reset();
@@ -220,6 +221,7 @@ bool RunnerService::start(
     os2l_listen_port_.store(0, std::memory_order_relaxed);
     os2l_last_error_.store(0, std::memory_order_relaxed);
     dropped_beats_.store(0, std::memory_order_relaxed);
+    dropped_os2l_actions_.store(0, std::memory_order_relaxed);
     midi_messages_.store(0, std::memory_order_relaxed);
     dropped_midi_actions_.store(0, std::memory_order_relaxed);
     const auto started_at = monotonic_ms();
@@ -445,6 +447,8 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
     snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
     snapshot.dropped_beats = dropped_beats_.load(std::memory_order_relaxed);
+    snapshot.dropped_os2l_actions =
+        dropped_os2l_actions_.load(std::memory_order_relaxed);
     snapshot.midi_messages = midi_messages_.load(std::memory_order_relaxed);
     snapshot.dropped_midi_actions = dropped_midi_actions_.load(std::memory_order_relaxed);
     const auto now_ms = monotonic_ms();
@@ -641,6 +645,16 @@ void RunnerService::os2l_callback(
         } else if (event.button.name.view() == "worklight" ||
                    event.button.name.view() == "white") {
             service.set_work_light(event.button.on);
+        } else if (const auto* activation =
+                       service.published_activation_.load(std::memory_order_acquire);
+                   activation != nullptr) {
+            const RunnerOs2lButtonEvent button{
+                event.button.name,
+                event.button.on,
+                activation->generation};
+            if (!service.os2l_buttons_.try_push(button)) {
+                service.dropped_os2l_actions_.fetch_add(1, std::memory_order_relaxed);
+            }
         }
     }
 }
@@ -1105,6 +1119,29 @@ void RunnerService::run_scheduler() noexcept {
             }
         };
 
+        auto find_look_by_name = [&](std::string_view name) noexcept {
+            for (std::size_t index = 0U; index < show->look_count(); ++index) {
+                const auto* look = show->look(index);
+                if (look != nullptr && look->name != nullptr && name == look->name) {
+                    return static_cast<std::int32_t>(index);
+                }
+            }
+            return std::int32_t{-1};
+        };
+
+        auto find_autoloop_by_name = [&](std::string_view name) noexcept {
+            for (std::uint16_t bank = 0U; bank < showcore::kMaxAutoloopBanks; ++bank) {
+                for (std::uint8_t slot = 0U; slot < showcore::kAutoloopsPerBank; ++slot) {
+                    const showcore::AutoloopAddress address{bank, slot};
+                    const auto* pattern = show->autoloops().get(address);
+                    if (pattern != nullptr && pattern->name != nullptr && name == pattern->name) {
+                        return address;
+                    }
+                }
+            }
+            return showcore::AutoloopAddress{};
+        };
+
         auto apply_tap = [&](std::uint64_t timestamp_ms) noexcept {
             if (runtime.last_tap_ms != 0U) {
                 const auto interval = timestamp_ms - runtime.last_tap_ms;
@@ -1318,6 +1355,52 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             }
         };
+
+        RunnerOs2lButtonEvent os2l_button;
+        while (os2l_buttons_.try_pop(os2l_button)) {
+            if (os2l_button.generation != activation->generation) {
+                continue;
+            }
+            auto target_name = os2l_button.name.view();
+            bool look_only = false;
+            bool autoloop_only = false;
+            constexpr std::string_view kLookPrefix = "Look: ";
+            constexpr std::string_view kAutoloopPrefix = "Autoloop: ";
+            if (target_name.starts_with(kLookPrefix)) {
+                look_only = true;
+                target_name.remove_prefix(kLookPrefix.size());
+            } else if (target_name.starts_with(kAutoloopPrefix)) {
+                autoloop_only = true;
+                target_name.remove_prefix(kAutoloopPrefix.size());
+            }
+            if (target_name.empty()) {
+                continue;
+            }
+
+            if (!autoloop_only) {
+                const auto look_index = find_look_by_name(target_name);
+                if (look_index >= 0) {
+                    const auto target = static_cast<std::uint16_t>(look_index);
+                    if (os2l_button.on) {
+                        static_cast<void>(activate_static_look(target));
+                    } else {
+                        release_static_look(target);
+                    }
+                    continue;
+                }
+            }
+            if (!look_only) {
+                const auto address = find_autoloop_by_name(target_name);
+                if (address.valid()) {
+                    if (os2l_button.on) {
+                        trigger_loop(address, clock.beat_position);
+                    } else if (runtime.selected_autoloop == address) {
+                        runtime.manual_autoloop.clear(engine.layers());
+                        runtime.selected_autoloop = {};
+                    }
+                }
+            }
+        }
 
         RunnerCommand command;
         while (commands_.try_pop(command)) {
