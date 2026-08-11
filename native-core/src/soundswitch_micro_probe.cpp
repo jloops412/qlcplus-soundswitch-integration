@@ -10,6 +10,7 @@
 #include <usbiodef.h>
 #include <winusb.h>
 
+#include "emberlights/hardware_qualification.hpp"
 #include "showcore/soundswitch_micro.hpp"
 
 #include <algorithm>
@@ -468,12 +469,23 @@ void enumerate_interface_guid(const GUID& guid, std::wostringstream& report) {
 
 struct ActiveTestResult {
     bool opened{false};
+    bool software_frame_match{false};
+    bool raw_writes_succeeded{false};
+    bool raw_visible_red{false};
+    bool repeat_open_succeeded{false};
+    bool runner_writes_succeeded{false};
+    bool runner_visible_match{false};
+    bool blackout_succeeded{false};
     bool writes_succeeded{false};
     bool visible_match{false};
     showcore::SoundSwitchMicroFraming framing{
         showcore::SoundSwitchMicroFraming::NativeJls1};
     DWORD error{ERROR_SUCCESS};
     std::uint16_t address{1U};
+    emberlights::FrameComparison frame_comparison{};
+    emberlights::PacketComparison packet_comparison{};
+    std::array<std::uint8_t, 6U> raw_channels{};
+    std::array<std::uint8_t, 6U> runner_channels{};
     showcore::SoundSwitchMicroSessionStatus session{};
 };
 
@@ -490,13 +502,23 @@ struct ActiveTestResult {
     return true;
 }
 
-[[nodiscard]] ActiveTestResult run_active_test(
-    const std::wstring& path,
-    std::uint16_t address) {
+[[nodiscard]] ActiveTestResult run_active_test(const std::wstring& path) {
     ActiveTestResult result;
-    result.address = address;
     if (path.empty()) {
         result.error = ERROR_DEVICE_NOT_CONNECTED;
+        return result;
+    }
+
+    const auto qualification = emberlights::build_ir4_6ch_red_qualification();
+    result.frame_comparison = qualification.frame_comparison;
+    result.packet_comparison = qualification.packet_comparison;
+    for (std::size_t index = 0U; index < result.raw_channels.size(); ++index) {
+        result.raw_channels[index] = qualification.raw_reference[index];
+        result.runner_channels[index] = qualification.runner_rendered[index];
+    }
+    result.software_frame_match = qualification.exact();
+    if (!result.software_frame_match) {
+        result.error = ERROR_INVALID_DATA;
         return result;
     }
 
@@ -509,31 +531,70 @@ struct ActiveTestResult {
         return result;
     }
     result.opened = true;
-
-    showcore::DmxUniverse off{};
-    showcore::DmxUniverse test{};
-    const auto first = static_cast<std::size_t>(address - 1U);
-    test[first] = 255U;
     result.framing = config.framing;
-    std::wcout << L"\nTesting " << framing_name(config.framing) << L".\n"
-               << L"The isolated bench fixture may respond on exactly DMX channel "
-               << address << L" for about three seconds.\n";
-    const auto pre_blackout = session.send_blackout(8U);
-    const auto active_stream = pre_blackout && stream_universe(session, test, 120U);
-    const auto post_blackout = session.send_blackout(8U);
-    result.writes_succeeded = pre_blackout && active_stream && post_blackout;
+
+    std::wcout
+        << L"\nSoftware frame inspector: PASS\n"
+        << L"Raw reference and compiled Runner frame are byte-identical.\n"
+        << L"IR-4 channels 1-6: 255, 0, 0, 0, 0, 0 (red only).\n\n"
+        << L"Stage 1: raw reference through " << framing_name(config.framing) << L".\n"
+        << L"The isolated IR-4 should show red for about three seconds.\n";
+    const auto raw_pre_blackout = session.send_blackout(8U);
+    const auto raw_stream = raw_pre_blackout &&
+        stream_universe(session, qualification.raw_reference, 120U);
+    const auto raw_post_blackout = session.send_blackout(8U);
+    result.raw_writes_succeeded =
+        raw_pre_blackout && raw_stream && raw_post_blackout;
+    result.blackout_succeeded = raw_pre_blackout && raw_post_blackout;
     result.error = session.last_error();
     result.session = session.status();
-    if (!result.writes_succeeded) {
+    if (!result.raw_writes_succeeded) {
         std::wcout << L"USB write failed (" << result.error << L": "
                    << win32_message(result.error) << L").\n";
     } else {
-        std::wcout << L"Did the isolated fixture visibly respond? [y/N]: ";
+        std::wcout << L"Did the isolated IR-4 visibly show red, then black out? [y/N]: ";
         std::wstring answer;
         std::getline(std::wcin, answer);
-        result.visible_match = affirmative(answer);
+        result.raw_visible_red = affirmative(answer);
     }
     session.close();
+
+    if (result.raw_writes_succeeded && result.raw_visible_red) {
+        std::wcout
+            << L"\nStage 2: reopening the Micro and sending the compiled Runner frame.\n";
+        result.repeat_open_succeeded = session.open(config);
+        if (!result.repeat_open_succeeded) {
+            result.error = session.last_error();
+            result.session = session.status();
+            std::wcout << L"Micro reopen failed (" << result.error << L": "
+                       << win32_message(result.error) << L").\n";
+        } else {
+            const auto runner_pre_blackout = session.send_blackout(8U);
+            const auto runner_stream = runner_pre_blackout &&
+                stream_universe(session, qualification.runner_rendered, 120U);
+            const auto runner_post_blackout = session.send_blackout(8U);
+            result.runner_writes_succeeded =
+                runner_pre_blackout && runner_stream && runner_post_blackout;
+            result.blackout_succeeded = result.blackout_succeeded &&
+                runner_pre_blackout && runner_post_blackout;
+            result.error = session.last_error();
+            result.session = session.status();
+            if (!result.runner_writes_succeeded) {
+                std::wcout << L"Runner-frame write failed (" << result.error << L": "
+                           << win32_message(result.error) << L").\n";
+            } else {
+                std::wcout
+                    << L"Did Stage 2 show the same red, then black out? [y/N]: ";
+                std::wstring answer;
+                std::getline(std::wcin, answer);
+                result.runner_visible_match = affirmative(answer);
+            }
+        }
+        session.close();
+    }
+    result.writes_succeeded = result.raw_writes_succeeded &&
+        result.repeat_open_succeeded && result.runner_writes_succeeded;
+    result.visible_match = result.raw_visible_red && result.runner_visible_match;
     return result;
 }
 
@@ -554,10 +615,40 @@ void save_active_report(const ActiveTestResult& result) {
     output << L"EmberLights SoundSwitch Micro active test\n"
            << L"Version: " << EMBERLIGHTS_VERSION << L"\n"
            << L"Source commit: " << EMBERLIGHTS_COMMIT << L"\n"
+           << L"Fixture: Both Lighting BO-IR4 LED Mini Spotlight\n"
+           << L"Fixture mode: 6 channel (R,G,B,W,A,UV)\n"
            << L"DMX address: " << result.address << L"\n"
+           << L"Software raw/Runner frame match: "
+           << (result.software_frame_match ? L"yes" : L"no") << L"\n"
+           << L"Differing DMX slots: " << result.frame_comparison.differing_slots << L"\n"
+           << L"Differing native packet bytes: "
+           << result.packet_comparison.differing_bytes << L"\n"
+           << L"Raw CH1-CH6: ";
+    for (const auto value : result.raw_channels) {
+        output << static_cast<unsigned int>(value) << L" ";
+    }
+    output << L"\nRunner CH1-CH6: ";
+    for (const auto value : result.runner_channels) {
+        output << static_cast<unsigned int>(value) << L" ";
+    }
+    output << L"\n"
            << L"Device opened: " << (result.opened ? L"yes" : L"no") << L"\n"
-           << L"USB writes completed: " << (result.writes_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Visible DMX match: " << (result.visible_match ? L"yes" : L"no") << L"\n"
+           << L"Raw writes completed: "
+           << (result.raw_writes_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Raw visible red/blackout: "
+           << (result.raw_visible_red ? L"yes" : L"no") << L"\n"
+           << L"Repeat open completed: "
+           << (result.repeat_open_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Runner writes completed: "
+           << (result.runner_writes_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Runner visible match/blackout: "
+           << (result.runner_visible_match ? L"yes" : L"no") << L"\n"
+           << L"All bounded blackouts completed: "
+           << (result.blackout_succeeded ? L"yes" : L"no") << L"\n"
+           << L"USB writes completed: "
+           << (result.writes_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Visible raw/Runner match: "
+           << (result.visible_match ? L"yes" : L"no") << L"\n"
            << L"Selected framing: " << framing_name(result.framing) << L"\n"
            << L"Lifecycle at test end: "
            << showcore::soundswitch_micro_lifecycle_name(result.session.state) << L"\n"
@@ -722,17 +813,10 @@ int wmain(int argc, wchar_t** argv) {
         << L"\nACTIVE TEST SETUP\n"
         << L"1. Fully close SoundSwitch and EmberLights.\n"
         << L"2. Connect Micro XLR -> Donner transmitter.\n"
-        << L"3. Connect only one non-hazardous bench fixture and set its DMX address.\n"
-        << L"4. Keep movers, fog, lasers, and all other effects disconnected.\n\n"
-        << L"Enter the bench fixture DMX address [default 1]: ";
-    std::wstring address_text;
-    std::getline(std::wcin, address_text);
-    std::uint16_t address = 1U;
-    if (!parse_dmx_address(address_text, address)) {
-        std::wcerr << L"Invalid address. Enter a number from 1 through 512.\n";
-        return 4;
-    }
-    std::wcout << L"Type TEST to authorize the bounded DMX output test: ";
+        << L"3. Connect one Both Lighting IR-4 only. Set 6-channel mode and address 001.\n"
+        << L"4. Confirm the IR-4 Master setting is Off.\n"
+        << L"5. Keep movers, fog, lasers, and all other effects disconnected.\n\n"
+        << L"Type TEST to authorize the fixed U1/address-001 red test: ";
     std::wstring confirmation;
     std::getline(std::wcin, confirmation);
     if (upper(confirmation) != L"TEST") {
@@ -745,23 +829,32 @@ int wmain(int argc, wchar_t** argv) {
         std::wcerr << L"The target WinUSB interface path disappeared. Reconnect the Micro and retry.\n";
         return 5;
     }
-    const auto active = run_active_test(*interface_path, address);
+    const auto active = run_active_test(*interface_path);
     save_active_report(active);
-    if (active.visible_match) {
+    if (active.software_frame_match && active.writes_succeeded &&
+        active.visible_match && active.blackout_succeeded) {
         std::wcout << L"\nSUCCESS: " << framing_name(active.framing)
-                   << L" produced visible DMX output.\n"
+                   << L" produced matching raw and Runner red output after reopen.\n"
                    << L"The result is saved on your Desktop as:\n"
                    << active_report_path().wstring() << L"\n"
                    << L"Upload that small text file here so the Micro can be marked physically verified.\n";
+    } else if (!active.software_frame_match) {
+        std::wcerr
+            << L"\nThe raw and compiled Runner frames did not match. No USB output was sent.\n";
     } else if (!active.opened) {
         std::wcerr << L"\nThe Micro could not be opened (" << active.error << L": "
                    << win32_message(active.error) << L"). Close SoundSwitch/EmberLights and retry.\n";
     } else {
-        std::wcerr << L"\nThe native JLS1 test produced no visible output. The result report is on your Desktop;\n"
-                   << L"upload it here with the fixture model, DMX address, and receiver state.\n";
+        std::wcerr
+            << L"\nThe full native JLS1 raw/Runner qualification did not pass. "
+            << L"The result report is on your Desktop;\n"
+            << L"upload it here with the receiver state and which stage failed.\n";
     }
     std::wcout << L"Press Enter to close.";
     std::wstring ignored;
     std::getline(std::wcin, ignored);
-    return active.visible_match ? 0 : 6;
+    return active.software_frame_match && active.writes_succeeded &&
+            active.visible_match && active.blackout_succeeded
+        ? 0
+        : 6;
 }

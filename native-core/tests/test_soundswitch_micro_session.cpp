@@ -1,6 +1,11 @@
+#include "emberlights/hardware_qualification.hpp"
+#include "emberlights/project.hpp"
 #include "showcore/soundswitch_micro.hpp"
 
+#include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <iostream>
 #include <string_view>
 
@@ -54,6 +59,58 @@ int main() {
     CHECK(packet.length == 522U);
     CHECK(packet.bytes[10] == 0x11U);
     CHECK(packet.bytes[521] == 0xFEU);
+
+    const auto project = emberlights::make_starter_project();
+    const auto ir4_profile = std::find_if(
+        project.fixture_profiles.begin(),
+        project.fixture_profiles.end(),
+        [](const auto& profile) {
+            return profile.id == emberlights::kBothLightingIr4SixChannelProfileId;
+        });
+    CHECK(ir4_profile != project.fixture_profiles.end());
+    if (ir4_profile != project.fixture_profiles.end()) {
+        CHECK(ir4_profile->manufacturer == "Both Lighting");
+        CHECK(ir4_profile->model == "BO-IR4 LED Mini Spotlight");
+        CHECK(ir4_profile->mode == "6 channel");
+        CHECK(ir4_profile->footprint == 6U);
+        CHECK(ir4_profile->channels.size() == 6U);
+        constexpr std::array properties{
+            showcore::Property::Red,
+            showcore::Property::Green,
+            showcore::Property::Blue,
+            showcore::Property::White,
+            showcore::Property::Amber,
+            showcore::Property::UV};
+        for (std::size_t index = 0U;
+             index < properties.size() && index < ir4_profile->channels.size(); ++index) {
+            CHECK(ir4_profile->channels[index].property == properties[index]);
+            CHECK(ir4_profile->channels[index].coarse_offset == index);
+        }
+    }
+
+    const auto qualification = emberlights::build_ir4_6ch_red_qualification();
+    CHECK(qualification.exact());
+    CHECK(qualification.validation.ok());
+    CHECK(qualification.raw_reference[0] == 255U);
+    CHECK(qualification.runner_rendered[0] == 255U);
+    for (std::size_t index = 1U; index < showcore::kUniverseSlots; ++index) {
+        CHECK(qualification.raw_reference[index] == 0U);
+        CHECK(qualification.runner_rendered[index] == 0U);
+    }
+    CHECK(qualification.raw_packet.length == 522U);
+    CHECK(qualification.runner_packet.length == 522U);
+    CHECK(qualification.frame_comparison.differing_slots == 0U);
+    CHECK(qualification.packet_comparison.differing_bytes == 0U);
+
+    auto mismatch = qualification.runner_rendered;
+    mismatch[4] = 1U;
+    const auto comparison = emberlights::compare_dmx_frames(
+        qualification.raw_reference, mismatch);
+    CHECK(!comparison.exact());
+    CHECK(comparison.differing_slots == 1U);
+    CHECK(comparison.first_differing_channel == 5U);
+    CHECK(comparison.expected == 0U);
+    CHECK(comparison.actual == 1U);
 
     if (failures == 0) {
         std::cout << "SoundSwitch Micro session tests passed\n";

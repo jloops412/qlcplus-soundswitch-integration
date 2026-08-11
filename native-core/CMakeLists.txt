@@ -38,6 +38,7 @@ add_library(showcore STATIC
     src/autoloop.cpp
     src/engine.cpp
     src/project.cpp
+    src/hardware_qualification.cpp
     src/project_edit_history.cpp
     src/project_io.cpp
     src/file_identity.cpp

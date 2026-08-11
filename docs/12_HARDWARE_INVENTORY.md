@@ -13,7 +13,7 @@ Status: user-reported names captured; exact USB identities and modes pending.
 
 | Fixture | Likely role/capabilities | Confidence | Evidence still needed |
 | --- | --- | --- | --- |
-| [Both Lighting IR-4](https://bothlightingusa.com/products/ir-4) | Wireless battery RGBWA+UV uplight | Model family confirmed from user wording | Quantity, label/photo, firmware if exposed, current DMX mode, channel chart/manual. |
+| [Both Lighting IR-4](https://bothlightingusa.com/products/ir-4) | Wireless battery RGBWA+UV uplight | Manufacturer manual verified: 6-channel mode is R/G/B/W/Amber/UV; 10-channel mode also exists. Exact built-in 6-channel profile and U1/address-001 frame qualification are implemented. | Quantity, label/photo, firmware if exposed, operator confirmation of current mode, physical raw/Runner response, blackout, and reconnect. |
 | [Both Lighting 360 LED Tube](https://bothlightingusa.com/products/360-tubes) | Wireless battery pixel tube | Model family confirmed from user wording | Quantity, exact revision/model label, pixel count, current DMX mode, channel chart/manual. |
 | [CHAUVET DJ Wash FX Hex](https://www.chauvetdj.com/products/wash-fx-hex/) | Six-zone RGBAW+UV wash/chase/blinder effect | Model confirmed from user wording | Quantity, confirm original versus ILS variant, current DMX personality, label/photo. |
 | Other fixtures | First profile pack | Known to exist, names pending | Model names, quantities, manuals, and which are part of the normal rig. |

@@ -406,9 +406,9 @@ ProjectDocument make_safe_color_rig_v1_template(
          Property::Custom1, Property::Custom2, Property::Custom3}));
     project.fixture_profiles.push_back(make_profile(
         "soundswitch.both-lighting.bo-ir4.mode1",
-        "Both Lighting", "BO-IR4 LED Mini Spotlight", "Mode 1",
+        "Both Lighting", "BO-IR4 LED Mini Spotlight", "Mode 1 (10 channel)",
         {Property::Intensity, Property::Red, Property::Green, Property::Blue,
-         Property::Amber, Property::White, Property::UV, Property::Strobe,
+         Property::White, Property::Amber, Property::UV, Property::Strobe,
          Property::Custom1, Property::Custom2}));
 
     std::vector<std::string> all_color;
@@ -590,6 +590,8 @@ SoundSwitchV1MigrationResult create_soundswitch_v1_project(
     result.warnings = {
         "All Art-Net, sACN, and USB-DMX outputs are disabled until the physical patch is checked.",
         "Universe 1 addresses 1-263 are a safe non-overlapping staging layout, not decoded SoundSwitch addresses.",
+        "The staged IR-4 fixtures use the manufacturer 10-channel ordering. If the physical IR-4 display is set to 6 channels, select the built-in 6-channel profile and repatch before enabling output.",
+        "BO-S601, 360 Tube, and Wash FX Hex staged modes remain source-qualified approximations until each physical display and official DMX chart is checked.",
         "The 32 active Autoloop names were retained; their native semantic patterns were rebuilt from the names rather than claimed as binary cue decoding.",
         "Mover, GigBar, PartyBar, cold-spark, and purchased track-show payloads remain in the original archive and are not enabled in this first-pilot color rig.",
         "Keep SoundSwitch and the original export available as the rehearsed fallback for the first pilot."

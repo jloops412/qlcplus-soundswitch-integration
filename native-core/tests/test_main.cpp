@@ -2297,6 +2297,27 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(migration.project.groups.size() == 9U);
     CHECK(migration.project.looks.size() == 18U);
     CHECK(migration.project.autoloops.size() == 32U);
+    const auto ir4_profile = std::find_if(
+        migration.project.fixture_profiles.begin(),
+        migration.project.fixture_profiles.end(),
+        [](const auto& profile) {
+            return profile.id == "soundswitch.both-lighting.bo-ir4.mode1";
+        });
+    CHECK(ir4_profile != migration.project.fixture_profiles.end());
+    if (ir4_profile != migration.project.fixture_profiles.end()) {
+        CHECK(ir4_profile->mode == "Mode 1 (10 channel)");
+        CHECK(ir4_profile->channels.size() == 10U);
+        if (ir4_profile->channels.size() == 10U) {
+            CHECK(ir4_profile->channels[0].property == showcore::Property::Intensity);
+            CHECK(ir4_profile->channels[1].property == showcore::Property::Red);
+            CHECK(ir4_profile->channels[2].property == showcore::Property::Green);
+            CHECK(ir4_profile->channels[3].property == showcore::Property::Blue);
+            CHECK(ir4_profile->channels[4].property == showcore::Property::White);
+            CHECK(ir4_profile->channels[5].property == showcore::Property::Amber);
+            CHECK(ir4_profile->channels[6].property == showcore::Property::UV);
+            CHECK(ir4_profile->channels[7].property == showcore::Property::Strobe);
+        }
+    }
     CHECK(!migration.project.connections.artnet_enabled);
     CHECK(!migration.project.connections.sacn_enabled);
     CHECK(migration.project.connections.dmx_usb_pro_ports[0].empty());
@@ -2307,6 +2328,8 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(report.find("emberlights-soundswitch-v1-migration") != std::string::npos);
     CHECK(report.find("\"outputEnabled\": false") != std::string::npos);
     CHECK(report.find("Test Loop 1") != std::string::npos);
+    CHECK(report.find("physical IR-4 display is set to 6 channels") != std::string::npos);
+    CHECK(report.find("source-qualified approximations") != std::string::npos);
     CHECK(emberlights::save_project_atomic(project_path, migration.project, false));
     emberlights::ProjectDocument loaded;
     CHECK(emberlights::load_project(project_path, loaded, false));
