@@ -26,6 +26,7 @@ add_library(showcore STATIC
     src/fixture.cpp
     src/fixture_library.cpp
     src/dmx_usb_pro.cpp
+    src/soundswitch_micro.cpp
     src/artnet.cpp
     src/sacn.cpp
     src/os2l.cpp
@@ -63,7 +64,7 @@ endif()
 
 if(WIN32)
     target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0A00)
-    target_link_libraries(showcore PUBLIC ws2_32 winmm)
+    target_link_libraries(showcore PUBLIC ws2_32 winmm setupapi winusb ole32 uuid)
 endif()
 
 add_executable(runner_demo src/demo.cpp)
