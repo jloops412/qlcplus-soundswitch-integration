@@ -5,6 +5,8 @@
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
+#include "emberlights/ui_command.hpp"
+#include "emberlights/ui_state.hpp"
 #include "emberlights/soundswitch_import.hpp"
 #include "emberlights/version.hpp"
 #include "showcore/dmx_usb_pro.hpp"
@@ -332,6 +334,7 @@ enum ControlId : int {
     IdDmxUsbProUniverse2,
     IdSoundSwitchMicroUniverse,
     IdSoundSwitchMicroFraming,
+    IdSoundSwitchControlOneMode,
     IdFrameRate,
     IdManualBpm,
     IdMidiInput,
@@ -668,7 +671,7 @@ template <typename Value>
     return path;
 }
 
-class Application {
+class Application final : public emberlights::UiAppCommandHost {
 public:
     explicit Application(HINSTANCE instance) noexcept : instance_(instance) {}
     ~Application() noexcept;
@@ -752,6 +755,8 @@ private:
     bool save_project(bool save_as);
     void validate_project(bool show_success);
     void start_or_stop_show();
+    [[nodiscard]] emberlights::UiInvocationResult ui_start_show() noexcept override;
+    [[nodiscard]] emberlights::UiInvocationResult ui_stop_show() noexcept override;
     void apply_fixture_override(bool active);
     void clear_fixture_overrides();
 
@@ -830,6 +835,7 @@ private:
     std::uint16_t live_autoloop_bank_page_{0U};
 
     emberlights::RunnerService runner_{};
+    emberlights::UiCommandFacade ui_commands_{runner_, *this};
     std::optional<emberlights::ProjectDocument> active_project_{};
     showcore::WinMmMidiInput learn_input_{};
     bool midi_learning_{false};
@@ -1543,6 +1549,8 @@ void Application::create_pages() {
     add_combo(page, IdSoundSwitchMicroUniverse);
     add_label(page, L"Micro protocol", 0);
     add_combo(page, IdSoundSwitchMicroFraming);
+    add_label(page, L"SoundSwitch Control One DMX", 0);
+    add_combo(page, IdSoundSwitchControlOneMode);
     add_label(page, L"Frame rate", 0);
     add_edit(page, IdFrameRate);
     add_label(page, L"Manual fallback BPM", 0);
@@ -2774,6 +2782,16 @@ void Application::refresh_connections() {
     combo_select_data(
         micro_framing,
         static_cast<std::intptr_t>(project_.connections.soundswitch_micro_framing));
+    const auto control_one_mode = ::GetDlgItem(page, IdSoundSwitchControlOneMode);
+    static_cast<void>(::SendMessageW(control_one_mode, CB_RESETCONTENT, 0, 0));
+    combo_add(control_one_mode, L"Disabled", 0);
+    combo_add(
+        control_one_mode,
+        L"Experimental (unqualified) — Jack 1 = U1, Jack 2 = U2",
+        1);
+    combo_select_data(
+        control_one_mode,
+        project_.connections.soundswitch_control_one_experimental ? 1 : 0);
     set_control_text(::GetDlgItem(page, IdFrameRate), number_text(project_.connections.frame_rate));
     set_control_text(::GetDlgItem(page, IdManualBpm), number_text(project_.connections.manual_bpm));
 
@@ -2857,7 +2875,9 @@ std::string Application::diagnostics_text() const {
            << "  USB U1: " << narrow(adapter_state_name(status.dmx_usb_pro[0]))
            << "  USB U2: " << narrow(adapter_state_name(status.dmx_usb_pro[1]))
            << "  SoundSwitch Micro: "
-           << narrow(soundswitch_micro_state_name(status.soundswitch_micro)) << "\r\n"
+           << narrow(soundswitch_micro_state_name(status.soundswitch_micro))
+           << "  Control One DMX: "
+           << narrow(adapter_state_name(status.soundswitch_control_one)) << "\r\n"
            << "Micro project setting: universe "
            << static_cast<unsigned int>(project_.connections.soundswitch_micro_universe)
            << "  framing: "
@@ -2868,6 +2888,11 @@ std::string Application::diagnostics_text() const {
            << "  last WinUSB error: " << status.soundswitch_micro_last_error
            << "  last non-zero slots: "
            << status.soundswitch_micro_last_nonzero_slots << "\r\n"
+           << "Control One project setting: "
+           << (project_.connections.soundswitch_control_one_experimental
+                   ? "EXPERIMENTAL / NOT PHYSICALLY QUALIFIED; jack 1=U1, jack 2=U2"
+                   : "disabled")
+           << "\r\n"
            << "Output backend health:\r\n";
     for (const auto& backend : status.output_backends) {
         const auto& descriptor = showcore::output_backend_descriptor(backend.kind);
@@ -3021,7 +3046,10 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdShowValidate:
     case IdDiagnosticsValidate: validate_project(true); break;
     case IdShowStartStop:
-    case IdLiveStartStop: start_or_stop_show(); break;
+    case IdLiveStartStop:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::ShowToggleRunning}));
+        break;
     case IdHelpAbout:
     {
         const auto about = widen(
@@ -3038,18 +3066,35 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdOverridesApply: apply_fixture_override(true); break;
     case IdOverridesRelease: apply_fixture_override(false); break;
     case IdOverridesReleaseAll: clear_fixture_overrides(); break;
-    case IdLiveBlackout: runner_.set_blackout(!runner_.status().blackout); break;
-    case IdLiveWorkLight: runner_.set_work_light(!runner_.status().work_light); break;
+    case IdLiveBlackout:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::BlackoutToggle}));
+        break;
+    case IdLiveWorkLight:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::WorkLightToggle}));
+        break;
     case IdLiveApplyBpm: {
         double bpm = 0.0;
+        emberlights::UiCommandInvocation invocation;
+        invocation.command = emberlights::UiCommandId::ManualBpmSet;
+        invocation.number_value = bpm;
         if (!parse_number(control_text(::GetDlgItem(
-                pages_[static_cast<std::size_t>(Page::Live)], IdLiveBpm)), bpm) ||
-            !runner_.set_manual_bpm(bpm)) {
+                pages_[static_cast<std::size_t>(Page::Live)], IdLiveBpm)), bpm)) {
+            set_status(L"Enter a BPM from 20 through 300 while the show is running.");
+            break;
+        }
+        invocation.number_value = bpm;
+        if (ui_commands_.invoke(invocation) !=
+            emberlights::UiInvocationResult::Accepted) {
             set_status(L"Enter a BPM from 20 through 300 while the show is running.");
         }
         break;
     }
-    case IdLiveTap: static_cast<void>(runner_.tap_tempo()); break;
+    case IdLiveTap:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::TapTempo}));
+        break;
     case IdLiveTriggerLook: {
         const auto list = ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Live)], IdLiveLooks);
         const auto selected = static_cast<int>(::SendMessageW(list, LB_GETCURSEL, 0, 0));
@@ -3151,29 +3196,23 @@ void Application::handle_command(int id, int notification, HWND) {
     }
     case IdLiveClearTrack: static_cast<void>(runner_.clear_track_script()); break;
     case IdLiveFogArm:
-        static_cast<void>(runner_.set_hazard_armed(
-            showcore::Property::Fog,
-            Button_GetCheck(::GetDlgItem(
-                pages_[static_cast<std::size_t>(Page::Live)], IdLiveFogArm)) == BST_CHECKED));
-        break;
     case IdLiveHazeArm:
-        static_cast<void>(runner_.set_hazard_armed(
-            showcore::Property::Haze,
-            Button_GetCheck(::GetDlgItem(
-                pages_[static_cast<std::size_t>(Page::Live)], IdLiveHazeArm)) == BST_CHECKED));
-        break;
     case IdLiveLaserArm:
-        static_cast<void>(runner_.set_hazard_armed(
-            showcore::Property::Laser,
-            Button_GetCheck(::GetDlgItem(
-                pages_[static_cast<std::size_t>(Page::Live)], IdLiveLaserArm)) == BST_CHECKED));
+    case IdLiveSparkArm: {
+        emberlights::UiCommandInvocation invocation;
+        invocation.command = emberlights::UiCommandId::HazardSetArmed;
+        invocation.property = id == IdLiveFogArm ? showcore::Property::Fog
+            : id == IdLiveHazeArm ? showcore::Property::Haze
+            : id == IdLiveLaserArm ? showcore::Property::Laser
+            : showcore::Property::Spark;
+        invocation.bool_value = Button_GetCheck(::GetDlgItem(
+            pages_[static_cast<std::size_t>(Page::Live)], id)) == BST_CHECKED;
+        if (ui_commands_.invoke(invocation) !=
+            emberlights::UiInvocationResult::Accepted) {
+            refresh_live_status();
+        }
         break;
-    case IdLiveSparkArm:
-        static_cast<void>(runner_.set_hazard_armed(
-            showcore::Property::Spark,
-            Button_GetCheck(::GetDlgItem(
-                pages_[static_cast<std::size_t>(Page::Live)], IdLiveSparkArm)) == BST_CHECKED));
-        break;
+    }
     case IdProfileNew: new_profile(); break;
     case IdProfileImportQlc: import_qlc_fixture_dialog(); break;
     case IdProfileDuplicate: duplicate_profile(); break;
@@ -3857,6 +3896,26 @@ void Application::start_or_stop_show() {
         : L"Runner starting. DMX output follows the enabled Connections settings.");
 }
 
+emberlights::UiInvocationResult Application::ui_start_show() noexcept {
+    if (runner_.status().state != emberlights::RunnerState::Stopped) {
+        return emberlights::UiInvocationResult::NoChange;
+    }
+    start_or_stop_show();
+    return runner_.status().state == emberlights::RunnerState::Stopped
+        ? emberlights::UiInvocationResult::InternalError
+        : emberlights::UiInvocationResult::Accepted;
+}
+
+emberlights::UiInvocationResult Application::ui_stop_show() noexcept {
+    if (runner_.status().state == emberlights::RunnerState::Stopped) {
+        return emberlights::UiInvocationResult::NoChange;
+    }
+    start_or_stop_show();
+    return runner_.status().state == emberlights::RunnerState::Stopped
+        ? emberlights::UiInvocationResult::Accepted
+        : emberlights::UiInvocationResult::InternalError;
+}
+
 void Application::apply_fixture_override(bool active) {
     const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
     const auto fixtures = ::GetDlgItem(page, IdOverridesFixture);
@@ -3929,7 +3988,8 @@ void Application::apply_fixture_override(bool active) {
 }
 
 void Application::clear_fixture_overrides() {
-    if (!runner_.clear_manual_overrides()) {
+    if (ui_commands_.invoke({emberlights::UiCommandId::ReleaseAllOverrides}) !=
+        emberlights::UiInvocationResult::Accepted) {
         set_page_message(Page::Overrides, IdOverridesMessage,
                          "Start the show before releasing manual overrides.", true);
         return;
@@ -5344,6 +5404,30 @@ void Application::apply_connections() {
             ::GetDlgItem(page, IdSoundSwitchMicroFraming),
             static_cast<std::intptr_t>(
                 showcore::SoundSwitchMicroFraming::NativeJls1)));
+    updated.soundswitch_control_one_experimental =
+        combo_selected_data(::GetDlgItem(page, IdSoundSwitchControlOneMode), 0) == 1;
+    if (updated.soundswitch_control_one_experimental &&
+        !previous_connections.soundswitch_control_one_experimental) {
+        const auto confirmation = ::MessageBoxW(
+            window_,
+            L"Control One DMX is experimental and has not yet been physically qualified.\n\n"
+            L"Before continuing:\n"
+            L"• Close SoundSwitch.\n"
+            L"• Disconnect fog, haze, lasers, sparks, motion, and other hazardous devices.\n"
+            L"• Use a safe dimmer/test fixture and keep an independent blackout path.\n"
+            L"• Jack 1 will carry EmberLights Universe 1; jack 2 will carry Universe 2.\n\n"
+            L"Enable the experimental two-jack output?",
+            L"Enable experimental Control One DMX",
+            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2);
+        if (confirmation != IDOK) {
+            combo_select_data(::GetDlgItem(page, IdSoundSwitchControlOneMode), 0);
+            set_page_message(
+                Page::Connections,
+                IdConnectionsMessage,
+                "Control One DMX remains disabled; no connection setting was changed.");
+            return;
+        }
+    }
     if (project_name.empty() || updated.os2l_bind.empty() ||
         (updated.artnet_enabled && updated.artnet_destination.empty()) ||
         (updated.sacn_enabled && updated.sacn_destination.empty()) ||
