@@ -584,15 +584,19 @@ public:
     explicit Application(HINSTANCE instance) noexcept : instance_(instance) {}
     ~Application() noexcept;
 
-    int run(int show_command, const std::optional<std::filesystem::path>& initial_file);
+    int run(
+        int show_command,
+        const std::optional<std::filesystem::path>& initial_file,
+        bool startup_smoke);
 
 private:
     static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     static LRESULT CALLBACK page_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
-    LRESULT handle_message(UINT message, WPARAM wparam, LPARAM lparam);
+    LRESULT handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
 
     bool register_classes();
     bool create_window(int show_command);
+    [[nodiscard]] bool window_tree_ready() const noexcept;
     void create_menu_bar();
     void create_navigation();
     void create_pages();
@@ -783,13 +787,40 @@ bool Application::register_classes() {
 
 int Application::run(
     int show_command,
-    const std::optional<std::filesystem::path>& initial_file) {
+    const std::optional<std::filesystem::path>& initial_file,
+    bool startup_smoke) {
     saved_project_serialized_ = emberlights::serialize_project(project_);
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES | ICC_LISTVIEW_CLASSES};
-    if (!::InitCommonControlsEx(&controls) || !register_classes() || !create_window(show_command)) {
-        ::MessageBoxW(nullptr, L"EmberLights could not initialize its Windows interface.",
-                      L"EmberLights", MB_OK | MB_ICONERROR);
+    const wchar_t* failed_stage = nullptr;
+    DWORD error = ERROR_SUCCESS;
+    if (!::InitCommonControlsEx(&controls)) {
+        failed_stage = L"loading Windows controls";
+        error = ::GetLastError();
+    } else if (!register_classes()) {
+        failed_stage = L"registering the application window";
+        error = ::GetLastError();
+    } else if (!create_window(show_command)) {
+        failed_stage = L"creating the application window";
+        error = ::GetLastError();
+    }
+    if (failed_stage != nullptr) {
+        std::wostringstream message;
+        message << L"EmberLights could not initialize while " << failed_stage << L".\n\n"
+                << L"Windows error " << error
+                << L". Please include this number when reporting the problem.";
+        if (!startup_smoke) {
+            ::MessageBoxW(
+                nullptr,
+                message.str().c_str(),
+                L"EmberLights startup error",
+                MB_OK | MB_ICONERROR);
+        }
         return EXIT_FAILURE;
+    }
+    if (startup_smoke) {
+        ::DestroyWindow(window_);
+        window_ = nullptr;
+        return EXIT_SUCCESS;
     }
     if (initial_file.has_value()) {
         static_cast<void>(open_project(*initial_file));
@@ -851,6 +882,12 @@ bool Application::create_window(int show_command) {
     create_navigation();
     create_pages();
     status_bar_ = add_label(window_, L"Ready", 0);
+    if (!window_tree_ready()) {
+        ::DestroyWindow(window_);
+        window_ = nullptr;
+        ::SetLastError(ERROR_INVALID_WINDOW_HANDLE);
+        return false;
+    }
     static_cast<void>(::SetTimer(window_, kStatusTimer, kStatusTimerMs, nullptr));
     refresh_midi_ports();
     refresh_all();
@@ -859,6 +896,38 @@ bool Application::create_window(int show_command) {
     ::ShowWindow(window_, show_command);
     static_cast<void>(::UpdateWindow(window_));
     return true;
+}
+
+bool Application::window_tree_ready() const noexcept {
+    if (window_ == nullptr || status_bar_ == nullptr) {
+        return false;
+    }
+    if (std::any_of(pages_.begin(), pages_.end(), [](HWND page) { return page == nullptr; }) ||
+        std::any_of(
+            navigation_.begin(), navigation_.end(), [](HWND navigation) { return navigation == nullptr; })) {
+        return false;
+    }
+    constexpr std::array<std::pair<Page, int>, 12> critical_controls{{
+        {Page::Live, IdLiveStartStop},
+        {Page::Overrides, IdOverridesApply},
+        {Page::Profiles, IdProfileList},
+        {Page::Patch, IdPatchList},
+        {Page::Groups, IdGroupList},
+        {Page::Looks, IdLookList},
+        {Page::Autoloops, IdAutoloopList},
+        {Page::Tracks, IdTrackList},
+        {Page::Midi, IdMidiList},
+        {Page::Connections, IdConnectionsApply},
+        {Page::Safety, IdSafetyApply},
+        {Page::Diagnostics, IdDiagnosticsText},
+    }};
+    return std::all_of(
+        critical_controls.begin(),
+        critical_controls.end(),
+        [this](const auto& control) {
+            return ::GetDlgItem(
+                       pages_[static_cast<std::size_t>(control.first)], control.second) != nullptr;
+        });
 }
 
 LRESULT CALLBACK Application::window_proc(
@@ -871,11 +940,12 @@ LRESULT CALLBACK Application::window_proc(
     if (message == WM_NCCREATE) {
         const auto* creation = reinterpret_cast<const CREATESTRUCTW*>(lparam);
         application = static_cast<Application*>(creation->lpCreateParams);
+        application->window_ = window;
         static_cast<void>(::SetWindowLongPtrW(
             window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(application)));
     }
     return application != nullptr
-        ? application->handle_message(message, wparam, lparam)
+        ? application->handle_message(window, message, wparam, lparam)
         : ::DefWindowProcW(window, message, wparam, lparam);
 }
 
@@ -890,7 +960,7 @@ LRESULT CALLBACK Application::page_proc(
     return ::DefWindowProcW(window, message, wparam, lparam);
 }
 
-LRESULT Application::handle_message(UINT message, WPARAM wparam, LPARAM lparam) {
+LRESULT Application::handle_message(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
     case WM_GETMINMAXINFO: {
         auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
@@ -951,7 +1021,7 @@ LRESULT Application::handle_message(UINT message, WPARAM wparam, LPARAM lparam) 
         ::PostQuitMessage(EXIT_SUCCESS);
         return 0;
     default:
-        return ::DefWindowProcW(window_, message, wparam, lparam);
+        return ::DefWindowProcW(window, message, wparam, lparam);
     }
 }
 
@@ -5378,11 +5448,19 @@ void Application::delete_midi_mapping() {
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     const auto com_result = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     std::optional<std::filesystem::path> initial_file;
+    bool startup_smoke = false;
     int argument_count = 0;
     auto** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &argument_count);
     if (arguments != nullptr) {
-        if (argument_count > 1 && arguments[1] != nullptr && arguments[1][0] != L'\0') {
-            initial_file = std::filesystem::path(arguments[1]);
+        for (int index = 1; index < argument_count; ++index) {
+            if (arguments[index] == nullptr || arguments[index][0] == L'\0') {
+                continue;
+            }
+            if (::lstrcmpiW(arguments[index], L"--startup-smoke") == 0) {
+                startup_smoke = true;
+            } else if (!initial_file.has_value()) {
+                initial_file = std::filesystem::path(arguments[index]);
+            }
         }
         ::LocalFree(arguments);
     }
@@ -5419,7 +5497,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
         return EXIT_SUCCESS;
     }
     Application application(instance);
-    const auto result = application.run(show_command, initial_file);
+    const auto result = application.run(
+        startup_smoke ? SW_HIDE : show_command,
+        initial_file,
+        startup_smoke);
     if (instance_mutex != nullptr) {
         ::CloseHandle(instance_mutex);
     }

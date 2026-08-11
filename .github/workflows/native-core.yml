@@ -80,6 +80,28 @@ jobs:
           & $iscc "/DBuildDir=$PWD/stage" "/DAppVersion=${{ steps.version.outputs.value }}" "installer/EmberLights.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Install and launch Windows application
+        shell: pwsh
+        run: |
+          $installer = Resolve-Path "installer/output/EmberLights-${{ steps.version.outputs.value }}-Setup.exe"
+          $installDir = Join-Path $PWD "installed-smoke"
+          $setup = Start-Process -FilePath $installer -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=$installDir"
+          ) -PassThru -Wait
+          if ($setup.ExitCode -ne 0) {
+            throw "Installer smoke test failed with exit code $($setup.ExitCode)."
+          }
+          $application = Join-Path $installDir "EmberLights.exe"
+          if (-not (Test-Path -LiteralPath $application -PathType Leaf)) {
+            throw "The installer did not produce EmberLights.exe."
+          }
+          $launch = Start-Process -FilePath $application -ArgumentList "--startup-smoke" -PassThru -Wait
+          if ($launch.ExitCode -ne 0) {
+            throw "Installed GUI startup smoke test failed with exit code $($launch.ExitCode)."
+          }
       - name: Generate release evidence
         shell: pwsh
         run: |

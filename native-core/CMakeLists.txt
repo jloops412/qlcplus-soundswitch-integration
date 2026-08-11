@@ -141,6 +141,10 @@ if(WIN32)
 endif()
 
 enable_testing()
+if(WIN32)
+    add_test(NAME windows_gui_startup COMMAND EmberLights --startup-smoke)
+    set_tests_properties(windows_gui_startup PROPERTIES TIMEOUT 20)
+endif()
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(

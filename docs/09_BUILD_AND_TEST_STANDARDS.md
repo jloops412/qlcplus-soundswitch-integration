@@ -87,6 +87,7 @@ Every milestone release includes:
 - exact commit/source snapshot;
 - compiler/toolchain versions;
 - passing unit/integration/fault tests;
+- a successful install and full Windows GUI startup smoke test using the packaged installer;
 - benchmark report;
 - known limitations and unsupported hardware;
 - show-package schema version;
