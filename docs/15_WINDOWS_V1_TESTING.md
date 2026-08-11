@@ -51,7 +51,7 @@ Before assigning the Micro to a normal project, run **EmberLights Hardware Test*
 - **Save & Apply Connections** is transactional: if saving is cancelled or fails, EmberLights restores the prior project settings and does not apply the proposal. When the show is stopped, the confirmation says the saved settings will open on **Start Show**; when a live adapter graph changes, success is reported only after Runner restarts and reaches **Running**.
 - Control One is treated as standard MIDI until its owned-device map is captured and verified. Its proprietary DMX, display, firmware, and storage behavior is not claimed.
 - Diagnostics now lists the same backend health fields for every configured transport: opening/ready/recovering/fault state, open attempts, reconnects, accepted/failed frames, last error, and last nonzero-slot count. These are host-side facts; only a responding physical receiver proves DMX interoperability.
-- Control One's DMX ports are not selectable until the separate proprietary output broker is captured and qualified. WOLFmix is a later standalone/DMX-input bridge track, not a USB-dongle option.
+- Control One's isolated two-port DMX transport and installed qualifier are implemented and contract-tested. Its DMX ports are not selectable in normal projects until `20_CONTROL_ONE_DMX_QUALIFICATION.md` records physical jack isolation, blackout, and replug recovery. WOLFmix is a later standalone/DMX-input bridge track, not a USB-dongle option.
 
 ## Safety and recovery
 

@@ -22,6 +22,7 @@ It proves:
 - sACN/E1.31 packet generation plus unicast and standards-based multicast output;
 - ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe output/reconnect state, and latest-frame-wins backpressure;
 - SoundSwitch Micro JLS1 initialization and 522-byte native frame generation, isolated WinUSB ownership, per-universe output/reconnect state, and separate open/write/nonzero-slot diagnostics;
+- isolated SoundSwitch Control One JLC1/JLS1 dual-output framing, dynamic Windows device-interface discovery, both-jack output-mode initialization, safe blackout, and an installed host/physical qualification utility;
 - versioned, checksummed `.emberlights` project persistence with atomic replacement, backup recovery, and unknown-record preservation;
 - a fixed-capacity project compiler and three-thread service Runner that keeps input and network output away from the DMX scheduler;
 - a native Windows Studio/Live shell and installer packaging path;

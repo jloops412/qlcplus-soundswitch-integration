@@ -96,13 +96,13 @@ Statuses:
 | MID-04 | Soft takeover, modifiers/layers, momentary/toggle/latch/timed/musical release | Partial | Soft takeover passes; complete behavior state engine pending. |
 | MID-05 | LED/ring/pad feedback and conflict prevention | Partial | Portable short-message encoder and WinMM output adapter exist; bounded feedback rules, echo suppression, Windows hardware tests, and profiles remain. |
 | MID-06 | Bundled Control One MIDI profile | Research | WinMM capture CLI is ready; owned-device capture and verified map remain. |
-| MID-07 | Control One displays, onboard DMX, firmware, and standalone data | Vendor-bound | Isolated research; no claim without lawful verified protocol access. |
+| MID-07 | Control One displays, onboard DMX, firmware, and standalone data | Partial | Two-port DMX identity, initialization, framing, routing, and Windows lifecycle are independently implemented with exact contract tests and an installed fail-closed qualifier. Owned-device electrical output/blackout/replug evidence remains; display, firmware, and standalone storage remain Vendor-bound. |
 
 ## Output, smart lighting, and interoperability
 
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
-| OUT-01 | Reliable DMX output through supported interfaces | Partial | Art-Net and sACN pass byte/loopback tests. Native ENTTEC DMX USB Pro serial framing plus the independently established SoundSwitch Micro JLS1 initialization/frame contract, per-universe mapping, reconnect state, zero-frame shutdown, and stale-frame supersession pass core tests; physical Micro response, interface qualification, and broader USB matrix remain. |
+| OUT-01 | Reliable DMX output through supported interfaces | Partial | Art-Net and sACN pass byte/loopback tests. Native ENTTEC DMX USB Pro serial framing, SoundSwitch Micro, and the isolated two-universe Control One JLC1/JLS1 transport pass exact contract/lifecycle tests. Physical Micro and Control One response, interface qualification, and the broader USB matrix remain. |
 | OUT-02 | Art-Net output and third-party visualizer interoperability | Partial | ArtDMX golden bytes and exact loopback UDP delivery pass; real node/visualizer qualification and discovery remain. |
 | OUT-03 | sACN/E1.31 output | Partial | E1.31 packet construction, deterministic CID, unicast/multicast sender, byte-level tests, and UDP loopback pass; real receiver qualification remains. |
 | OUT-04 | QLC+ bridge for otherwise unsupported USB interfaces | Partial | Boundary specified; live loopback qualification pending. |

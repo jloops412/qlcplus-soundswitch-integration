@@ -11,7 +11,7 @@ endif
 LDFLAGS += $(THREAD_FLAGS)
 
 ifeq ($(OS),Windows_NT)
-LDFLAGS += -lws2_32 -lwinmm -lsetupapi -lwinusb -lole32 -luuid
+LDFLAGS += -lws2_32 -lwinmm -lsetupapi -lwinusb -ladvapi32 -lole32 -luuid
 endif
 
 BUILD := build
@@ -21,6 +21,7 @@ SOURCES := \
 	src/fixture_library.cpp \
 	src/dmx_usb_pro.cpp \
 	src/soundswitch_micro.cpp \
+	src/soundswitch_control_one.cpp \
 	src/output_backend.cpp \
 	src/artnet.cpp \
 	src/sacn.cpp \
@@ -54,12 +55,13 @@ DEPS := \
 	$(BUILD)/src/soundswitch_migrate.d \
 	$(BUILD)/tests/test_main.d \
 	$(BUILD)/tests/test_soundswitch_micro_session.d \
+	$(BUILD)/tests/test_soundswitch_control_one.d \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
 .PHONY: all runner_lab qualification migration test winmm-syntax dmx-usb-syntax bench smoke clean
 
-all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/core_bench $(BUILD)/performance_bench
+all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
 runner_lab: $(BUILD)/runner_lab
 
@@ -95,6 +97,9 @@ $(BUILD)/core_tests: $(OBJECTS) $(BUILD)/tests/test_main.o
 $(BUILD)/soundswitch_micro_session_tests: $(OBJECTS) $(BUILD)/tests/test_soundswitch_micro_session.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/soundswitch_control_one_tests: $(OBJECTS) $(BUILD)/tests/test_soundswitch_control_one.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/core_bench: $(OBJECTS) $(BUILD)/bench/bench_main.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -105,9 +110,10 @@ $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests
+test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests
 	./$(BUILD)/core_tests
 	./$(BUILD)/soundswitch_micro_session_tests
+	./$(BUILD)/soundswitch_control_one_tests
 
 winmm-syntax:
 	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \
