@@ -17,6 +17,9 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Joshua clarified on 2026-08-08 that his fixtures are later validation inputs, not the product scope, and that full SoundSwitch feature parity is the minimum finished-product bar.
 - `13_SOUNDSWITCH_PARITY_LEDGER.md` is the binding completeness checklist. Milestone exclusions sequence delivery; they do not remove features from the finished product.
 - `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is the binding UI direction: one shared command/state model must power the default UI, bundled SoundSwitch Reference skin, future user skins, keyboard/MIDI/controller mappings, and external control surfaces. Do not hard-code new UI behavior around one layout or controller.
+- `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` defines the required screenshot/evidence corpus, screen-state matrix, measurement method, current Win32 UI audit, and preserve/improve/reject analysis.
+- `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` defines the build-ready Studio/Live reference layouts, responsive behavior, component/state requirements, parity journeys, and golden-screen gates.
+- `../spec/ui/command-state-skin-contract-v0.md` defines the typed command registry, shared state registry, bindings, skin package/runtime, validation, safe fallback, and strangler migration from the existing hard-coded Win32 shell.
 
 ## Binding product statement
 
@@ -39,6 +42,7 @@ This is not a generic DMX console and not a Wolfmix clone.
 - No AI in Runner's live output path.
 - UI behavior is exposed through stable command/state contracts; skins and hardware mappings are control surfaces over those contracts, not alternate engines.
 - EmberLights ships a modern default skin and a SoundSwitch Reference skin for migration/parity testing; the reference skin uses original EmberLights assets rather than a pixel-for-pixel proprietary copy.
+- Native SoundSwitch screenshots are research evidence and parity baselines, not source-code/CSS recovery; exact visual tokens remain evidence-tagged until controlled captures exist.
 - No arbitrary skin code, embedded browser requirement, or user script VM may become mandatory in Runner's live path.
 - The product name is EmberLights, and full-V1 Windows testing builds are distributed through an installer while qualification continues.
 
@@ -49,6 +53,7 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Default live-control takeover/return semantics.
 - Exact first-use balance between manual song scripting and AutoScripting.
 - Any claim that proprietary Control One DMX or OLED functions are supported.
+- Exact SoundSwitch Reference visual dimensions before the controlled native screenshot corpus is measured.
 
 ## Required reading order
 
@@ -56,10 +61,13 @@ This is not a generic DMX console and not a Wolfmix clone.
 2. `01_PRODUCT_REQUIREMENTS.md`.
 3. `03_ARCHITECTURE.md`.
 4. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md`.
-5. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
-6. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
-7. `09_BUILD_AND_TEST_STANDARDS.md`.
-8. The remaining research/backlog files as needed.
+5. `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md`.
+6. `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md`.
+7. `../spec/ui/command-state-skin-contract-v0.md`.
+8. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
+9. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
+10. `09_BUILD_AND_TEST_STANDARDS.md`.
+11. The remaining research/backlog files as needed.
 
 ## Definition of progress
 
@@ -72,5 +80,13 @@ Progress is measured by a working, testable replacement path:
 - footprint and latency measured;
 - real hardware and VirtualDJ verified;
 - user workflow tested.
+
+For UI work, progress additionally requires:
+
+- command/state contracts rather than layout-specific callbacks;
+- both bundled skins exercising the same domain behavior;
+- screenshot/golden-state evidence at target resolutions and DPI;
+- safe fallback and uninterrupted DMX during skin failure/switching;
+- measured usability and footprint, not mockups alone.
 
 Lines of code and mock screens are not milestones by themselves.
