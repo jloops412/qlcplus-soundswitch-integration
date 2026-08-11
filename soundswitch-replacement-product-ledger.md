@@ -38,7 +38,7 @@ The minimum finished-product bar is full relevant SoundSwitch functional parity:
 - The user can later provide a real `.ssproj` export and copies of scripted audio files for importer research.
 - Static Looks and Autoloops are the first usable-workflow priorities. Custom scripted-track migration is not a first-pilot gate, but manual scripting and scripted playback remain mandatory parity capabilities.
 - The engine remains event-agnostic: dinner, special events, entrances, first dances, open dancing, ceremonies, and non-wedding events use reusable content/templates rather than hard-coded modes.
-- Reported fixtures now include Both Lighting IR-4 uplights, Both Lighting 360 LED Tubes, and CHAUVET DJ Wash FX Hex units; exact quantities and active DMX modes remain to be captured.
+- The supplied SoundSwitch 2.10.3 export confirms four 16-cell Both Lighting 360 tubes, a four-uplight BO-S601 bank, one logical Wash FX HEX dance-floor wash, and two BO-IR4 spotlights. The export also contains multiple alternative mover/effect profiles; physical mode/address confirmation still gates output.
 - The architecture uses a custom DJ/event domain core rather than a full QLC+ fork.
 - QLC+ is an optional compatibility bridge, reference implementation, and possible source of selectively adapted Apache-2.0 components after dependency/license review.
 - The default Runner must not require QLC+, Qt, or a second application.
@@ -64,6 +64,7 @@ Real-world migration details recovered from the user's earlier SoundSwitch work:
 - Earlier manual SoundSwitch-to-SoundSwitch migration required remapping mover addresses and sometimes recreating mover offsets.
 - Deleting a fixture could remove associated attribute cues, so our importer and editor must use stable fixture identity and warn before destructive changes.
 - Their rig has used one universe for Both Lighting fixtures; two-universe operation may involve separate wireless DMX transmitters.
+- The 2026 export contains 4,185 payloads and a 173,970,312-byte track map. First-pilot conversion intentionally prioritizes the active color rig and the first 32 named Autoloops; opaque track shows remain source-preserved rather than guessed.
 
 ## Provisional live-control model
 
@@ -113,6 +114,13 @@ This matches SoundSwitch's documented Autoloop behavior while making Static Look
 - Release benchmark with 128 fixtures and one million full renders measured approximately 16.2 microseconds per tick, an 875,552-byte engine object, and about 4.5 MB max RSS in the current Linux environment.
 - A 128-fixture full performance benchmark with continuous Autoloop interpolation and Static Look transitions measured approximately 113.6 microseconds per update, about 0.45% of one CPU core at 40 Hz, and about 5.2 MB max RSS in this environment.
 - This checkpoint does not constitute Windows, VirtualDJ, Control One, or live-event qualification.
+
+## 2026-08-10 SoundSwitch V1 conversion checkpoint
+
+- Added a read-only `convert-v1` workflow qualified against the supplied SoundSwitch 2.10.x color rig. It hashes the venue and active-Autoloop inputs, validates required model signatures, emits a native checksummed project, and writes an approximation-aware JSON report.
+- The generated project contains 71 logical fixtures, 9 groups, 18 Static Looks, and 32 semantic Autoloops. Four pixel tubes are represented as 16 RGB cells each so the existing semantic renderer can address the full 48-channel fixtures without duplicate property mappings.
+- The generated patch occupies universe 1 addresses 1–263 without overlap. Art-Net, sACN, and USB-DMX are all off; those addresses are staging defaults and must be compared with the physical rig before output is enabled.
+- Movers, GigBars, PartyBars, cold sparks, and track shows remain deferred and source-preserved. This checkpoint is a practical first-pilot color-rig V1, not SoundSwitch parity or hardware qualification.
 
 ## Sources consulted
 

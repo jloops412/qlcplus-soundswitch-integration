@@ -43,6 +43,7 @@ add_library(showcore STATIC
     src/audio_assets.cpp
     src/qlc_fixture_import.cpp
     src/soundswitch_import.cpp
+    src/soundswitch_v1.cpp
     src/compiler.cpp
     src/runner.cpp)
 
@@ -96,6 +97,18 @@ add_executable(performance_bench bench/performance_bench.cpp)
 target_link_libraries(performance_bench PRIVATE showcore)
 
 if(WIN32)
+    set(EMBERLIGHTS_V1_TEMPLATE
+        "${CMAKE_CURRENT_BINARY_DIR}/EmberLights-2026-V1-Template.emberlights")
+    add_custom_command(
+        OUTPUT "${EMBERLIGHTS_V1_TEMPLATE}"
+        COMMAND $<TARGET_FILE:emberlights_migrate>
+            template-v1 "${EMBERLIGHTS_V1_TEMPLATE}" --force
+        DEPENDS emberlights_migrate
+        COMMENT "Generating the output-disabled V1 starter project"
+        VERBATIM)
+    add_custom_target(emberlights_v1_template ALL
+        DEPENDS "${EMBERLIGHTS_V1_TEMPLATE}")
+
     add_executable(EmberLights WIN32
         src/windows_app.cpp
         windows/EmberLights.rc)
@@ -116,6 +129,7 @@ if(WIN32)
 
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
     install(TARGETS emberlights_qualify emberlights_migrate RUNTIME DESTINATION Tools)
+    install(FILES "${EMBERLIGHTS_V1_TEMPLATE}" DESTINATION Templates)
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
