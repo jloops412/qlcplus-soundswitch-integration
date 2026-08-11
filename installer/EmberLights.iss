@@ -52,10 +52,11 @@ Source: "{#BuildDir}\docs\15_WINDOWS_V1_TESTING.md"; DestDir: "{app}\docs"; Flag
 Source: "{#BuildDir}\docs\16_QLC_FIXTURE_IMPORT.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "{#BuildDir}\docs\17_PRODUCTION_RELEASE_GATE.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "{#BuildDir}\docs\18_SOUNDSWITCH_MIGRATION.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "{#BuildDir}\docs\MORNING_HARDWARE_TEST.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\EmberLights"; Filename: "{app}\{#AppExeName}"
-Name: "{group}\SoundSwitch Micro Probe"; Filename: "{app}\Tools\soundswitch_micro_probe.exe"
+Name: "{group}\EmberLights Hardware Test"; Filename: "{app}\Tools\soundswitch_micro_probe.exe"; Parameters: "--active-test"
 Name: "{autodesktop}\EmberLights"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
