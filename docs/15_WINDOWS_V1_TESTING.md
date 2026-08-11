@@ -40,8 +40,10 @@ The native USB paths implement the published single-universe DMX USB Pro serial 
 ## VirtualDJ and MIDI
 
 - Same-computer VirtualDJ/OS2L defaults to `127.0.0.1:9996`. In VirtualDJ Settings → Options, set `os2l` to **Yes**, not **Auto**, set `os2lDirectIp` to `127.0.0.1:9996`, then restart VirtualDJ. VirtualDJ's Auto mode waits until an OS2L action such as a DMX pad is used; Yes initiates the connection without that pad press.
+- After **Start Show**, Live and Diagnostics must show OS2L **Waiting** with the actual listening endpoint before VirtualDJ connects, then **Ready** after beat traffic begins. Diagnostics also records the last socket error; a port of `0` means the listener is not open.
 - For a separate lighting computer, bind OS2L to that computer's private LAN address and configure VirtualDJ's direct OS2L destination to match. Do not expose the listener to an untrusted network.
 - Select a MIDI input under Connections before using MIDI Learn. Use **Save & Apply Connections** after changing adapter settings; EmberLights restarts Runner when required.
+- **Save & Apply Connections** is transactional: if saving is cancelled or fails, EmberLights restores the prior project settings and does not apply the proposal. When the show is stopped, the confirmation says the saved settings will open on **Start Show**; when a live adapter graph changes, success is reported only after Runner restarts and reaches **Running**.
 - Control One is treated as standard MIDI until its owned-device map is captured and verified. Its proprietary DMX, display, firmware, and storage behavior is not claimed.
 
 ## Safety and recovery

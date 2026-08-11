@@ -106,6 +106,39 @@ void cleanup_test_network() {}
     return socket;
 }
 
+[[nodiscard]] std::uint16_t reserve_loopback_port() {
+    const auto listener = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listener == kInvalidTestSocket) {
+        return 0U;
+    }
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = 0U;
+    if (::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) != 1 ||
+        ::bind(
+            listener,
+            reinterpret_cast<const sockaddr*>(&address),
+            static_cast<int>(sizeof(address))) != 0) {
+        close_test_socket(listener);
+        return 0U;
+    }
+#ifdef _WIN32
+    int address_size = sizeof(address);
+#else
+    socklen_t address_size = sizeof(address);
+#endif
+    if (::getsockname(
+            listener,
+            reinterpret_cast<sockaddr*>(&address),
+            &address_size) != 0) {
+        close_test_socket(listener);
+        return 0U;
+    }
+    const auto port = ntohs(address.sin_port);
+    close_test_socket(listener);
+    return port;
+}
+
 [[nodiscard]] bool send_all(TestSocket socket, std::string_view bytes) {
     std::size_t sent_total = 0;
     while (sent_total < bytes.size()) {
@@ -1729,6 +1762,19 @@ void test_audio_asset_identity_and_relinking() {
 
 void test_project_validation_io_and_compilation() {
     auto project = make_test_project();
+    project.connections.os2l_enabled = true;
+    project.connections.os2l_bind = "127.0.0.1";
+    project.connections.os2l_port = 10096U;
+    project.connections.artnet_enabled = true;
+    project.connections.artnet_destination = "192.0.2.10";
+    project.connections.artnet_base = 20U;
+    project.connections.sacn_enabled = true;
+    project.connections.sacn_destination = "multicast";
+    project.connections.sacn_universe_base = 101U;
+    project.connections.frame_rate = 40U;
+    project.connections.manual_bpm = 127.5;
+    project.connections.midi_input_index = 3;
+    project.connections.midi_output_index = 4;
     project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
     project.connections.soundswitch_micro_universe = 2U;
     project.connections.soundswitch_micro_framing =
@@ -1807,6 +1853,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed_result);
     CHECK(parsed.id == project.id);
     CHECK(parsed.name == project.name);
+    CHECK(parsed.connections == project.connections);
     CHECK(parsed.fixture_profiles.size() == project.fixture_profiles.size());
     CHECK(parsed.fixtures.size() == 1U);
     CHECK(parsed.connections.dmx_usb_pro_ports[0] == "COM3");
@@ -1985,6 +2032,64 @@ void test_project_validation_io_and_compilation() {
     std::filesystem::remove(history_path, ignored);
     std::filesystem::remove(emberlights::project_backup_path(history_path), ignored);
     std::filesystem::remove_all(emberlights::project_history_directory(history_path), ignored);
+}
+
+void test_runner_os2l_startup_without_button_trigger() {
+    auto project = make_test_project();
+    project.connections.os2l_enabled = true;
+    project.connections.os2l_bind = "127.0.0.1";
+    project.connections.os2l_port = reserve_loopback_port();
+    project.connections.artnet_enabled = false;
+    project.connections.sacn_enabled = false;
+    project.connections.dmx_usb_pro_ports = {};
+    project.connections.soundswitch_micro_universe = 0U;
+    CHECK(project.connections.os2l_port != 0U);
+    auto compilation = emberlights::compile_project(project);
+    CHECK(compilation);
+    if (!compilation || project.connections.os2l_port == 0U) {
+        return;
+    }
+
+    emberlights::RunnerService runner;
+    CHECK(runner.start(std::move(compilation.show), project));
+    const auto listen_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    auto status = runner.status();
+    while ((status.state != emberlights::RunnerState::Running ||
+            status.os2l != emberlights::AdapterState::Waiting) &&
+           std::chrono::steady_clock::now() < listen_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        status = runner.status();
+    }
+    CHECK(status.state == emberlights::RunnerState::Running);
+    CHECK(status.os2l == emberlights::AdapterState::Waiting);
+    CHECK(status.os2l_listen_port == project.connections.os2l_port);
+    CHECK(status.os2l_last_error == 0);
+
+    const auto client = connect_loopback(project.connections.os2l_port);
+    CHECK(client != kInvalidTestSocket);
+    if (client != kInvalidTestSocket) {
+        constexpr std::string_view beat_only =
+            R"({"evt":"beat","change":true,"pos":23,"bpm":137.25})";
+        CHECK(send_all(client, beat_only));
+        const auto beat_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.os2l_messages < 1U ||
+                std::abs(status.bpm - 137.25) >= 0.01) &&
+               std::chrono::steady_clock::now() < beat_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.os2l == emberlights::AdapterState::Ready);
+        CHECK(status.os2l_connections == 1U);
+        CHECK(status.os2l_messages == 1U);
+        CHECK(status.os2l_decode_errors == 0U);
+        CHECK(std::abs(status.bpm - 137.25) < 0.01);
+        CHECK(status.clock_source == showcore::ClockSource::Os2l);
+        close_test_socket(client);
+    }
+    runner.stop();
+    CHECK(runner.status().state == emberlights::RunnerState::Stopped);
+    CHECK(runner.status().os2l_listen_port == 0U);
 }
 
 void test_runner_service_lifecycle() {
@@ -2434,6 +2539,7 @@ int main() {
     test_autoloop_placement_operations();
     test_audio_asset_identity_and_relinking();
     test_project_validation_io_and_compilation();
+    test_runner_os2l_startup_without_button_trigger();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();
     test_soundswitch_v1_semantic_conversion();

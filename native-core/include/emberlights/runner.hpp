@@ -129,6 +129,8 @@ struct RunnerStatus {
     std::uint64_t os2l_connections{0};
     std::uint64_t os2l_messages{0};
     std::uint64_t os2l_decode_errors{0};
+    std::uint16_t os2l_listen_port{0};
+    std::int32_t os2l_last_error{0};
     std::uint64_t dropped_beats{0};
     std::uint64_t midi_messages{0};
     std::uint64_t dropped_midi_actions{0};
@@ -295,6 +297,8 @@ private:
     std::atomic<std::uint64_t> os2l_connections_{0};
     std::atomic<std::uint64_t> os2l_messages_{0};
     std::atomic<std::uint64_t> os2l_decode_errors_{0};
+    std::atomic<std::uint16_t> os2l_listen_port_{0};
+    std::atomic<std::int32_t> os2l_last_error_{0};
     std::atomic<std::uint64_t> dropped_beats_{0};
     std::atomic<std::uint64_t> midi_messages_{0};
     std::atomic<std::uint64_t> dropped_midi_actions_{0};

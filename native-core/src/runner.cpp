@@ -217,6 +217,8 @@ bool RunnerService::start(
     os2l_connections_.store(0, std::memory_order_relaxed);
     os2l_messages_.store(0, std::memory_order_relaxed);
     os2l_decode_errors_.store(0, std::memory_order_relaxed);
+    os2l_listen_port_.store(0, std::memory_order_relaxed);
+    os2l_last_error_.store(0, std::memory_order_relaxed);
     dropped_beats_.store(0, std::memory_order_relaxed);
     midi_messages_.store(0, std::memory_order_relaxed);
     dropped_midi_actions_.store(0, std::memory_order_relaxed);
@@ -440,6 +442,8 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
     snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
     snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
+    snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
+    snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
     snapshot.dropped_beats = dropped_beats_.load(std::memory_order_relaxed);
     snapshot.midi_messages = midi_messages_.load(std::memory_order_relaxed);
     snapshot.dropped_midi_actions = dropped_midi_actions_.load(std::memory_order_relaxed);
@@ -650,6 +654,10 @@ void RunnerService::run_input() noexcept {
         if (connections_.os2l_enabled && !os2l_open && now >= next_os2l_retry) {
             os2l_state_.store(AdapterState::Starting, std::memory_order_relaxed);
             os2l_open = os2l.open_ipv4(connections_.os2l_bind, connections_.os2l_port);
+            os2l_listen_port_.store(
+                os2l_open ? os2l.bound_port() : 0U,
+                std::memory_order_relaxed);
+            os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
             os2l_state_.store(
                 os2l_open ? AdapterState::Waiting : AdapterState::Fault,
                 std::memory_order_relaxed);
@@ -660,6 +668,8 @@ void RunnerService::run_input() noexcept {
             if (poll == showcore::Os2lPollResult::Error) {
                 os2l.close();
                 os2l_open = false;
+                os2l_listen_port_.store(0U, std::memory_order_relaxed);
+                os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
                 os2l_state_.store(AdapterState::Fault, std::memory_order_relaxed);
                 next_os2l_retry = now + std::chrono::seconds(2);
             } else {
@@ -713,6 +723,7 @@ void RunnerService::run_input() noexcept {
     }
 
     os2l.close();
+    os2l_listen_port_.store(0U, std::memory_order_relaxed);
     midi_input.close_all();
     midi_output.close_all();
 }
