@@ -44,6 +44,7 @@ Source: "{#BuildDir}\EmberLights.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\midi_capture.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 Source: "{#BuildDir}\Tools\emberlights_qualify.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 Source: "{#BuildDir}\Tools\emberlights_migrate.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
+Source: "{#BuildDir}\Tools\soundswitch_micro_probe.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 Source: "{#BuildDir}\Templates\EmberLights-2026-V1-Template.emberlights"; DestDir: "{app}\Templates"; Flags: ignoreversion
 Source: "{#BuildDir}\docs\README.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "{#BuildDir}\docs\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\docs"; Flags: ignoreversion
@@ -54,6 +55,7 @@ Source: "{#BuildDir}\docs\18_SOUNDSWITCH_MIGRATION.md"; DestDir: "{app}\docs"; F
 
 [Icons]
 Name: "{group}\EmberLights"; Filename: "{app}\{#AppExeName}"
+Name: "{group}\SoundSwitch Micro Probe"; Filename: "{app}\Tools\soundswitch_micro_probe.exe"
 Name: "{autodesktop}\EmberLights"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
