@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://emberlights.dev/schema/ui/layout-v0.json",
+  "title": "EmberLights Declarative Layout v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workspace", "variant", "root"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "workspace": {
+      "enum": ["projectHub", "studio", "live", "safe"]
+    },
+    "variant": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "root": {
+      "$ref": "#/$defs/node"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "descriptionKey": { "type": "string", "maxLength": 160 },
+        "defaultFocus": { "type": "string", "maxLength": 128 },
+        "minimumWidth": { "type": "integer", "minimum": 320, "maximum": 16384 },
+        "minimumHeight": { "type": "integer", "minimum": 240, "maximum": 16384 }
+      }
+    }
+  },
+  "$defs": {
+    "dimension": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "maximum": 16384 },
+        {
+          "type": "string",
+          "enum": ["auto", "fill", "content"]
+        }
+      ]
+    },
+    "common": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]+$"
+        },
+        "styleClass": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 80 }
+        },
+        "visibleWhen": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string", "maxLength": 2048 }
+          ]
+        },
+        "enabledWhen": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string", "maxLength": 2048 }
+          ]
+        },
+        "width": { "$ref": "#/$defs/dimension" },
+        "height": { "$ref": "#/$defs/dimension" },
+        "minimumWidth": { "type": "number", "minimum": 0, "maximum": 16384 },
+        "minimumHeight": { "type": "number", "minimum": 0, "maximum": 16384 },
+        "maximumWidth": { "type": "number", "minimum": 0, "maximum": 16384 },
+        "maximumHeight": { "type": "number", "minimum": 0, "maximum": 16384 },
+        "flexGrow": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "flexShrink": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "alignSelf": {
+          "enum": ["auto", "start", "center", "end", "stretch"]
+        },
+        "margin": { "$ref": "#/$defs/insets" },
+        "padding": { "$ref": "#/$defs/insets" },
+        "tooltipKey": { "type": "string", "maxLength": 160 },
+        "helpTopic": { "type": "string", "maxLength": 160 },
+        "accessibility": { "$ref": "#/$defs/accessibility" },
+        "focusOrder": { "type": "integer", "minimum": -1, "maximum": 100000 },
+        "testId": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "insets": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "maximum": 256 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "top": { "type": "number", "minimum": 0, "maximum": 256 },
+            "right": { "type": "number", "minimum": 0, "maximum": 256 },
+            "bottom": { "type": "number", "minimum": 0, "maximum": 256 },
+            "left": { "type": "number", "minimum": 0, "maximum": 256 }
+          }
+        }
+      ]
+    },
+    "accessibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nameKey": { "type": "string", "maxLength": 160 },
+        "descriptionKey": { "type": "string", "maxLength": 160 },
+        "role": {
+          "enum": [
+            "auto",
+            "button",
+            "checkbox",
+            "switch",
+            "slider",
+            "progressBar",
+            "text",
+            "heading",
+            "group",
+            "tab",
+            "tabList",
+            "list",
+            "listItem",
+            "grid",
+            "gridCell",
+            "tree",
+            "treeItem",
+            "table",
+            "row",
+            "cell",
+            "status",
+            "alert",
+            "dialog"
+          ]
+        },
+        "live": {
+          "enum": ["off", "polite", "assertive"]
+        }
+      }
+    },
+    "children": {
+      "type": "array",
+      "maxItems": 2048,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "containerBase": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "properties": {
+            "children": { "$ref": "#/$defs/children" },
+            "gap": { "type": "number", "minimum": 0, "maximum": 128 },
+            "clip": { "type": "boolean", "default": false }
+          }
+        }
+      ]
+    },
+    "rowColumn": {
+      "allOf": [
+        { "$ref": "#/$defs/containerBase" },
+        {
+          "type": "object",
+          "required": ["children"],
+          "properties": {
+            "type": { "enum": ["Row", "Column"] },
+            "align": { "enum": ["start", "center", "end", "stretch", "baseline"] },
+            "justify": { "enum": ["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"] },
+            "wrap": { "type": "boolean", "default": false }
+          }
+        }
+      ]
+    },
+    "grid": {
+      "allOf": [
+        { "$ref": "#/$defs/containerBase" },
+        {
+          "type": "object",
+          "required": ["children"],
+          "properties": {
+            "type": { "enum": ["Grid", "WrapGrid"] },
+            "columns": { "type": "integer", "minimum": 1, "maximum": 256 },
+            "minimumCellWidth": { "type": "number", "minimum": 1, "maximum": 4096 },
+            "rowGap": { "type": "number", "minimum": 0, "maximum": 128 },
+            "columnGap": { "type": "number", "minimum": 0, "maximum": 128 }
+          }
+        }
+      ]
+    },
+    "stack": {
+      "allOf": [
+        { "$ref": "#/$defs/containerBase" },
+        {
+          "type": "object",
+          "required": ["children"],
+          "properties": {
+            "type": { "const": "Stack" },
+            "activeChild": { "type": "string", "maxLength": 128 }
+          }
+        }
+      ]
+    },
+    "splitPane": {
+      "allOf": [
+        { "$ref": "#/$defs/containerBase" },
+        {
+          "type": "object",
+          "required": ["children", "orientation"],
+          "properties": {
+            "type": { "const": "SplitPane" },
+            "orientation": { "enum": ["horizontal", "vertical"] },
+            "ratios": {
+              "type": "array",
+              "maxItems": 16,
+              "items": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+            },
+            "resizable": { "type": "boolean", "default": true },
+            "persistenceKey": { "type": "string", "maxLength": 128 }
+          }
+        }
+      ]
+    },
+    "panel": {
+      "allOf": [
+        { "$ref": "#/$defs/containerBase" },
+        {
+          "type": "object",
+          "required": ["children"],
+          "properties": {
+            "type": { "enum": ["Panel", "Drawer", "Overlay", "Scroll", "Dock"] },
+            "titleKey": { "type": "string", "maxLength": 160 },
+            "placement": { "enum": ["left", "right", "top", "bottom", "center", "floating"] },
+            "openState": { "type": "string", "maxLength": 160 },
+            "dismissible": { "type": "boolean", "default": true },
+            "modal": { "type": "boolean", "default": false },
+            "persistenceKey": { "type": "string", "maxLength": 128 }
+          }
+        }
+      ]
+    },
+    "spacerSeparator": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "enum": ["Spacer", "Separator"] },
+            "orientation": { "enum": ["horizontal", "vertical"] }
+          }
+        }
+      ]
+    },
+    "commandBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 32,
+          "additionalProperties": {}
+        },
+        "event": {
+          "enum": ["press", "release", "change", "doublePress", "longPress"]
+        }
+      }
+    },
+    "stateBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "format": { "type": "string", "maxLength": 80 },
+        "equals": {},
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" }
+      }
+    },
+    "control": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "enum": [
+                "Button",
+                "Toggle",
+                "Pad",
+                "Fader",
+                "Knob",
+                "ValueField",
+                "Label",
+                "Icon",
+                "StatusBadge",
+                "Progress",
+                "SearchField",
+                "MenuButton"
+              ]
+            },
+            "labelKey": { "type": "string", "maxLength": 160 },
+            "icon": { "type": "string", "maxLength": 240 },
+            "value": { "$ref": "#/$defs/stateBinding" },
+            "state": { "$ref": "#/$defs/stateBinding" },
+            "progress": { "$ref": "#/$defs/stateBinding" },
+            "on": { "$ref": "#/$defs/commandBinding" },
+            "onRelease": { "$ref": "#/$defs/commandBinding" },
+            "minimum": { "type": "number" },
+            "maximum": { "type": "number" },
+            "step": { "type": "number", "exclusiveMinimum": 0 },
+            "orientation": { "enum": ["horizontal", "vertical"] },
+            "danger": { "type": "boolean", "default": false },
+            "emergency": { "type": "boolean", "default": false }
+          }
+        }
+      ]
+    },
+    "tabContainer": {
+      "allOf": [
+        { "$ref": "#/$defs/containerBase" },
+        {
+          "type": "object",
+          "required": ["children", "selectionState"],
+          "properties": {
+            "type": { "enum": ["Tabs", "SegmentedControl"] },
+            "selectionState": { "type": "string", "maxLength": 160 },
+            "placement": { "enum": ["top", "bottom", "left", "right"] }
+          }
+        }
+      ]
+    },
+    "dataView": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "enum": ["List", "Tree", "Table"] },
+            "dataSource": { "type": "string", "maxLength": 160 },
+            "selectionState": { "type": "string", "maxLength": 160 },
+            "virtualized": { "const": true },
+            "columns": {
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "labelKey"],
+                "properties": {
+                  "id": { "type": "string", "maxLength": 80 },
+                  "labelKey": { "type": "string", "maxLength": 160 },
+                  "width": { "$ref": "#/$defs/dimension" },
+                  "value": { "type": "string", "maxLength": 160 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "nativeComponent": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "required": ["componentType", "minimumVersion"],
+          "properties": {
+            "type": { "const": "NativeComponent" },
+            "componentType": { "type": "string", "minLength": 3, "maxLength": 128 },
+            "minimumVersion": { "type": "integer", "minimum": 1 },
+            "variant": { "type": "string", "maxLength": 80 },
+            "readOnly": { "type": "boolean", "default": false },
+            "properties": {
+              "type": "object",
+              "maxProperties": 128,
+              "additionalProperties": {}
+            },
+            "slots": {
+              "type": "object",
+              "maxProperties": 32,
+              "additionalProperties": { "$ref": "#/$defs/children" }
+            }
+          }
+        }
+      ]
+    },
+    "customSlot": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "required": ["slotId", "allowedTypes", "maximumNodes"],
+          "properties": {
+            "type": { "const": "CustomSlot" },
+            "slotId": { "type": "string", "minLength": 3, "maxLength": 128 },
+            "allowedTypes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "uniqueItems": true,
+              "items": { "type": "string", "maxLength": 80 }
+            },
+            "maximumNodes": { "type": "integer", "minimum": 0, "maximum": 256 },
+            "layout": { "enum": ["row", "column", "grid", "wrapGrid"] },
+            "columns": { "type": "integer", "minimum": 1, "maximum": 64 },
+            "mandatoryControlsProtected": { "type": "boolean", "default": true }
+          }
+        }
+      ]
+    },
+    "node": {
+      "oneOf": [
+        { "$ref": "#/$defs/rowColumn" },
+        { "$ref": "#/$defs/grid" },
+        { "$ref": "#/$defs/stack" },
+        { "$ref": "#/$defs/splitPane" },
+        { "$ref": "#/$defs/panel" },
+        { "$ref": "#/$defs/spacerSeparator" },
+        { "$ref": "#/$defs/control" },
+        { "$ref": "#/$defs/tabContainer" },
+        { "$ref": "#/$defs/dataView" },
+        { "$ref": "#/$defs/nativeComponent" },
+        { "$ref": "#/$defs/customSlot" }
+      ]
+    }
+  }
+}
