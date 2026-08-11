@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://emberlights.dev/schema/ui/command-registry-v0.json",
+  "title": "EmberLights Command Registry v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "registryVersion", "status", "commands"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "registryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["planningSeed", "implementationDraft", "accepted", "deprecated"]
+    },
+    "generatedAt": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "sourceCommit": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      ]
+    },
+    "commands": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "command-definition.schema.json"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 8192
+    }
+  }
+}
