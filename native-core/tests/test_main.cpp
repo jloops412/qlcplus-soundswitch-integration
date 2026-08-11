@@ -2109,6 +2109,28 @@ void test_runner_service_lifecycle() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     CHECK(runner.status().state == emberlights::RunnerState::Running);
+    auto wait_for_active_look = [&](std::int32_t expected) {
+        const auto look_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        while (runner.status().active_look != expected &&
+               std::chrono::steady_clock::now() < look_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return runner.status().active_look == expected;
+    };
+    CHECK(runner.trigger_look(0U));
+    CHECK(wait_for_active_look(0));
+    CHECK(runner.toggle_look(0U));
+    CHECK(wait_for_active_look(-1));
+    CHECK(runner.toggle_look(0U));
+    CHECK(wait_for_active_look(0));
+    CHECK(runner.hold_look(1U, true));
+    CHECK(wait_for_active_look(1));
+    CHECK(runner.hold_look(0U, false));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().active_look == 1);
+    CHECK(runner.hold_look(1U, false));
+    CHECK(wait_for_active_look(-1));
     const auto all_banks = ~std::uint64_t{0};
     auto wait_for_bank_mask = [&](std::uint64_t expected) {
         const auto mask_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);

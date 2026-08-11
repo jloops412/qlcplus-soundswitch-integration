@@ -487,6 +487,18 @@ bool RunnerService::trigger_look(std::uint16_t index) noexcept {
     return post({RunnerCommandType::TriggerLook, index});
 }
 
+bool RunnerService::toggle_look(std::uint16_t index) noexcept {
+    return post({RunnerCommandType::ToggleLook, index});
+}
+
+bool RunnerService::hold_look(std::uint16_t index, bool active) noexcept {
+    RunnerCommand command;
+    command.type = RunnerCommandType::SetLookHeld;
+    command.target = index;
+    command.active = active;
+    return post(command);
+}
+
 bool RunnerService::clear_look() noexcept {
     return post({RunnerCommandType::ClearLook});
 }
@@ -1064,6 +1076,35 @@ void RunnerService::run_scheduler() noexcept {
             runtime.manual_override_count = 0U;
         };
 
+        auto activate_static_look = [&](std::uint16_t index) noexcept {
+            const auto* look = show->look(index);
+            if (look == nullptr || !runtime.static_look.trigger(
+                    *look, now_ms, show->look_fade_ms(index), engine.layers())) {
+                return false;
+            }
+            runtime.selected_look = static_cast<std::int32_t>(index);
+            return true;
+        };
+
+        auto clear_static_look = [&]() noexcept {
+            runtime.static_look.clear(now_ms, 100U, engine.layers());
+            runtime.selected_look = -1;
+        };
+
+        auto release_static_look = [&](std::uint16_t index) noexcept {
+            if (runtime.selected_look == static_cast<std::int32_t>(index)) {
+                clear_static_look();
+            }
+        };
+
+        auto toggle_static_look = [&](std::uint16_t index) noexcept {
+            if (runtime.selected_look == static_cast<std::int32_t>(index)) {
+                clear_static_look();
+            } else {
+                static_cast<void>(activate_static_look(index));
+            }
+        };
+
         auto apply_tap = [&](std::uint64_t timestamp_ms) noexcept {
             if (runtime.last_tap_ms != 0U) {
                 const auto interval = timestamp_ms - runtime.last_tap_ms;
@@ -1093,6 +1134,32 @@ void RunnerService::run_scheduler() noexcept {
 
         auto apply_action = [&](const showcore::MidiActionEvent& event,
                                 double beat_position) noexcept {
+            const auto& action = event.action;
+            if (action.type == showcore::ActionType::TriggerLook) {
+                switch (event.behavior) {
+                case showcore::MappingBehavior::Toggle:
+                    if (event.active) {
+                        toggle_static_look(action.target_id);
+                    }
+                    break;
+                case showcore::MappingBehavior::Latch:
+                    if (event.active) {
+                        static_cast<void>(activate_static_look(action.target_id));
+                    }
+                    break;
+                case showcore::MappingBehavior::Momentary:
+                case showcore::MappingBehavior::Continuous:
+                case showcore::MappingBehavior::Relative:
+                    if (event.active) {
+                        static_cast<void>(activate_static_look(action.target_id));
+                    } else {
+                        release_static_look(action.target_id);
+                    }
+                    break;
+                }
+                return;
+            }
+
             bool active = event.active;
             auto& toggled = runtime.mapping_toggles[event.mapping_index];
             switch (event.behavior) {
@@ -1118,7 +1185,6 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             }
 
-            const auto& action = event.action;
             switch (action.type) {
             case showcore::ActionType::SetProperty: {
                 if (action.target_id >= showcore::kMaxFixtures ||
@@ -1164,19 +1230,6 @@ void RunnerService::run_scheduler() noexcept {
                 set_blackout(active);
                 break;
             case showcore::ActionType::TriggerLook:
-                if (active) {
-                    if (const auto* look = show->look(action.target_id); look != nullptr &&
-                        runtime.static_look.trigger(
-                            *look,
-                            now_ms,
-                            show->look_fade_ms(action.target_id),
-                            engine.layers())) {
-                        runtime.selected_look = action.target_id;
-                    }
-                } else {
-                    runtime.static_look.clear(now_ms, 100U, engine.layers());
-                    runtime.selected_look = -1;
-                }
                 break;
             case showcore::ActionType::TriggerAutoloop:
                 if (active) {
@@ -1273,15 +1326,20 @@ void RunnerService::run_scheduler() noexcept {
             }
             switch (command.type) {
             case RunnerCommandType::TriggerLook:
-                if (const auto* look = show->look(command.target); look != nullptr &&
-                    runtime.static_look.trigger(
-                        *look, now_ms, show->look_fade_ms(command.target), engine.layers())) {
-                    runtime.selected_look = command.target;
+                static_cast<void>(activate_static_look(command.target));
+                break;
+            case RunnerCommandType::ToggleLook:
+                toggle_static_look(command.target);
+                break;
+            case RunnerCommandType::SetLookHeld:
+                if (command.active) {
+                    static_cast<void>(activate_static_look(command.target));
+                } else {
+                    release_static_look(command.target);
                 }
                 break;
             case RunnerCommandType::ClearLook:
-                runtime.static_look.clear(now_ms, 100U, engine.layers());
-                runtime.selected_look = -1;
+                clear_static_look();
                 break;
             case RunnerCommandType::TriggerAutoloop:
                 trigger_loop(decode_autoloop(command.target), clock.beat_position);

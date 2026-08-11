@@ -1293,7 +1293,7 @@ void Application::create_pages() {
     add_button(page, L"Tap", IdLiveTap);
     add_label(page, L"Static Looks", 0);
     add_listbox(page, IdLiveLooks);
-    add_button(page, L"Trigger", IdLiveTriggerLook);
+    add_button(page, L"Toggle", IdLiveTriggerLook);
     add_button(page, L"Clear", IdLiveClearLook);
     add_label(page, L"Autoloops", 0);
     add_listbox(page, IdLiveAutoloops);
@@ -3036,7 +3036,7 @@ void Application::handle_command(int id, int notification, HWND) {
         if (selected >= 0) {
             const auto index = static_cast<std::uint16_t>(::SendMessageW(
                 list, LB_GETITEMDATA, selected, 0));
-            static_cast<void>(runner_.trigger_look(index));
+            static_cast<void>(runner_.toggle_look(index));
         }
         break;
     }

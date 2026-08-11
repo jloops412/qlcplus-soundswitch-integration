@@ -56,6 +56,8 @@ struct RunnerActivationResult {
 
 enum class RunnerCommandType : std::uint8_t {
     TriggerLook,
+    ToggleLook,
+    SetLookHeld,
     ClearLook,
     TriggerAutoloop,
     ClearAutoloop,
@@ -191,6 +193,8 @@ public:
     void set_blackout(bool active) noexcept;
     void set_work_light(bool active) noexcept;
     [[nodiscard]] bool trigger_look(std::uint16_t index) noexcept;
+    [[nodiscard]] bool toggle_look(std::uint16_t index) noexcept;
+    [[nodiscard]] bool hold_look(std::uint16_t index, bool active) noexcept;
     [[nodiscard]] bool clear_look() noexcept;
     [[nodiscard]] bool trigger_autoloop(showcore::AutoloopAddress address) noexcept;
     [[nodiscard]] bool clear_autoloop() noexcept;
