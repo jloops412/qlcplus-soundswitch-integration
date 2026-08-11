@@ -1,6 +1,6 @@
 # Decisions and Open Questions
 
-Last updated: 2026-08-10.
+Last updated: 2026-08-11.
 
 ## Accepted decisions
 
@@ -59,6 +59,7 @@ Last updated: 2026-08-10.
 | D-051 | The first SoundSwitch conversion is a source-qualified semantic color-rig template, not a claim of exact binary cue decoding. | The supplied 2.10.x export gives reliable fixture/profile names, logical tube cells, active Autoloop names, and source hashes, but not yet defensible general-purpose address or cue-timeline semantics. The converter therefore stages a validated non-overlapping patch with every output disabled, rebuilds reusable native looks/loops, records approximations, and leaves movers, effects, and track scripts in the loss-preserved source until controlled-delta evidence exists. |
 | D-052 | Every Windows installer release must install and launch the actual GUI in an automated startup smoke test. | Compilation, core tests, and console qualification did not exercise Win32 main-window creation and allowed preview 272 to ship with a fatal `WM_NCCREATE` handle defect. The application now has a non-interactive startup-smoke mode that creates and validates the complete window tree, and packaging must run it from the installed executable before release evidence can be generated. Startup failures also identify the failed initialization stage and Windows error code. |
 | D-053 | SoundSwitch Micro protocol discovery begins with a bundled, descriptor-only WinUSB probe scoped to `VID_15E4/PID_0053`; broad USB traffic capture is not a user prerequisite. | The installed libwdi/WinUSB binding makes direct device access feasible, but public sources do not document the payload protocol. The probe enumerates only the target device, records its published interface GUID/path, descriptors, and pipes, and sends no USB or DMX transfers. Any later active protocol test must remain explicit, isolated, and output-disconnected until its framing is verified. |
+| D-054 | SoundSwitch Micro is a native, replaceable WinUSB Runner output with an explicit universe and framing selection. | The verified device exposes exactly one 64-byte bulk OUT pipe (`0x01`) and no response pipe, so software cannot auto-detect payload framing from the device. Runner streams complete immutable universe frames off the scheduler, reconnects without project reload, zeroes output on shutdown, exposes Ready/Fault status, and temporarily offers the three credible clean-room framing hypotheses until physical output identifies the correct one. Fixture semantics remain entirely upstream of the adapter. |
 
 ## Superseded recommendations
 
@@ -75,7 +76,7 @@ Last updated: 2026-08-10.
 - DJ controller: Pioneer DDJ-REV7.
 - Lighting controller: SoundSwitch Control One.
 - Possible additional adapter: ADJ MyDMX Buddy; exact model/VID/PID unverified.
-- SoundSwitch Micro Interface is present on Joshua's Windows PC as `VID_15E4/PID_0053` using Microsoft's WinUSB service installed through libwdi. Its interface GUID, endpoint layout, and DMX payload framing remain pending the bundled probe.
+- SoundSwitch Micro Interface is present on Joshua's Windows PC as `VID_15E4/PID_0053` using Microsoft's WinUSB service installed through libwdi. The bundled probe verified interface GUID `{D1AC763B-3888-46C8-AB2F-99C060EE0599}`, interface 0, and one 64-byte bulk OUT endpoint at `0x01`; DMX payload framing remains pending the bounded active test.
 - Reported fixtures include Both Lighting IR-4 uplights, Both Lighting 360 LED Tubes, and CHAUVET DJ Wash FX Hex units; quantities and active DMX modes are pending.
 - Joshua can later provide `.ssproj` and copied scripted audio samples.
 
