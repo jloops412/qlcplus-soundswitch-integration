@@ -16,6 +16,7 @@ This is not a generic DMX console and not a Wolfmix clone.
 - EmberLights now has a versioned/checksummed project model and compiler, a deterministic service Runner, Art-Net, sACN, and initial ENTTEC DMX USB Pro serial output, WinMM MIDI/learn foundations, a bounded Studio-only QLC+ QXF fixture importer, a native Windows Studio/Live shell, and machine-readable production qualification/report foundations. Windows/Linux CI and installer packaging pass on the preceding merged checkpoint; searchable fixture-library distribution, VirtualDJ, MIDI, USB-DMX, broader output-hardware, eight-hour Windows soak, and live-event qualification remain active gates.
 - Joshua clarified on 2026-08-08 that his fixtures are later validation inputs, not the product scope, and that full SoundSwitch feature parity is the minimum finished-product bar.
 - `13_SOUNDSWITCH_PARITY_LEDGER.md` is the binding completeness checklist. Milestone exclusions sequence delivery; they do not remove features from the finished product.
+- `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is the binding UI direction: one shared command/state model must power the default UI, bundled SoundSwitch Reference skin, future user skins, keyboard/MIDI/controller mappings, and external control surfaces. Do not hard-code new UI behavior around one layout or controller.
 
 ## Binding product statement
 
@@ -36,6 +37,9 @@ This is not a generic DMX console and not a Wolfmix clone.
 - OFL enters through a versioned Studio adapter and quarantine boundary; Runner consumes only our stable compiled profile format.
 - Autoloops use a scalable 32-slot bank library; four banks are a controller/UI window, not an engine limit.
 - No AI in Runner's live output path.
+- UI behavior is exposed through stable command/state contracts; skins and hardware mappings are control surfaces over those contracts, not alternate engines.
+- EmberLights ships a modern default skin and a SoundSwitch Reference skin for migration/parity testing; the reference skin uses original EmberLights assets rather than a pixel-for-pixel proprietary copy.
+- No arbitrary skin code, embedded browser requirement, or user script VM may become mandatory in Runner's live path.
 - The product name is EmberLights, and full-V1 Windows testing builds are distributed through an installer while qualification continues.
 
 ## What is not accepted yet
@@ -51,10 +55,11 @@ This is not a generic DMX console and not a Wolfmix clone.
 1. This file.
 2. `01_PRODUCT_REQUIREMENTS.md`.
 3. `03_ARCHITECTURE.md`.
-4. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
-5. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
-6. `09_BUILD_AND_TEST_STANDARDS.md`.
-7. The remaining research/backlog files as needed.
+4. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md`.
+5. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
+6. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
+7. `09_BUILD_AND_TEST_STANDARDS.md`.
+8. The remaining research/backlog files as needed.
 
 ## Definition of progress
 
