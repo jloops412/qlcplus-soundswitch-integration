@@ -19,18 +19,18 @@ Priority is based on replacing SoundSwitch safely, not feature novelty.
 
 ## Cross-cutting UI/UX and skin spine
 
-`18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is binding for all UI work. These items cut across the milestone bands below and should be implemented before large amounts of additional hard-coded UI accumulate, but broad skin work must not displace the immediate core recovery gate above.
+Start UI work from `UI_PROGRAM_START_HERE.md`. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` and `21_UI_IMPLEMENTATION_PROGRAM.md` are binding. Planning, evidence capture, behavior-preserving command/state extraction, and bounded toolkit spikes may proceed beside the core gate; broad Default/Reference implementation waits for issue #38's core-ready acceptance.
 
-- **U1 — P0:** Inventory existing Studio/Live callbacks and define stable typed command and state registries for every current user action/status.
-- **U2 — P1:** Route compatible keyboard/MIDI/controller actions through the shared command model; add command metadata, validation, and safe feedback/state lookup.
-- **U3 — P1:** Define the versioned `.emberskin` package/schema, validator, semantic theme tokens, responsive layout rules, and safe fallback skin.
-- **U4 — P2:** Re-express the current minimal UI as `EmberLights Default v0` through the skin path; add Command Explorer/control introspection and connection/persistence scope UX.
-- **U5 — P2:** Ship `SoundSwitch Reference v0` using original EmberLights assets but familiar SoundSwitch Studio/Performance information architecture; parity QA must be able to exercise implemented SoundSwitch-equivalent workflows through it.
-- **U6 — P2:** Persist last-opened project, chosen skin/layout locally; make logical project connection/output settings durable and connection changes immediately persisted with explicit reconnect/restart messaging rather than ambiguous Apply/Save behavior.
-- **U7 — P2:** Auto-connect/reconnect configured DJ sources, MIDI, and DMX outputs; expose actionable health in the Live status strip without requiring a mode-changing settings flow.
-- **U8 — P3:** Add user-customizable buttons/pads/faders/knobs and shared binding editor comparable in spirit to VirtualDJ custom controls/pad pages.
-- **U9 — P4:** Add visual skin/layout designer, responsive variants, skin export/import, and validation-before-activation.
-- **U10 — Gate:** Benchmark both bundled skins at 1366×768, 1920×1080, high DPI, and wide layouts before accepting the production UI toolkit; skin/UI work cannot violate Runner CPU/memory/jitter ceilings.
+- **U1 — P0 / #31:** Complete the current Win32 `Page`/`ControlId`/callback inventory and route existing behavior through stable typed command/state facades. Preserve the non-droppable blackout path and publish explicit invocation outcomes, state update classes, Command Explorer, State Explorer, and the legacy-bypass ledger.
+- **U2 — P1 / #31:** Route compatible keyboard, MIDI, controller, and external actions through the same command model; validate arguments, availability, safety, persistence, Undo behavior, feedback, conflicts, soft takeover, and reconnect/package changes.
+- **U3 — P1 / #37:** Run the product-shaped UI toolkit spike: Slint/C++ first, WinUI 3 control comparison, Win32/Direct2D Safe baseline, and Qt only if evidence triggers it. Measure Safe, Default Live/Studio, Reference Live/Studio, accessibility, DPI, deployment, memory, CPU, repaint, startup, and scheduler effect before accepting a production toolkit.
+- **U4 — P1 / #32:** Implement the versioned `.emberskin` package/runtime, strict validator and resource limits, immutable responsive view graph, semantic themes, ordinary primitives, native-component adapters, visibility-aware state subscriptions, transactional activation, cache/provenance, and trusted Safe fallback.
+- **U5 — P2 / #33:** Re-express all currently supported functionality as `EmberLights Default v0`: Project Hub, Studio, Live Home/Autoloops/Static Looks/Moments/Overrides, contextual Inspector, utility drawers, pinned health/safety, complete product journeys, original EmberLights design system, and explicit bounded legacy bridges.
+- **U6 — P2 / #30 + #34:** Complete the native SoundSwitch screenshot/state/measurement corpus and ship `SoundSwitch Reference v0` with familiar Studio/Performance information architecture, original EmberLights assets, evidence-tagged tokens, explicit Preserve/Improve/Reject deviations, and parity journeys over the same domain behavior.
+- **U7 — P2 / #35:** Finish app-local, project-authored, controller-profile, and live-transient persistence scopes; last-project reopening; immediate persistence where safe; exact Save/Apply/Reconnect/Restart outcomes; auto-connect/reconnect; and actionable DJ/controller/U1/U2/USB/safety drawers shared by both skins.
+- **U8 — Gate / #36:** Qualify registries, bindings, package abuse limits, native components, both skins, Safe fallback, goldens, 1366×768 through 4K/high DPI, keyboard/UI Automation/accessibility, persistence, faults, cross-surface equivalence, startup/memory/CPU/repaint/jitter, and skin-switch/failure DMX continuity with machine-readable evidence.
+- **U9 — P3 / #39:** After the qualified platform, add VirtualDJ-style customization safely: keyboard/MIDI/HID binding editor, bounded custom Button/Toggle/Pad/Fader/Knob/Status panels and pad pages, typed command/state selection, immutable base skin plus validated overlays, import/export/reset/relink, and mandatory-control reachability.
+- **U10 — P4:** Add approved layout overlays and later a full visual skin designer only after the two bundled skins, Safe runtime, compatibility rules, accessibility, signing/provenance, and qualification evidence are stable. Public sharing/marketplace remains a separate later product decision.
 
 ## P0 — Preserve the plan and prove the core
 
@@ -64,7 +64,7 @@ Priority is based on replacing SoundSwitch safely, not feature novelty.
 25. Art-Net unicast sender and receiver diagnostics. Exact loopback UDP delivery test and lab Runner sender complete; node/visualizer diagnostics remain.
 26. ArtPoll/subscription discovery compliance.
 27. sACN/E1.31 sender. Byte-exact unicast/multicast sender and loopback tests complete; physical receiver qualification remains.
-    - First native published-protocol USB output: ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe mapping, reconnect/status, and stale-frame suppression implemented; physical hardware and broader USB matrix remain.
+    - First native published-protocol USB output: ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe output/reconnect state, and latest-frame-wins backpressure are implemented; physical hardware and broader USB matrix remain.
 28. QLC+ local bridge example project/configuration.
 29. Same-PC versus LAN equivalence tests. Endpoint-neutral lab Runner exists; Windows/VirtualDJ comparison remains.
 30. Minimal Runner status/blackout UI. Native Live/Diagnostics pages, non-droppable blackout, work light, adapter states, counters, and jitter display complete; usability/hardware qualification remains.
