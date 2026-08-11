@@ -6,6 +6,7 @@
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
 #include "emberlights/soundswitch_import.hpp"
+#include "emberlights/soundswitch_v1.hpp"
 #include "showcore/artnet.hpp"
 #include "showcore/autoloop.hpp"
 #include "showcore/dmx_usb_pro.hpp"
@@ -2181,6 +2182,86 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     std::filesystem::remove(comparison_report, ignored);
 }
 
+void test_soundswitch_v1_semantic_conversion() {
+    const auto source = std::filesystem::path("build/soundswitch-v1-source.ssproj");
+    const auto project_path = std::filesystem::path("build/soundswitch-v1.emberlights");
+    std::error_code ignored;
+    std::filesystem::remove_all(source, ignored);
+    std::filesystem::remove(project_path, ignored);
+    std::filesystem::create_directories(source, ignored);
+    CHECK(!ignored);
+
+    auto write_bytes = [](const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes) {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output.write(
+            reinterpret_cast<const char*>(bytes.data()),
+            static_cast<std::streamsize>(bytes.size()));
+        return static_cast<bool>(output);
+    };
+    auto append_u32 = [](std::vector<std::uint8_t>& bytes, std::uint32_t value) {
+        for (std::size_t index = 0U; index < 4U; ++index) {
+            bytes.push_back(static_cast<std::uint8_t>(value >> (index * 8U)));
+        }
+    };
+    auto append_utf16 = [&](std::vector<std::uint8_t>& bytes, std::string_view value) {
+        append_u32(bytes, static_cast<std::uint32_t>(value.size() + 1U));
+        for (const auto character : value) {
+            bytes.push_back(static_cast<std::uint8_t>(character));
+            bytes.push_back(0U);
+        }
+        bytes.push_back(0U);
+        bytes.push_back(0U);
+    };
+
+    {
+        std::ofstream manifest(source / ".ssproj", std::ios::binary | std::ios::trunc);
+        manifest << "{\"id\":\"{TEST-V1}\",\"version\":{\"major\": 2,\"minor\": 10}}\n";
+        CHECK(static_cast<bool>(manifest));
+    }
+    std::vector<std::uint8_t> venue{0xAAU, 0xAAU, 0x09U, 0x55U};
+    for (const auto model : {
+             std::string_view{"6x18W RGBWA UV 6in1 Uplight (BO-S601)"},
+             std::string_view{"BO-Tube 192 360 Pixel Tube"},
+             std::string_view{"Wash FX HEX"},
+             std::string_view{"BO-IR4 LED Mini Spotlight"}}) {
+        append_utf16(venue, model);
+    }
+    CHECK(write_bytes(source / "SoundSwitchVenues.bin", venue));
+
+    std::vector<std::uint8_t> loops{0xAAU, 0xAAU, 0x09U, 0x55U};
+    for (std::size_t index = 0U; index < 32U; ++index) {
+        append_utf16(loops, "Test Loop " + std::to_string(index + 1U));
+    }
+    CHECK(write_bytes(source / "SoundSwitchAutoLoops.bin", loops));
+
+    const auto migration = emberlights::create_soundswitch_v1_project(source);
+    CHECK(migration);
+    CHECK(migration.manifest_id == "{TEST-V1}");
+    CHECK(migration.source_autoloop_names.size() == 32U);
+    CHECK(migration.project.fixtures.size() == 71U);
+    CHECK(migration.project.groups.size() == 9U);
+    CHECK(migration.project.looks.size() == 18U);
+    CHECK(migration.project.autoloops.size() == 32U);
+    CHECK(!migration.project.connections.artnet_enabled);
+    CHECK(!migration.project.connections.sacn_enabled);
+    CHECK(migration.project.connections.dmx_usb_pro_ports[0].empty());
+    CHECK(migration.project.connections.dmx_usb_pro_ports[1].empty());
+    CHECK(emberlights::validate_project(migration.project).ok());
+    CHECK(emberlights::compile_project(migration.project));
+    const auto report = emberlights::serialize_soundswitch_v1_migration_report(migration);
+    CHECK(report.find("emberlights-soundswitch-v1-migration") != std::string::npos);
+    CHECK(report.find("\"outputEnabled\": false") != std::string::npos);
+    CHECK(report.find("Test Loop 1") != std::string::npos);
+    CHECK(emberlights::save_project_atomic(project_path, migration.project, false));
+    emberlights::ProjectDocument loaded;
+    CHECK(emberlights::load_project(project_path, loaded, false));
+    CHECK(loaded.fixtures.size() == migration.project.fixtures.size());
+    CHECK(loaded.autoloops.size() == migration.project.autoloops.size());
+
+    std::filesystem::remove_all(source, ignored);
+    std::filesystem::remove(project_path, ignored);
+}
+
 }  // namespace
 
 #if defined(__GNUC__) && !defined(_MSC_VER)
@@ -2276,6 +2357,7 @@ int main() {
     test_project_validation_io_and_compilation();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();
+    test_soundswitch_v1_semantic_conversion();
 
     cleanup_test_network();
 

@@ -1,7 +1,10 @@
 #include "emberlights/soundswitch_import.hpp"
+#include "emberlights/soundswitch_v1.hpp"
+#include "emberlights/project_io.hpp"
 #include "emberlights/version.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -16,13 +19,53 @@ void print_help() {
         << "Usage:\n"
         << "  emberlights_migrate inspect <SoundSwitch project directory> [--report <file>] [--force]\n"
         << "  emberlights_migrate compare <before export> <after export> [--report <file>] [--force]\n"
-        << "  emberlights_migrate bundle <SoundSwitch project directory> <new bundle directory>\n\n"
+        << "  emberlights_migrate bundle <SoundSwitch project directory> <new bundle directory>\n"
+        << "  emberlights_migrate convert-v1 <SoundSwitch project directory> <output.emberlights> [--report <file>] [--force]\n"
+        << "  emberlights_migrate template-v1 <output.emberlights> [--force]\n\n"
         << "inspect reads and hashes the source without modifying it.\n"
         << "bundle copies every regular payload into payload/, verifies each SHA-256, and\n"
         << "publishes inventory.json only after the complete bundle verifies. The destination\n"
         << "must not exist. No undocumented payload is interpreted or discarded.\n"
         << "compare performs two read-only inspections and reports only changed paths, hashes,\n"
-        << "and bounded byte ranges. It never exports payload bytes.\n";
+        << "and bounded byte ranges. It never exports payload bytes.\n"
+        << "convert-v1 recognizes the qualified SoundSwitch 2.10.x color rig, rebuilds the\n"
+        << "active 32-look bank as native semantic content, and leaves every DMX output off.\n";
+}
+
+bool save_text_atomic(
+    const std::filesystem::path& path,
+    std::string_view text,
+    std::string& error) {
+    std::error_code filesystem_error;
+    const auto parent = path.parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, filesystem_error);
+        if (filesystem_error) {
+            error = "Unable to create the report folder.";
+            return false;
+        }
+    }
+    auto temporary = path;
+    temporary += ".tmp";
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output || !output.write(text.data(), static_cast<std::streamsize>(text.size())) ||
+            !output.flush()) {
+            output.close();
+            std::filesystem::remove(temporary, filesystem_error);
+            error = "Unable to write the complete migration report.";
+            return false;
+        }
+    }
+    std::filesystem::remove(path, filesystem_error);
+    filesystem_error.clear();
+    std::filesystem::rename(temporary, path, filesystem_error);
+    if (filesystem_error) {
+        std::filesystem::remove(temporary, filesystem_error);
+        error = "Unable to publish the migration report.";
+        return false;
+    }
+    return true;
 }
 
 int run(const std::vector<std::filesystem::path>& arguments) {
@@ -134,6 +177,74 @@ int run(const std::vector<std::filesystem::path>& arguments) {
         std::cout << "Verified migration source bundle created at "
                   << result.destination.string() << "\n"
                   << result.message << '\n';
+        return 0;
+    }
+    if (command == "convert-v1") {
+        if (arguments.size() < 3U) {
+            print_help();
+            return 1;
+        }
+        std::filesystem::path report = arguments[2];
+        report += ".migration.json";
+        bool force = false;
+        for (std::size_t index = 3U; index < arguments.size(); ++index) {
+            const auto option = arguments[index].string();
+            if (option == "--force") {
+                force = true;
+            } else if (option == "--report" && index + 1U < arguments.size()) {
+                report = arguments[++index];
+            } else {
+                std::cerr << "Unknown or incomplete option: " << option << '\n';
+                return 1;
+            }
+        }
+        std::error_code filesystem_error;
+        if (!force && (std::filesystem::exists(arguments[2], filesystem_error) ||
+                       std::filesystem::exists(report, filesystem_error))) {
+            std::cerr << "Output or report already exists; use --force to replace it.\n";
+            return 1;
+        }
+        const auto migration = emberlights::create_soundswitch_v1_project(arguments[1]);
+        if (!migration) {
+            std::cerr << migration.message << '\n';
+            return 2;
+        }
+        const auto saved = emberlights::save_project_atomic(arguments[2], migration.project, false);
+        if (!saved) {
+            std::cerr << saved.message << '\n';
+            return 2;
+        }
+        std::string report_error;
+        if (!save_text_atomic(
+                report,
+                emberlights::serialize_soundswitch_v1_migration_report(migration),
+                report_error)) {
+            std::cerr << report_error << '\n';
+            return 2;
+        }
+        std::cout << migration.message << "\nProject: " << arguments[2].string()
+                  << "\nReport: " << report.string() << '\n';
+        return 0;
+    }
+    if (command == "template-v1") {
+        if (arguments.size() < 2U || arguments.size() > 3U ||
+            (arguments.size() == 3U && arguments[2] != "--force")) {
+            print_help();
+            return 1;
+        }
+        const bool force = arguments.size() == 3U;
+        std::error_code filesystem_error;
+        if (!force && std::filesystem::exists(arguments[1], filesystem_error)) {
+            std::cerr << "Output already exists; use --force to replace it.\n";
+            return 1;
+        }
+        const auto project = emberlights::make_safe_color_rig_v1_template();
+        const auto saved = emberlights::save_project_atomic(arguments[1], project, false);
+        if (!saved) {
+            std::cerr << saved.message << '\n';
+            return 2;
+        }
+        std::cout << "Safe color-rig V1 template saved to " << arguments[1].string() << '\n';
         return 0;
     }
     std::cerr << "Unknown command: " << command << "\n";

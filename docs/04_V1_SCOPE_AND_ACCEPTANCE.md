@@ -69,6 +69,7 @@ V1 show packages may contain up to 64 Autoloop banks of 32 slots each. Four-bank
 - Basic live-audio BPM fallback plus manual tap tempo.
 - Diagnostics/event log.
 - Initial SoundSwitch project inspector and migration report.
+- Qualified SoundSwitch 2.10.x color-rig converter that emits an output-disabled native project, preserves source hashes, and labels every approximation.
 
 ### Gate
 
@@ -83,6 +84,7 @@ V1 show packages may contain up to 64 Autoloop banks of 32 slots each. Four-bank
 ### Preconditions
 
 - A complete venue/rig package has been preflighted.
+- Every staged fixture mode and DMX address has been checked against the physical rig before any output is enabled.
 - Emergency backup path has been rehearsed.
 - Output hardware, network isolation, and power plan have been tested at the venue or an equivalent rig.
 - No proprietary Control One feature is required for core operation.
