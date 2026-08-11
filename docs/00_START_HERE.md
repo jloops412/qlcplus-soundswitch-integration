@@ -19,7 +19,10 @@ This is not a generic DMX console and not a Wolfmix clone.
 - `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is the binding UI direction: one shared command/state model must power the default UI, bundled SoundSwitch Reference skin, future user skins, keyboard/MIDI/controller mappings, and external control surfaces. Do not hard-code new UI behavior around one layout or controller.
 - `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` defines the required screenshot/evidence corpus, screen-state matrix, measurement method, current Win32 UI audit, and preserve/improve/reject analysis.
 - `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` defines the build-ready Studio/Live reference layouts, responsive behavior, component/state requirements, parity journeys, and golden-screen gates.
+- `21_UI_IMPLEMENTATION_PROGRAM.md` defines UI stage gates, dependencies, agent ownership, merge order, risk controls, and token/test-efficiency rules.
+- `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md` records current SoundSwitch interface findings and approved modernization targets.
 - `../spec/ui/command-state-skin-contract-v0.md` defines the typed command registry, shared state registry, bindings, skin package/runtime, validation, safe fallback, and strangler migration from the existing hard-coded Win32 shell.
+- `../spec/ui/current-win32-command-state-inventory-v0.md` maps the present Win32 controls and callbacks into proposed product-semantic commands, states, priority classes, and persistence scopes.
 
 ## Binding product statement
 
@@ -55,19 +58,31 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Any claim that proprietary Control One DMX or OLED functions are supported.
 - Exact SoundSwitch Reference visual dimensions before the controlled native screenshot corpus is measured.
 
-## Required reading order
+## Core required reading order
+
+All agents read only the smallest binding set needed for their work:
 
 1. This file.
 2. `01_PRODUCT_REQUIREMENTS.md`.
 3. `03_ARCHITECTURE.md`.
-4. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md`.
-5. `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md`.
-6. `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md`.
-7. `../spec/ui/command-state-skin-contract-v0.md`.
-8. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
-9. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
-10. `09_BUILD_AND_TEST_STANDARDS.md`.
-11. The remaining research/backlog files as needed.
+4. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
+5. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
+6. `09_BUILD_AND_TEST_STANDARDS.md`.
+7. The parity/backlog/research file directly relevant to the bounded assignment.
+
+## Additional required reading for UI/UX or skin work
+
+Read in this order after the core set:
+
+1. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md`.
+2. `21_UI_IMPLEMENTATION_PROGRAM.md`.
+3. `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` when collecting/analyzing evidence or building the Reference skin.
+4. `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md`.
+5. `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` when building or qualifying the Reference skin.
+6. `../spec/ui/command-state-skin-contract-v0.md`.
+7. `../spec/ui/current-win32-command-state-inventory-v0.md` when changing the Win32 shell, command facade, state facade, mappings, or persistence UX.
+
+Do not make non-UI agents consume the entire UI research corpus unless their bounded work touches those contracts.
 
 ## Definition of progress
 
