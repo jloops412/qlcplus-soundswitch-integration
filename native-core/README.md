@@ -21,6 +21,7 @@ It proves:
 - ArtDMX packet generation and IPv4 unicast output;
 - sACN/E1.31 packet generation plus unicast and standards-based multicast output;
 - ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe output/reconnect state, and latest-frame-wins backpressure;
+- SoundSwitch Micro JLS1 initialization and 522-byte native frame generation, isolated WinUSB ownership, per-universe output/reconnect state, and separate open/write/nonzero-slot diagnostics;
 - versioned, checksummed `.emberlights` project persistence with atomic replacement, backup recovery, and unknown-record preservation;
 - a fixed-capacity project compiler and three-thread service Runner that keeps input and network output away from the DMX scheduler;
 - a native Windows Studio/Live shell and installer packaging path;
@@ -86,7 +87,7 @@ Dry-run with a manual clock:
 ./build/runner_lab --manual-bpm 120
 ```
 
-VirtualDJ on the same computer can connect to the default OS2L endpoint at `127.0.0.1:9996`. To emit the two reference universes to a receiver:
+VirtualDJ on the same computer can connect to the default OS2L endpoint at `127.0.0.1:9996`. Set VirtualDJ's `os2l` option to `Yes` rather than `Auto`, set `os2lDirectIp` to `127.0.0.1:9996`, and restart VirtualDJ so it connects without waiting for a DMX pad action. To emit the two reference universes to a receiver:
 
 ```bash
 ./build/runner_lab --artnet 192.168.1.50

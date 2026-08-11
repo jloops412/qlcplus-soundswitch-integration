@@ -118,6 +118,7 @@ if(WIN32)
         comctl32
         comdlg32
         shell32
+        advapi32
         ole32
         uuid)
     if(MSVC)

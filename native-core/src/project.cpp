@@ -362,7 +362,7 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     if (showcore::soundswitch_micro_framing_value(
             project.connections.soundswitch_micro_framing) >
         showcore::soundswitch_micro_framing_value(
-            showcore::SoundSwitchMicroFraming::EnttecUsbPro)) {
+            showcore::SoundSwitchMicroFraming::NativeJls1)) {
         add_issue(
             result,
             ProjectIssueSeverity::Error,

@@ -167,7 +167,7 @@ struct ConnectionSettings {
     std::array<std::string, showcore::kV1UniverseCount> dmx_usb_pro_ports{};
     std::uint8_t soundswitch_micro_universe{0};
     showcore::SoundSwitchMicroFraming soundswitch_micro_framing{
-        showcore::SoundSwitchMicroFraming::RawDmxWithStartCode};
+        showcore::SoundSwitchMicroFraming::NativeJls1};
     std::uint16_t frame_rate{40};
     double manual_bpm{120.0};
     std::int32_t midi_input_index{-1};

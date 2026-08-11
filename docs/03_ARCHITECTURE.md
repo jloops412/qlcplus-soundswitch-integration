@@ -51,6 +51,8 @@ Short-message output for LEDs/rings runs on the controller-feedback adapter thre
 
 The first native adapter implements ENTTEC's published DMX USB Pro application framing over a Windows COM port. A configured device owns one universe; two devices may independently carry V1's two universes. Serial discovery, open/retry, packet writes, and zero-frame shutdown all run on the output thread, never the scheduler. The scheduler publishes into a bounded SPSC queue, and the output consumer deliberately takes the newest available frame so a temporarily blocked interface cannot replay stale lighting after recovery.
 
+The SoundSwitch Micro adapter is a separate WinUSB implementation for the verified `VID_15E4/PID_0053` interface and bulk OUT pipe `0x01`. It sends the independently established JLS1 initialization sequence once per open, then a complete 522-byte native frame for the selected project universe. It shares the output thread, newest-frame-wins queue, reconnect, and zero-frame shutdown rules. Diagnostics treats device-open state, accepted writes, Windows failures, and nonzero rendered-slot evidence as distinct facts.
+
 The adapter is a replaceable output contract, not a fixture or show-model dependency. It does not imply qualification of the legacy two-universe Pro Mk2 protocol or every third-party device that advertises protocol compatibility. [ENTTEC DMX USB Pro API](https://support.enttec.com/dmx/usbdmx-dmx-usb-pro-70304/dmx-usb-pro-api)
 
 ## Fixture-library ingestion boundary

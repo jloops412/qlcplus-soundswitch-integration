@@ -51,6 +51,80 @@ constexpr UINT_PTR kStatusTimer = 1U;
 constexpr UINT kStatusTimerMs = 250U;
 constexpr int kNavigationWidth = 176;
 constexpr int kStatusHeight = 26;
+constexpr wchar_t kApplicationRegistryKey[] = L"Software\\EmberLights";
+constexpr wchar_t kLastProjectRegistryValue[] = L"LastProjectPath";
+
+[[nodiscard]] std::optional<std::filesystem::path> remembered_project_path() {
+    HKEY key = nullptr;
+    if (::RegOpenKeyExW(
+            HKEY_CURRENT_USER, kApplicationRegistryKey, 0U, KEY_QUERY_VALUE, &key) !=
+        ERROR_SUCCESS) {
+        return std::nullopt;
+    }
+    DWORD type = 0U;
+    DWORD bytes = 0U;
+    const auto measured = ::RegQueryValueExW(
+        key, kLastProjectRegistryValue, nullptr, &type, nullptr, &bytes);
+    if (measured != ERROR_SUCCESS || type != REG_SZ || bytes < sizeof(wchar_t) ||
+        bytes > 32768U * sizeof(wchar_t)) {
+        ::RegCloseKey(key);
+        return std::nullopt;
+    }
+    std::vector<wchar_t> value(bytes / sizeof(wchar_t), L'\0');
+    const auto loaded = ::RegQueryValueExW(
+        key,
+        kLastProjectRegistryValue,
+        nullptr,
+        &type,
+        reinterpret_cast<BYTE*>(value.data()),
+        &bytes);
+    ::RegCloseKey(key);
+    if (loaded != ERROR_SUCCESS || value.empty() || value.back() != L'\0' ||
+        value.front() == L'\0') {
+        return std::nullopt;
+    }
+    return std::filesystem::path(value.data());
+}
+
+[[nodiscard]] bool remember_project_path(const std::filesystem::path& path) {
+    if (path.empty()) {
+        return false;
+    }
+    HKEY key = nullptr;
+    if (::RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            kApplicationRegistryKey,
+            0U,
+            nullptr,
+            REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE,
+            nullptr,
+            &key,
+            nullptr) != ERROR_SUCCESS) {
+        return false;
+    }
+    const auto value = path.wstring();
+    const auto bytes = static_cast<DWORD>((value.size() + 1U) * sizeof(wchar_t));
+    const auto saved = ::RegSetValueExW(
+        key,
+        kLastProjectRegistryValue,
+        0U,
+        REG_SZ,
+        reinterpret_cast<const BYTE*>(value.c_str()),
+        bytes);
+    ::RegCloseKey(key);
+    return saved == ERROR_SUCCESS;
+}
+
+void forget_remembered_project_path() noexcept {
+    HKEY key = nullptr;
+    if (::RegOpenKeyExW(
+            HKEY_CURRENT_USER, kApplicationRegistryKey, 0U, KEY_SET_VALUE, &key) ==
+        ERROR_SUCCESS) {
+        static_cast<void>(::RegDeleteValueW(key, kLastProjectRegistryValue));
+        ::RegCloseKey(key);
+    }
+}
 
 enum class Page : std::size_t {
     Live,
@@ -525,6 +599,19 @@ template <typename Value>
     return L"Unknown";
 }
 
+[[nodiscard]] const wchar_t* soundswitch_micro_framing_name(
+    showcore::SoundSwitchMicroFraming framing) noexcept {
+    switch (framing) {
+    case showcore::SoundSwitchMicroFraming::NativeJls1: return L"native JLS1";
+    }
+    return L"invalid";
+}
+
+[[nodiscard]] const wchar_t* soundswitch_micro_state_name(
+    emberlights::AdapterState state) noexcept {
+    return state == emberlights::AdapterState::Ready ? L"Open" : adapter_state_name(state);
+}
+
 [[nodiscard]] const wchar_t* autoloop_repeat_name(showcore::AutoloopRepeat repeat) noexcept {
     switch (repeat) {
     case showcore::AutoloopRepeat::Once: return L"once";
@@ -826,6 +913,13 @@ int Application::run(
     }
     if (initial_file.has_value()) {
         static_cast<void>(open_project(*initial_file));
+    } else if (const auto remembered = remembered_project_path(); remembered.has_value()) {
+        if (!open_project(*remembered)) {
+            forget_remembered_project_path();
+            set_status(
+                L"The last project is no longer available. Choose another project once; "
+                L"EmberLights will remember it.");
+        }
     }
     MSG message{};
     std::array<ACCEL, 7> accelerator_definitions{{
@@ -1447,7 +1541,7 @@ void Application::create_pages() {
     add_combo(page, IdDmxUsbProUniverse2);
     add_label(page, L"SoundSwitch Micro (WinUSB)", 0);
     add_combo(page, IdSoundSwitchMicroUniverse);
-    add_label(page, L"Micro framing", 0);
+    add_label(page, L"Micro protocol", 0);
     add_combo(page, IdSoundSwitchMicroFraming);
     add_label(page, L"Frame rate", 0);
     add_edit(page, IdFrameRate);
@@ -1458,8 +1552,15 @@ void Application::create_pages() {
     add_label(page, L"MIDI feedback output", 0);
     add_combo(page, IdMidiOutput);
     add_button(page, L"Refresh MIDI + USB-DMX", IdRefreshMidi);
-    add_button(page, L"Apply Settings", IdConnectionsApply);
-    add_label(page, L"", IdConnectionsMessage);
+    add_button(
+        page,
+        L"&Save && Apply Connections",
+        IdConnectionsApply,
+        BS_DEFPUSHBUTTON);
+    add_label(
+        page,
+        L"VirtualDJ: set os2l to Yes (not Auto) and os2lDirectIp to 127.0.0.1:9996, then restart VirtualDJ.",
+        IdConnectionsMessage);
 
     page = pages_[static_cast<std::size_t>(Page::Safety)];
     title = add_label(page, L"Safety Policy", IdSafetyTitle);
@@ -1795,7 +1896,7 @@ void Application::layout_page(Page page, int width, int height) {
         field_row(26, 27);
         field_row(28, 29);
         move(30, margin, height - 106, 210, 32);
-        move(31, margin + 224, height - 106, 140, 32);
+        move(31, margin + 224, height - 106, 230, 32);
         move(32, margin, height - 66, usable_width, 30);
         break;
     }
@@ -2663,17 +2764,9 @@ void Application::refresh_connections() {
     static_cast<void>(::SendMessageW(micro_framing, CB_RESETCONTENT, 0, 0));
     combo_add(
         micro_framing,
-        L"A — raw DMX start code + 512 slots",
+        L"SoundSwitch native JLS1",
         static_cast<std::intptr_t>(
-            showcore::SoundSwitchMicroFraming::RawDmxWithStartCode));
-    combo_add(
-        micro_framing,
-        L"B — 512 raw slots",
-        static_cast<std::intptr_t>(showcore::SoundSwitchMicroFraming::RawSlotsOnly));
-    combo_add(
-        micro_framing,
-        L"C — DMX USB Pro framing",
-        static_cast<std::intptr_t>(showcore::SoundSwitchMicroFraming::EnttecUsbPro));
+            showcore::SoundSwitchMicroFraming::NativeJls1));
     combo_select_data(
         micro_framing,
         static_cast<std::intptr_t>(project_.connections.soundswitch_micro_framing));
@@ -2760,7 +2853,17 @@ std::string Application::diagnostics_text() const {
            << "  USB U1: " << narrow(adapter_state_name(status.dmx_usb_pro[0]))
            << "  USB U2: " << narrow(adapter_state_name(status.dmx_usb_pro[1]))
            << "  SoundSwitch Micro: "
-           << narrow(adapter_state_name(status.soundswitch_micro)) << "\r\n"
+           << narrow(soundswitch_micro_state_name(status.soundswitch_micro)) << "\r\n"
+           << "Micro project setting: universe "
+           << static_cast<unsigned int>(project_.connections.soundswitch_micro_universe)
+           << "  framing: "
+           << narrow(soundswitch_micro_framing_name(
+                  project_.connections.soundswitch_micro_framing))
+           << "  accepted writes: " << status.soundswitch_micro_write_frames
+           << "  failed writes: " << status.soundswitch_micro_write_failures
+           << "  last WinUSB error: " << status.soundswitch_micro_last_error
+           << "  last non-zero slots: "
+           << status.soundswitch_micro_last_nonzero_slots << "\r\n"
            << "Frames: " << status.frames << "  Output frames: " << status.output_frames
            << "  Send failures: " << status.output_send_failures
            << "  Queue drops: " << status.output_queue_drops
@@ -3499,6 +3602,7 @@ bool Application::open_project(const std::filesystem::path& path) {
     active_project_.reset();
     project_ = std::move(loaded);
     current_path_ = path;
+    const auto remembered = remember_project_path(current_path_);
     edit_history_.clear();
     capture_saved_project();
     recovery_save_required_ = result.recovered_from_backup;
@@ -3514,7 +3618,9 @@ bool Application::open_project(const std::filesystem::path& path) {
             L"Project recovered",
             MB_OK | MB_ICONWARNING);
     } else {
-        set_status(L"Project opened successfully.");
+        set_status(remembered
+            ? L"Project opened successfully and will reopen automatically next time."
+            : L"Project opened, but Windows did not allow EmberLights to remember it for next launch.");
     }
     return true;
 }
@@ -3549,6 +3655,7 @@ bool Application::save_project(bool save_as) {
         return false;
     }
     current_path_ = std::move(path);
+    const auto remembered = remember_project_path(current_path_);
     capture_saved_project();
     const auto runner_state = runner_.status().state;
     if (runner_state == emberlights::RunnerState::Running) {
@@ -3596,9 +3703,14 @@ bool Application::save_project(bool save_as) {
         set_status(L"Activation failed closed. Runner stopped; the project file was saved.");
         return true;
     }
-    set_status(result.message.empty()
-        ? L"Project saved with checksum, recovery backup, and saved-version protection."
-        : widen(result.message));
+    if (!remembered) {
+        set_status(
+            L"Project saved, but Windows did not allow EmberLights to remember it for next launch.");
+    } else {
+        set_status(result.message.empty()
+            ? L"Project saved with checksum, recovery backup, and saved-version protection."
+            : widen(result.message));
+    }
     return true;
 }
 
@@ -5170,6 +5282,9 @@ void Application::resolve_audio_assets_for_project() {
 
 void Application::apply_connections() {
     const auto page = pages_[static_cast<std::size_t>(Page::Connections)];
+    const auto previous_connections = project_.connections;
+    const auto was_running =
+        runner_.status().state != emberlights::RunnerState::Stopped;
     auto updated = project_.connections;
     const auto project_name = trim(control_text(::GetDlgItem(page, IdProjectName)));
     updated.os2l_enabled = Button_GetCheck(::GetDlgItem(page, IdOs2lEnabled)) == BST_CHECKED;
@@ -5200,7 +5315,7 @@ void Application::apply_connections() {
         combo_selected_data(
             ::GetDlgItem(page, IdSoundSwitchMicroFraming),
             static_cast<std::intptr_t>(
-                showcore::SoundSwitchMicroFraming::RawDmxWithStartCode)));
+                showcore::SoundSwitchMicroFraming::NativeJls1)));
     if (project_name.empty() || updated.os2l_bind.empty() ||
         (updated.artnet_enabled && updated.artnet_destination.empty()) ||
         (updated.sacn_enabled && updated.sacn_destination.empty()) ||
@@ -5234,12 +5349,45 @@ void Application::apply_connections() {
     project_ = std::move(candidate);
     mark_dirty();
     refresh_live_lists();
-    set_page_message(
-        Page::Connections,
-        IdConnectionsMessage,
-        runner_.status().state == emberlights::RunnerState::Running
-            ? "Settings saved. Save the project, then stop/start the show to apply connection changes."
-            : "Connection settings saved. Start Show from Live when the patch is ready.");
+    if (!save_project(false)) {
+        set_page_message(
+            Page::Connections,
+            IdConnectionsMessage,
+            "Connections are valid but were not saved or applied. Choose a project file and press Save & Apply Connections again.",
+            true);
+        return;
+    }
+    if (was_running && previous_connections != project_.connections) {
+        runner_.stop();
+        active_project_.reset();
+        static_cast<void>(::ModifyMenuW(
+            ::GetSubMenu(::GetMenu(window_), 2),
+            IdShowStartStop,
+            MF_BYCOMMAND | MF_STRING,
+            IdShowStartStop,
+            L"&Start Show"));
+        start_or_stop_show();
+        if (runner_.status().state == emberlights::RunnerState::Stopped) {
+            set_page_message(
+                Page::Connections,
+                IdConnectionsMessage,
+                "Connections were saved, but Runner could not restart. Review Diagnostics before enabling output.",
+                true);
+            return;
+        }
+        set_status(
+            L"Connections saved to the project and Runner restarted with the new output settings.");
+        set_page_message(
+            Page::Connections,
+            IdConnectionsMessage,
+            "Saved to project and applied. Runner restarted with a zero-frame handoff.");
+    } else {
+        set_status(L"Connections saved to the project and applied.");
+        set_page_message(
+            Page::Connections,
+            IdConnectionsMessage,
+            "Saved to project and applied. VirtualDJ should use os2l=Yes, not Auto.");
+    }
 }
 
 void Application::apply_safety() {

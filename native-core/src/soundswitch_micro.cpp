@@ -1,7 +1,5 @@
 #include "showcore/soundswitch_micro.hpp"
 
-#include "showcore/dmx_usb_pro.hpp"
-
 #include <algorithm>
 #include <new>
 
@@ -23,26 +21,20 @@ namespace showcore {
 
 SoundSwitchMicroPacket build_soundswitch_micro_packet(
     const DmxUniverse& universe,
-    SoundSwitchMicroFraming framing) noexcept {
+    SoundSwitchMicroFraming) noexcept {
     SoundSwitchMicroPacket packet;
-    switch (framing) {
-    case SoundSwitchMicroFraming::RawDmxWithStartCode:
-        packet.length = kSoundSwitchMicroRawFrameSize;
-        packet.bytes[0] = 0U;
-        std::copy(universe.begin(), universe.end(), packet.bytes.begin() + 1);
-        break;
-    case SoundSwitchMicroFraming::RawSlotsOnly:
-        packet.length = kUniverseSlots;
-        packet.terminate_with_short_packet = true;
-        std::copy(universe.begin(), universe.end(), packet.bytes.begin());
-        break;
-    case SoundSwitchMicroFraming::EnttecUsbPro: {
-        const auto enttec = build_dmx_usb_pro_packet(universe);
-        packet.length = enttec.bytes.size();
-        std::copy(enttec.bytes.begin(), enttec.bytes.end(), packet.bytes.begin());
-        break;
-    }
-    }
+    packet.length = kSoundSwitchMicroMaximumFrameSize;
+    packet.bytes[0] = static_cast<std::uint8_t>('s');
+    packet.bytes[1] = static_cast<std::uint8_t>('T');
+    packet.bytes[2] = static_cast<std::uint8_t>('R');
+    packet.bytes[3] = static_cast<std::uint8_t>('t');
+    packet.bytes[4] = 0x01U;
+    packet.bytes[5] = 0x00U;
+    packet.bytes[6] = 0x02U;
+    packet.bytes[7] = 0x02U;
+    packet.bytes[8] = 0x00U;
+    packet.bytes[9] = 0x00U;
+    std::copy(universe.begin(), universe.end(), packet.bytes.begin() + 10);
     return packet;
 }
 
@@ -104,9 +96,37 @@ inline constexpr UCHAR kSoundSwitchMicroBulkOutPipe = 0x01U;
 struct SoundSwitchMicroSender::Impl {
     HANDLE file{INVALID_HANDLE_VALUE};
     WINUSB_INTERFACE_HANDLE usb{nullptr};
-    SoundSwitchMicroFraming framing{SoundSwitchMicroFraming::RawDmxWithStartCode};
+    SoundSwitchMicroFraming framing{SoundSwitchMicroFraming::NativeJls1};
     std::uint32_t last_error{0U};
 };
+
+namespace {
+
+[[nodiscard]] bool write_exact(
+    WINUSB_INTERFACE_HANDLE usb,
+    const std::uint8_t* bytes,
+    std::size_t length,
+    std::uint32_t& error) noexcept {
+    ULONG transferred = 0U;
+    if (::WinUsb_WritePipe(
+            usb,
+            kSoundSwitchMicroBulkOutPipe,
+            const_cast<PUCHAR>(bytes),
+            static_cast<ULONG>(length),
+            &transferred,
+            nullptr) == FALSE) {
+        error = ::GetLastError();
+        return false;
+    }
+    if (transferred != static_cast<ULONG>(length)) {
+        error = ERROR_WRITE_FAULT;
+        return false;
+    }
+    error = ERROR_SUCCESS;
+    return true;
+}
+
+}  // namespace
 
 SoundSwitchMicroSender::SoundSwitchMicroSender() noexcept
     : impl_(new (std::nothrow) Impl{}) {}
@@ -172,13 +192,20 @@ bool SoundSwitchMicroSender::open(SoundSwitchMicroFraming framing) noexcept {
         close();
         return false;
     }
-    BOOL terminate = framing == SoundSwitchMicroFraming::RawSlotsOnly ? TRUE : FALSE;
+    BOOL terminate = FALSE;
     if (::WinUsb_SetPipePolicy(
             impl_->usb, kSoundSwitchMicroBulkOutPipe,
             SHORT_PACKET_TERMINATE, sizeof(terminate), &terminate) == FALSE) {
         impl_->last_error = ::GetLastError();
         close();
         return false;
+    }
+    for (const auto& packet : kSoundSwitchMicroInitializationPackets) {
+        if (!write_exact(
+                impl_->usb, packet.data(), packet.size(), impl_->last_error)) {
+            close();
+            return false;
+        }
     }
     impl_->last_error = ERROR_SUCCESS;
     return true;
@@ -207,20 +234,8 @@ bool SoundSwitchMicroSender::send(const DmxUniverse& universe) noexcept {
         return false;
     }
     const auto packet = build_soundswitch_micro_packet(universe, impl_->framing);
-    ULONG transferred = 0U;
-    if (::WinUsb_WritePipe(
-            impl_->usb, kSoundSwitchMicroBulkOutPipe,
-            const_cast<PUCHAR>(packet.bytes.data()),
-            static_cast<ULONG>(packet.length), &transferred, nullptr) == FALSE) {
-        impl_->last_error = ::GetLastError();
-        return false;
-    }
-    if (transferred != packet.length) {
-        impl_->last_error = ERROR_WRITE_FAULT;
-        return false;
-    }
-    impl_->last_error = ERROR_SUCCESS;
-    return true;
+    return write_exact(
+        impl_->usb, packet.bytes.data(), packet.length, impl_->last_error);
 }
 
 std::uint32_t SoundSwitchMicroSender::last_error() const noexcept {
@@ -229,7 +244,7 @@ std::uint32_t SoundSwitchMicroSender::last_error() const noexcept {
 
 SoundSwitchMicroFraming SoundSwitchMicroSender::framing() const noexcept {
     return impl_ == nullptr
-        ? SoundSwitchMicroFraming::RawDmxWithStartCode
+        ? SoundSwitchMicroFraming::NativeJls1
         : impl_->framing;
 }
 
@@ -247,7 +262,7 @@ bool SoundSwitchMicroSender::is_open() const noexcept { return false; }
 bool SoundSwitchMicroSender::send(const DmxUniverse&) noexcept { return false; }
 std::uint32_t SoundSwitchMicroSender::last_error() const noexcept { return 0U; }
 SoundSwitchMicroFraming SoundSwitchMicroSender::framing() const noexcept {
-    return SoundSwitchMicroFraming::RawDmxWithStartCode;
+    return SoundSwitchMicroFraming::NativeJls1;
 }
 
 #endif

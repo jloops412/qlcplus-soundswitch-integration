@@ -59,6 +59,7 @@ Name: "{group}\SoundSwitch Micro Probe"; Filename: "{app}\Tools\soundswitch_micr
 Name: "{autodesktop}\EmberLights"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
+Root: HKCU; Subkey: "Software\EmberLights"; Flags: uninsdeletekeyifempty
 Root: HKCU; Subkey: "Software\Classes\.emberlights"; ValueType: string; ValueData: "EmberLights.Project"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\EmberLights.Project"; ValueType: string; ValueData: "EmberLights Project"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\EmberLights.Project\DefaultIcon"; ValueType: string; ValueData: "{app}\{#AppExeName},0"

@@ -769,39 +769,35 @@ void test_dmx_usb_pro() {
     CHECK(!showcore::parse_windows_com_port("\\\\.\\COM3", port));
 }
 
-void test_soundswitch_micro_protocol_candidates() {
+void test_soundswitch_micro_protocol() {
     showcore::DmxUniverse universe{};
     universe[0] = 0x11U;
     universe[1] = 0x22U;
     universe[511] = 0xFEU;
 
-    const auto raw = showcore::build_soundswitch_micro_packet(
-        universe, showcore::SoundSwitchMicroFraming::RawDmxWithStartCode);
-    CHECK(raw.length == 513U);
-    CHECK(!raw.terminate_with_short_packet);
-    CHECK(raw.bytes[0] == 0U);
-    CHECK(raw.bytes[1] == 0x11U);
-    CHECK(raw.bytes[2] == 0x22U);
-    CHECK(raw.bytes[512] == 0xFEU);
+    const auto packet = showcore::build_soundswitch_micro_packet(
+        universe, showcore::SoundSwitchMicroFraming::NativeJls1);
+    CHECK(packet.length == 522U);
+    CHECK(packet.bytes[0] == 's');
+    CHECK(packet.bytes[1] == 'T');
+    CHECK(packet.bytes[2] == 'R');
+    CHECK(packet.bytes[3] == 't');
+    CHECK(packet.bytes[4] == 0x01U);
+    CHECK(packet.bytes[5] == 0x00U);
+    CHECK(packet.bytes[6] == 0x02U);
+    CHECK(packet.bytes[7] == 0x02U);
+    CHECK(packet.bytes[8] == 0U);
+    CHECK(packet.bytes[9] == 0U);
+    CHECK(packet.bytes[10] == 0x11U);
+    CHECK(packet.bytes[11] == 0x22U);
+    CHECK(packet.bytes[521] == 0xFEU);
 
-    const auto slots = showcore::build_soundswitch_micro_packet(
-        universe, showcore::SoundSwitchMicroFraming::RawSlotsOnly);
-    CHECK(slots.length == 512U);
-    CHECK(slots.terminate_with_short_packet);
-    CHECK(slots.bytes[0] == 0x11U);
-    CHECK(slots.bytes[1] == 0x22U);
-    CHECK(slots.bytes[511] == 0xFEU);
-
-    const auto enttec = showcore::build_soundswitch_micro_packet(
-        universe, showcore::SoundSwitchMicroFraming::EnttecUsbPro);
-    CHECK(enttec.length == showcore::kDmxUsbProPacketSize);
-    CHECK(!enttec.terminate_with_short_packet);
-    CHECK(enttec.bytes[0] == showcore::kDmxUsbProStartByte);
-    CHECK(enttec.bytes[1] == showcore::kDmxUsbProSendDmxLabel);
-    CHECK(enttec.bytes[5] == 0x11U);
-    CHECK(enttec.bytes[6] == 0x22U);
-    CHECK(enttec.bytes[516] == 0xFEU);
-    CHECK(enttec.bytes[517] == showcore::kDmxUsbProEndByte);
+    CHECK(showcore::kSoundSwitchMicroInitializationPackets[0][0] == 's');
+    CHECK(showcore::kSoundSwitchMicroInitializationPackets[0][4] == 0x02U);
+    CHECK(showcore::kSoundSwitchMicroInitializationPackets[0][10] == 0x01U);
+    CHECK(showcore::kSoundSwitchMicroInitializationPackets[1][8] == 0x01U);
+    CHECK(showcore::kSoundSwitchMicroInitializationPackets[1][10] == 0xFFU);
+    CHECK(showcore::kSoundSwitchMicroInitializationPackets[1][11] == 0xFFU);
 }
 
 void test_sacn() {
@@ -1736,7 +1732,7 @@ void test_project_validation_io_and_compilation() {
     project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
     project.connections.soundswitch_micro_universe = 2U;
     project.connections.soundswitch_micro_framing =
-        showcore::SoundSwitchMicroFraming::RawSlotsOnly;
+        showcore::SoundSwitchMicroFraming::NativeJls1;
     const auto validation = emberlights::validate_project(project);
     CHECK(validation.ok());
 
@@ -1817,7 +1813,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.connections.dmx_usb_pro_ports[1] == "COM4");
     CHECK(parsed.connections.soundswitch_micro_universe == 2U);
     CHECK(parsed.connections.soundswitch_micro_framing ==
-          showcore::SoundSwitchMicroFraming::RawSlotsOnly);
+          showcore::SoundSwitchMicroFraming::NativeJls1);
     CHECK(parsed.fixtures[0].roles.size() == 1U);
     CHECK(parsed.looks.size() == 2U);
     CHECK(parsed.autoloops.size() == 1U);
@@ -1837,6 +1833,18 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.midi_mappings[5].action.type == showcore::ActionType::SelectAllAutoloopBanks);
     CHECK(parsed.midi_mappings[6].action.type == showcore::ActionType::BlackoutGroup);
     CHECK(emberlights::serialize_project(parsed) == serialized);
+
+    // Preview.310 persisted discovery candidates 0, 1, or 2. All three values
+    // now load as the established native JLS1 contract without a format bump.
+    auto legacy_micro_project = project;
+    legacy_micro_project.connections.soundswitch_micro_framing =
+        static_cast<showcore::SoundSwitchMicroFraming>(2U);
+    emberlights::ProjectDocument migrated_micro_project;
+    CHECK(emberlights::parse_project(
+        emberlights::serialize_project(legacy_micro_project), migrated_micro_project));
+    CHECK(migrated_micro_project.connections.soundswitch_micro_universe == 2U);
+    CHECK(migrated_micro_project.connections.soundswitch_micro_framing ==
+          showcore::SoundSwitchMicroFraming::NativeJls1);
 
     auto corrupted = serialized;
     corrupted.back() = corrupted.back() == '\n' ? 'X' : '\n';
@@ -2068,6 +2076,11 @@ void test_runner_service_lifecycle() {
     CHECK(active.sacn == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[0] == emberlights::AdapterState::Disabled);
     CHECK(active.dmx_usb_pro[1] == emberlights::AdapterState::Disabled);
+    CHECK(active.soundswitch_micro == emberlights::AdapterState::Disabled);
+    CHECK(active.soundswitch_micro_write_frames == 0U);
+    CHECK(active.soundswitch_micro_write_failures == 0U);
+    CHECK(active.soundswitch_micro_last_error == 0U);
+    CHECK(active.soundswitch_micro_last_nonzero_slots == 0U);
     CHECK(runner.clear_track_script());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     CHECK(runner.status().active_track_script == -1);
@@ -2377,7 +2390,7 @@ int main() {
     test_16bit_render();
     test_artnet();
     test_dmx_usb_pro();
-    test_soundswitch_micro_protocol_candidates();
+    test_soundswitch_micro_protocol();
     test_sacn();
     test_os2l();
     test_os2l_stream();

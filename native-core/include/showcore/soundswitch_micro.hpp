@@ -9,24 +9,31 @@
 
 namespace showcore {
 
-// The SoundSwitch Micro reports one vendor-specific 64-byte bulk OUT pipe.
-// These candidate payloads are isolated protocol-discovery evidence; none is
-// considered qualified until it produces a physical DMX frame on the target
-// interface. The largest candidate is ENTTEC-compatible application framing.
-inline constexpr std::size_t kSoundSwitchMicroRawFrameSize = kUniverseSlots + 1U;
+// The SoundSwitch Micro reports one vendor-specific 64-byte bulk OUT pipe. Its
+// native frame is an eight-byte JLS1 header followed by a zero-based output
+// port, the DMX start code, and 512 slots.
+inline constexpr std::size_t kSoundSwitchMicroHeaderSize = 8U;
+inline constexpr std::size_t kSoundSwitchMicroPayloadSize = kUniverseSlots + 2U;
 inline constexpr std::size_t kSoundSwitchMicroMaximumFrameSize =
-    kSoundSwitchMicroRawFrameSize + 5U;
+    kSoundSwitchMicroHeaderSize + kSoundSwitchMicroPayloadSize;
+inline constexpr std::size_t kSoundSwitchMicroControlPacketSize = 12U;
+inline constexpr std::uint8_t kSoundSwitchMicroLegacyMaximumFramingValue = 2U;
+inline constexpr std::array<
+    std::array<std::uint8_t, kSoundSwitchMicroControlPacketSize>, 2>
+    kSoundSwitchMicroInitializationPackets{{
+        {{'s', 'T', 'R', 't', 0x02U, 0x00U, 0x04U, 0x00U,
+          0x00U, 0x00U, 0x01U, 0x00U}},
+        {{'s', 'T', 'R', 't', 0x02U, 0x00U, 0x04U, 0x00U,
+          0x01U, 0x00U, 0xFFU, 0xFFU}},
+    }};
 
 enum class SoundSwitchMicroFraming : std::uint8_t {
-    RawDmxWithStartCode,
-    RawSlotsOnly,
-    EnttecUsbPro
+    NativeJls1 = 0U
 };
 
 struct SoundSwitchMicroPacket {
     std::array<std::uint8_t, kSoundSwitchMicroMaximumFrameSize> bytes{};
     std::size_t length{0U};
-    bool terminate_with_short_packet{false};
 };
 
 [[nodiscard]] SoundSwitchMicroPacket build_soundswitch_micro_packet(
