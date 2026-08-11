@@ -37,12 +37,21 @@ Imported QXF modes are read-only snapshots with recorded provenance. Duplicate o
 
 The native USB paths implement the published single-universe DMX USB Pro serial framing and an independently implemented SoundSwitch Micro WinUSB adapter. For the Micro, Diagnostics deliberately says **Open**, then separately reports accepted native frame writes, write failures, the last Windows error, and the number of nonzero rendered slots. Open/accepted writes prove host-side progress; only a responding physical receiver proves DMX interoperability. SoundSwitch must remain closed while EmberLights owns the Micro.
 
+Before assigning the Micro to a normal project, run **EmberLights Hardware Test** from the Start menu with the isolated IR-4 bench in `docs/MORNING_HARDWARE_TEST.md`. The guided test now includes raw output, compiled Runner output after a clean reopen, and an unplug/replug recovery stage through the same production session lifecycle. Its Desktop report names the first incomplete gate and only reports `passed` after operator-confirmed red and blackout in all three stages.
+
 ## VirtualDJ and MIDI
 
 - Same-computer VirtualDJ/OS2L defaults to `127.0.0.1:9996`. In VirtualDJ Settings → Options, set `os2l` to **Yes**, not **Auto**, set `os2lDirectIp` to `127.0.0.1:9996`, then restart VirtualDJ. VirtualDJ's Auto mode waits until an OS2L action such as a DMX pad is used; Yes initiates the connection without that pad press.
+- After **Start Show**, Live and Diagnostics must show OS2L **Waiting** with the actual listening endpoint before VirtualDJ connects, then **Ready** after beat traffic begins. Diagnostics also records the last socket error; a port of `0` means the listener is not open.
+- A VirtualDJ action `os2l_button "Exact Look Name"` activates/releases that Static Look through the same target-aware state used by Live and MIDI. `os2l_button "Look: Exact Look Name"` is the explicit form; use `os2l_button "Autoloop: Exact Autoloop Name"` for an Autoloop. Names and capitalization must match the active project. A delayed off event for an older target cannot clear a newer selection.
+- Diagnostics records dropped named OS2L actions. Keep that count at zero during qualification; a nonzero value means the bounded input queue overflowed and the session is not clean evidence.
 - For a separate lighting computer, bind OS2L to that computer's private LAN address and configure VirtualDJ's direct OS2L destination to match. Do not expose the listener to an untrusted network.
 - Select a MIDI input under Connections before using MIDI Learn. Use **Save & Apply Connections** after changing adapter settings; EmberLights restarts Runner when required.
+- Static Looks in Live use **Toggle**: selecting a different look switches to it, while toggling the active look clears it with the normal anti-snap fade. For MIDI mappings, **Toggle** uses the same press-again rule, **Latch** selects without releasing on button-up, and **Momentary** holds only while its button is down. Releasing an older held pad cannot clear a newer selected look.
+- **Save & Apply Connections** is transactional: if saving is cancelled or fails, EmberLights restores the prior project settings and does not apply the proposal. When the show is stopped, the confirmation says the saved settings will open on **Start Show**; when a live adapter graph changes, success is reported only after Runner restarts and reaches **Running**.
 - Control One is treated as standard MIDI until its owned-device map is captured and verified. Its proprietary DMX, display, firmware, and storage behavior is not claimed.
+- Diagnostics now lists the same backend health fields for every configured transport: opening/ready/recovering/fault state, open attempts, reconnects, accepted/failed frames, last error, and last nonzero-slot count. These are host-side facts; only a responding physical receiver proves DMX interoperability.
+- Control One's DMX ports are not selectable until the separate proprietary output broker is captured and qualified. WOLFmix is a later standalone/DMX-input bridge track, not a USB-dongle option.
 
 ## Safety and recovery
 

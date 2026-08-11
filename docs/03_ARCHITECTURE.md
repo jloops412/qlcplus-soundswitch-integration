@@ -55,6 +55,18 @@ The SoundSwitch Micro adapter is a separate WinUSB implementation for the verifi
 
 The adapter is a replaceable output contract, not a fixture or show-model dependency. It does not imply qualification of the legacy two-universe Pro Mk2 protocol or every third-party device that advertises protocol compatibility. [ENTTEC DMX USB Pro API](https://support.enttec.com/dmx/usbdmx-dmx-usb-pro-70304/dmx-usb-pro-api)
 
+### Output-backend capability and health contract
+
+Every configured output now publishes the same allocation-free health snapshot: backend kind, project-universe range, lifecycle state, open attempts/successes, reconnects, attempted/accepted/failed frames, last platform error, and last nonzero-slot count. The output thread owns state changes; Diagnostics and qualification reports consume atomic snapshots. This keeps UI, soak tests, packaging evidence, and future adapters from inferring health from device-specific strings.
+
+Backend descriptors separately record implementation stage, evidence stage, capabilities, advertised hardware universe count, EmberLights-supported universe count, and whether direct configuration is allowed. Host-accepted writes, loopback delivery, physical DMX response, and gig qualification remain distinct evidence levels.
+
+- SoundSwitch Micro, DMX USB Pro, Art-Net, and sACN use the implemented contract today.
+- SoundSwitch Control One's standard MIDI surface remains independent from its two proprietary DMX outputs. Native DMX work stays an isolated broker experiment until owned-device identity/protocol captures exist; it cannot appear as a selectable direct output before then.
+- WOLFmix is treated as a standalone lighting engine. Its documented DMX-input capability may become a bounded hardware bridge after owned-device verification, but its USB service is not represented as an EmberLights USB-DMX adapter.
+
+Adding either device later therefore changes an adapter/broker or bridge implementation and qualification matrix, not fixtures, show packages, rendering, scheduling, project semantics, or safety rules.
+
 ## Fixture-library ingestion boundary
 
 Open Fixture Library is an upstream source, not a Runner file format. [OFL's format documentation](https://github.com/OpenLightingProject/open-fixture-library/blob/master/docs/fixture-format.md) explicitly warns that its native JSON may make breaking changes and recommends transforming it through a plugin. Studio therefore uses version-pinned adapters to translate upstream data into our stable native fixture-profile contract, recording the source, adapter version, and source identity.

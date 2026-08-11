@@ -6,6 +6,8 @@ endif()
 
 project(dj_lighting_showcore LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(EMBERLIGHTS_VERSION "0.1.0-dev" CACHE STRING "EmberLights product version")
 set(EMBERLIGHTS_COMMIT "unknown" CACHE STRING "EmberLights source commit")
 
@@ -27,6 +29,7 @@ add_library(showcore STATIC
     src/fixture_library.cpp
     src/dmx_usb_pro.cpp
     src/soundswitch_micro.cpp
+    src/output_backend.cpp
     src/artnet.cpp
     src/sacn.cpp
     src/os2l.cpp
@@ -38,6 +41,7 @@ add_library(showcore STATIC
     src/autoloop.cpp
     src/engine.cpp
     src/project.cpp
+    src/hardware_qualification.cpp
     src/project_edit_history.cpp
     src/project_io.cpp
     src/file_identity.cpp
@@ -87,9 +91,16 @@ endif()
 
 add_executable(emberlights_migrate src/soundswitch_migrate.cpp)
 target_link_libraries(emberlights_migrate PRIVATE showcore)
+if(MINGW)
+    target_link_options(emberlights_migrate PRIVATE -municode)
+endif()
 
 add_executable(core_tests tests/test_main.cpp)
 target_link_libraries(core_tests PRIVATE showcore)
+
+add_executable(soundswitch_micro_session_tests
+    tests/test_soundswitch_micro_session.cpp)
+target_link_libraries(soundswitch_micro_session_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -125,6 +136,8 @@ if(WIN32)
         # The executable already embeds our explicit DPI/compatibility manifest
         # through EmberLights.rc; suppress the linker's second default manifest.
         target_link_options(EmberLights PRIVATE /MANIFEST:NO)
+    elseif(MINGW)
+        target_link_options(EmberLights PRIVATE -municode -Wl,--subsystem,windows)
     endif()
     target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
@@ -146,6 +159,8 @@ if(WIN32)
         EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}")
     if(MSVC)
         target_compile_options(soundswitch_micro_probe PRIVATE /W4 /WX /permissive-)
+    elseif(MINGW)
+        target_link_options(soundswitch_micro_probe PRIVATE -municode)
     endif()
 
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
@@ -159,7 +174,41 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/16_QLC_FIXTURE_IMPORT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
+else()
+    # Linux currently exposes the deterministic Runner and authoring/diagnostic
+    # command-line tools. Keep the package layout distribution-native so the
+    # DEB can be installed, smoke-tested, upgraded, and removed normally.
+    install(TARGETS
+        runner_lab
+        midi_capture
+        emberlights_qualify
+        emberlights_migrate
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/19_LINUX_INSTALLATION.md"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/emberlights")
+
+    set(CPACK_PACKAGE_NAME "emberlights")
+    set(CPACK_PACKAGE_VENDOR "EmberLights")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "Deterministic SoundSwitch-first DJ lighting Runner and tools")
+    set(CPACK_PACKAGE_VERSION "${EMBERLIGHTS_VERSION}")
+    set(CPACK_PACKAGE_CONTACT "EmberLights")
+    set(CPACK_PACKAGE_FILE_NAME
+        "EmberLights-${EMBERLIGHTS_VERSION}-Linux-${CMAKE_SYSTEM_PROCESSOR}")
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+    set(CPACK_GENERATOR "DEB;TGZ")
+    set(CPACK_DEBIAN_PACKAGE_NAME "emberlights")
+    set(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.deb")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    include(CPack)
 endif()
 
 enable_testing()
@@ -170,6 +219,7 @@ if(WIN32)
         COMMAND soundswitch_micro_probe --self-test)
 endif()
 add_test(NAME core_tests COMMAND core_tests)
+add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke

@@ -42,9 +42,9 @@ The staged native patch is deliberately non-overlapping and output-disabled:
 | 4 Both Lighting BO-S601 uplights | Mode 2, 10 channels each | U1 1, 11, 21, 31 |
 | 4 Both Lighting 360 tubes | 16 RGB cells per tube, 48 channels each | U1 41, 89, 137, 185 |
 | 1 CHAUVET DJ Wash FX HEX | Mode 1, 11 channels | U1 233 |
-| 2 Both Lighting BO-IR4 spotlights | Mode 1, 10 channels each | U1 244, 254 |
+| 2 Both Lighting BO-IR4 spotlights | SoundSwitch Mode 1 / manufacturer 10-channel map (Dimmer, R, G, B, W, Amber, UV, Strobe, Macro, Speed) | U1 244, 254 |
 
-The project contains 18 native Static Looks and 32 native beat-driven Autoloops. Active SoundSwitch Autoloop names are retained, but their patterns are purpose-built semantic equivalents derived from those names; the binary cues are not represented as exact decoded timelines. Movers, GigBars, PartyBars, cold sparks, purchased track shows, and other opaque payloads remain in the original archive. Confirm every physical DMX mode and address in **Patch** before enabling Art-Net, sACN, or a USB-DMX COM port.
+The project contains 18 native Static Looks and 32 native beat-driven Autoloops. Active SoundSwitch Autoloop names are retained, but their patterns are purpose-built semantic equivalents derived from those names; the binary cues are not represented as exact decoded timelines. The IR-4 10-channel ordering is checked against the manufacturer manual. BO-S601, 360 Tube, and Wash FX Hex staged modes remain source-qualified approximations until their physical displays and official DMX charts are checked. If an IR-4 is physically set to 6 channels, select the built-in IR-4 6-channel profile and repatch it instead of using the staged 10-channel profile. Movers, GigBars, PartyBars, cold sparks, purchased track shows, and other opaque payloads remain in the original archive. Confirm every physical DMX mode and address in **Patch** before enabling Art-Net, sACN, or a USB-DMX output.
 
 The Windows package also installs `Templates\EmberLights-2026-V1-Template.emberlights`, which has the same safe patch and content without source hashes.
 

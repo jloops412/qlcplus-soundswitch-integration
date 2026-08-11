@@ -17,6 +17,7 @@
 #include "showcore/midi.hpp"
 #include "showcore/os2l.hpp"
 #include "showcore/os2l_server.hpp"
+#include "showcore/output_backend.hpp"
 #include "showcore/sacn.hpp"
 #include "showcore/soundswitch_micro.hpp"
 #include "showcore/spsc_queue.hpp"
@@ -104,6 +105,39 @@ void cleanup_test_network() {}
         return kInvalidTestSocket;
     }
     return socket;
+}
+
+[[nodiscard]] std::uint16_t reserve_loopback_port() {
+    const auto listener = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listener == kInvalidTestSocket) {
+        return 0U;
+    }
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = 0U;
+    if (::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) != 1 ||
+        ::bind(
+            listener,
+            reinterpret_cast<const sockaddr*>(&address),
+            static_cast<int>(sizeof(address))) != 0) {
+        close_test_socket(listener);
+        return 0U;
+    }
+#ifdef _WIN32
+    int address_size = sizeof(address);
+#else
+    socklen_t address_size = sizeof(address);
+#endif
+    if (::getsockname(
+            listener,
+            reinterpret_cast<sockaddr*>(&address),
+            &address_size) != 0) {
+        close_test_socket(listener);
+        return 0U;
+    }
+    const auto port = ntohs(address.sin_port);
+    close_test_socket(listener);
+    return port;
 }
 
 [[nodiscard]] bool send_all(TestSocket socket, std::string_view bytes) {
@@ -741,6 +775,70 @@ void test_artnet() {
         CHECK(!sender.is_open());
         close_test_socket(receiver);
     }
+}
+
+void test_output_backend_contract_and_health() {
+    const auto& micro = showcore::output_backend_descriptor(
+        showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(micro.implementation == showcore::OutputImplementationStage::Implemented);
+    CHECK(micro.evidence == showcore::OutputEvidenceStage::HostAccepted);
+    CHECK(micro.emberlights_supported_universes == 1U);
+    CHECK(micro.direct_configuration_allowed);
+    CHECK(showcore::has_output_capability(
+        micro.capabilities, showcore::OutputCapability::HotReconnect));
+    CHECK(showcore::has_output_capability(
+        micro.capabilities, showcore::OutputCapability::SafeBlackout));
+
+    const auto& control_one = showcore::output_backend_descriptor(
+        showcore::OutputBackendKind::SoundSwitchControlOne);
+    CHECK(control_one.implementation ==
+          showcore::OutputImplementationStage::IsolatedExperiment);
+    CHECK(control_one.hardware_max_universes == 2U);
+    CHECK(control_one.emberlights_supported_universes == 0U);
+    CHECK(!control_one.direct_configuration_allowed);
+    CHECK(showcore::has_output_capability(
+        control_one.capabilities,
+        showcore::OutputCapability::RequiresIsolatedBroker));
+
+    const auto& wolfmix = showcore::output_backend_descriptor(
+        showcore::OutputBackendKind::WolfmixDmxInputBridge);
+    CHECK(wolfmix.implementation == showcore::OutputImplementationStage::BridgeOnly);
+    CHECK(wolfmix.emberlights_supported_universes == 0U);
+    CHECK(!wolfmix.direct_configuration_allowed);
+    CHECK(showcore::has_output_capability(
+        wolfmix.capabilities, showcore::OutputCapability::ExternalDmxInput));
+
+    showcore::AtomicOutputBackendHealth health;
+    health.configure(showcore::OutputBackendKind::SoundSwitchMicro, 1U, 1U, true);
+    health.mark_opening();
+    health.mark_ready();
+    health.record_send(true, 0U, 6U);
+    health.record_send(false, 1234U, 6U);
+    auto snapshot = health.snapshot();
+    CHECK(snapshot.configured);
+    CHECK(snapshot.kind == showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(snapshot.state == showcore::OutputHealthState::Fault);
+    CHECK(snapshot.open_attempts == 1U);
+    CHECK(snapshot.open_successes == 1U);
+    CHECK(snapshot.frames_attempted == 2U);
+    CHECK(snapshot.frames_accepted == 1U);
+    CHECK(snapshot.frames_failed == 1U);
+    CHECK(snapshot.last_error == 1234U);
+    CHECK(snapshot.last_nonzero_slots == 6U);
+
+    health.mark_opening();
+    CHECK(health.snapshot().state == showcore::OutputHealthState::Recovering);
+    health.mark_ready();
+    snapshot = health.snapshot();
+    CHECK(snapshot.state == showcore::OutputHealthState::Ready);
+    CHECK(snapshot.reconnects == 1U);
+    CHECK(snapshot.open_attempts == 2U);
+    CHECK(snapshot.open_successes == 2U);
+    CHECK(snapshot.last_error == 0U);
+    health.mark_stopping();
+    CHECK(health.snapshot().state == showcore::OutputHealthState::Stopping);
+    health.mark_disabled();
+    CHECK(health.snapshot().state == showcore::OutputHealthState::Disabled);
 }
 
 void test_dmx_usb_pro() {
@@ -1729,6 +1827,19 @@ void test_audio_asset_identity_and_relinking() {
 
 void test_project_validation_io_and_compilation() {
     auto project = make_test_project();
+    project.connections.os2l_enabled = true;
+    project.connections.os2l_bind = "127.0.0.1";
+    project.connections.os2l_port = 10096U;
+    project.connections.artnet_enabled = true;
+    project.connections.artnet_destination = "192.0.2.10";
+    project.connections.artnet_base = 20U;
+    project.connections.sacn_enabled = true;
+    project.connections.sacn_destination = "multicast";
+    project.connections.sacn_universe_base = 101U;
+    project.connections.frame_rate = 40U;
+    project.connections.manual_bpm = 127.5;
+    project.connections.midi_input_index = 3;
+    project.connections.midi_output_index = 4;
     project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
     project.connections.soundswitch_micro_universe = 2U;
     project.connections.soundswitch_micro_framing =
@@ -1807,6 +1918,7 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed_result);
     CHECK(parsed.id == project.id);
     CHECK(parsed.name == project.name);
+    CHECK(parsed.connections == project.connections);
     CHECK(parsed.fixture_profiles.size() == project.fixture_profiles.size());
     CHECK(parsed.fixtures.size() == 1U);
     CHECK(parsed.connections.dmx_usb_pro_ports[0] == "COM3");
@@ -1987,6 +2099,111 @@ void test_project_validation_io_and_compilation() {
     std::filesystem::remove_all(emberlights::project_history_directory(history_path), ignored);
 }
 
+void test_runner_os2l_startup_without_button_trigger() {
+    auto project = make_test_project();
+    auto alternate_loop = project.autoloops.front();
+    alternate_loop.id = "alternate-red-blue";
+    alternate_loop.name = "Alternate Red / Blue";
+    alternate_loop.slot = 4U;
+    project.autoloops.push_back(std::move(alternate_loop));
+    project.connections.os2l_enabled = true;
+    project.connections.os2l_bind = "127.0.0.1";
+    project.connections.os2l_port = reserve_loopback_port();
+    project.connections.artnet_enabled = false;
+    project.connections.sacn_enabled = false;
+    project.connections.dmx_usb_pro_ports = {};
+    project.connections.soundswitch_micro_universe = 0U;
+    CHECK(project.connections.os2l_port != 0U);
+    auto compilation = emberlights::compile_project(project);
+    CHECK(compilation);
+    if (!compilation || project.connections.os2l_port == 0U) {
+        return;
+    }
+
+    emberlights::RunnerService runner;
+    CHECK(runner.start(std::move(compilation.show), project));
+    const auto listen_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    auto status = runner.status();
+    while ((status.state != emberlights::RunnerState::Running ||
+            status.os2l != emberlights::AdapterState::Waiting) &&
+           std::chrono::steady_clock::now() < listen_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        status = runner.status();
+    }
+    CHECK(status.state == emberlights::RunnerState::Running);
+    CHECK(status.os2l == emberlights::AdapterState::Waiting);
+    CHECK(status.os2l_listen_port == project.connections.os2l_port);
+    CHECK(status.os2l_last_error == 0);
+
+    const auto client = connect_loopback(project.connections.os2l_port);
+    CHECK(client != kInvalidTestSocket);
+    if (client != kInvalidTestSocket) {
+        constexpr std::string_view beat_only =
+            R"({"evt":"beat","change":true,"pos":23,"bpm":137.25})";
+        CHECK(send_all(client, beat_only));
+        const auto beat_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.os2l_messages < 1U ||
+                std::abs(status.bpm - 137.25) >= 0.01) &&
+               std::chrono::steady_clock::now() < beat_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.os2l == emberlights::AdapterState::Ready);
+        CHECK(status.os2l_connections == 1U);
+        CHECK(status.os2l_messages == 1U);
+        CHECK(status.os2l_decode_errors == 0U);
+        CHECK(std::abs(status.bpm - 137.25) < 0.01);
+        CHECK(status.clock_source == showcore::ClockSource::Os2l);
+
+        auto wait_for_live_state = [&](std::int32_t look,
+                                       showcore::AutoloopAddress loop,
+                                       std::uint64_t messages) {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            status = runner.status();
+            while ((status.active_look != look || status.active_autoloop != loop ||
+                    status.os2l_messages < messages) &&
+                   std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            return status.active_look == look && status.active_autoloop == loop &&
+                status.os2l_messages >= messages;
+        };
+
+        constexpr std::string_view red_on =
+            R"({"evt":"btn","name":"Red","state":"on"})";
+        constexpr std::string_view blue_on =
+            R"({"evt":"btn","name":"Look: Blue","state":"on"})";
+        constexpr std::string_view red_off =
+            R"({"evt":"btn","name":"Red","state":"off"})";
+        constexpr std::string_view blue_off =
+            R"({"evt":"btn","name":"Look: Blue","state":"off"})";
+        constexpr std::string_view alternate_on =
+            R"({"evt":"btn","name":"Autoloop: Alternate Red / Blue","state":"on"})";
+        constexpr std::string_view alternate_off =
+            R"({"evt":"btn","name":"Autoloop: Alternate Red / Blue","state":"off"})";
+
+        CHECK(send_all(client, red_on));
+        CHECK(wait_for_live_state(0, {7U, 3U}, 2U));
+        CHECK(send_all(client, blue_on));
+        CHECK(wait_for_live_state(1, {7U, 3U}, 3U));
+        CHECK(send_all(client, red_off));
+        CHECK(wait_for_live_state(1, {7U, 3U}, 4U));
+        CHECK(send_all(client, blue_off));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 5U));
+        CHECK(send_all(client, alternate_on));
+        CHECK(wait_for_live_state(-1, {7U, 4U}, 6U));
+        CHECK(send_all(client, alternate_off));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 7U));
+        CHECK(status.dropped_os2l_actions == 0U);
+        close_test_socket(client);
+    }
+    runner.stop();
+    CHECK(runner.status().state == emberlights::RunnerState::Stopped);
+    CHECK(runner.status().os2l_listen_port == 0U);
+}
+
 void test_runner_service_lifecycle() {
     auto project = make_test_project();
     project.connections.os2l_enabled = false;
@@ -2004,6 +2221,28 @@ void test_runner_service_lifecycle() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     CHECK(runner.status().state == emberlights::RunnerState::Running);
+    auto wait_for_active_look = [&](std::int32_t expected) {
+        const auto look_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        while (runner.status().active_look != expected &&
+               std::chrono::steady_clock::now() < look_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return runner.status().active_look == expected;
+    };
+    CHECK(runner.trigger_look(0U));
+    CHECK(wait_for_active_look(0));
+    CHECK(runner.toggle_look(0U));
+    CHECK(wait_for_active_look(-1));
+    CHECK(runner.toggle_look(0U));
+    CHECK(wait_for_active_look(0));
+    CHECK(runner.hold_look(1U, true));
+    CHECK(wait_for_active_look(1));
+    CHECK(runner.hold_look(0U, false));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().active_look == 1);
+    CHECK(runner.hold_look(1U, false));
+    CHECK(wait_for_active_look(-1));
     const auto all_banks = ~std::uint64_t{0};
     auto wait_for_bank_mask = [&](std::uint64_t expected) {
         const auto mask_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
@@ -2081,6 +2320,21 @@ void test_runner_service_lifecycle() {
     CHECK(active.soundswitch_micro_write_failures == 0U);
     CHECK(active.soundswitch_micro_last_error == 0U);
     CHECK(active.soundswitch_micro_last_nonzero_slots == 0U);
+    CHECK(active.output_backends[0U].kind == showcore::OutputBackendKind::ArtNet);
+    CHECK(active.output_backends[1U].kind == showcore::OutputBackendKind::Sacn);
+    CHECK(active.output_backends[2U].kind == showcore::OutputBackendKind::DmxUsbPro);
+    CHECK(active.output_backends[2U].first_source_universe == 1U);
+    CHECK(active.output_backends[3U].kind == showcore::OutputBackendKind::DmxUsbPro);
+    CHECK(active.output_backends[3U].first_source_universe == 2U);
+    CHECK(active.output_backends[4U].kind ==
+          showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(std::all_of(
+        active.output_backends.begin(), active.output_backends.end(),
+        [](const auto& output) {
+            return !output.configured &&
+                output.state == showcore::OutputHealthState::Disabled &&
+                output.frames_attempted == 0U;
+        }));
     CHECK(runner.clear_track_script());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     CHECK(runner.status().active_track_script == -1);
@@ -2297,6 +2551,27 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(migration.project.groups.size() == 9U);
     CHECK(migration.project.looks.size() == 18U);
     CHECK(migration.project.autoloops.size() == 32U);
+    const auto ir4_profile = std::find_if(
+        migration.project.fixture_profiles.begin(),
+        migration.project.fixture_profiles.end(),
+        [](const auto& profile) {
+            return profile.id == "soundswitch.both-lighting.bo-ir4.mode1";
+        });
+    CHECK(ir4_profile != migration.project.fixture_profiles.end());
+    if (ir4_profile != migration.project.fixture_profiles.end()) {
+        CHECK(ir4_profile->mode == "Mode 1 (10 channel)");
+        CHECK(ir4_profile->channels.size() == 10U);
+        if (ir4_profile->channels.size() == 10U) {
+            CHECK(ir4_profile->channels[0].property == showcore::Property::Intensity);
+            CHECK(ir4_profile->channels[1].property == showcore::Property::Red);
+            CHECK(ir4_profile->channels[2].property == showcore::Property::Green);
+            CHECK(ir4_profile->channels[3].property == showcore::Property::Blue);
+            CHECK(ir4_profile->channels[4].property == showcore::Property::White);
+            CHECK(ir4_profile->channels[5].property == showcore::Property::Amber);
+            CHECK(ir4_profile->channels[6].property == showcore::Property::UV);
+            CHECK(ir4_profile->channels[7].property == showcore::Property::Strobe);
+        }
+    }
     CHECK(!migration.project.connections.artnet_enabled);
     CHECK(!migration.project.connections.sacn_enabled);
     CHECK(migration.project.connections.dmx_usb_pro_ports[0].empty());
@@ -2307,6 +2582,8 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(report.find("emberlights-soundswitch-v1-migration") != std::string::npos);
     CHECK(report.find("\"outputEnabled\": false") != std::string::npos);
     CHECK(report.find("Test Loop 1") != std::string::npos);
+    CHECK(report.find("physical IR-4 display is set to 6 channels") != std::string::npos);
+    CHECK(report.find("source-qualified approximations") != std::string::npos);
     CHECK(emberlights::save_project_atomic(project_path, migration.project, false));
     emberlights::ProjectDocument loaded;
     CHECK(emberlights::load_project(project_path, loaded, false));
@@ -2389,6 +2666,7 @@ int main() {
     test_patch_and_render();
     test_16bit_render();
     test_artnet();
+    test_output_backend_contract_and_health();
     test_dmx_usb_pro();
     test_soundswitch_micro_protocol();
     test_sacn();
@@ -2411,6 +2689,7 @@ int main() {
     test_autoloop_placement_operations();
     test_audio_asset_identity_and_relinking();
     test_project_validation_io_and_compilation();
+    test_runner_os2l_startup_without_button_trigger();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();
     test_soundswitch_v1_semantic_conversion();

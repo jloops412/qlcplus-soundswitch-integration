@@ -398,6 +398,30 @@ void print_usage() {
            << "    \"commandPosts\": " << command_posts << ",\n"
            << "    \"commandRejections\": " << command_rejections << "\n"
            << "  },\n"
+           << "  \"outputs\": [\n";
+    for (std::size_t index = 0U; index < status.output_backends.size(); ++index) {
+        const auto& backend = status.output_backends[index];
+        const auto& descriptor = showcore::output_backend_descriptor(backend.kind);
+        output << "    {\"kind\": \"" << json_escape(descriptor.name)
+               << "\", \"state\": \""
+               << showcore::output_health_state_name(backend.state)
+               << "\", \"configured\": "
+               << (backend.configured ? "true" : "false")
+               << ", \"firstSourceUniverse\": "
+               << static_cast<unsigned int>(backend.first_source_universe)
+               << ", \"sourceUniverseCount\": "
+               << static_cast<unsigned int>(backend.source_universe_count)
+               << ", \"openAttempts\": " << backend.open_attempts
+               << ", \"openSuccesses\": " << backend.open_successes
+               << ", \"reconnects\": " << backend.reconnects
+               << ", \"framesAttempted\": " << backend.frames_attempted
+               << ", \"framesAccepted\": " << backend.frames_accepted
+               << ", \"framesFailed\": " << backend.frames_failed
+               << ", \"lastError\": " << backend.last_error
+               << ", \"lastNonzeroSlots\": " << backend.last_nonzero_slots
+               << "}" << (index + 1U == status.output_backends.size() ? "\n" : ",\n");
+    }
+    output << "  ],\n"
            << "  \"checks\": [\n";
     for (std::size_t index = 0; index < checks.size(); ++index) {
         const auto& check = checks[index];

@@ -1,6 +1,7 @@
 #include "emberlights/project.hpp"
 
 #include "emberlights/file_identity.hpp"
+#include "emberlights/hardware_qualification.hpp"
 
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/fixture_library.hpp"
@@ -199,6 +200,18 @@ ProjectDocument make_starter_project() {
          showcore::Property::Green, showcore::Property::Blue,
          showcore::Property::White, showcore::Property::Amber,
          showcore::Property::UV}));
+    auto ir4 = make_profile(
+        std::string(kBothLightingIr4SixChannelProfileId),
+        "IR-4",
+        "6 channel",
+        {showcore::Property::Red, showcore::Property::Green,
+         showcore::Property::Blue, showcore::Property::White,
+         showcore::Property::Amber, showcore::Property::UV});
+    ir4.manufacturer = "Both Lighting";
+    ir4.model = "BO-IR4 LED Mini Spotlight";
+    ir4.name = "Both Lighting BO-IR4 LED Mini Spotlight (6 channel)";
+    ir4.source_revision = "BL_IR-4_BO-IR4-manual-2023";
+    project.fixture_profiles.push_back(std::move(ir4));
     return project;
 }
 

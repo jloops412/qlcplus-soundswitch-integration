@@ -49,7 +49,7 @@ cmake --build build-cmake --config Release
 ctest --test-dir build-cmake --build-config Release --output-on-failure
 ```
 
-The repository workflow compiles and tests the core on Windows and Linux, then produces an Inno Setup installer and portable Windows ZIP.
+The repository workflow compiles and tests the core on Windows and Linux. It then produces and installed-smoke-tests an Inno Setup installer plus portable Windows ZIP, and an installable Debian package plus portable Linux archive. The Linux package is the portable Runner/tooling surface; the full Studio/Live desktop shell remains Windows-first.
 
 Use `emberlights_qualify --strict --duration 28800` for the production eight-hour synthetic soak. It writes a JSON evidence report; physical DJ, MIDI, and DMX tests remain separate gates.
 

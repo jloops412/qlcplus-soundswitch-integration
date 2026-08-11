@@ -39,6 +39,19 @@ inline constexpr std::uint64_t kPackedInvalidAutoloopAddress = 0x0FFFU;
 inline constexpr std::uint64_t kPackedAutoloopRepeatShift = 12U;
 inline constexpr std::uint64_t kPackedAutoloopProgressShift = 14U;
 inline constexpr std::uint64_t kPackedAutoloopCycleShift = 24U;
+inline constexpr std::size_t kArtNetOutputHealth = 0U;
+inline constexpr std::size_t kSacnOutputHealth = 1U;
+inline constexpr std::size_t kDmxUsbProUniverseOneHealth = 2U;
+inline constexpr std::size_t kDmxUsbProUniverseTwoHealth = 3U;
+inline constexpr std::size_t kSoundSwitchMicroOutputHealth = 4U;
+
+[[nodiscard]] std::uint16_t nonzero_slot_count(
+    const showcore::DmxUniverse& universe) noexcept {
+    return static_cast<std::uint16_t>(std::count_if(
+        universe.begin(), universe.end(), [](std::uint8_t value) {
+            return value != 0U;
+        }));
+}
 
 [[nodiscard]] std::uint16_t encode_autoloop(showcore::AutoloopAddress address) noexcept {
     return address.valid()
@@ -184,6 +197,7 @@ bool RunnerService::start(
 
     commands_.reset();
     beats_.reset();
+    os2l_buttons_.reset();
     midi_actions_.reset();
     midi_monitor_.reset();
     output_queue_.reset();
@@ -217,7 +231,10 @@ bool RunnerService::start(
     os2l_connections_.store(0, std::memory_order_relaxed);
     os2l_messages_.store(0, std::memory_order_relaxed);
     os2l_decode_errors_.store(0, std::memory_order_relaxed);
+    os2l_listen_port_.store(0, std::memory_order_relaxed);
+    os2l_last_error_.store(0, std::memory_order_relaxed);
     dropped_beats_.store(0, std::memory_order_relaxed);
+    dropped_os2l_actions_.store(0, std::memory_order_relaxed);
     midi_messages_.store(0, std::memory_order_relaxed);
     dropped_midi_actions_.store(0, std::memory_order_relaxed);
     const auto started_at = monotonic_ms();
@@ -261,6 +278,23 @@ bool RunnerService::start(
             ? AdapterState::Disabled
             : AdapterState::Starting,
         std::memory_order_relaxed);
+    output_health_[kArtNetOutputHealth].configure(
+        showcore::OutputBackendKind::ArtNet, 1U, showcore::kV1UniverseCount,
+        connections_.artnet_enabled);
+    output_health_[kSacnOutputHealth].configure(
+        showcore::OutputBackendKind::Sacn, 1U, showcore::kV1UniverseCount,
+        connections_.sacn_enabled);
+    output_health_[kDmxUsbProUniverseOneHealth].configure(
+        showcore::OutputBackendKind::DmxUsbPro, 1U, 1U,
+        !connections_.dmx_usb_pro_ports[0U].empty());
+    output_health_[kDmxUsbProUniverseTwoHealth].configure(
+        showcore::OutputBackendKind::DmxUsbPro, 2U, 1U,
+        !connections_.dmx_usb_pro_ports[1U].empty());
+    output_health_[kSoundSwitchMicroOutputHealth].configure(
+        showcore::OutputBackendKind::SoundSwitchMicro,
+        connections_.soundswitch_micro_universe,
+        connections_.soundswitch_micro_universe == 0U ? 0U : 1U,
+        connections_.soundswitch_micro_universe != 0U);
 
     try {
         output_thread_ = std::thread(&RunnerService::run_output, this);
@@ -390,6 +424,9 @@ RunnerStatus RunnerService::status() const noexcept {
     }
     snapshot.soundswitch_micro =
         soundswitch_micro_state_.load(std::memory_order_relaxed);
+    for (std::size_t index = 0U; index < snapshot.output_backends.size(); ++index) {
+        snapshot.output_backends[index] = output_health_[index].snapshot();
+    }
     snapshot.sync_state = sync_state_.load(std::memory_order_relaxed);
     snapshot.clock_source = clock_source_.load(std::memory_order_relaxed);
     snapshot.bpm = static_cast<double>(bpm_milli_.load(std::memory_order_relaxed)) / 1000.0;
@@ -440,7 +477,11 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
     snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
     snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
+    snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
+    snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
     snapshot.dropped_beats = dropped_beats_.load(std::memory_order_relaxed);
+    snapshot.dropped_os2l_actions =
+        dropped_os2l_actions_.load(std::memory_order_relaxed);
     snapshot.midi_messages = midi_messages_.load(std::memory_order_relaxed);
     snapshot.dropped_midi_actions = dropped_midi_actions_.load(std::memory_order_relaxed);
     const auto now_ms = monotonic_ms();
@@ -481,6 +522,18 @@ void RunnerService::set_work_light(bool active) noexcept {
 
 bool RunnerService::trigger_look(std::uint16_t index) noexcept {
     return post({RunnerCommandType::TriggerLook, index});
+}
+
+bool RunnerService::toggle_look(std::uint16_t index) noexcept {
+    return post({RunnerCommandType::ToggleLook, index});
+}
+
+bool RunnerService::hold_look(std::uint16_t index, bool active) noexcept {
+    RunnerCommand command;
+    command.type = RunnerCommandType::SetLookHeld;
+    command.target = index;
+    command.active = active;
+    return post(command);
 }
 
 bool RunnerService::clear_look() noexcept {
@@ -625,6 +678,16 @@ void RunnerService::os2l_callback(
         } else if (event.button.name.view() == "worklight" ||
                    event.button.name.view() == "white") {
             service.set_work_light(event.button.on);
+        } else if (const auto* activation =
+                       service.published_activation_.load(std::memory_order_acquire);
+                   activation != nullptr) {
+            const RunnerOs2lButtonEvent button{
+                event.button.name,
+                event.button.on,
+                activation->generation};
+            if (!service.os2l_buttons_.try_push(button)) {
+                service.dropped_os2l_actions_.fetch_add(1, std::memory_order_relaxed);
+            }
         }
     }
 }
@@ -650,6 +713,10 @@ void RunnerService::run_input() noexcept {
         if (connections_.os2l_enabled && !os2l_open && now >= next_os2l_retry) {
             os2l_state_.store(AdapterState::Starting, std::memory_order_relaxed);
             os2l_open = os2l.open_ipv4(connections_.os2l_bind, connections_.os2l_port);
+            os2l_listen_port_.store(
+                os2l_open ? os2l.bound_port() : 0U,
+                std::memory_order_relaxed);
+            os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
             os2l_state_.store(
                 os2l_open ? AdapterState::Waiting : AdapterState::Fault,
                 std::memory_order_relaxed);
@@ -660,6 +727,8 @@ void RunnerService::run_input() noexcept {
             if (poll == showcore::Os2lPollResult::Error) {
                 os2l.close();
                 os2l_open = false;
+                os2l_listen_port_.store(0U, std::memory_order_relaxed);
+                os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
                 os2l_state_.store(AdapterState::Fault, std::memory_order_relaxed);
                 next_os2l_retry = now + std::chrono::seconds(2);
             } else {
@@ -713,6 +782,7 @@ void RunnerService::run_input() noexcept {
     }
 
     os2l.close();
+    os2l_listen_port_.store(0U, std::memory_order_relaxed);
     midi_input.close_all();
     midi_output.close_all();
 }
@@ -1053,6 +1123,58 @@ void RunnerService::run_scheduler() noexcept {
             runtime.manual_override_count = 0U;
         };
 
+        auto activate_static_look = [&](std::uint16_t index) noexcept {
+            const auto* look = show->look(index);
+            if (look == nullptr || !runtime.static_look.trigger(
+                    *look, now_ms, show->look_fade_ms(index), engine.layers())) {
+                return false;
+            }
+            runtime.selected_look = static_cast<std::int32_t>(index);
+            return true;
+        };
+
+        auto clear_static_look = [&]() noexcept {
+            runtime.static_look.clear(now_ms, 100U, engine.layers());
+            runtime.selected_look = -1;
+        };
+
+        auto release_static_look = [&](std::uint16_t index) noexcept {
+            if (runtime.selected_look == static_cast<std::int32_t>(index)) {
+                clear_static_look();
+            }
+        };
+
+        auto toggle_static_look = [&](std::uint16_t index) noexcept {
+            if (runtime.selected_look == static_cast<std::int32_t>(index)) {
+                clear_static_look();
+            } else {
+                static_cast<void>(activate_static_look(index));
+            }
+        };
+
+        auto find_look_by_name = [&](std::string_view name) noexcept {
+            for (std::size_t index = 0U; index < show->look_count(); ++index) {
+                const auto* look = show->look(index);
+                if (look != nullptr && look->name != nullptr && name == look->name) {
+                    return static_cast<std::int32_t>(index);
+                }
+            }
+            return std::int32_t{-1};
+        };
+
+        auto find_autoloop_by_name = [&](std::string_view name) noexcept {
+            for (std::uint16_t bank = 0U; bank < showcore::kMaxAutoloopBanks; ++bank) {
+                for (std::uint8_t slot = 0U; slot < showcore::kAutoloopsPerBank; ++slot) {
+                    const showcore::AutoloopAddress address{bank, slot};
+                    const auto* pattern = show->autoloops().get(address);
+                    if (pattern != nullptr && pattern->name != nullptr && name == pattern->name) {
+                        return address;
+                    }
+                }
+            }
+            return showcore::AutoloopAddress{};
+        };
+
         auto apply_tap = [&](std::uint64_t timestamp_ms) noexcept {
             if (runtime.last_tap_ms != 0U) {
                 const auto interval = timestamp_ms - runtime.last_tap_ms;
@@ -1082,6 +1204,32 @@ void RunnerService::run_scheduler() noexcept {
 
         auto apply_action = [&](const showcore::MidiActionEvent& event,
                                 double beat_position) noexcept {
+            const auto& action = event.action;
+            if (action.type == showcore::ActionType::TriggerLook) {
+                switch (event.behavior) {
+                case showcore::MappingBehavior::Toggle:
+                    if (event.active) {
+                        toggle_static_look(action.target_id);
+                    }
+                    break;
+                case showcore::MappingBehavior::Latch:
+                    if (event.active) {
+                        static_cast<void>(activate_static_look(action.target_id));
+                    }
+                    break;
+                case showcore::MappingBehavior::Momentary:
+                case showcore::MappingBehavior::Continuous:
+                case showcore::MappingBehavior::Relative:
+                    if (event.active) {
+                        static_cast<void>(activate_static_look(action.target_id));
+                    } else {
+                        release_static_look(action.target_id);
+                    }
+                    break;
+                }
+                return;
+            }
+
             bool active = event.active;
             auto& toggled = runtime.mapping_toggles[event.mapping_index];
             switch (event.behavior) {
@@ -1107,7 +1255,6 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             }
 
-            const auto& action = event.action;
             switch (action.type) {
             case showcore::ActionType::SetProperty: {
                 if (action.target_id >= showcore::kMaxFixtures ||
@@ -1153,19 +1300,6 @@ void RunnerService::run_scheduler() noexcept {
                 set_blackout(active);
                 break;
             case showcore::ActionType::TriggerLook:
-                if (active) {
-                    if (const auto* look = show->look(action.target_id); look != nullptr &&
-                        runtime.static_look.trigger(
-                            *look,
-                            now_ms,
-                            show->look_fade_ms(action.target_id),
-                            engine.layers())) {
-                        runtime.selected_look = action.target_id;
-                    }
-                } else {
-                    runtime.static_look.clear(now_ms, 100U, engine.layers());
-                    runtime.selected_look = -1;
-                }
                 break;
             case showcore::ActionType::TriggerAutoloop:
                 if (active) {
@@ -1255,6 +1389,52 @@ void RunnerService::run_scheduler() noexcept {
             }
         };
 
+        RunnerOs2lButtonEvent os2l_button;
+        while (os2l_buttons_.try_pop(os2l_button)) {
+            if (os2l_button.generation != activation->generation) {
+                continue;
+            }
+            auto target_name = os2l_button.name.view();
+            bool look_only = false;
+            bool autoloop_only = false;
+            constexpr std::string_view kLookPrefix = "Look: ";
+            constexpr std::string_view kAutoloopPrefix = "Autoloop: ";
+            if (target_name.starts_with(kLookPrefix)) {
+                look_only = true;
+                target_name.remove_prefix(kLookPrefix.size());
+            } else if (target_name.starts_with(kAutoloopPrefix)) {
+                autoloop_only = true;
+                target_name.remove_prefix(kAutoloopPrefix.size());
+            }
+            if (target_name.empty()) {
+                continue;
+            }
+
+            if (!autoloop_only) {
+                const auto look_index = find_look_by_name(target_name);
+                if (look_index >= 0) {
+                    const auto target = static_cast<std::uint16_t>(look_index);
+                    if (os2l_button.on) {
+                        static_cast<void>(activate_static_look(target));
+                    } else {
+                        release_static_look(target);
+                    }
+                    continue;
+                }
+            }
+            if (!look_only) {
+                const auto address = find_autoloop_by_name(target_name);
+                if (address.valid()) {
+                    if (os2l_button.on) {
+                        trigger_loop(address, clock.beat_position);
+                    } else if (runtime.selected_autoloop == address) {
+                        runtime.manual_autoloop.clear(engine.layers());
+                        runtime.selected_autoloop = {};
+                    }
+                }
+            }
+        }
+
         RunnerCommand command;
         while (commands_.try_pop(command)) {
             if (command.generation != activation->generation) {
@@ -1262,15 +1442,20 @@ void RunnerService::run_scheduler() noexcept {
             }
             switch (command.type) {
             case RunnerCommandType::TriggerLook:
-                if (const auto* look = show->look(command.target); look != nullptr &&
-                    runtime.static_look.trigger(
-                        *look, now_ms, show->look_fade_ms(command.target), engine.layers())) {
-                    runtime.selected_look = command.target;
+                static_cast<void>(activate_static_look(command.target));
+                break;
+            case RunnerCommandType::ToggleLook:
+                toggle_static_look(command.target);
+                break;
+            case RunnerCommandType::SetLookHeld:
+                if (command.active) {
+                    static_cast<void>(activate_static_look(command.target));
+                } else {
+                    release_static_look(command.target);
                 }
                 break;
             case RunnerCommandType::ClearLook:
-                runtime.static_look.clear(now_ms, 100U, engine.layers());
-                runtime.selected_look = -1;
+                clear_static_look();
                 break;
             case RunnerCommandType::TriggerAutoloop:
                 trigger_loop(decode_autoloop(command.target), clock.beat_position);
@@ -1464,8 +1649,14 @@ void RunnerService::run_output() noexcept {
         bool usb_ready = true;
         if (connections_.artnet_enabled) {
             if (!artnet.is_open()) {
+                output_health_[kArtNetOutputHealth].mark_opening();
                 artnet_state_.store(AdapterState::Starting, std::memory_order_relaxed);
                 static_cast<void>(artnet.open_ipv4(connections_.artnet_destination));
+                if (artnet.is_open()) {
+                    output_health_[kArtNetOutputHealth].mark_ready();
+                } else {
+                    output_health_[kArtNetOutputHealth].mark_fault(0U);
+                }
             }
             artnet_ready = artnet.is_open();
             artnet_state_.store(
@@ -1475,15 +1666,27 @@ void RunnerService::run_output() noexcept {
         if (connections_.sacn_enabled) {
             sacn_state_.store(AdapterState::Starting, std::memory_order_relaxed);
             sacn_ready = true;
+            bool sacn_open_attempted = false;
             for (std::uint16_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
                 const auto output_universe = static_cast<std::uint16_t>(
                     connections_.sacn_universe_base + universe);
                 if (!sacn[universe].is_open()) {
+                    if (!sacn_open_attempted) {
+                        output_health_[kSacnOutputHealth].mark_opening();
+                        sacn_open_attempted = true;
+                    }
                     static_cast<void>(connections_.sacn_destination == "multicast"
                         ? sacn[universe].open_multicast(output_universe)
                         : sacn[universe].open_ipv4(connections_.sacn_destination));
                 }
                 sacn_ready = sacn_ready && sacn[universe].is_open();
+            }
+            if (sacn_open_attempted) {
+                if (sacn_ready) {
+                    output_health_[kSacnOutputHealth].mark_ready();
+                } else {
+                    output_health_[kSacnOutputHealth].mark_fault(0U);
+                }
             }
             sacn_state_.store(
                 sacn_ready ? AdapterState::Ready : AdapterState::Fault,
@@ -1497,9 +1700,16 @@ void RunnerService::run_output() noexcept {
                 continue;
             }
             if (!dmx_usb_pro[universe].is_open()) {
+                output_health_[kDmxUsbProUniverseOneHealth + universe].mark_opening();
                 dmx_usb_pro_state_[universe].store(
                     AdapterState::Starting, std::memory_order_relaxed);
                 static_cast<void>(dmx_usb_pro[universe].open(port));
+                if (dmx_usb_pro[universe].is_open()) {
+                    output_health_[kDmxUsbProUniverseOneHealth + universe].mark_ready();
+                } else {
+                    output_health_[kDmxUsbProUniverseOneHealth + universe].mark_fault(
+                        dmx_usb_pro[universe].last_error());
+                }
             }
             const bool opened = dmx_usb_pro[universe].is_open();
             usb_ready = usb_ready && opened;
@@ -1512,6 +1722,7 @@ void RunnerService::run_output() noexcept {
                 AdapterState::Disabled, std::memory_order_relaxed);
         } else {
             if (!soundswitch_micro.is_open()) {
+                output_health_[kSoundSwitchMicroOutputHealth].mark_opening();
                 soundswitch_micro_state_.store(
                     AdapterState::Starting, std::memory_order_relaxed);
                 const auto opened = soundswitch_micro.open(
@@ -1519,6 +1730,10 @@ void RunnerService::run_output() noexcept {
                 if (!opened) {
                     soundswitch_micro_last_error_.store(
                         soundswitch_micro.last_error(), std::memory_order_relaxed);
+                    output_health_[kSoundSwitchMicroOutputHealth].mark_fault(
+                        soundswitch_micro.last_error());
+                } else {
+                    output_health_[kSoundSwitchMicroOutputHealth].mark_ready();
                 }
             }
             const bool opened = soundswitch_micro.is_open();
@@ -1566,7 +1781,10 @@ void RunnerService::run_output() noexcept {
                     frame.frames.universes[universe],
                     static_cast<std::uint16_t>(connections_.artnet_base + universe),
                     frame.sequence);
-                artnet_success = artnet.send(packet) && artnet_success;
+                const bool sent = artnet.send(packet);
+                output_health_[kArtNetOutputHealth].record_send(
+                    sent, 0U, nonzero_slot_count(frame.frames.universes[universe]));
+                artnet_success = sent && artnet_success;
             }
             if (connections_.sacn_enabled && sacn[universe].is_open()) {
                 const auto packet = showcore::build_sacn_data_packet(
@@ -1575,22 +1793,35 @@ void RunnerService::run_output() noexcept {
                     frame.sequence,
                     cid,
                     activation->project_name);
-                sacn_success = sacn[universe].send(packet) && sacn_success;
+                const bool sent = sacn[universe].send(packet);
+                output_health_[kSacnOutputHealth].record_send(
+                    sent, 0U, nonzero_slot_count(frame.frames.universes[universe]));
+                sacn_success = sent && sacn_success;
             }
             if (!connections_.dmx_usb_pro_ports[universe].empty() &&
-                dmx_usb_pro[universe].is_open() &&
-                !dmx_usb_pro[universe].send(frame.frames.universes[universe])) {
-                usb_success = false;
-                dmx_usb_pro[universe].close();
-                dmx_usb_pro_state_[universe].store(
-                    AdapterState::Fault, std::memory_order_relaxed);
+                dmx_usb_pro[universe].is_open()) {
+                const bool sent = dmx_usb_pro[universe].send(
+                    frame.frames.universes[universe]);
+                const auto error = sent ? 0U : dmx_usb_pro[universe].last_error();
+                output_health_[kDmxUsbProUniverseOneHealth + universe].record_send(
+                    sent, error, nonzero_slot_count(frame.frames.universes[universe]));
+                if (!sent) {
+                    usb_success = false;
+                    dmx_usb_pro[universe].close();
+                    dmx_usb_pro_state_[universe].store(
+                        AdapterState::Fault, std::memory_order_relaxed);
+                }
             }
         }
         if (connections_.soundswitch_micro_universe != 0U &&
             soundswitch_micro.is_open()) {
             const auto universe = static_cast<std::size_t>(
                 connections_.soundswitch_micro_universe - 1U);
-            if (!soundswitch_micro.send(frame.frames.universes[universe])) {
+            const bool sent = soundswitch_micro.send(frame.frames.universes[universe]);
+            const auto nonzero = nonzero_slot_count(frame.frames.universes[universe]);
+            output_health_[kSoundSwitchMicroOutputHealth].record_send(
+                sent, sent ? 0U : soundswitch_micro.last_error(), nonzero);
+            if (!sent) {
                 usb_success = false;
                 soundswitch_micro_write_failures_.fetch_add(
                     1U, std::memory_order_relaxed);
@@ -1603,13 +1834,8 @@ void RunnerService::run_output() noexcept {
                 soundswitch_micro_write_frames_.fetch_add(
                     1U, std::memory_order_relaxed);
                 soundswitch_micro_last_error_.store(0U, std::memory_order_relaxed);
-                const auto& slots = frame.frames.universes[universe];
-                const auto nonzero = std::count_if(
-                    slots.begin(), slots.end(), [](std::uint8_t value) {
-                        return value != 0U;
-                    });
                 soundswitch_micro_last_nonzero_slots_.store(
-                    static_cast<std::uint16_t>(nonzero), std::memory_order_relaxed);
+                    nonzero, std::memory_order_relaxed);
             }
         }
         const bool success = artnet_success && sacn_success && usb_success;
@@ -1619,12 +1845,14 @@ void RunnerService::run_output() noexcept {
             next_retry = SteadyClock::now() + std::chrono::seconds(2);
             if (!artnet_success && connections_.artnet_enabled) {
                 artnet.close();
+                output_health_[kArtNetOutputHealth].mark_fault(0U);
                 artnet_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
             if (!sacn_success && connections_.sacn_enabled) {
                 for (auto& sender : sacn) {
                     sender.close();
                 }
+                output_health_[kSacnOutputHealth].mark_fault(0U);
                 sacn_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
         }
@@ -1633,6 +1861,9 @@ void RunnerService::run_output() noexcept {
 
     showcore::DmxFrames zero_frames;
     zero_frames.clear();
+    for (auto& health : output_health_) {
+        health.mark_stopping();
+    }
     const auto* final_activation = published_activation_.load(std::memory_order_acquire);
     const std::string_view final_project_name = final_activation == nullptr
         ? std::string_view{"EmberLights"}
@@ -1676,6 +1907,9 @@ void RunnerService::run_output() noexcept {
         sender.close();
     }
     soundswitch_micro.close();
+    for (auto& health : output_health_) {
+        health.mark_disabled();
+    }
 }
 
 }  // namespace emberlights

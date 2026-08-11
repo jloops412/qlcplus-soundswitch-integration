@@ -1293,7 +1293,7 @@ void Application::create_pages() {
     add_button(page, L"Tap", IdLiveTap);
     add_label(page, L"Static Looks", 0);
     add_listbox(page, IdLiveLooks);
-    add_button(page, L"Trigger", IdLiveTriggerLook);
+    add_button(page, L"Toggle", IdLiveTriggerLook);
     add_button(page, L"Clear", IdLiveClearLook);
     add_label(page, L"Autoloops", 0);
     add_listbox(page, IdLiveAutoloops);
@@ -2373,6 +2373,10 @@ void Application::refresh_live_status() {
 
     std::wostringstream metrics;
     metrics << L"OS2L: " << adapter_state_name(status.os2l)
+            << (status.os2l_listen_port != 0U
+                    ? L" on " + widen(project_.connections.os2l_bind) + L":" +
+                        std::to_wstring(status.os2l_listen_port)
+                    : std::wstring{})
             << L"    MIDI: " << adapter_state_name(status.midi_input)
             << L"    Art-Net: " << adapter_state_name(status.artnet)
             << L"    sACN: " << adapter_state_name(status.sacn)
@@ -2864,13 +2868,36 @@ std::string Application::diagnostics_text() const {
            << "  last WinUSB error: " << status.soundswitch_micro_last_error
            << "  last non-zero slots: "
            << status.soundswitch_micro_last_nonzero_slots << "\r\n"
-           << "Frames: " << status.frames << "  Output frames: " << status.output_frames
+           << "Output backend health:\r\n";
+    for (const auto& backend : status.output_backends) {
+        const auto& descriptor = showcore::output_backend_descriptor(backend.kind);
+        output << "  " << descriptor.name << " U"
+               << static_cast<unsigned int>(backend.first_source_universe);
+        if (backend.source_universe_count > 1U) {
+            output << "-" << static_cast<unsigned int>(
+                backend.first_source_universe + backend.source_universe_count - 1U);
+        }
+        output << ": " << showcore::output_health_state_name(backend.state)
+               << "  configured: " << (backend.configured ? "yes" : "no")
+               << "  open: " << backend.open_successes << "/" << backend.open_attempts
+               << "  reconnects: " << backend.reconnects
+               << "  frames: " << backend.frames_accepted << "/"
+               << backend.frames_attempted
+               << "  failures: " << backend.frames_failed
+               << "  last error: " << backend.last_error
+               << "  non-zero slots: " << backend.last_nonzero_slots << "\r\n";
+    }
+    output << "Frames: " << status.frames << "  Output frames: " << status.output_frames
            << "  Send failures: " << status.output_send_failures
            << "  Queue drops: " << status.output_queue_drops
            << "  Superseded stale frames: " << status.output_superseded_frames << "\r\n"
            << "OS2L connections: " << status.os2l_connections
            << "  messages: " << status.os2l_messages
-           << "  decode errors: " << status.os2l_decode_errors << "\r\n"
+           << "  decode errors: " << status.os2l_decode_errors
+           << "  dropped named actions: " << status.dropped_os2l_actions
+           << "  listening: " << project_.connections.os2l_bind << ":"
+           << status.os2l_listen_port
+           << "  last socket error: " << status.os2l_last_error << "\r\n"
            << "MIDI messages: " << status.midi_messages
            << "  dropped actions: " << status.dropped_midi_actions
            << "\r\nRunner uptime: " << status.uptime_ms << " ms"
@@ -3029,7 +3056,7 @@ void Application::handle_command(int id, int notification, HWND) {
         if (selected >= 0) {
             const auto index = static_cast<std::uint16_t>(::SendMessageW(
                 list, LB_GETITEMDATA, selected, 0));
-            static_cast<void>(runner_.trigger_look(index));
+            static_cast<void>(runner_.toggle_look(index));
         }
         break;
     }
@@ -5282,6 +5309,7 @@ void Application::resolve_audio_assets_for_project() {
 
 void Application::apply_connections() {
     const auto page = pages_[static_cast<std::size_t>(Page::Connections)];
+    const auto previous_project = project_;
     const auto previous_connections = project_.connections;
     const auto was_running =
         runner_.status().state != emberlights::RunnerState::Stopped;
@@ -5350,10 +5378,13 @@ void Application::apply_connections() {
     mark_dirty();
     refresh_live_lists();
     if (!save_project(false)) {
+        project_ = previous_project;
+        mark_dirty();
+        refresh_connections();
         set_page_message(
             Page::Connections,
             IdConnectionsMessage,
-            "Connections are valid but were not saved or applied. Choose a project file and press Save & Apply Connections again.",
+            "Connections were not saved, so EmberLights rolled them back and did not apply them. Choose a project file and press Save & Apply Connections again.",
             true);
         return;
     }
@@ -5367,7 +5398,14 @@ void Application::apply_connections() {
             IdShowStartStop,
             L"&Start Show"));
         start_or_stop_show();
-        if (runner_.status().state == emberlights::RunnerState::Stopped) {
+        const auto restart_deadline = ::GetTickCount64() + 2000U;
+        auto restart_state = runner_.status().state;
+        while (restart_state == emberlights::RunnerState::Starting &&
+               ::GetTickCount64() < restart_deadline) {
+            ::Sleep(10U);
+            restart_state = runner_.status().state;
+        }
+        if (restart_state != emberlights::RunnerState::Running) {
             set_page_message(
                 Page::Connections,
                 IdConnectionsMessage,
@@ -5381,12 +5419,18 @@ void Application::apply_connections() {
             Page::Connections,
             IdConnectionsMessage,
             "Saved to project and applied. Runner restarted with a zero-frame handoff.");
-    } else {
-        set_status(L"Connections saved to the project and applied.");
+    } else if (was_running) {
+        set_status(L"Connections saved. Runner was already using these settings.");
         set_page_message(
             Page::Connections,
             IdConnectionsMessage,
-            "Saved to project and applied. VirtualDJ should use os2l=Yes, not Auto.");
+            "Saved to project. Runner was already using these settings. VirtualDJ should use os2l=Yes, not Auto.");
+    } else {
+        set_status(L"Connections saved to the project; they will open when the show starts.");
+        set_page_message(
+            Page::Connections,
+            IdConnectionsMessage,
+            "Saved to project. Connections are not live yet; press Start Show to open them. VirtualDJ should use os2l=Yes, not Auto.");
     }
 }
 

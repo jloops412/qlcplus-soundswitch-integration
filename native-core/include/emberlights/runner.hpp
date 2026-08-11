@@ -4,6 +4,7 @@
 #include "emberlights/project.hpp"
 #include "showcore/midi.hpp"
 #include "showcore/os2l.hpp"
+#include "showcore/output_backend.hpp"
 #include "showcore/spsc_queue.hpp"
 #include "showcore/sync_manager.hpp"
 #include "showcore/types.hpp"
@@ -56,6 +57,8 @@ struct RunnerActivationResult {
 
 enum class RunnerCommandType : std::uint8_t {
     TriggerLook,
+    ToggleLook,
+    SetLookHeld,
     ClearLook,
     TriggerAutoloop,
     ClearAutoloop,
@@ -97,6 +100,7 @@ struct RunnerStatus {
         AdapterState::Disabled,
         AdapterState::Disabled};
     AdapterState soundswitch_micro{AdapterState::Disabled};
+    std::array<showcore::OutputBackendHealth, 5U> output_backends{};
     showcore::SyncState sync_state{showcore::SyncState::Waiting};
     showcore::ClockSource clock_source{showcore::ClockSource::None};
     double bpm{0.0};
@@ -129,7 +133,10 @@ struct RunnerStatus {
     std::uint64_t os2l_connections{0};
     std::uint64_t os2l_messages{0};
     std::uint64_t os2l_decode_errors{0};
+    std::uint16_t os2l_listen_port{0};
+    std::int32_t os2l_last_error{0};
     std::uint64_t dropped_beats{0};
+    std::uint64_t dropped_os2l_actions{0};
     std::uint64_t midi_messages{0};
     std::uint64_t dropped_midi_actions{0};
     std::uint64_t uptime_ms{0};
@@ -157,6 +164,12 @@ struct RunnerBeatEvent {
     std::int64_t position{0};
     double bpm{0.0};
     std::uint64_t timestamp_ms{0};
+};
+
+struct RunnerOs2lButtonEvent {
+    showcore::FixedText<96> name{};
+    bool on{false};
+    std::uint64_t generation{0};
 };
 
 struct RunnerOutputFrame {
@@ -189,6 +202,8 @@ public:
     void set_blackout(bool active) noexcept;
     void set_work_light(bool active) noexcept;
     [[nodiscard]] bool trigger_look(std::uint16_t index) noexcept;
+    [[nodiscard]] bool toggle_look(std::uint16_t index) noexcept;
+    [[nodiscard]] bool hold_look(std::uint16_t index, bool active) noexcept;
     [[nodiscard]] bool clear_look() noexcept;
     [[nodiscard]] bool trigger_autoloop(showcore::AutoloopAddress address) noexcept;
     [[nodiscard]] bool clear_autoloop() noexcept;
@@ -227,6 +242,7 @@ private:
     using CommandQueue = showcore::SpscQueue<RunnerCommand, 513>;
     using BeatEvent = RunnerBeatEvent;
     using BeatQueue = showcore::SpscQueue<BeatEvent, 1025>;
+    using Os2lButtonQueue = showcore::SpscQueue<RunnerOs2lButtonEvent, 257>;
     using MidiActionQueue = showcore::SpscQueue<RunnerMidiActionEvent, 1025>;
     using MidiMonitorQueue = showcore::SpscQueue<RunnerMidiMonitorEvent, 257>;
     using OutputQueue = showcore::SpscQueue<OutputFrame, 9>;
@@ -249,6 +265,7 @@ private:
 
     CommandQueue commands_{};
     BeatQueue beats_{};
+    Os2lButtonQueue os2l_buttons_{};
     MidiActionQueue midi_actions_{};
     MidiMonitorQueue midi_monitor_{};
     OutputQueue output_queue_{};
@@ -268,6 +285,7 @@ private:
     std::array<std::atomic<AdapterState>, showcore::kV1UniverseCount>
         dmx_usb_pro_state_{};
     std::atomic<AdapterState> soundswitch_micro_state_{AdapterState::Disabled};
+    std::array<showcore::AtomicOutputBackendHealth, 5U> output_health_{};
     std::atomic<showcore::SyncState> sync_state_{showcore::SyncState::Waiting};
     std::atomic<showcore::ClockSource> clock_source_{showcore::ClockSource::None};
     std::atomic<std::uint32_t> bpm_milli_{0};
@@ -295,7 +313,10 @@ private:
     std::atomic<std::uint64_t> os2l_connections_{0};
     std::atomic<std::uint64_t> os2l_messages_{0};
     std::atomic<std::uint64_t> os2l_decode_errors_{0};
+    std::atomic<std::uint16_t> os2l_listen_port_{0};
+    std::atomic<std::int32_t> os2l_last_error_{0};
     std::atomic<std::uint64_t> dropped_beats_{0};
+    std::atomic<std::uint64_t> dropped_os2l_actions_{0};
     std::atomic<std::uint64_t> midi_messages_{0};
     std::atomic<std::uint64_t> dropped_midi_actions_{0};
     std::atomic<std::uint64_t> started_at_ms_{0};

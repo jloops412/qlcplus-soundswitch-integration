@@ -1,7 +1,10 @@
 #include "showcore/soundswitch_micro.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <limits>
 #include <new>
+#include <thread>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -18,6 +21,37 @@
 #endif
 
 namespace showcore {
+
+const char* soundswitch_micro_lifecycle_name(
+    SoundSwitchMicroLifecycleState state) noexcept {
+    switch (state) {
+    case SoundSwitchMicroLifecycleState::Disabled: return "disabled";
+    case SoundSwitchMicroLifecycleState::Detecting: return "detecting";
+    case SoundSwitchMicroLifecycleState::Opening: return "opening";
+    case SoundSwitchMicroLifecycleState::Inspecting: return "inspecting";
+    case SoundSwitchMicroLifecycleState::Initializing: return "initializing";
+    case SoundSwitchMicroLifecycleState::Settling: return "settling";
+    case SoundSwitchMicroLifecycleState::WarmingUp: return "warming-up";
+    case SoundSwitchMicroLifecycleState::Streaming: return "streaming";
+    case SoundSwitchMicroLifecycleState::Recovering: return "recovering";
+    case SoundSwitchMicroLifecycleState::Fault: return "fault";
+    case SoundSwitchMicroLifecycleState::Closing: return "closing";
+    }
+    return "unknown";
+}
+
+bool valid_soundswitch_micro_session_config(
+    const SoundSwitchMicroSessionConfig& config) noexcept {
+    return config.framing == SoundSwitchMicroFraming::NativeJls1 &&
+        config.transfer_timeout.count() > 0 &&
+        config.transfer_timeout.count() <= 30'000 &&
+        config.settling_interval.count() >= 0 &&
+        config.settling_interval.count() <= 5'000 &&
+        config.frame_interval.count() > 0 &&
+        config.frame_interval.count() <= 1'000 &&
+        config.warmup_blackout_frames <= 400U &&
+        config.close_blackout_frames <= 40U;
+}
 
 SoundSwitchMicroPacket build_soundswitch_micro_packet(
     const DmxUniverse& universe,
@@ -93,11 +127,11 @@ inline constexpr UCHAR kSoundSwitchMicroBulkOutPipe = 0x01U;
 
 }  // namespace
 
-struct SoundSwitchMicroSender::Impl {
+struct SoundSwitchMicroSession::Impl {
     HANDLE file{INVALID_HANDLE_VALUE};
     WINUSB_INTERFACE_HANDLE usb{nullptr};
-    SoundSwitchMicroFraming framing{SoundSwitchMicroFraming::NativeJls1};
-    std::uint32_t last_error{0U};
+    SoundSwitchMicroSessionConfig config{};
+    SoundSwitchMicroSessionStatus status{};
 };
 
 namespace {
@@ -128,48 +162,129 @@ namespace {
 
 }  // namespace
 
-SoundSwitchMicroSender::SoundSwitchMicroSender() noexcept
+SoundSwitchMicroSession::SoundSwitchMicroSession() noexcept
     : impl_(new (std::nothrow) Impl{}) {}
 
-SoundSwitchMicroSender::~SoundSwitchMicroSender() noexcept {
+SoundSwitchMicroSession::~SoundSwitchMicroSession() noexcept {
     close();
 }
 
-bool SoundSwitchMicroSender::supported() noexcept {
+bool SoundSwitchMicroSession::supported() noexcept {
     return true;
 }
 
-bool SoundSwitchMicroSender::open(SoundSwitchMicroFraming framing) noexcept {
+bool SoundSwitchMicroSession::open(SoundSwitchMicroFraming framing) noexcept {
+    SoundSwitchMicroSessionConfig config;
+    config.framing = framing;
+    return open(config);
+}
+
+bool SoundSwitchMicroSession::open(
+    const SoundSwitchMicroSessionConfig& config) noexcept {
     close();
     if (impl_ == nullptr) {
         return false;
     }
-    impl_->framing = framing;
-    const auto path = find_interface_path();
-    if (path.empty()) {
-        impl_->last_error = ERROR_DEVICE_NOT_CONNECTED;
+    const auto previous_status = impl_->status;
+    impl_->config = config;
+    impl_->status = {};
+    impl_->status.initialization_attempts = previous_status.initialization_attempts + 1U;
+    impl_->status.initialization_successes = previous_status.initialization_successes;
+    impl_->status.initialization_failures = previous_status.initialization_failures;
+    impl_->status.reconnect_count = previous_status.reconnect_count +
+        (previous_status.initialization_attempts == 0U ? 0U : 1U);
+    impl_->status.state = SoundSwitchMicroLifecycleState::Detecting;
+    if (!valid_soundswitch_micro_session_config(config)) {
+        impl_->status.last_error = ERROR_INVALID_PARAMETER;
+        ++impl_->status.initialization_failures;
+        impl_->status.state = SoundSwitchMicroLifecycleState::Fault;
         return false;
     }
+
+    auto release_handles = [&]() noexcept {
+        if (impl_->usb != nullptr) {
+            ::WinUsb_Free(impl_->usb);
+            impl_->usb = nullptr;
+        }
+        if (impl_->file != INVALID_HANDLE_VALUE) {
+            static_cast<void>(::CloseHandle(impl_->file));
+            impl_->file = INVALID_HANDLE_VALUE;
+        }
+        impl_->status.handle_open = false;
+    };
+    auto fail = [&](std::uint32_t error) noexcept {
+        impl_->status.last_error = error;
+        ++impl_->status.initialization_failures;
+        impl_->status.state = SoundSwitchMicroLifecycleState::Fault;
+        release_handles();
+        return false;
+    };
+
+    const auto path = find_interface_path();
+    if (path.empty()) {
+        return fail(ERROR_DEVICE_NOT_CONNECTED);
+    }
+    impl_->status.device_present = true;
+    impl_->status.state = SoundSwitchMicroLifecycleState::Opening;
     impl_->file = ::CreateFileW(
         path.c_str(), GENERIC_READ | GENERIC_WRITE,
         0U, nullptr, OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
     if (impl_->file == INVALID_HANDLE_VALUE) {
-        impl_->last_error = ::GetLastError();
-        return false;
+        return fail(::GetLastError());
     }
     if (::WinUsb_Initialize(impl_->file, &impl_->usb) == FALSE) {
-        impl_->last_error = ::GetLastError();
-        close();
-        return false;
+        return fail(::GetLastError());
     }
+    impl_->status.handle_open = true;
+    impl_->status.state = SoundSwitchMicroLifecycleState::Inspecting;
+
+    USB_DEVICE_DESCRIPTOR device_descriptor{};
+    ULONG descriptor_length = 0U;
+    if (::WinUsb_GetDescriptor(
+            impl_->usb, USB_DEVICE_DESCRIPTOR_TYPE, 0U, 0U,
+            reinterpret_cast<PUCHAR>(&device_descriptor),
+            static_cast<ULONG>(sizeof(device_descriptor)), &descriptor_length) == FALSE ||
+        descriptor_length != static_cast<ULONG>(sizeof(device_descriptor)) ||
+        device_descriptor.idVendor != 0x15E4U ||
+        device_descriptor.idProduct != 0x0053U) {
+        const auto error = ::GetLastError();
+        return fail(error == ERROR_SUCCESS ? ERROR_BAD_DEVICE : error);
+    }
+
+    USB_CONFIGURATION_DESCRIPTOR configuration_descriptor{};
+    descriptor_length = 0U;
+    if (::WinUsb_GetDescriptor(
+            impl_->usb, USB_CONFIGURATION_DESCRIPTOR_TYPE, 0U, 0U,
+            reinterpret_cast<PUCHAR>(&configuration_descriptor),
+            static_cast<ULONG>(sizeof(configuration_descriptor)), &descriptor_length) == FALSE ||
+        descriptor_length < static_cast<ULONG>(sizeof(configuration_descriptor)) ||
+        configuration_descriptor.bConfigurationValue != 1U) {
+        const auto error = ::GetLastError();
+        return fail(error == ERROR_SUCCESS ? ERROR_BAD_DEVICE : error);
+    }
+    impl_->status.configuration_value = configuration_descriptor.bConfigurationValue;
 
     USB_INTERFACE_DESCRIPTOR descriptor{};
     if (::WinUsb_QueryInterfaceSettings(impl_->usb, 0U, &descriptor) == FALSE) {
-        impl_->last_error = ::GetLastError();
-        close();
-        return false;
+        return fail(::GetLastError());
     }
+    impl_->status.interface_number = descriptor.bInterfaceNumber;
+    UCHAR alternate_setting = 0U;
+    if (::WinUsb_GetCurrentAlternateSetting(impl_->usb, &alternate_setting) == FALSE) {
+        return fail(::GetLastError());
+    }
+    if (alternate_setting != 0U &&
+        ::WinUsb_SetCurrentAlternateSetting(impl_->usb, 0U) == FALSE) {
+        return fail(::GetLastError());
+    }
+    if (::WinUsb_GetCurrentAlternateSetting(impl_->usb, &alternate_setting) == FALSE ||
+        alternate_setting != 0U) {
+        const auto error = ::GetLastError();
+        return fail(error == ERROR_SUCCESS ? ERROR_BAD_DEVICE : error);
+    }
+    impl_->status.alternate_setting = alternate_setting;
+
     bool valid_pipe = false;
     for (UCHAR index = 0U; index < descriptor.bNumEndpoints; ++index) {
         WINUSB_PIPE_INFORMATION pipe{};
@@ -177,43 +292,79 @@ bool SoundSwitchMicroSender::open(SoundSwitchMicroFraming framing) noexcept {
             pipe.PipeId == kSoundSwitchMicroBulkOutPipe &&
             pipe.PipeType == UsbdPipeTypeBulk && pipe.MaximumPacketSize == 64U) {
             valid_pipe = true;
+            impl_->status.bulk_out_pipe = pipe.PipeId;
+            impl_->status.maximum_packet_size = pipe.MaximumPacketSize;
         }
     }
     if (!valid_pipe) {
-        impl_->last_error = ERROR_BAD_DEVICE;
-        close();
-        return false;
+        return fail(ERROR_BAD_DEVICE);
     }
-    ULONG timeout = 500U;
+    if (::WinUsb_ResetPipe(impl_->usb, kSoundSwitchMicroBulkOutPipe) == FALSE) {
+        return fail(::GetLastError());
+    }
+    const auto timeout_count = config.transfer_timeout.count();
+    ULONG timeout = static_cast<ULONG>(timeout_count);
     if (::WinUsb_SetPipePolicy(
             impl_->usb, kSoundSwitchMicroBulkOutPipe,
             PIPE_TRANSFER_TIMEOUT, sizeof(timeout), &timeout) == FALSE) {
-        impl_->last_error = ::GetLastError();
-        close();
-        return false;
+        return fail(::GetLastError());
     }
     BOOL terminate = FALSE;
     if (::WinUsb_SetPipePolicy(
             impl_->usb, kSoundSwitchMicroBulkOutPipe,
             SHORT_PACKET_TERMINATE, sizeof(terminate), &terminate) == FALSE) {
-        impl_->last_error = ::GetLastError();
-        close();
-        return false;
+        return fail(::GetLastError());
     }
+    BOOL raw_io = FALSE;
+    if (::WinUsb_SetPipePolicy(
+            impl_->usb, kSoundSwitchMicroBulkOutPipe,
+            RAW_IO, sizeof(raw_io), &raw_io) == FALSE) {
+        return fail(::GetLastError());
+    }
+
+    impl_->status.state = SoundSwitchMicroLifecycleState::Initializing;
     for (const auto& packet : kSoundSwitchMicroInitializationPackets) {
         if (!write_exact(
-                impl_->usb, packet.data(), packet.size(), impl_->last_error)) {
-            close();
-            return false;
+                impl_->usb, packet.data(), packet.size(), impl_->status.last_error)) {
+            return fail(impl_->status.last_error);
         }
     }
-    impl_->last_error = ERROR_SUCCESS;
+
+    impl_->status.state = SoundSwitchMicroLifecycleState::Settling;
+    std::this_thread::sleep_for(config.settling_interval);
+    impl_->status.state = SoundSwitchMicroLifecycleState::WarmingUp;
+    DmxUniverse blackout{};
+    const auto blackout_packet = build_soundswitch_micro_packet(blackout, config.framing);
+    for (std::uint16_t frame = 0U; frame < config.warmup_blackout_frames; ++frame) {
+        ++impl_->status.frames_attempted;
+        if (!write_exact(
+                impl_->usb, blackout_packet.bytes.data(), blackout_packet.length,
+                impl_->status.last_error)) {
+            ++impl_->status.frames_failed;
+            return fail(impl_->status.last_error);
+        }
+        ++impl_->status.frames_accepted;
+        ++impl_->status.warmup_frames_completed;
+        if (frame + 1U < config.warmup_blackout_frames) {
+            std::this_thread::sleep_for(config.frame_interval);
+        }
+    }
+    impl_->status.warmup_complete = true;
+    ++impl_->status.initialization_successes;
+    impl_->status.last_error = ERROR_SUCCESS;
+    impl_->status.state = SoundSwitchMicroLifecycleState::Streaming;
     return true;
 }
 
-void SoundSwitchMicroSender::close() noexcept {
+void SoundSwitchMicroSession::close() noexcept {
     if (impl_ == nullptr) {
         return;
+    }
+    if (impl_->usb != nullptr) {
+        impl_->status.state = SoundSwitchMicroLifecycleState::Closing;
+        static_cast<void>(send_blackout(
+            impl_->config.close_blackout_frames,
+            impl_->config.frame_interval));
     }
     if (impl_->usb != nullptr) {
         ::WinUsb_Free(impl_->usb);
@@ -223,46 +374,109 @@ void SoundSwitchMicroSender::close() noexcept {
         static_cast<void>(::CloseHandle(impl_->file));
         impl_->file = INVALID_HANDLE_VALUE;
     }
+    impl_->status.handle_open = false;
+    impl_->status.state = SoundSwitchMicroLifecycleState::Disabled;
 }
 
-bool SoundSwitchMicroSender::is_open() const noexcept {
+bool SoundSwitchMicroSession::is_open() const noexcept {
     return impl_ != nullptr && impl_->file != INVALID_HANDLE_VALUE && impl_->usb != nullptr;
 }
 
-bool SoundSwitchMicroSender::send(const DmxUniverse& universe) noexcept {
+bool SoundSwitchMicroSession::send(const DmxUniverse& universe) noexcept {
     if (!is_open()) {
         return false;
     }
-    const auto packet = build_soundswitch_micro_packet(universe, impl_->framing);
-    return write_exact(
-        impl_->usb, packet.bytes.data(), packet.length, impl_->last_error);
+    ++impl_->status.frames_attempted;
+    const auto packet = build_soundswitch_micro_packet(universe, impl_->config.framing);
+    if (!write_exact(
+            impl_->usb, packet.bytes.data(), packet.length,
+            impl_->status.last_error)) {
+        ++impl_->status.frames_failed;
+        impl_->status.state = SoundSwitchMicroLifecycleState::Fault;
+        return false;
+    }
+    ++impl_->status.frames_accepted;
+    return true;
 }
 
-std::uint32_t SoundSwitchMicroSender::last_error() const noexcept {
-    return impl_ == nullptr ? ERROR_NOT_ENOUGH_MEMORY : impl_->last_error;
+bool SoundSwitchMicroSession::send_blackout(
+    std::uint16_t repetitions,
+    std::chrono::milliseconds interval) noexcept {
+    if (!is_open() || interval.count() < 0) {
+        return false;
+    }
+    DmxUniverse blackout{};
+    for (std::uint16_t frame = 0U; frame < repetitions; ++frame) {
+        if (!send(blackout)) {
+            return false;
+        }
+        if (frame + 1U < repetitions) {
+            std::this_thread::sleep_for(interval);
+        }
+    }
+    return true;
 }
 
-SoundSwitchMicroFraming SoundSwitchMicroSender::framing() const noexcept {
+std::uint32_t SoundSwitchMicroSession::last_error() const noexcept {
+    return impl_ == nullptr ? ERROR_NOT_ENOUGH_MEMORY : impl_->status.last_error;
+}
+
+SoundSwitchMicroFraming SoundSwitchMicroSession::framing() const noexcept {
     return impl_ == nullptr
         ? SoundSwitchMicroFraming::NativeJls1
-        : impl_->framing;
+        : impl_->config.framing;
+}
+
+SoundSwitchMicroSessionStatus SoundSwitchMicroSession::status() const noexcept {
+    return impl_ == nullptr ? SoundSwitchMicroSessionStatus{} : impl_->status;
 }
 
 #else
 
-struct SoundSwitchMicroSender::Impl {};
+struct SoundSwitchMicroSession::Impl {
+    SoundSwitchMicroSessionConfig config{};
+    SoundSwitchMicroSessionStatus status{};
+};
 
-SoundSwitchMicroSender::SoundSwitchMicroSender() noexcept
+SoundSwitchMicroSession::SoundSwitchMicroSession() noexcept
     : impl_(new (std::nothrow) Impl{}) {}
-SoundSwitchMicroSender::~SoundSwitchMicroSender() noexcept = default;
-bool SoundSwitchMicroSender::supported() noexcept { return false; }
-bool SoundSwitchMicroSender::open(SoundSwitchMicroFraming) noexcept { return false; }
-void SoundSwitchMicroSender::close() noexcept {}
-bool SoundSwitchMicroSender::is_open() const noexcept { return false; }
-bool SoundSwitchMicroSender::send(const DmxUniverse&) noexcept { return false; }
-std::uint32_t SoundSwitchMicroSender::last_error() const noexcept { return 0U; }
-SoundSwitchMicroFraming SoundSwitchMicroSender::framing() const noexcept {
-    return SoundSwitchMicroFraming::NativeJls1;
+SoundSwitchMicroSession::~SoundSwitchMicroSession() noexcept = default;
+bool SoundSwitchMicroSession::supported() noexcept { return false; }
+bool SoundSwitchMicroSession::open(SoundSwitchMicroFraming framing) noexcept {
+    SoundSwitchMicroSessionConfig config;
+    config.framing = framing;
+    return open(config);
+}
+bool SoundSwitchMicroSession::open(const SoundSwitchMicroSessionConfig& config) noexcept {
+    if (impl_ != nullptr) {
+        impl_->config = config;
+        impl_->status = {};
+        impl_->status.state = SoundSwitchMicroLifecycleState::Fault;
+    }
+    return false;
+}
+void SoundSwitchMicroSession::close() noexcept {
+    if (impl_ != nullptr) {
+        impl_->status.state = SoundSwitchMicroLifecycleState::Disabled;
+    }
+}
+bool SoundSwitchMicroSession::is_open() const noexcept { return false; }
+bool SoundSwitchMicroSession::send(const DmxUniverse&) noexcept { return false; }
+bool SoundSwitchMicroSession::send_blackout(
+    std::uint16_t,
+    std::chrono::milliseconds) noexcept {
+    return false;
+}
+std::uint32_t SoundSwitchMicroSession::last_error() const noexcept {
+    return impl_ == nullptr ? 0U : impl_->status.last_error;
+}
+SoundSwitchMicroFraming SoundSwitchMicroSession::framing() const noexcept {
+    return impl_ == nullptr
+        ? SoundSwitchMicroFraming::NativeJls1
+        : impl_->config.framing;
+}
+SoundSwitchMicroSessionStatus SoundSwitchMicroSession::status() const noexcept {
+    return impl_ == nullptr ? SoundSwitchMicroSessionStatus{} : impl_->status;
 }
 
 #endif
