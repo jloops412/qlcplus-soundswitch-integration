@@ -1,1 +1,1002 @@
-{"schemaVersion":1,"registryVersion":1,"status":"planningSeed","generatedAt":null,"sourceCommit":null,"commands":[{"id":"workspace.open","since":1,"labelKey":"command.workspace.open.label","descriptionKey":"command.workspace.open.description","category":"workspace","scope":["app","studio","live","keyboard","midi","external"],"interaction":"selection","realtimeClass":"viewLocal","parameters":{"workspace":{"type":"enum","required":true,"enumValues":["projectHub","studio","live","safe"]}},"availability":true,"undoable":false,"persistenceScope":"appLocal","deprecated":false},{"id":"view.panel.open","since":1,"labelKey":"command.view.panel.open.label","descriptionKey":"command.view.panel.open.description","category":"view","scope":["app","studio","live","keyboard","midi"],"interaction":"selection","realtimeClass":"viewLocal","parameters":{"panel":{"type":"string","required":true,"maxLength":128}},"availability":true,"undoable":false,"persistenceScope":"appLocal","deprecated":false},{"id":"view.panel.toggle","since":1,"labelKey":"command.view.panel.toggle.label","descriptionKey":"command.view.panel.toggle.description","category":"view","scope":["app","studio","live","keyboard","midi"],"interaction":"toggle","realtimeClass":"viewLocal","parameters":{"panel":{"type":"string","required":true,"maxLength":128}},"availability":true,"undoable":false,"persistenceScope":"appLocal","deprecated":false},{"id":"view.skin.select","since":1,"labelKey":"command.view.skin.select.label","descriptionKey":"command.view.skin.select.description","category":"view","scope":["app","studio","live","keyboard"],"interaction":"selection","realtimeClass":"viewLocal","parameters":{"skinId":{"type":"string","required":true,"maxLength":128}},"availability":true,"undoable":false,"persistenceScope":"appLocal","deprecated":false},{"id":"view.commandExplorer.open","since":1,"labelKey":"command.view.commandExplorer.open.label","descriptionKey":"command.view.commandExplorer.open.description","category":"view","scope":["app","studio","live","keyboard","midi"],"interaction":"trigger","realtimeClass":"viewLocal","parameters":{},"availability":true,"undoable":false,"persistenceScope":"none","deprecated":false},{"id":"project.open","since":1,"labelKey":"command.project.open.label","descriptionKey":"command.project.open.description","category":"project","scope":["app","studio","keyboard","external"],"interaction":"transaction","realtimeClass":"blockingUtility","parameters":{"path":{"type":"string","required":true,"maxLength":4096}},"availability":true,"undoable":false,"persistenceScope":"appLocal","deprecated":false},{"id":"project.save","since":1,"labelKey":"command.project.save.label","descriptionKey":"command.project.save.description","category":"project","scope":["app","studio","keyboard","midi","external"],"interaction":"trigger","realtimeClass":"studioMutation","parameters":{},"availability":"project.lifecycle == 'open'","undoable":false,"persistenceScope":"projectAuthored","deprecated":false,"feedback":["project.saveState","project.lastVerifiedSave"]},{"id":"project.validate","since":1,"labelKey":"command.project.validate.label","descriptionKey":"command.project.validate.description","category":"project","scope":["app","studio","live","keyboard","external"],"interaction":"trigger","realtimeClass":"studioMutation","parameters":{},"availability":"project.lifecycle == 'open'","undoable":false,"persistenceScope":"none","deprecated":false,"feedback":["project.validation.summary"]},{"id":"show.start","since":1,"labelKey":"command.show.start.label","descriptionKey":"command.show.start.description","category":"show","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"priorityLive","parameters":{},"availability":"project.activePackage.available && runner.state != 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["runner.state"]},{"id":"show.stop","since":1,"labelKey":"command.show.stop.label","descriptionKey":"command.show.stop.description","category":"show","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"priorityLive","parameters":{},"availability":true,"undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["runner.state"]},{"id":"show.toggleRunning","since":1,"labelKey":"command.show.toggleRunning.label","descriptionKey":"command.show.toggleRunning.description","category":"show","scope":["live","keyboard","midi","controller"],"interaction":"toggle","realtimeClass":"priorityLive","parameters":{},"availability":true,"undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["runner.state"]},{"id":"output.blackout.set","since":1,"labelKey":"command.output.blackout.set.label","descriptionKey":"command.output.blackout.set.description","category":"safety","scope":["live","keyboard","midi","controller","external"],"interaction":"absolute","realtimeClass":"emergency","parameters":{"active":{"type":"boolean","required":true}},"availability":true,"safetyGate":"blackoutAuthority","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["output.blackout"]},{"id":"output.blackout.toggle","since":1,"labelKey":"command.output.blackout.toggle.label","descriptionKey":"command.output.blackout.toggle.description","category":"safety","scope":["live","keyboard","midi","controller"],"interaction":"toggle","realtimeClass":"emergency","parameters":{},"availability":true,"safetyGate":"blackoutAuthority","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["output.blackout"]},{"id":"output.workLight.set","since":1,"labelKey":"command.output.workLight.set.label","descriptionKey":"command.output.workLight.set.description","category":"safety","scope":["live","keyboard","midi","controller","external"],"interaction":"absolute","realtimeClass":"priorityLive","parameters":{"active":{"type":"boolean","required":true}},"availability":"runner.state != 'fault'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["output.workLight"]},{"id":"output.workLight.toggle","since":1,"labelKey":"command.output.workLight.toggle.label","descriptionKey":"command.output.workLight.toggle.description","category":"safety","scope":["live","keyboard","midi","controller"],"interaction":"toggle","realtimeClass":"priorityLive","parameters":{},"availability":"runner.state != 'fault'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["output.workLight"]},{"id":"override.releaseAll","since":1,"labelKey":"command.override.releaseAll.label","descriptionKey":"command.override.releaseAll.description","category":"override","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"priorityLive","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["override.activePropertyCount"]},{"id":"transport.manualBpm.set","since":1,"labelKey":"command.transport.manualBpm.set.label","descriptionKey":"command.transport.manualBpm.set.description","category":"transport","scope":["live","studio","keyboard","midi","controller","external"],"interaction":"absolute","realtimeClass":"runnerCommand","parameters":{"bpm":{"type":"number","required":true,"minimum":30,"maximum":300,"unit":"bpm"}},"availability":true,"undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["transport.bpm","transport.syncState"]},{"id":"transport.tap","since":1,"labelKey":"command.transport.tap.label","descriptionKey":"command.transport.tap.description","category":"transport","scope":["live","studio","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":true,"undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["transport.bpm","transport.syncState"]},{"id":"connection.os2l.reconnect","since":1,"labelKey":"command.connection.os2l.reconnect.label","descriptionKey":"command.connection.os2l.reconnect.description","category":"connection","scope":["app","studio","live","keyboard","midi","external"],"interaction":"trigger","realtimeClass":"priorityLive","parameters":{},"availability":"connection.os2l.configured","undoable":false,"persistenceScope":"none","deprecated":false,"feedback":["connection.os2l.status","connection.os2l.lastError"]},{"id":"autoloop.launch","since":1,"labelKey":"command.autoloop.launch.label","descriptionKey":"command.autoloop.launch.description","category":"autoloop","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{"bank":{"type":"integer","required":true,"minimum":0,"maximum":63},"slot":{"type":"integer","required":true,"minimum":0,"maximum":31}},"availability":"runner.state == 'running' && autoloop.exists(bank,slot)","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.active.id","autoloop.active.bank","autoloop.active.slot","autoloop.active.progress"]},{"id":"autoloop.clear","since":1,"labelKey":"command.autoloop.clear.label","descriptionKey":"command.autoloop.clear.description","category":"autoloop","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.active.id"]},{"id":"autoloop.next","since":1,"labelKey":"command.autoloop.next.label","descriptionKey":"command.autoloop.next.description","category":"autoloop","scope":["live","keyboard","midi","controller"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.active.id"]},{"id":"autoloop.previous","since":1,"labelKey":"command.autoloop.previous.label","descriptionKey":"command.autoloop.previous.description","category":"autoloop","scope":["live","keyboard","midi","controller"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.active.id"]},{"id":"autoloop.bankFilter.selectExclusive","since":1,"labelKey":"command.autoloop.bankFilter.selectExclusive.label","descriptionKey":"command.autoloop.bankFilter.selectExclusive.description","category":"autoloop","scope":["live","keyboard","midi","controller"],"interaction":"selection","realtimeClass":"runnerCommand","parameters":{"bank":{"type":"integer","required":true,"minimum":0,"maximum":63}},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.bankFilter.mask"]},{"id":"autoloop.bankFilter.setEnabled","since":1,"labelKey":"command.autoloop.bankFilter.setEnabled.label","descriptionKey":"command.autoloop.bankFilter.setEnabled.description","category":"autoloop","scope":["live","keyboard","midi","controller"],"interaction":"absolute","realtimeClass":"runnerCommand","parameters":{"bank":{"type":"integer","required":true,"minimum":0,"maximum":63},"enabled":{"type":"boolean","required":true}},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.bankFilter.mask"]},{"id":"autoloop.bankFilter.enableAll","since":1,"labelKey":"command.autoloop.bankFilter.enableAll.label","descriptionKey":"command.autoloop.bankFilter.enableAll.description","category":"autoloop","scope":["live","keyboard","midi","controller"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["autoloop.bankFilter.mask"]},{"id":"staticLook.activate","since":1,"labelKey":"command.staticLook.activate.label","descriptionKey":"command.staticLook.activate.description","category":"staticLook","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{"lookId":{"type":"id","required":true,"targetKind":"staticLook"}},"availability":"runner.state == 'running' && staticLook.exists(lookId)","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["staticLook.active.id"]},{"id":"staticLook.clear","since":1,"labelKey":"command.staticLook.clear.label","descriptionKey":"command.staticLook.clear.description","category":"staticLook","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["staticLook.active.id"]},{"id":"trackScript.start","since":1,"labelKey":"command.trackScript.start.label","descriptionKey":"command.trackScript.start.description","category":"trackScript","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{"scriptId":{"type":"id","required":true,"targetKind":"trackScript"}},"availability":"runner.state == 'running' && trackScript.exists(scriptId)","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["trackScript.active.id","trackScript.elapsedBeat"]},{"id":"trackScript.clear","since":1,"labelKey":"command.trackScript.clear.label","descriptionKey":"command.trackScript.clear.description","category":"trackScript","scope":["live","keyboard","midi","controller","external"],"interaction":"trigger","realtimeClass":"runnerCommand","parameters":{},"availability":"runner.state == 'running'","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["trackScript.active.id"]},{"id":"group.override.property.set","since":1,"labelKey":"command.group.override.property.set.label","descriptionKey":"command.group.override.property.set.description","category":"override","scope":["live","keyboard","midi","controller","external"],"interaction":"absolute","realtimeClass":"runnerCommand","parameters":{"groupId":{"type":"id","required":true,"targetKind":"group"},"property":{"type":"enum","required":true,"enumValues":["intensity","red","green","blue","white","amber","uv","pan","tilt","strobe","movementRate","movementSize"]},"value":{"type":"number","required":true,"minimum":0,"maximum":1}},"availability":"runner.state == 'running' && group.exists(groupId)","undoable":false,"persistenceScope":"liveTransient","deprecated":false,"feedback":["override.activePropertyCount"]}],"notes":"Planning seed only. Issue #31 owns the accepted registry. Canonical v0 state names use output.blackout and output.workLight; safety.* is reserved for hazard arming and safety policy."}
+{
+  "schemaVersion": 1,
+  "registryVersion": 1,
+  "status": "implementationSeed",
+  "generatedAt": null,
+  "sourceCommit": "75c9766de9084a7d7e8841420031da6bc2568cc2",
+  "commands": [
+    {
+      "id": "workspace.open",
+      "since": 1,
+      "labelKey": "command.workspace.open.label",
+      "descriptionKey": "command.workspace.open.description",
+      "category": "workspace",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard",
+        "midi",
+        "external"
+      ],
+      "interaction": "selection",
+      "realtimeClass": "viewLocal",
+      "parameters": {
+        "workspace": {
+          "type": "enum",
+          "required": true,
+          "enumValues": [
+            "projectHub",
+            "studio",
+            "live",
+            "safe"
+          ]
+        }
+      },
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "appLocal",
+      "deprecated": false
+    },
+    {
+      "id": "view.panel.open",
+      "since": 1,
+      "labelKey": "command.view.panel.open.label",
+      "descriptionKey": "command.view.panel.open.description",
+      "category": "view",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard",
+        "midi"
+      ],
+      "interaction": "selection",
+      "realtimeClass": "viewLocal",
+      "parameters": {
+        "panel": {
+          "type": "string",
+          "required": true,
+          "maxLength": 128
+        }
+      },
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "appLocal",
+      "deprecated": false
+    },
+    {
+      "id": "view.panel.toggle",
+      "since": 1,
+      "labelKey": "command.view.panel.toggle.label",
+      "descriptionKey": "command.view.panel.toggle.description",
+      "category": "view",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard",
+        "midi"
+      ],
+      "interaction": "toggle",
+      "realtimeClass": "viewLocal",
+      "parameters": {
+        "panel": {
+          "type": "string",
+          "required": true,
+          "maxLength": 128
+        }
+      },
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "appLocal",
+      "deprecated": false
+    },
+    {
+      "id": "view.skin.select",
+      "since": 1,
+      "labelKey": "command.view.skin.select.label",
+      "descriptionKey": "command.view.skin.select.description",
+      "category": "view",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard"
+      ],
+      "interaction": "selection",
+      "realtimeClass": "viewLocal",
+      "parameters": {
+        "skinId": {
+          "type": "string",
+          "required": true,
+          "maxLength": 128
+        }
+      },
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "appLocal",
+      "deprecated": false
+    },
+    {
+      "id": "view.commandExplorer.open",
+      "since": 1,
+      "labelKey": "command.view.commandExplorer.open.label",
+      "descriptionKey": "command.view.commandExplorer.open.description",
+      "category": "view",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard",
+        "midi"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "viewLocal",
+      "parameters": {},
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "none",
+      "deprecated": false
+    },
+    {
+      "id": "project.open",
+      "since": 1,
+      "labelKey": "command.project.open.label",
+      "descriptionKey": "command.project.open.description",
+      "category": "project",
+      "scope": [
+        "app",
+        "studio",
+        "keyboard",
+        "external"
+      ],
+      "interaction": "transaction",
+      "realtimeClass": "blockingUtility",
+      "parameters": {
+        "path": {
+          "type": "string",
+          "required": true,
+          "maxLength": 4096
+        }
+      },
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "appLocal",
+      "deprecated": false
+    },
+    {
+      "id": "project.save",
+      "since": 1,
+      "labelKey": "command.project.save.label",
+      "descriptionKey": "command.project.save.description",
+      "category": "project",
+      "scope": [
+        "app",
+        "studio",
+        "keyboard",
+        "midi",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "studioMutation",
+      "parameters": {},
+      "availability": "project.lifecycle == 'open'",
+      "undoable": false,
+      "persistenceScope": "projectAuthored",
+      "deprecated": false,
+      "feedback": [
+        "project.saveState",
+        "project.lastVerifiedSave"
+      ]
+    },
+    {
+      "id": "project.validate",
+      "since": 1,
+      "labelKey": "command.project.validate.label",
+      "descriptionKey": "command.project.validate.description",
+      "category": "project",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "studioMutation",
+      "parameters": {},
+      "availability": "project.lifecycle == 'open'",
+      "undoable": false,
+      "persistenceScope": "none",
+      "deprecated": false,
+      "feedback": [
+        "project.validation.summary"
+      ]
+    },
+    {
+      "id": "show.start",
+      "since": 1,
+      "labelKey": "command.show.start.label",
+      "descriptionKey": "command.show.start.description",
+      "category": "show",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": "project.activePackage.available && runner.state != 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "runner.state"
+      ]
+    },
+    {
+      "id": "show.stop",
+      "since": 1,
+      "labelKey": "command.show.stop.label",
+      "descriptionKey": "command.show.stop.description",
+      "category": "show",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "runner.state"
+      ]
+    },
+    {
+      "id": "show.toggleRunning",
+      "since": 1,
+      "labelKey": "command.show.toggleRunning.label",
+      "descriptionKey": "command.show.toggleRunning.description",
+      "category": "show",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "toggle",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "runner.state"
+      ]
+    },
+    {
+      "id": "output.blackout.set",
+      "since": 1,
+      "labelKey": "command.output.blackout.set.label",
+      "descriptionKey": "command.output.blackout.set.description",
+      "category": "safety",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "absolute",
+      "realtimeClass": "emergency",
+      "parameters": {
+        "active": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "availability": true,
+      "safetyGate": "blackoutAuthority",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "output.blackout"
+      ]
+    },
+    {
+      "id": "output.blackout.toggle",
+      "since": 1,
+      "labelKey": "command.output.blackout.toggle.label",
+      "descriptionKey": "command.output.blackout.toggle.description",
+      "category": "safety",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "toggle",
+      "realtimeClass": "emergency",
+      "parameters": {},
+      "availability": true,
+      "safetyGate": "blackoutAuthority",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "output.blackout"
+      ]
+    },
+    {
+      "id": "output.workLight.set",
+      "since": 1,
+      "labelKey": "command.output.workLight.set.label",
+      "descriptionKey": "command.output.workLight.set.description",
+      "category": "safety",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "absolute",
+      "realtimeClass": "priorityLive",
+      "parameters": {
+        "active": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "availability": "runner.state != 'fault'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "output.workLight"
+      ]
+    },
+    {
+      "id": "output.workLight.toggle",
+      "since": 1,
+      "labelKey": "command.output.workLight.toggle.label",
+      "descriptionKey": "command.output.workLight.toggle.description",
+      "category": "safety",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "toggle",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": "runner.state != 'fault'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "output.workLight"
+      ]
+    },
+    {
+      "id": "override.releaseAll",
+      "since": 1,
+      "labelKey": "command.override.releaseAll.label",
+      "descriptionKey": "command.override.releaseAll.description",
+      "category": "override",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "override.activePropertyCount"
+      ]
+    },
+    {
+      "id": "transport.manualBpm.set",
+      "since": 1,
+      "labelKey": "command.transport.manualBpm.set.label",
+      "descriptionKey": "command.transport.manualBpm.set.description",
+      "category": "transport",
+      "scope": [
+        "live",
+        "studio",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "absolute",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "bpm": {
+          "type": "number",
+          "required": true,
+          "minimum": 20,
+          "maximum": 300,
+          "unit": "bpm"
+        }
+      },
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "transport.bpm",
+        "transport.syncState"
+      ]
+    },
+    {
+      "id": "transport.tap",
+      "since": 1,
+      "labelKey": "command.transport.tap.label",
+      "descriptionKey": "command.transport.tap.description",
+      "category": "transport",
+      "scope": [
+        "live",
+        "studio",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": true,
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "transport.bpm",
+        "transport.syncState"
+      ]
+    },
+    {
+      "id": "connection.os2l.reconnect",
+      "since": 1,
+      "labelKey": "command.connection.os2l.reconnect.label",
+      "descriptionKey": "command.connection.os2l.reconnect.description",
+      "category": "connection",
+      "scope": [
+        "app",
+        "studio",
+        "live",
+        "keyboard",
+        "midi",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": "connection.os2l.configured",
+      "undoable": false,
+      "persistenceScope": "none",
+      "deprecated": false,
+      "feedback": [
+        "connection.os2l.status",
+        "connection.os2l.lastError"
+      ]
+    },
+    {
+      "id": "autoloop.launch",
+      "since": 1,
+      "labelKey": "command.autoloop.launch.label",
+      "descriptionKey": "command.autoloop.launch.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "bank": {
+          "type": "integer",
+          "required": true,
+          "minimum": 0,
+          "maximum": 63
+        },
+        "slot": {
+          "type": "integer",
+          "required": true,
+          "minimum": 0,
+          "maximum": 31
+        }
+      },
+      "availability": "runner.state == 'running' && autoloop.exists(bank,slot)",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.active.id",
+        "autoloop.active.bank",
+        "autoloop.active.slot",
+        "autoloop.active.progress"
+      ]
+    },
+    {
+      "id": "autoloop.clear",
+      "since": 1,
+      "labelKey": "command.autoloop.clear.label",
+      "descriptionKey": "command.autoloop.clear.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.active.id"
+      ]
+    },
+    {
+      "id": "autoloop.next",
+      "since": 1,
+      "labelKey": "command.autoloop.next.label",
+      "descriptionKey": "command.autoloop.next.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.active.id"
+      ]
+    },
+    {
+      "id": "autoloop.previous",
+      "since": 1,
+      "labelKey": "command.autoloop.previous.label",
+      "descriptionKey": "command.autoloop.previous.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.active.id"
+      ]
+    },
+    {
+      "id": "autoloop.bankFilter.selectExclusive",
+      "since": 1,
+      "labelKey": "command.autoloop.bankFilter.selectExclusive.label",
+      "descriptionKey": "command.autoloop.bankFilter.selectExclusive.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "selection",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "bank": {
+          "type": "integer",
+          "required": true,
+          "minimum": 0,
+          "maximum": 63
+        }
+      },
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.bankFilter.mask"
+      ]
+    },
+    {
+      "id": "autoloop.bankFilter.setEnabled",
+      "since": 1,
+      "labelKey": "command.autoloop.bankFilter.setEnabled.label",
+      "descriptionKey": "command.autoloop.bankFilter.setEnabled.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "absolute",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "bank": {
+          "type": "integer",
+          "required": true,
+          "minimum": 0,
+          "maximum": 63
+        },
+        "enabled": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.bankFilter.mask"
+      ]
+    },
+    {
+      "id": "autoloop.bankFilter.enableAll",
+      "since": 1,
+      "labelKey": "command.autoloop.bankFilter.enableAll.label",
+      "descriptionKey": "command.autoloop.bankFilter.enableAll.description",
+      "category": "autoloop",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "autoloop.bankFilter.mask"
+      ]
+    },
+    {
+      "id": "staticLook.activate",
+      "since": 1,
+      "labelKey": "command.staticLook.activate.label",
+      "descriptionKey": "command.staticLook.activate.description",
+      "category": "staticLook",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "lookId": {
+          "type": "id",
+          "required": true,
+          "targetKind": "staticLook"
+        }
+      },
+      "availability": "runner.state == 'running' && staticLook.exists(lookId)",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "staticLook.active.id"
+      ]
+    },
+    {
+      "id": "staticLook.clear",
+      "since": 1,
+      "labelKey": "command.staticLook.clear.label",
+      "descriptionKey": "command.staticLook.clear.description",
+      "category": "staticLook",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "staticLook.active.id"
+      ]
+    },
+    {
+      "id": "trackScript.start",
+      "since": 1,
+      "labelKey": "command.trackScript.start.label",
+      "descriptionKey": "command.trackScript.start.description",
+      "category": "trackScript",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "scriptId": {
+          "type": "id",
+          "required": true,
+          "targetKind": "trackScript"
+        }
+      },
+      "availability": "runner.state == 'running' && trackScript.exists(scriptId)",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "trackScript.active.id",
+        "trackScript.elapsedBeat"
+      ]
+    },
+    {
+      "id": "trackScript.clear",
+      "since": 1,
+      "labelKey": "command.trackScript.clear.label",
+      "descriptionKey": "command.trackScript.clear.description",
+      "category": "trackScript",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "trackScript.active.id"
+      ]
+    },
+    {
+      "id": "group.override.property.set",
+      "since": 1,
+      "labelKey": "command.group.override.property.set.label",
+      "descriptionKey": "command.group.override.property.set.description",
+      "category": "override",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "absolute",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "groupId": {
+          "type": "id",
+          "required": true,
+          "targetKind": "group"
+        },
+        "property": {
+          "type": "enum",
+          "required": true,
+          "enumValues": [
+            "intensity",
+            "red",
+            "green",
+            "blue",
+            "white",
+            "amber",
+            "uv",
+            "pan",
+            "tilt",
+            "strobe",
+            "movementRate",
+            "movementSize"
+          ]
+        },
+        "value": {
+          "type": "number",
+          "required": true,
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "availability": "runner.state == 'running' && group.exists(groupId)",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "override.activePropertyCount"
+      ]
+    },
+    {
+      "id": "staticLook.toggle",
+      "since": 1,
+      "labelKey": "command.staticLook.toggle.label",
+      "descriptionKey": "command.staticLook.toggle.description",
+      "category": "staticLook",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "toggle",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "lookId": {
+          "type": "id",
+          "required": true,
+          "targetKind": "staticLook"
+        }
+      },
+      "availability": "runner.state == 'running' && staticLook.exists(lookId)",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "staticLook.active.id"
+      ]
+    },
+    {
+      "id": "staticLook.hold",
+      "since": 1,
+      "labelKey": "command.staticLook.hold.label",
+      "descriptionKey": "command.staticLook.hold.description",
+      "category": "staticLook",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "momentary",
+      "realtimeClass": "runnerCommand",
+      "parameters": {
+        "lookId": {
+          "type": "id",
+          "required": true,
+          "targetKind": "staticLook"
+        },
+        "active": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "availability": "runner.state == 'running' && staticLook.exists(lookId)",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "staticLook.active.id"
+      ]
+    },
+    {
+      "id": "safety.hazard.setArmed",
+      "since": 1,
+      "labelKey": "command.safety.hazard.setArmed.label",
+      "descriptionKey": "command.safety.hazard.setArmed.description",
+      "category": "safety",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "absolute",
+      "realtimeClass": "priorityLive",
+      "parameters": {
+        "hazard": {
+          "type": "enum",
+          "required": true,
+          "enumValues": [
+            "fog",
+            "haze",
+            "laser",
+            "spark"
+          ]
+        },
+        "armed": {
+          "type": "boolean",
+          "required": true
+        }
+      },
+      "availability": "runner.state == 'running'",
+      "safetyGate": "hazardAuthority",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "safety.hazard.fog.armed",
+        "safety.hazard.haze.armed",
+        "safety.hazard.laser.armed",
+        "safety.hazard.spark.armed"
+      ]
+    },
+    {
+      "id": "safety.hazard.disarmAll",
+      "since": 1,
+      "labelKey": "command.safety.hazard.disarmAll.label",
+      "descriptionKey": "command.safety.hazard.disarmAll.description",
+      "category": "safety",
+      "scope": [
+        "live",
+        "keyboard",
+        "midi",
+        "controller",
+        "external"
+      ],
+      "interaction": "trigger",
+      "realtimeClass": "priorityLive",
+      "parameters": {},
+      "availability": "runner.state == 'running'",
+      "safetyGate": "hazardAuthority",
+      "undoable": false,
+      "persistenceScope": "liveTransient",
+      "deprecated": false,
+      "feedback": [
+        "safety.hazard.fog.armed",
+        "safety.hazard.haze.armed",
+        "safety.hazard.laser.armed",
+        "safety.hazard.spark.armed"
+      ]
+    }
+  ],
+  "notes": "Implementation seed: the G1A Live/safety subset is backed by native typed command/state facades; remaining entries continue as issue #31 migration targets. Canonical v0 uses show.*, output.workLight, a 20–300 BPM range, and explicit Static Look toggle/hold ownership."
+}
+
