@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 1,
+  "workspace": "live",
+  "variant": "standard",
+  "metadata": {
+    "descriptionKey": "skin.reference.live.standard.description",
+    "defaultFocus": "reference.live.pageTabs",
+    "minimumWidth": 1440,
+    "minimumHeight": 800
+  },
+  "root": {
+    "type": "Column",
+    "id": "reference.live.root",
+    "gap": 4,
+    "children": [
+      {
+        "type": "Row",
+        "id": "reference.live.sourceStatus",
+        "styleClass": ["referenceChrome", "referenceStatus"],
+        "padding": 6,
+        "gap": 6,
+        "align": "center",
+        "children": [
+          {
+            "type": "Label",
+            "id": "reference.live.brand",
+            "labelKey": "skin.reference.name",
+            "accessibility": {
+              "role": "heading",
+              "nameKey": "skin.reference.name"
+            }
+          },
+          {
+            "type": "Label",
+            "id": "reference.live.project",
+            "labelKey": "project.active.label",
+            "value": { "state": "project.active.name", "format": "plain" }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "reference.live.source",
+            "labelKey": "connection.dj.source",
+            "state": { "state": "connection.dj.status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "djConnection" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "Label",
+            "id": "reference.live.bpm",
+            "labelKey": "transport.bpm.label",
+            "value": { "state": "transport.bpm", "format": "bpm" }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "reference.live.hardware",
+            "labelKey": "connection.hardware.label",
+            "state": { "state": "output.summary.status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "outputs" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "StatusBadge",
+            "id": "reference.live.controller",
+            "labelKey": "controller.status.label",
+            "state": { "state": "controller.status", "format": "status" },
+            "on": {
+              "command": "view.panel.open",
+              "arguments": { "panel": "controllers" },
+              "event": "press"
+            }
+          },
+          {
+            "type": "Spacer",
+            "id": "reference.live.statusSpacer",
+            "flexGrow": 1
+          },
+          {
+            "type": "StatusBadge",
+            "id": "reference.live.overrideCount",
+            "labelKey": "override.activeCount.label",
+            "state": { "state": "override.activePropertyCount", "format": "integer" }
+          },
+          {
+            "type": "Toggle",
+            "id": "reference.live.workLight",
+            "labelKey": "action.workLight",
+            "state": { "state": "output.workLight", "format": "boolean" },
+            "on": { "command": "output.workLight.toggle", "event": "press" }
+          },
+          {
+            "type": "Button",
+            "id": "reference.live.blackout",
+            "labelKey": "action.blackout",
+            "danger": true,
+            "emergency": true,
+            "state": { "state": "output.blackout", "format": "boolean" },
+            "on": { "command": "output.blackout.toggle", "event": "press" }
+          }
+        ]
+      },
+      {
+        "type": "Tabs",
+        "id": "reference.live.pageTabs",
+        "selectionState": "view.reference.live.page",
+        "placement": "top",
+        "flexGrow": 1,
+        "children": [
+          {
+            "type": "Panel",
+            "id": "reference.live.page.performance",
+            "titleKey": "reference.page.performance",
+            "padding": 8,
+            "children": [
+              {
+                "type": "SplitPane",
+                "id": "reference.live.performanceSplit",
+                "orientation": "horizontal",
+                "ratios": [0.72, 0.28],
+                "persistenceKey": "reference.live.performanceSplit",
+                "children": [
+                  {
+                    "type": "Column",
+                    "id": "reference.live.performanceMain",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "type": "NativeComponent",
+                        "id": "reference.live.performanceKnobs",
+                        "componentType": "ember.performanceKnobGroup",
+                        "minimumVersion": 1,
+                        "variant": "reference-large-three",
+                        "minimumHeight": 180,
+                        "properties": {
+                          "parameters": ["movementRate", "movementSize", "strobeRate"],
+                          "showValues": true,
+                          "showReset": true
+                        }
+                      },
+                      {
+                        "type": "NativeComponent",
+                        "id": "reference.live.performanceOverrides",
+                        "componentType": "ember.overridePalette",
+                        "minimumVersion": 1,
+                        "variant": "reference-blocks",
+                        "flexGrow": 1,
+                        "properties": {
+                          "families": ["movement", "strobe", "color"],
+                          "showTargetPicker": false,
+                          "showRelease": true,
+                          "showReleaseAll": true
+                        }
+                      },
+                      {
+                        "type": "NativeComponent",
+                        "id": "reference.live.nowPlaying",
+                        "componentType": "ember.activeLayers",
+                        "minimumVersion": 1,
+                        "variant": "reference-compact",
+                        "minimumHeight": 80,
+                        "properties": {
+                          "showProgress": true,
+                          "showCycles": true,
+                          "showFallback": true
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "Column",
+                    "id": "reference.live.performanceFaders",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "type": "NativeComponent",
+                        "id": "reference.live.contentFaders",
+                        "componentType": "ember.performanceFaderGroup",
+                        "minimumVersion": 1,
+                        "variant": "reference-tall",
+                        "flexGrow": 1,
+                        "properties": {
+                          "includeMaster": false,
+                          "includeAutoloop": true,
+                          "includeTrackScript": true,
+                          "includeGroups": true,
+                          "maximumVisibleGroups": 8,
+                          "showSoftTakeover": true
+                        }
+                      },
+                      {
+                        "type": "Button",
+                        "id": "reference.live.releaseAll",
+                        "labelKey": "action.releaseAllOverrides",
+                        "on": { "command": "override.releaseAll", "event": "press" }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Panel",
+            "id": "reference.live.page.autoloops",
+            "titleKey": "reference.page.autoloops",
+            "padding": 8,
+            "children": [
+              {
+                "type": "NativeComponent",
+                "id": "reference.live.autoloopMatrix",
+                "componentType": "ember.autoloopMatrix",
+                "minimumVersion": 1,
+                "variant": "soundswitch-reference-live",
+                "properties": {
+                  "mode": "live",
+                  "bankWindowSize": 4,
+                  "slotsPerBank": 32,
+                  "showEmptySlots": true,
+                  "showProgress": true,
+                  "showSlotNumbers": true,
+                  "showRepeat": true,
+                  "showExclusive": true,
+                  "showFilter": true
+                }
+              }
+            ]
+          },
+          {
+            "type": "Panel",
+            "id": "reference.live.page.staticLooks",
+            "titleKey": "reference.page.staticLooks",
+            "padding": 8,
+            "children": [
+              {
+                "type": "NativeComponent",
+                "id": "reference.live.staticLookMatrix",
+                "componentType": "ember.staticLookMatrix",
+                "minimumVersion": 1,
+                "variant": "soundswitch-reference-live",
+                "properties": {
+                  "showSearch": false,
+                  "showCategories": true,
+                  "showClear": true,
+                  "showTransition": true
+                }
+              }
+            ]
+          },
+          {
+            "type": "Panel",
+            "id": "reference.live.page.moments",
+            "titleKey": "reference.page.moments",
+            "padding": 8,
+            "children": [
+              {
+                "type": "CustomSlot",
+                "id": "reference.live.momentsSlot",
+                "slotId": "live.moments",
+                "allowedTypes": ["Button", "Toggle", "Pad", "Status", "Progress"],
+                "maximumNodes": 64,
+                "layout": "grid",
+                "columns": 8,
+                "mandatoryControlsProtected": true
+              }
+            ]
+          },
+          {
+            "type": "Panel",
+            "id": "reference.live.page.overrides",
+            "titleKey": "reference.page.overrides",
+            "padding": 8,
+            "children": [
+              {
+                "type": "NativeComponent",
+                "id": "reference.live.fullOverrides",
+                "componentType": "ember.overridePalette",
+                "minimumVersion": 1,
+                "variant": "reference-full",
+                "properties": {
+                  "families": ["color", "intensity", "movement", "position", "strobe", "whiteUv", "beam"],
+                  "showTargetPicker": true,
+                  "showRelease": true,
+                  "showReleaseAll": true
+                }
+              }
+            ]
+          },
+          {
+            "type": "Panel",
+            "id": "reference.live.page.studio",
+            "titleKey": "reference.page.studio",
+            "padding": 8,
+            "children": [
+              {
+                "type": "Column",
+                "id": "reference.live.studioShortcut",
+                "gap": 12,
+                "align": "center",
+                "children": [
+                  {
+                    "type": "Label",
+                    "id": "reference.live.studioShortcutText",
+                    "labelKey": "reference.studioShortcut.description"
+                  },
+                  {
+                    "type": "Button",
+                    "id": "reference.live.openStudio",
+                    "labelKey": "action.openStudio",
+                    "on": {
+                      "command": "workspace.open",
+                      "arguments": { "workspace": "studio" },
+                      "event": "press"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": "reference.live.openConnections",
+                    "labelKey": "action.openConnections",
+                    "on": {
+                      "command": "view.panel.open",
+                      "arguments": { "panel": "connections" },
+                      "event": "press"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": "reference.live.openDiagnostics",
+                    "labelKey": "action.openDiagnostics",
+                    "on": {
+                      "command": "view.panel.open",
+                      "arguments": { "panel": "diagnostics" },
+                      "event": "press"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
