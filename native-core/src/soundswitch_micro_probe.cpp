@@ -32,7 +32,6 @@ namespace {
 
 constexpr std::wstring_view kVendorId = L"VID_15E4";
 constexpr std::wstring_view kProductId = L"PID_0053";
-constexpr UCHAR kBulkOutPipe = 0x01U;
 
 class DeviceInfoSet {
 public:
@@ -478,6 +477,12 @@ struct ActiveTestResult {
     bool blackout_succeeded{false};
     bool writes_succeeded{false};
     bool visible_match{false};
+    bool disconnect_observed{false};
+    bool reconnect_detected{false};
+    bool reconnect_open_succeeded{false};
+    bool reconnect_writes_succeeded{false};
+    bool reconnect_visible_red{false};
+    bool reconnect_blackout_succeeded{false};
     showcore::SoundSwitchMicroFraming framing{
         showcore::SoundSwitchMicroFraming::NativeJls1};
     DWORD error{ERROR_SUCCESS};
@@ -487,7 +492,48 @@ struct ActiveTestResult {
     std::array<std::uint8_t, 6U> raw_channels{};
     std::array<std::uint8_t, 6U> runner_channels{};
     showcore::SoundSwitchMicroSessionStatus session{};
+
+    [[nodiscard]] emberlights::MicroPhysicalQualificationEvidence evidence() const noexcept {
+        return {
+            software_frame_match,
+            opened,
+            raw_writes_succeeded,
+            raw_visible_red,
+            repeat_open_succeeded,
+            runner_writes_succeeded,
+            runner_visible_match,
+            blackout_succeeded,
+            disconnect_observed,
+            reconnect_detected,
+            reconnect_open_succeeded,
+            reconnect_writes_succeeded,
+            reconnect_visible_red,
+            reconnect_blackout_succeeded};
+    }
 };
+
+[[nodiscard]] bool wait_for_target_absence(std::chrono::seconds timeout) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    do {
+        if (!find_target_device().has_value()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    } while (std::chrono::steady_clock::now() < deadline);
+    return false;
+}
+
+[[nodiscard]] std::optional<TargetDevice> wait_for_target_presence(
+    std::chrono::seconds timeout) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    do {
+        if (auto device = find_target_device(); device.has_value()) {
+            return device;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    } while (std::chrono::steady_clock::now() < deadline);
+    return std::nullopt;
+}
 
 [[nodiscard]] bool stream_universe(
     showcore::SoundSwitchMicroSession& session,
@@ -558,6 +604,7 @@ struct ActiveTestResult {
         result.raw_visible_red = affirmative(answer);
     }
     session.close();
+    result.session = session.status();
 
     if (result.raw_writes_succeeded && result.raw_visible_red) {
         std::wcout
@@ -590,7 +637,75 @@ struct ActiveTestResult {
                 result.runner_visible_match = affirmative(answer);
             }
         }
+        if (result.repeat_open_succeeded && result.runner_writes_succeeded &&
+            result.runner_visible_match && result.blackout_succeeded) {
+            std::wcout
+                << L"\nStage 3: unplug/replug recovery through the same production session lifecycle.\n"
+                << L"Unplug the SoundSwitch Micro from USB now, then press Enter.\n";
+            std::wstring ignored;
+            std::getline(std::wcin, ignored);
+            result.disconnect_observed = wait_for_target_absence(std::chrono::seconds(10));
+            if (!result.disconnect_observed) {
+                std::wcout
+                    << L"Windows still reports the Micro present. Recovery output was not attempted.\n";
+            }
+            session.close();
+
+            if (result.disconnect_observed) {
+                std::wcout
+                    << L"Disconnect observed. Reconnect the same Micro now.\n"
+                    << L"Waiting up to 60 seconds; no project reload is needed...\n";
+                const auto reconnected = wait_for_target_presence(std::chrono::seconds(60));
+                result.reconnect_detected = reconnected.has_value();
+                if (!result.reconnect_detected) {
+                    result.error = ERROR_DEVICE_NOT_CONNECTED;
+                    std::wcout << L"The Micro did not reappear within 60 seconds.\n";
+                } else {
+                    const auto reopen_deadline = std::chrono::steady_clock::now() +
+                        std::chrono::seconds(10);
+                    do {
+                        result.reconnect_open_succeeded = session.open(config);
+                        if (!result.reconnect_open_succeeded) {
+                            result.error = session.last_error();
+                            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                        }
+                    } while (!result.reconnect_open_succeeded &&
+                             std::chrono::steady_clock::now() < reopen_deadline);
+                    if (!result.reconnect_open_succeeded) {
+                        result.error = session.last_error();
+                        result.session = session.status();
+                        std::wcout << L"Micro recovery open failed (" << result.error << L": "
+                                   << win32_message(result.error) << L").\n";
+                    } else {
+                        std::wcout
+                            << L"Recovery open succeeded. The IR-4 should show red again for "
+                            << L"about three seconds, then black out.\n";
+                        const auto reconnect_pre_blackout = session.send_blackout(8U);
+                        const auto reconnect_stream = reconnect_pre_blackout &&
+                            stream_universe(session, qualification.runner_rendered, 120U);
+                        const auto reconnect_post_blackout = session.send_blackout(8U);
+                        result.reconnect_writes_succeeded = reconnect_pre_blackout &&
+                            reconnect_stream && reconnect_post_blackout;
+                        result.reconnect_blackout_succeeded = reconnect_pre_blackout &&
+                            reconnect_post_blackout;
+                        result.error = session.last_error();
+                        result.session = session.status();
+                        if (!result.reconnect_writes_succeeded) {
+                            std::wcout << L"Recovery-frame write failed (" << result.error << L": "
+                                       << win32_message(result.error) << L").\n";
+                        } else {
+                            std::wcout
+                                << L"After replug, did the IR-4 show red and then black out? [y/N]: ";
+                            std::wstring answer;
+                            std::getline(std::wcin, answer);
+                            result.reconnect_visible_red = affirmative(answer);
+                        }
+                    }
+                }
+            }
+        }
         session.close();
+        result.session = session.status();
     }
     result.writes_succeeded = result.raw_writes_succeeded &&
         result.repeat_open_succeeded && result.runner_writes_succeeded;
@@ -649,6 +764,22 @@ void save_active_report(const ActiveTestResult& result) {
            << (result.writes_succeeded ? L"yes" : L"no") << L"\n"
            << L"Visible raw/Runner match: "
            << (result.visible_match ? L"yes" : L"no") << L"\n"
+           << L"Disconnect observed: "
+           << (result.disconnect_observed ? L"yes" : L"no") << L"\n"
+           << L"Reconnect detected: "
+           << (result.reconnect_detected ? L"yes" : L"no") << L"\n"
+           << L"Reconnect open completed: "
+           << (result.reconnect_open_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Reconnect writes completed: "
+           << (result.reconnect_writes_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Reconnect visible red/blackout: "
+           << (result.reconnect_visible_red ? L"yes" : L"no") << L"\n"
+           << L"Reconnect bounded blackouts completed: "
+           << (result.reconnect_blackout_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Overall physical qualification: "
+           << emberlights::micro_physical_qualification_result_name(
+                  emberlights::evaluate_micro_physical_qualification(result.evidence()))
+           << L"\n"
            << L"Selected framing: " << framing_name(result.framing) << L"\n"
            << L"Lifecycle at test end: "
            << showcore::soundswitch_micro_lifecycle_name(result.session.state) << L"\n"
@@ -831,10 +962,12 @@ int wmain(int argc, wchar_t** argv) {
     }
     const auto active = run_active_test(*interface_path);
     save_active_report(active);
-    if (active.software_frame_match && active.writes_succeeded &&
-        active.visible_match && active.blackout_succeeded) {
+    const auto qualification_result =
+        emberlights::evaluate_micro_physical_qualification(active.evidence());
+    if (qualification_result == emberlights::MicroPhysicalQualificationResult::Passed) {
         std::wcout << L"\nSUCCESS: " << framing_name(active.framing)
-                   << L" produced matching raw and Runner red output after reopen.\n"
+                   << L" produced matching raw and Runner red output, blackout, and "
+                   << L"unplug/replug recovery.\n"
                    << L"The result is saved on your Desktop as:\n"
                    << active_report_path().wstring() << L"\n"
                    << L"Upload that small text file here so the Micro can be marked physically verified.\n";
@@ -847,14 +980,16 @@ int wmain(int argc, wchar_t** argv) {
     } else {
         std::wcerr
             << L"\nThe full native JLS1 raw/Runner qualification did not pass. "
+            << L"Exact failing gate: "
+            << emberlights::micro_physical_qualification_result_name(qualification_result)
+            << L". "
             << L"The result report is on your Desktop;\n"
             << L"upload it here with the receiver state and which stage failed.\n";
     }
     std::wcout << L"Press Enter to close.";
     std::wstring ignored;
     std::getline(std::wcin, ignored);
-    return active.software_frame_match && active.writes_succeeded &&
-            active.visible_match && active.blackout_succeeded
+    return qualification_result == emberlights::MicroPhysicalQualificationResult::Passed
         ? 0
         : 6;
 }

@@ -21,14 +21,19 @@ This test separates the SoundSwitch Micro transport from Autoloop and OS2L behav
 7. Confirm that Stage 1 visibly produced red and then blacked out.
 8. The tool closes and reopens the Micro, repeats initialization/warm-up, and sends the compiled Runner frame for about three seconds, then blackouts.
 9. Confirm that Stage 2 visibly matched the same red and then blacked out.
-10. Retain `SoundSwitch-Micro-report.txt` and `SoundSwitch-Micro-active-test.txt` from the Desktop.
+10. Stage 3 keeps the same production session lifecycle active and asks you to unplug the Micro. Press Enter only after unplugging it; the test must observe the Windows device disappear.
+11. Reconnect the same Micro. The tool waits up to 60 seconds, reopens and reinitializes it without a project reload, sends the compiled red frame again, then blackouts.
+12. Confirm that the recovery stage visibly produced red and then blacked out.
+13. Retain `SoundSwitch-Micro-report.txt` and `SoundSwitch-Micro-active-test.txt` from the Desktop. The active report names the first incomplete gate, such as `disconnect-not-observed`, `reconnect-open-failed`, or `reconnect-observation-failed`; a partial run is never labeled successful.
 
 ## Interpret the result
 
-- Both stages produce identical red and blackout: raw Micro output, a clean repeat open, and the exact compiled fixture/Runner path are proven for this state.
+- All three stages produce identical red and blackout: raw Micro output, a clean repeat open, the exact compiled fixture/Runner path, Windows disconnect detection, and production-session reinitialization after replug are proven for this state.
 - USB writes succeed but no red appears: remain in transport/session/electrical diagnosis. Do not adjust Autoloops or the 71-fixture migration as a substitute.
 - Raw red works but the Runner stage fails: preserve the report; the exact failing boundary is reopen, Runner-frame write, or physical frame response.
 - Open or initialization fails: close competing applications, reconnect the Micro, and retain the exact lifecycle/error report.
+- Disconnect is not observed: make sure the USB side of the Micro itself was unplugged, not only the DMX cable, then rerun the bounded test.
+- Reconnect is detected but recovery open or output fails: preserve the exact gate and Windows error in the active report; do not reload or change the project as a workaround.
 - Automatic blackout fails: stop testing and disconnect output; the build is not hardware-safe.
 
 The six-channel ordering comes from the manufacturer IR-4 manual: Red, Green, Blue, White, Amber, then UV (called Purple in the channel table). Do not mark the Micro supported or physically qualified until the raw response, compiled Runner response, blackout, repeat open, and unplug/replug checks are operator-confirmed.

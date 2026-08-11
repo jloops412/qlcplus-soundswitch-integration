@@ -37,6 +37,8 @@ Imported QXF modes are read-only snapshots with recorded provenance. Duplicate o
 
 The native USB paths implement the published single-universe DMX USB Pro serial framing and an independently implemented SoundSwitch Micro WinUSB adapter. For the Micro, Diagnostics deliberately says **Open**, then separately reports accepted native frame writes, write failures, the last Windows error, and the number of nonzero rendered slots. Open/accepted writes prove host-side progress; only a responding physical receiver proves DMX interoperability. SoundSwitch must remain closed while EmberLights owns the Micro.
 
+Before assigning the Micro to a normal project, run **EmberLights Hardware Test** from the Start menu with the isolated IR-4 bench in `docs/MORNING_HARDWARE_TEST.md`. The guided test now includes raw output, compiled Runner output after a clean reopen, and an unplug/replug recovery stage through the same production session lifecycle. Its Desktop report names the first incomplete gate and only reports `passed` after operator-confirmed red and blackout in all three stages.
+
 ## VirtualDJ and MIDI
 
 - Same-computer VirtualDJ/OS2L defaults to `127.0.0.1:9996`. In VirtualDJ Settings → Options, set `os2l` to **Yes**, not **Auto**, set `os2lDirectIp` to `127.0.0.1:9996`, then restart VirtualDJ. VirtualDJ's Auto mode waits until an OS2L action such as a DMX pad is used; Yes initiates the connection without that pad press.

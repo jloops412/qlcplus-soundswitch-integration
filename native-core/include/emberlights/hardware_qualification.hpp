@@ -22,6 +22,41 @@ enum class Ir4QualificationError : std::uint8_t {
     PacketMismatch
 };
 
+enum class MicroPhysicalQualificationResult : std::uint8_t {
+    Passed,
+    SoftwareFrameMismatch,
+    InitialOpenFailed,
+    RawWriteFailed,
+    RawObservationFailed,
+    RepeatOpenFailed,
+    RunnerWriteFailed,
+    RunnerObservationFailed,
+    BlackoutFailed,
+    DisconnectNotObserved,
+    ReconnectNotDetected,
+    ReconnectOpenFailed,
+    ReconnectWriteFailed,
+    ReconnectObservationFailed,
+    ReconnectBlackoutFailed
+};
+
+struct MicroPhysicalQualificationEvidence {
+    bool software_frame_match{false};
+    bool initial_open_succeeded{false};
+    bool raw_writes_succeeded{false};
+    bool raw_visible_red_and_blackout{false};
+    bool repeat_open_succeeded{false};
+    bool runner_writes_succeeded{false};
+    bool runner_visible_match_and_blackout{false};
+    bool bounded_blackouts_succeeded{false};
+    bool disconnect_observed{false};
+    bool reconnect_detected{false};
+    bool reconnect_open_succeeded{false};
+    bool reconnect_writes_succeeded{false};
+    bool reconnect_visible_red_and_blackout{false};
+    bool reconnect_blackout_succeeded{false};
+};
+
 struct FrameComparison {
     std::size_t differing_slots{0U};
     std::uint16_t first_differing_channel{0U};
@@ -67,5 +102,11 @@ struct Ir4QualificationFrames {
     const showcore::SoundSwitchMicroPacket& actual) noexcept;
 
 [[nodiscard]] Ir4QualificationFrames build_ir4_6ch_red_qualification();
+
+[[nodiscard]] MicroPhysicalQualificationResult evaluate_micro_physical_qualification(
+    const MicroPhysicalQualificationEvidence& evidence) noexcept;
+
+[[nodiscard]] const char* micro_physical_qualification_result_name(
+    MicroPhysicalQualificationResult result) noexcept;
 
 }  // namespace emberlights

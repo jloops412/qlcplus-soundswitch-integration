@@ -145,4 +145,88 @@ Ir4QualificationFrames build_ir4_6ch_red_qualification() {
     return result;
 }
 
+MicroPhysicalQualificationResult evaluate_micro_physical_qualification(
+    const MicroPhysicalQualificationEvidence& evidence) noexcept {
+    if (!evidence.software_frame_match) {
+        return MicroPhysicalQualificationResult::SoftwareFrameMismatch;
+    }
+    if (!evidence.initial_open_succeeded) {
+        return MicroPhysicalQualificationResult::InitialOpenFailed;
+    }
+    if (!evidence.raw_writes_succeeded) {
+        return MicroPhysicalQualificationResult::RawWriteFailed;
+    }
+    if (!evidence.raw_visible_red_and_blackout) {
+        return MicroPhysicalQualificationResult::RawObservationFailed;
+    }
+    if (!evidence.repeat_open_succeeded) {
+        return MicroPhysicalQualificationResult::RepeatOpenFailed;
+    }
+    if (!evidence.runner_writes_succeeded) {
+        return MicroPhysicalQualificationResult::RunnerWriteFailed;
+    }
+    if (!evidence.runner_visible_match_and_blackout) {
+        return MicroPhysicalQualificationResult::RunnerObservationFailed;
+    }
+    if (!evidence.bounded_blackouts_succeeded) {
+        return MicroPhysicalQualificationResult::BlackoutFailed;
+    }
+    if (!evidence.disconnect_observed) {
+        return MicroPhysicalQualificationResult::DisconnectNotObserved;
+    }
+    if (!evidence.reconnect_detected) {
+        return MicroPhysicalQualificationResult::ReconnectNotDetected;
+    }
+    if (!evidence.reconnect_open_succeeded) {
+        return MicroPhysicalQualificationResult::ReconnectOpenFailed;
+    }
+    if (!evidence.reconnect_writes_succeeded) {
+        return MicroPhysicalQualificationResult::ReconnectWriteFailed;
+    }
+    if (!evidence.reconnect_visible_red_and_blackout) {
+        return MicroPhysicalQualificationResult::ReconnectObservationFailed;
+    }
+    if (!evidence.reconnect_blackout_succeeded) {
+        return MicroPhysicalQualificationResult::ReconnectBlackoutFailed;
+    }
+    return MicroPhysicalQualificationResult::Passed;
+}
+
+const char* micro_physical_qualification_result_name(
+    MicroPhysicalQualificationResult result) noexcept {
+    switch (result) {
+    case MicroPhysicalQualificationResult::Passed:
+        return "passed";
+    case MicroPhysicalQualificationResult::SoftwareFrameMismatch:
+        return "software-frame-mismatch";
+    case MicroPhysicalQualificationResult::InitialOpenFailed:
+        return "initial-open-failed";
+    case MicroPhysicalQualificationResult::RawWriteFailed:
+        return "raw-write-failed";
+    case MicroPhysicalQualificationResult::RawObservationFailed:
+        return "raw-observation-failed";
+    case MicroPhysicalQualificationResult::RepeatOpenFailed:
+        return "repeat-open-failed";
+    case MicroPhysicalQualificationResult::RunnerWriteFailed:
+        return "runner-write-failed";
+    case MicroPhysicalQualificationResult::RunnerObservationFailed:
+        return "runner-observation-failed";
+    case MicroPhysicalQualificationResult::BlackoutFailed:
+        return "blackout-failed";
+    case MicroPhysicalQualificationResult::DisconnectNotObserved:
+        return "disconnect-not-observed";
+    case MicroPhysicalQualificationResult::ReconnectNotDetected:
+        return "reconnect-not-detected";
+    case MicroPhysicalQualificationResult::ReconnectOpenFailed:
+        return "reconnect-open-failed";
+    case MicroPhysicalQualificationResult::ReconnectWriteFailed:
+        return "reconnect-write-failed";
+    case MicroPhysicalQualificationResult::ReconnectObservationFailed:
+        return "reconnect-observation-failed";
+    case MicroPhysicalQualificationResult::ReconnectBlackoutFailed:
+        return "reconnect-blackout-failed";
+    }
+    return "unknown";
+}
+
 }  // namespace emberlights

@@ -112,6 +112,34 @@ int main() {
     CHECK(comparison.expected == 0U);
     CHECK(comparison.actual == 1U);
 
+    emberlights::MicroPhysicalQualificationEvidence physical{};
+    CHECK(emberlights::evaluate_micro_physical_qualification(physical) ==
+          emberlights::MicroPhysicalQualificationResult::SoftwareFrameMismatch);
+    physical.software_frame_match = true;
+    CHECK(emberlights::evaluate_micro_physical_qualification(physical) ==
+          emberlights::MicroPhysicalQualificationResult::InitialOpenFailed);
+    physical.initial_open_succeeded = true;
+    physical.raw_writes_succeeded = true;
+    physical.raw_visible_red_and_blackout = true;
+    physical.repeat_open_succeeded = true;
+    physical.runner_writes_succeeded = true;
+    physical.runner_visible_match_and_blackout = true;
+    physical.bounded_blackouts_succeeded = true;
+    CHECK(emberlights::evaluate_micro_physical_qualification(physical) ==
+          emberlights::MicroPhysicalQualificationResult::DisconnectNotObserved);
+    physical.disconnect_observed = true;
+    physical.reconnect_detected = true;
+    physical.reconnect_open_succeeded = true;
+    physical.reconnect_writes_succeeded = true;
+    physical.reconnect_visible_red_and_blackout = true;
+    CHECK(emberlights::evaluate_micro_physical_qualification(physical) ==
+          emberlights::MicroPhysicalQualificationResult::ReconnectBlackoutFailed);
+    physical.reconnect_blackout_succeeded = true;
+    CHECK(emberlights::evaluate_micro_physical_qualification(physical) ==
+          emberlights::MicroPhysicalQualificationResult::Passed);
+    CHECK(std::string_view(emberlights::micro_physical_qualification_result_name(
+              emberlights::MicroPhysicalQualificationResult::Passed)) == "passed");
+
     if (failures == 0) {
         std::cout << "SoundSwitch Micro session tests passed\n";
         return 0;

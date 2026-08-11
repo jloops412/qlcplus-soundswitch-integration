@@ -88,6 +88,9 @@ endif()
 
 add_executable(emberlights_migrate src/soundswitch_migrate.cpp)
 target_link_libraries(emberlights_migrate PRIVATE showcore)
+if(MINGW)
+    target_link_options(emberlights_migrate PRIVATE -municode)
+endif()
 
 add_executable(core_tests tests/test_main.cpp)
 target_link_libraries(core_tests PRIVATE showcore)
@@ -130,6 +133,8 @@ if(WIN32)
         # The executable already embeds our explicit DPI/compatibility manifest
         # through EmberLights.rc; suppress the linker's second default manifest.
         target_link_options(EmberLights PRIVATE /MANIFEST:NO)
+    elseif(MINGW)
+        target_link_options(EmberLights PRIVATE -municode -Wl,--subsystem,windows)
     endif()
     target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
@@ -151,6 +156,8 @@ if(WIN32)
         EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}")
     if(MSVC)
         target_compile_options(soundswitch_micro_probe PRIVATE /W4 /WX /permissive-)
+    elseif(MINGW)
+        target_link_options(soundswitch_micro_probe PRIVATE -municode)
     endif()
 
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
