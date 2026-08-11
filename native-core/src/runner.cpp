@@ -5,6 +5,7 @@
 #include "showcore/look.hpp"
 #include "showcore/os2l_server.hpp"
 #include "showcore/sacn.hpp"
+#include "showcore/soundswitch_micro.hpp"
 #include "showcore/winmm_midi.hpp"
 
 #include <algorithm>
@@ -251,6 +252,11 @@ bool RunnerService::start(
                 : AdapterState::Starting,
             std::memory_order_relaxed);
     }
+    soundswitch_micro_state_.store(
+        connections_.soundswitch_micro_universe == 0U
+            ? AdapterState::Disabled
+            : AdapterState::Starting,
+        std::memory_order_relaxed);
 
     try {
         output_thread_ = std::thread(&RunnerService::run_output, this);
@@ -378,6 +384,8 @@ RunnerStatus RunnerService::status() const noexcept {
         snapshot.dmx_usb_pro[universe] =
             dmx_usb_pro_state_[universe].load(std::memory_order_relaxed);
     }
+    snapshot.soundswitch_micro =
+        soundswitch_micro_state_.load(std::memory_order_relaxed);
     snapshot.sync_state = sync_state_.load(std::memory_order_relaxed);
     snapshot.clock_source = clock_source_.load(std::memory_order_relaxed);
     snapshot.bpm = static_cast<double>(bpm_milli_.load(std::memory_order_relaxed)) / 1000.0;
@@ -1435,6 +1443,7 @@ void RunnerService::run_output() noexcept {
     showcore::ArtNetSender artnet;
     std::array<showcore::SacnSender, showcore::kV1UniverseCount> sacn;
     std::array<showcore::DmxUsbProSender, showcore::kV1UniverseCount> dmx_usb_pro;
+    showcore::SoundSwitchMicroSender soundswitch_micro;
     const auto cid = showcore::make_sacn_cid(project_id_);
 
     auto open_missing_outputs = [&]() noexcept {
@@ -1483,6 +1492,22 @@ void RunnerService::run_output() noexcept {
             const bool opened = dmx_usb_pro[universe].is_open();
             usb_ready = usb_ready && opened;
             dmx_usb_pro_state_[universe].store(
+                opened ? AdapterState::Ready : AdapterState::Fault,
+                std::memory_order_relaxed);
+        }
+        if (connections_.soundswitch_micro_universe == 0U) {
+            soundswitch_micro_state_.store(
+                AdapterState::Disabled, std::memory_order_relaxed);
+        } else {
+            if (!soundswitch_micro.is_open()) {
+                soundswitch_micro_state_.store(
+                    AdapterState::Starting, std::memory_order_relaxed);
+                static_cast<void>(soundswitch_micro.open(
+                    connections_.soundswitch_micro_framing));
+            }
+            const bool opened = soundswitch_micro.is_open();
+            usb_ready = usb_ready && opened;
+            soundswitch_micro_state_.store(
                 opened ? AdapterState::Ready : AdapterState::Fault,
                 std::memory_order_relaxed);
         }
@@ -1545,6 +1570,17 @@ void RunnerService::run_output() noexcept {
                     AdapterState::Fault, std::memory_order_relaxed);
             }
         }
+        if (connections_.soundswitch_micro_universe != 0U &&
+            soundswitch_micro.is_open()) {
+            const auto universe = static_cast<std::size_t>(
+                connections_.soundswitch_micro_universe - 1U);
+            if (!soundswitch_micro.send(frame.frames.universes[universe])) {
+                usb_success = false;
+                soundswitch_micro.close();
+                soundswitch_micro_state_.store(
+                    AdapterState::Fault, std::memory_order_relaxed);
+            }
+        }
         const bool success = artnet_success && sacn_success && usb_success;
         if (!success) {
             output_send_failures_.fetch_add(1, std::memory_order_relaxed);
@@ -1592,6 +1628,12 @@ void RunnerService::run_output() noexcept {
                     zero_frames.universes[universe]));
             }
         }
+        if (connections_.soundswitch_micro_universe != 0U &&
+            soundswitch_micro.is_open()) {
+            const auto universe = static_cast<std::size_t>(
+                connections_.soundswitch_micro_universe - 1U);
+            static_cast<void>(soundswitch_micro.send(zero_frames.universes[universe]));
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
     }
 
@@ -1602,6 +1644,7 @@ void RunnerService::run_output() noexcept {
     for (auto& sender : dmx_usb_pro) {
         sender.close();
     }
+    soundswitch_micro.close();
 }
 
 }  // namespace emberlights

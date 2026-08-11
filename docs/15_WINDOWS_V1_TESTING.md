@@ -29,11 +29,12 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
 5. Under Connections, choose one or more output paths:
    - enable Art-Net or sACN and enter the receiver address; sACN accepts `multicast` as its destination;
    - for an ENTTEC DMX USB Pro or compatible interface that Windows exposes as a COM port, choose its port for universe 1 or universe 2. Choose **Refresh MIDI + USB-DMX** after connecting a device. One single-universe device cannot be assigned to both universes, and projects using this adapter are capped at 40 Hz.
+   - for the SoundSwitch Micro (`VID_15E4/PID_0053`), close SoundSwitch, assign **SoundSwitch Micro (WinUSB)** to universe 1 or 2, and begin with framing **A**. Save, then stop/start the show. Diagnostics must show **Micro: Ready**. If Windows accepts the writes but no physical DMX changes, stop the show and retry framing B, then C; the device has no return endpoint with which EmberLights can identify framing automatically. Once physical output confirms one framing, keep that project setting.
 6. Start the show from Live. Confirm clock, adapter, frame, error, and jitter state under Diagnostics before triggering content.
 
 Imported QXF modes are read-only snapshots with recorded provenance. Duplicate one to make an editable local profile. Verify every imported channel against the fixture's official DMX chart—especially shared shutter/strobe functions, hazardous output, custom lanes, and multi-head fixtures—before enabling physical output. See `docs/16_QLC_FIXTURE_IMPORT.md` for the exact conversion and quarantine rules.
 
-The native USB path currently implements the published single-universe DMX USB Pro serial framing. Physical-device qualification is pending. It does not yet claim the legacy Pro Mk2's dual-port API, and devices that do not appear as Windows COM ports still require Art-Net, sACN, or the QLC+ bridge.
+The native USB paths implement the published single-universe DMX USB Pro serial framing and an independently implemented SoundSwitch Micro WinUSB adapter. The Micro identity and endpoint are verified, while its selected full-frame payload still requires the first physical output test. **Ready** proves that EmberLights exclusively opened the correct device and Windows accepted writes; only a responding physical receiver proves the framing. SoundSwitch must remain closed while EmberLights owns the Micro.
 
 ## VirtualDJ and MIDI
 

@@ -7,7 +7,7 @@ Status: user-reported names captured; exact USB identities and modes pending.
 | Pioneer DDJ-REV7 | Primary VirtualDJ DJ controller | Confirmed | VirtualDJ version, firmware, Windows device details, transport captures. |
 | SoundSwitch Control One | Primary lighting MIDI surface; two proprietary DMX outputs | Confirmed | MIDI port names, VID/PID, complete input map, safe output-feedback map. |
 | ADJ MyDMX Buddy | Possible USB-DMX adapter | User believes owned; exact model unverified | Label/photo, VID/PID, driver, QLC+ compatibility, channel/license limits. |
-| SoundSwitch simple USB-DMX interface | Possible native/bridge output | User-reported; exact model unverified | Label/photo, VID/PID, driver and published/proprietary protocol boundary. |
+| SoundSwitch DMX Micro Interface | Native one-universe WinUSB output candidate | `VID_15E4/PID_0053`, interface GUID and bulk OUT `0x01` verified on Joshua's PC | Physical DMX framing A/B/C result, disconnect/reconnect, sustained frame output. |
 
 ## Reported lighting fixtures
 

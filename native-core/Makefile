@@ -11,7 +11,7 @@ endif
 LDFLAGS += $(THREAD_FLAGS)
 
 ifeq ($(OS),Windows_NT)
-LDFLAGS += -lws2_32 -lwinmm
+LDFLAGS += -lws2_32 -lwinmm -lsetupapi -lwinusb -lole32 -luuid
 endif
 
 BUILD := build
@@ -20,6 +20,7 @@ SOURCES := \
 	src/fixture.cpp \
 	src/fixture_library.cpp \
 	src/dmx_usb_pro.cpp \
+	src/soundswitch_micro.cpp \
 	src/artnet.cpp \
 	src/sacn.cpp \
 	src/os2l.cpp \

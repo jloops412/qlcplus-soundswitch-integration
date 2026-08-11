@@ -18,6 +18,7 @@
 #include "showcore/os2l.hpp"
 #include "showcore/os2l_server.hpp"
 #include "showcore/sacn.hpp"
+#include "showcore/soundswitch_micro.hpp"
 #include "showcore/spsc_queue.hpp"
 #include "showcore/sync_manager.hpp"
 #include "showcore/types.hpp"
@@ -766,6 +767,41 @@ void test_dmx_usb_pro() {
     CHECK(!showcore::parse_windows_com_port("COM257", port));
     CHECK(!showcore::parse_windows_com_port("COM3extra", port));
     CHECK(!showcore::parse_windows_com_port("\\\\.\\COM3", port));
+}
+
+void test_soundswitch_micro_protocol_candidates() {
+    showcore::DmxUniverse universe{};
+    universe[0] = 0x11U;
+    universe[1] = 0x22U;
+    universe[511] = 0xFEU;
+
+    const auto raw = showcore::build_soundswitch_micro_packet(
+        universe, showcore::SoundSwitchMicroFraming::RawDmxWithStartCode);
+    CHECK(raw.length == 513U);
+    CHECK(!raw.terminate_with_short_packet);
+    CHECK(raw.bytes[0] == 0U);
+    CHECK(raw.bytes[1] == 0x11U);
+    CHECK(raw.bytes[2] == 0x22U);
+    CHECK(raw.bytes[512] == 0xFEU);
+
+    const auto slots = showcore::build_soundswitch_micro_packet(
+        universe, showcore::SoundSwitchMicroFraming::RawSlotsOnly);
+    CHECK(slots.length == 512U);
+    CHECK(slots.terminate_with_short_packet);
+    CHECK(slots.bytes[0] == 0x11U);
+    CHECK(slots.bytes[1] == 0x22U);
+    CHECK(slots.bytes[511] == 0xFEU);
+
+    const auto enttec = showcore::build_soundswitch_micro_packet(
+        universe, showcore::SoundSwitchMicroFraming::EnttecUsbPro);
+    CHECK(enttec.length == showcore::kDmxUsbProPacketSize);
+    CHECK(!enttec.terminate_with_short_packet);
+    CHECK(enttec.bytes[0] == showcore::kDmxUsbProStartByte);
+    CHECK(enttec.bytes[1] == showcore::kDmxUsbProSendDmxLabel);
+    CHECK(enttec.bytes[5] == 0x11U);
+    CHECK(enttec.bytes[6] == 0x22U);
+    CHECK(enttec.bytes[516] == 0xFEU);
+    CHECK(enttec.bytes[517] == showcore::kDmxUsbProEndByte);
 }
 
 void test_sacn() {
@@ -1698,6 +1734,9 @@ void test_audio_asset_identity_and_relinking() {
 void test_project_validation_io_and_compilation() {
     auto project = make_test_project();
     project.connections.dmx_usb_pro_ports = {"COM3", "COM4"};
+    project.connections.soundswitch_micro_universe = 2U;
+    project.connections.soundswitch_micro_framing =
+        showcore::SoundSwitchMicroFraming::RawSlotsOnly;
     const auto validation = emberlights::validate_project(project);
     CHECK(validation.ok());
 
@@ -1776,6 +1815,9 @@ void test_project_validation_io_and_compilation() {
     CHECK(parsed.fixtures.size() == 1U);
     CHECK(parsed.connections.dmx_usb_pro_ports[0] == "COM3");
     CHECK(parsed.connections.dmx_usb_pro_ports[1] == "COM4");
+    CHECK(parsed.connections.soundswitch_micro_universe == 2U);
+    CHECK(parsed.connections.soundswitch_micro_framing ==
+          showcore::SoundSwitchMicroFraming::RawSlotsOnly);
     CHECK(parsed.fixtures[0].roles.size() == 1U);
     CHECK(parsed.looks.size() == 2U);
     CHECK(parsed.autoloops.size() == 1U);
@@ -2335,6 +2377,7 @@ int main() {
     test_16bit_render();
     test_artnet();
     test_dmx_usb_pro();
+    test_soundswitch_micro_protocol_candidates();
     test_sacn();
     test_os2l();
     test_os2l_stream();
