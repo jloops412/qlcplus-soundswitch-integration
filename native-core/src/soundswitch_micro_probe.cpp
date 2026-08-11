@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <cfgmgr32.h>
 #include <knownfolders.h>
 #include <setupapi.h>
 #include <shellapi.h>
