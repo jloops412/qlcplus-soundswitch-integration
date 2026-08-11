@@ -6,6 +6,8 @@ endif()
 
 project(dj_lighting_showcore LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(EMBERLIGHTS_VERSION "0.1.0-dev" CACHE STRING "EmberLights product version")
 set(EMBERLIGHTS_COMMIT "unknown" CACHE STRING "EmberLights source commit")
 
@@ -174,6 +176,39 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
+else()
+    # Linux currently exposes the deterministic Runner and authoring/diagnostic
+    # command-line tools. Keep the package layout distribution-native so the
+    # DEB can be installed, smoke-tested, upgraded, and removed normally.
+    install(TARGETS
+        runner_lab
+        midi_capture
+        emberlights_qualify
+        emberlights_migrate
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/19_LINUX_INSTALLATION.md"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/emberlights")
+
+    set(CPACK_PACKAGE_NAME "emberlights")
+    set(CPACK_PACKAGE_VENDOR "EmberLights")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "Deterministic SoundSwitch-first DJ lighting Runner and tools")
+    set(CPACK_PACKAGE_VERSION "${EMBERLIGHTS_VERSION}")
+    set(CPACK_PACKAGE_CONTACT "EmberLights")
+    set(CPACK_PACKAGE_FILE_NAME
+        "EmberLights-${EMBERLIGHTS_VERSION}-Linux-${CMAKE_SYSTEM_PROCESSOR}")
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+    set(CPACK_GENERATOR "DEB;TGZ")
+    set(CPACK_DEBIAN_PACKAGE_NAME "emberlights")
+    set(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.deb")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    include(CPack)
 endif()
 
 enable_testing()
