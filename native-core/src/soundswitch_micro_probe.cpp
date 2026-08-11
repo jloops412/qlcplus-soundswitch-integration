@@ -584,7 +584,6 @@ struct ActiveTestResult {
         showcore::SoundSwitchMicroFraming::NativeJls1};
     for (const auto framing : framings) {
         result.framing = framing;
-        static_cast<void>(::WinUsb_ResetPipe(usb.get(), kBulkOutPipe));
         const auto off_packet = showcore::build_soundswitch_micro_packet(off, framing);
         const auto test_packet = showcore::build_soundswitch_micro_packet(test, framing);
         std::wcout << L"\nTesting " << framing_name(framing) << L".\n"
@@ -616,6 +615,8 @@ struct ActiveTestResult {
     }
     return result;
 }
+
+[[nodiscard]] std::filesystem::path report_path();
 
 [[nodiscard]] std::filesystem::path active_report_path() {
     auto path = report_path();
@@ -816,13 +817,13 @@ int wmain(int argc, wchar_t** argv) {
                    << L" produced visible DMX output.\n"
                    << L"The result is saved on your Desktop as:\n"
                    << active_report_path().wstring() << L"\n"
-                   << L"Upload that small text file here so this exact framing can be enabled in EmberLights.\n";
+                   << L"Upload that small text file here so the Micro can be marked physically verified.\n";
     } else if (!active.opened) {
         std::wcerr << L"\nThe Micro could not be opened (" << active.error << L": "
                    << win32_message(active.error) << L"). Close SoundSwitch/EmberLights and retry.\n";
     } else {
-        std::wcerr << L"\nNo candidate produced visible output. The result report is on your Desktop;\n"
-                   << L"upload it here and the next probe will target device initialization/framing.\n";
+        std::wcerr << L"\nThe native JLS1 test produced no visible output. The result report is on your Desktop;\n"
+                   << L"upload it here with the fixture model, DMX address, and receiver state.\n";
     }
     std::wcout << L"Press Enter to close.";
     std::wstring ignored;

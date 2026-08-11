@@ -132,6 +132,7 @@ if(WIN32)
     add_executable(soundswitch_micro_probe
         src/soundswitch_micro_probe.cpp)
     target_link_libraries(soundswitch_micro_probe PRIVATE
+        showcore
         setupapi
         winusb
         shell32
