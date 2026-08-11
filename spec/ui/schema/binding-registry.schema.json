@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://emberlights.dev/schema/ui/binding-registry-v0.json",
+  "title": "EmberLights Binding Registry v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "registryVersion", "status", "bindings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "registryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["planningSeed", "implementationDraft", "accepted", "deprecated"]
+    },
+    "profileId": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 3, "maxLength": 160 }
+      ]
+    },
+    "generatedAt": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "sourceCommit": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      ]
+    },
+    "bindings": {
+      "type": "array",
+      "maxItems": 8192,
+      "items": {
+        "$ref": "binding-definition.schema.json"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 8192
+    }
+  }
+}
