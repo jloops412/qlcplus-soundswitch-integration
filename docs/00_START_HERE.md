@@ -18,13 +18,24 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Preview.314 proved active Runner, OS2L parsing, frame generation, output routing, and host-side SoundSwitch Micro writes, but it did not produce physical fixture response. It also exposed a Connections layout/accessibility defect and VirtualDJ's need for a first OS2L command in the current direct-IP workflow.
 - `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the binding immediate implementation program while its gates remain open. It requires raw Micro proof independent of projects, reusable adapter/session hardening, frame and fixture truth, visible Connections, deterministic OS2L startup, and Static Look Toggle/Hold before broad UI/skin implementation proceeds.
 - `13_SOUNDSWITCH_PARITY_LEDGER.md` is the binding completeness checklist. Milestone exclusions sequence delivery; they do not remove features from the finished product.
-- `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is the binding UI direction: one shared command/state model must power the default UI, bundled SoundSwitch Reference skin, future user skins, keyboard/MIDI/controller mappings, and external control surfaces. Do not hard-code new UI behavior around one layout or controller.
+
+### Modular UI planning package
+
+- `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is the binding UI direction: one shared command/state model powers the default UI, bundled SoundSwitch Reference skin, future user skins, keyboard/MIDI/controller mappings, and external control surfaces.
 - `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` defines the required screenshot/evidence corpus, screen-state matrix, measurement method, current Win32 UI audit, and preserve/improve/reject analysis.
-- `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` defines the build-ready Studio/Live reference layouts, responsive behavior, component/state requirements, parity journeys, and golden-screen gates.
-- `21_UI_IMPLEMENTATION_PROGRAM.md` defines UI stage gates, dependencies, agent ownership, merge order, risk controls, and token/test-efficiency rules. Its broad implementation stages remain subordinate to the open core hardware recovery gates.
-- `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md` records current SoundSwitch interface findings and approved modernization targets.
+- `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` defines the build-ready SoundSwitch-familiar Studio/Live layouts, responsive behavior, component/state requirements, parity journeys, and golden-screen gates.
+- `21_UI_IMPLEMENTATION_PROGRAM.md` defines UI stage gates, dependencies, agent ownership, merge order, risks, and token/test-efficiency rules. Its broad implementation stages remain subordinate to the open core hardware recovery gates.
+- `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md` records current SoundSwitch interface findings, evidence confidence, capture gaps, and approved modernization targets.
+- `23_UI_TOOLKIT_EVALUATION_AND_SPIKE_PLAN.md` keeps the toolkit evidence-gated: Slint first spike, WinUI control comparison, Direct2D Safe baseline, Qt only if triggered by evidence.
+- `24_DEFAULT_UI_INFORMATION_ARCHITECTURE_AND_JOURNEYS.md` defines the modern EmberLights Default startup, migration, setup, authoring, rehearsal, gig, recovery, responsive, and accessibility experience.
+- `25_EMBERLIGHTS_UI_DESIGN_SYSTEM_AND_BRAND_DIRECTION.md` defines EmberLights-owned visual language, semantic tokens, component states, content-color separation, safety hierarchy, icon/asset governance, and motion.
+- `26_UI_QUALIFICATION_MATRIX.md` defines command/state/binding/package/component, golden-screen, DPI, accessibility, performance, persistence, fault, hardware, and DMX-continuity evidence.
 - `../spec/ui/command-state-skin-contract-v0.md` defines the typed command registry, shared state registry, bindings, skin package/runtime, validation, safe fallback, and strangler migration from the existing hard-coded Win32 shell.
 - `../spec/ui/current-win32-command-state-inventory-v0.md` maps the present Win32 controls and callbacks into proposed product-semantic commands, states, priority classes, and persistence scopes.
+- `../spec/ui/emberskin-package-and-safety-limits-v0.md` defines bounded package/archive/assets/view graph/expressions, activation transaction, Safe fallback, caching, abuse tests, and failure behavior.
+- `../spec/ui/native-component-contracts-v0.md` defines toolkit-neutral interfaces for the browser, venue/patch, track hierarchy, timeline, waveform, Autoloops, Static Looks, Inspector, mapping, connections, diagnostics, migration, validation, history, active layers, performance controls, and preview host.
+- `../spec/ui/schema/` contains machine-readable schemas for command, state, binding, and skin-manifest definitions.
+- GitHub issue #29 is the UI epic; issues #30–#37 are the bounded evidence, facade, toolkit, runtime, skin, connection, and qualification work packages.
 
 ## Binding product statement
 
@@ -46,9 +57,11 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Autoloops use a scalable 32-slot bank library; four banks are a controller/UI window, not an engine limit.
 - No AI in Runner's live output path.
 - UI behavior is exposed through stable command/state contracts; skins and hardware mappings are control surfaces over those contracts, not alternate engines.
-- EmberLights ships a modern default skin and a SoundSwitch Reference skin for migration/parity testing; the reference skin uses original EmberLights assets rather than a pixel-for-pixel proprietary copy.
+- EmberLights ships a modern Default skin and a SoundSwitch Reference skin for migration/parity testing; the Reference uses original EmberLights assets rather than a pixel-for-pixel proprietary copy.
 - Native SoundSwitch screenshots are research evidence and parity baselines, not source-code/CSS recovery; exact visual tokens remain evidence-tagged until controlled captures exist.
 - No arbitrary skin code, embedded browser requirement, or user script VM may become mandatory in Runner's live path.
+- A malformed or failing skin cannot stop Runner/DMX; invalid first load reaches the trusted Safe surface and invalid reload preserves the current skin.
+- The production UI toolkit remains unaccepted until the bounded spike measures product-shaped Default, Reference, Studio, Safe, accessibility, deployment, and performance workloads.
 - The product name is EmberLights, and full-V1 Windows testing builds are distributed through an installer while qualification continues.
 - Host-accepted USB writes are a software boundary, not proof of physical DMX output.
 - Conservative migration projects must disclose unverified physical patch/profile data even when internal schema validation passes.
@@ -61,6 +74,7 @@ This is not a generic DMX console and not a Wolfmix clone.
 - Exact first-use balance between manual song scripting and AutoScripting.
 - Any claim that proprietary Control One DMX or OLED functions are supported.
 - Exact SoundSwitch Reference visual dimensions before the controlled native screenshot corpus is measured.
+- Freeform end-user skin design or a public marketplace before the command/state facade, Safe runtime, two bundled skins, and qualification suite are stable.
 
 ## Core required reading order
 
@@ -77,17 +91,47 @@ All agents read only the smallest binding set needed for their work:
 
 ## Additional required reading for UI/UX or skin work
 
-Read in this order after the core set:
+Read the smallest route matching the work package after the core set.
+
+### All UI-platform work
 
 1. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md`.
 2. `21_UI_IMPLEMENTATION_PROGRAM.md`.
-3. `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md` when collecting/analyzing evidence or building the Reference skin.
-4. `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md`.
-5. `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md` when building or qualifying the Reference skin.
-6. `../spec/ui/command-state-skin-contract-v0.md`.
-7. `../spec/ui/current-win32-command-state-inventory-v0.md` when changing the Win32 shell, command facade, state facade, mappings, or persistence UX.
+3. `../spec/ui/command-state-skin-contract-v0.md`.
 
-Do not make non-UI agents consume the entire UI research corpus unless their bounded work touches those contracts. Do not let UI stage work displace the raw hardware and fixture-truth gates.
+### Current Win32 / command / state / mapping / persistence work
+
+4. `../spec/ui/current-win32-command-state-inventory-v0.md`.
+5. `../spec/ui/schema/command-definition.schema.json`.
+6. `../spec/ui/schema/state-definition.schema.json`.
+7. `../spec/ui/schema/binding-definition.schema.json`.
+
+### Toolkit / runtime / package / components
+
+4. `23_UI_TOOLKIT_EVALUATION_AND_SPIKE_PLAN.md`.
+5. `../spec/ui/emberskin-package-and-safety-limits-v0.md`.
+6. `../spec/ui/native-component-contracts-v0.md`.
+7. `../spec/ui/schema/skin-manifest.schema.json`.
+
+### EmberLights Default
+
+4. `24_DEFAULT_UI_INFORMATION_ARCHITECTURE_AND_JOURNEYS.md`.
+5. `25_EMBERLIGHTS_UI_DESIGN_SYSTEM_AND_BRAND_DIRECTION.md`.
+
+### SoundSwitch Reference / evidence
+
+4. `19_SOUNDSWITCH_UI_FORENSICS_AND_CAPTURE_PLAN.md`.
+5. `22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md`.
+6. `20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md`.
+7. `25_EMBERLIGHTS_UI_DESIGN_SYSTEM_AND_BRAND_DIRECTION.md`.
+8. `research/ui/soundswitch/README.md` and the relevant template.
+
+### UI qualification
+
+4. `26_UI_QUALIFICATION_MATRIX.md`.
+5. The exact platform/skin/component/package specs under test.
+
+Do not make non-UI agents consume the UI research corpus unless their bounded work touches those contracts. Do not let UI stage work displace the raw hardware and fixture-truth gates.
 
 ## Definition of progress
 
@@ -113,9 +157,13 @@ During the active core recovery program, progress specifically requires:
 For UI work, progress additionally requires:
 
 - command/state contracts rather than layout-specific callbacks;
-- both bundled skins exercising the same domain behavior;
+- a measured toolkit decision and toolkit-neutral public schema;
+- both bundled skins exercising identical domain behavior;
+- the Default journeys and Reference parity journeys passing;
 - screenshot/golden-state evidence at target resolutions and DPI;
+- accessible keyboard/non-color/focus behavior;
 - safe fallback and uninterrupted DMX during skin failure/switching;
-- measured usability and footprint, not mockups alone.
+- correct app/project/live persistence scope;
+- measured usability, startup, memory, CPU, repaint, and jitter—not mockups alone.
 
 Lines of code and mock screens are not milestones by themselves.
