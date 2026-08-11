@@ -2,17 +2,18 @@
 
 Read `docs/00_START_HERE.md` before changing code or scope.
 
-**Immediate mandatory handoff:** read and execute `docs/21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` before beginning additional UI/skin or feature work. For fixture-library, fixture-profile, migration-patch, or one-fixture bench work, also read and execute `docs/23_FIXTURE_LIBRARY_INGESTION_AND_PROFILE_QUALIFICATION_PLAN.md`. Until the core-ready gates pass, the active implementation priority is raw SoundSwitch Micro proof, reusable adapter/session hardening, frame/fixture truth, Connections, OS2L startup, and Static Look Toggle/Hold semantics.
+**Immediate mandatory handoff:** read and execute `docs/21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` before beginning additional UI/skin or feature work. For fixture-library, fixture-profile, migration-patch, or one-fixture bench work, also read and execute `docs/23_FIXTURE_LIBRARY_INGESTION_AND_PROFILE_QUALIFICATION_PLAN.md`. For Joshua's owned IR-4, BO-TUBE192 360 Tube, or CHAUVET DJ Wash FX Hex qualification, also read `docs/24_OWNED_FIXTURE_SOURCE_INVENTORY_AND_FIRST_BENCH_PLAN.md`. Until the core-ready gates pass, the active implementation priority is raw SoundSwitch Micro proof, reusable adapter/session hardening, frame/fixture truth, Connections, OS2L startup, and Static Look Toggle/Hold semantics.
 
 ## Authority order
 
 1. Direct, current instructions from Joshua.
 2. `docs/21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` while its recovery gates remain open.
 3. `docs/23_FIXTURE_LIBRARY_INGESTION_AND_PROFILE_QUALIFICATION_PLAN.md` for fixture source, profile, patch, provenance, and hardware-qualification work.
-4. `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md` entries marked **Accepted**.
-5. `soundswitch-replacement-product-ledger.md`.
-6. The remaining handoff documents.
-7. Implementation details and provisional recommendations.
+4. `docs/24_OWNED_FIXTURE_SOURCE_INVENTORY_AND_FIRST_BENCH_PLAN.md` for the first owned-fixture bench slice.
+5. `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md` entries marked **Accepted**.
+6. `soundswitch-replacement-product-ledger.md`.
+7. The remaining handoff documents.
+8. Implementation details and provisional recommendations.
 
 When sources conflict, later accepted decisions supersede earlier research. Important examples:
 
@@ -25,6 +26,7 @@ When sources conflict, later accepted decisions supersede earlier research. Impo
 - A fixture-library match or successful import is not hardware qualification.
 - Do not scrape or redistribute protected SoundSwitch Production personality content.
 - Fixture-library updates must never silently mutate a project snapshot.
+- Do not use the OFL `Chauvet DJ WashFX` near-match as a Wash FX Hex profile.
 
 ## Required engineering behavior
 
