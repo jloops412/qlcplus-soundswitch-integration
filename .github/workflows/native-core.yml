@@ -189,10 +189,100 @@ jobs:
           retention-days: 30
           path: release-artifacts/*
 
+  package-linux:
+    name: Linux installer
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select package version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" && "${{ github.ref_name }}" =~ ^v(.+)$ ]]; then
+            version="${BASH_REMATCH[1]}"
+          else
+            version="0.1.0-preview.${{ github.run_number }}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: cmake -S native-core -B native-core/build-package-linux -DCMAKE_BUILD_TYPE=Release "-DEMBERLIGHTS_VERSION=${{ steps.version.outputs.value }}" "-DEMBERLIGHTS_COMMIT=${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
+
+      - name: Build
+        run: cmake --build native-core/build-package-linux --parallel
+
+      - name: Test packaged build
+        run: ctest --test-dir native-core/build-package-linux --output-on-failure
+
+      - name: Build Linux packages
+        run: |
+          mkdir -p package-linux
+          cpack --config native-core/build-package-linux/CPackConfig.cmake -G DEB -B "$PWD/package-linux"
+          cpack --config native-core/build-package-linux/CPackConfig.cmake -G TGZ -B "$PWD/package-linux"
+
+      - name: Install and run packaged tools
+        shell: bash
+        run: |
+          deb="$(find package-linux -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$deb"
+          sudo dpkg --install "$deb"
+          runner_lab --os2l-port 0 --duration 1 --manual-bpm 120
+          emberlights_qualify --duration 2 --network-loopback --report qualification-installed.json
+          emberlights_migrate --help
+          midi_capture --list
+          sudo dpkg --remove emberlights
+          ! command -v runner_lab
+
+      - name: Generate and verify release evidence
+        shell: bash
+        run: |
+          release_dir="release-artifacts-linux"
+          mkdir -p "$release_dir"
+          mapfile -t packages < <(find package-linux -maxdepth 1 -type f \( -name '*.deb' -o -name '*.tar.gz' \) -print | sort)
+          test "${#packages[@]}" -eq 2
+          cp "${packages[@]}" "$release_dir/"
+          checksum_file="$release_dir/EmberLights-${{ steps.version.outputs.value }}-Linux-SHA256SUMS.txt"
+          manifest="$release_dir/EmberLights-${{ steps.version.outputs.value }}-Linux-release-manifest.json"
+          (
+            cd "$release_dir"
+            sha256sum -- *.deb *.tar.gz > "$(basename "$checksum_file")"
+            sha256sum --check "$(basename "$checksum_file")"
+          )
+          deb_name="$(basename "${packages[0]}")"
+          archive_name="$(basename "${packages[1]}")"
+          if [[ "$deb_name" != *.deb ]]; then
+            tmp="$deb_name"; deb_name="$archive_name"; archive_name="$tmp"
+          fi
+          deb_hash="$(sha256sum "$release_dir/$deb_name" | cut -d' ' -f1)"
+          archive_hash="$(sha256sum "$release_dir/$archive_name" | cut -d' ' -f1)"
+          jq -n \
+            --arg version "${{ steps.version.outputs.value }}" \
+            --arg commit "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}" \
+            --arg buildCommit "${{ github.sha }}" \
+            --arg workflowRun "${{ github.run_id }}" \
+            --arg deb "$deb_name" \
+            --arg debHash "$deb_hash" \
+            --arg archive "$archive_name" \
+            --arg archiveHash "$archive_hash" \
+            '{format:"emberlights-release-manifest",formatVersion:1,product:"EmberLights",platform:"linux",version:$version,commit:$commit,buildCommit:$buildCommit,workflowRun:$workflowRun,projectFormatVersion:1,showPackageSchemaVersion:4,qualificationSmoke:"passed",artifacts:[{file:$deb,sha256:$debHash},{file:$archive,sha256:$archiveHash}]}' \
+            > "$manifest"
+          jq -e '.qualificationSmoke == "passed" and (.artifacts | length) == 2' "$manifest" >/dev/null
+
+      - name: Upload Linux installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmberLights-${{ steps.version.outputs.value }}-Linux
+          if-no-files-found: error
+          retention-days: 30
+          path: release-artifacts-linux/*
+
   release:
     name: Publish tagged release
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
-    needs: package-windows
+    needs: [package-windows, package-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -201,7 +291,7 @@ jobs:
       - name: Download packaged application
         uses: actions/download-artifact@v4
         with:
-          pattern: EmberLights-*-Windows
+          pattern: EmberLights-*
           merge-multiple: true
 
       - name: Publish release
@@ -212,5 +302,7 @@ jobs:
           files: |
             EmberLights-*-Setup.exe
             EmberLights-*-Portable.zip
+            EmberLights-*-Linux-*.deb
+            EmberLights-*-Linux-*.tar.gz
             EmberLights-*-SHA256SUMS.txt
             EmberLights-*-release-manifest.json
