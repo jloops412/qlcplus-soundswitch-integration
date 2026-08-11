@@ -16,7 +16,7 @@
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
-#include <shlobj_core.h>
+#include <shlobj.h>
 #include <shobjidl.h>
 
 #include <algorithm>
