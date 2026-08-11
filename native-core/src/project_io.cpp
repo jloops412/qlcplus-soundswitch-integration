@@ -309,7 +309,7 @@ template <typename Collection>
             project.id = f[1];
             project.name = f[2];
         } else if (f[0] == "CONNECTIONS") {
-            if ((f.size() != 17U && f.size() != 19U) ||
+            if ((f.size() != 17U && f.size() != 19U && f.size() != 20U) ||
                 !parse_bool(f[1], project.connections.os2l_enabled) ||
                 !parse_number(f[3], project.connections.os2l_port) ||
                 !parse_bool(f[4], project.connections.artnet_enabled) ||
@@ -335,7 +335,7 @@ template <typename Collection>
             }
             // Field 16 identifies the adapter contract and remains optional so
             // earlier project files continue to load without a format bump.
-            if (f.size() == 19U) {
+            if (f.size() >= 19U) {
                 std::uint8_t framing = 0U;
                 if (!parse_number(f[17], project.connections.soundswitch_micro_universe) ||
                     !parse_number(f[18], framing) ||
@@ -350,6 +350,15 @@ template <typename Collection>
                 // contract now that the vendor frame has been established.
                 project.connections.soundswitch_micro_framing =
                     showcore::SoundSwitchMicroFraming::NativeJls1;
+            }
+            if (f.size() == 20U &&
+                !parse_bool(
+                    f[19],
+                    project.connections.soundswitch_control_one_experimental)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid experimental Control One CONNECTIONS value.");
             }
         } else if (f[0] == "SAFETY") {
             if (f.size() != 8U ||
@@ -724,7 +733,8 @@ std::string serialize_project(const ProjectDocument& project) {
         "dmxUsbProSerialV1+soundSwitchMicroJls1V1",
         number_text(project.connections.soundswitch_micro_universe),
         number_text(showcore::soundswitch_micro_framing_value(
-            project.connections.soundswitch_micro_framing))});
+            project.connections.soundswitch_micro_framing)),
+        project.connections.soundswitch_control_one_experimental ? "1" : "0"});
     append_record(payload, {
         "SAFETY",
         project.safety.fog_requires_arm ? "1" : "0",
