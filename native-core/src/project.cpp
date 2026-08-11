@@ -392,6 +392,23 @@ ProjectValidation validate_project(const ProjectDocument& project) {
             project.id,
             "SoundSwitch Micro output is limited to a 40 Hz project frame rate.");
     }
+    if (project.connections.soundswitch_control_one_experimental &&
+        project.connections.frame_rate > 40U) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "connections.soundSwitchControlOneFrameRate",
+            project.id,
+            "Experimental SoundSwitch Control One output is limited to a 40 Hz project frame rate.");
+    }
+    if (project.connections.soundswitch_control_one_experimental) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Warning,
+            "connections.soundSwitchControlOneUnqualified",
+            project.id,
+            "SoundSwitch Control One DMX is experimental and not physically qualified; jack 1 carries universe 1 and jack 2 carries universe 2.");
+    }
     if (!finite_normalized(project.safety.max_strobe) ||
         !finite_normalized(project.safety.max_intensity)) {
         add_issue(result, ProjectIssueSeverity::Error, "safety.range", project.id,
