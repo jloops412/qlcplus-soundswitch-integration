@@ -127,8 +127,27 @@ if(WIN32)
     target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE)
     set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
 
+    add_executable(soundswitch_micro_probe
+        src/soundswitch_micro_probe.cpp)
+    target_link_libraries(soundswitch_micro_probe PRIVATE
+        setupapi
+        winusb
+        shell32
+        ole32
+        uuid)
+    target_compile_definitions(soundswitch_micro_probe PRIVATE
+        UNICODE
+        _UNICODE
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+        EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}")
+    if(MSVC)
+        target_compile_options(soundswitch_micro_probe PRIVATE /W4 /WX /permissive-)
+    endif()
+
     install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
-    install(TARGETS emberlights_qualify emberlights_migrate RUNTIME DESTINATION Tools)
+    install(TARGETS emberlights_qualify emberlights_migrate soundswitch_micro_probe
+        RUNTIME DESTINATION Tools)
     install(FILES "${EMBERLIGHTS_V1_TEMPLATE}" DESTINATION Templates)
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
@@ -144,6 +163,8 @@ enable_testing()
 if(WIN32)
     add_test(NAME windows_gui_startup COMMAND EmberLights --startup-smoke)
     set_tests_properties(windows_gui_startup PROPERTIES TIMEOUT 20)
+    add_test(NAME soundswitch_micro_probe_self_test
+        COMMAND soundswitch_micro_probe --self-test)
 endif()
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
