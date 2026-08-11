@@ -50,6 +50,8 @@ Before assigning the Micro to a normal project, run **EmberLights Hardware Test*
 - Static Looks in Live use **Toggle**: selecting a different look switches to it, while toggling the active look clears it with the normal anti-snap fade. For MIDI mappings, **Toggle** uses the same press-again rule, **Latch** selects without releasing on button-up, and **Momentary** holds only while its button is down. Releasing an older held pad cannot clear a newer selected look.
 - **Save & Apply Connections** is transactional: if saving is cancelled or fails, EmberLights restores the prior project settings and does not apply the proposal. When the show is stopped, the confirmation says the saved settings will open on **Start Show**; when a live adapter graph changes, success is reported only after Runner restarts and reaches **Running**.
 - Control One is treated as standard MIDI until its owned-device map is captured and verified. Its proprietary DMX, display, firmware, and storage behavior is not claimed.
+- Diagnostics now lists the same backend health fields for every configured transport: opening/ready/recovering/fault state, open attempts, reconnects, accepted/failed frames, last error, and last nonzero-slot count. These are host-side facts; only a responding physical receiver proves DMX interoperability.
+- Control One's DMX ports are not selectable until the separate proprietary output broker is captured and qualified. WOLFmix is a later standalone/DMX-input bridge track, not a USB-dongle option.
 
 ## Safety and recovery
 

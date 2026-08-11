@@ -6,6 +6,7 @@ Status: user-reported names captured; exact USB identities and modes pending.
 | --- | --- | --- | --- |
 | Pioneer DDJ-REV7 | Primary VirtualDJ DJ controller | Confirmed | VirtualDJ version, firmware, Windows device details, transport captures. |
 | SoundSwitch Control One | Primary lighting MIDI surface; two proprietary DMX outputs | Confirmed | MIDI port names, VID/PID, complete input map, safe output-feedback map. |
+| WOLFmix W1 family | Possible later standalone controller / DMX-input bridge; not a documented PC USB-DMX interface | User requested later compatibility; exact model/ownership unverified | Exact model/firmware, activated feature set, DMX-input availability, connector routing, and controlled bridge test. |
 | ADJ MyDMX Buddy | Possible USB-DMX adapter | User believes owned; exact model unverified | Label/photo, VID/PID, driver, QLC+ compatibility, channel/license limits. |
 | SoundSwitch DMX Micro Interface | Native one-universe WinUSB output candidate | `VID_15E4/PID_0053`, interface GUID and bulk OUT `0x01` verified on Joshua's PC; preview.310 A/B/C payloads physically disproved; native JLS1 initialization and 522-byte frame independently established from SoundSwitch 2.10.3 | Physical response with the JLS1 build, disconnect/reconnect, sustained frame output. |
 
@@ -32,6 +33,8 @@ For each device:
 6. Whether SoundSwitch, QLC+, VirtualDJ, or another app has the device open.
 7. Maximum universes and any software/license restriction.
 8. Disconnect/reconnect behavior.
+9. For Control One, capture MIDI and proprietary USB interfaces separately; do not infer DMX support from working MIDI.
+10. For WOLFmix, record whether DMX input/WLINK is activated and test it only as an external bridge unless the manufacturer publishes a host-output API.
 
 Do not upload serial numbers, license keys, or credentials. Redact them from screenshots/captures.
 

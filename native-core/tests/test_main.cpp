@@ -17,6 +17,7 @@
 #include "showcore/midi.hpp"
 #include "showcore/os2l.hpp"
 #include "showcore/os2l_server.hpp"
+#include "showcore/output_backend.hpp"
 #include "showcore/sacn.hpp"
 #include "showcore/soundswitch_micro.hpp"
 #include "showcore/spsc_queue.hpp"
@@ -774,6 +775,70 @@ void test_artnet() {
         CHECK(!sender.is_open());
         close_test_socket(receiver);
     }
+}
+
+void test_output_backend_contract_and_health() {
+    const auto& micro = showcore::output_backend_descriptor(
+        showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(micro.implementation == showcore::OutputImplementationStage::Implemented);
+    CHECK(micro.evidence == showcore::OutputEvidenceStage::HostAccepted);
+    CHECK(micro.emberlights_supported_universes == 1U);
+    CHECK(micro.direct_configuration_allowed);
+    CHECK(showcore::has_output_capability(
+        micro.capabilities, showcore::OutputCapability::HotReconnect));
+    CHECK(showcore::has_output_capability(
+        micro.capabilities, showcore::OutputCapability::SafeBlackout));
+
+    const auto& control_one = showcore::output_backend_descriptor(
+        showcore::OutputBackendKind::SoundSwitchControlOne);
+    CHECK(control_one.implementation ==
+          showcore::OutputImplementationStage::IsolatedExperiment);
+    CHECK(control_one.hardware_max_universes == 2U);
+    CHECK(control_one.emberlights_supported_universes == 0U);
+    CHECK(!control_one.direct_configuration_allowed);
+    CHECK(showcore::has_output_capability(
+        control_one.capabilities,
+        showcore::OutputCapability::RequiresIsolatedBroker));
+
+    const auto& wolfmix = showcore::output_backend_descriptor(
+        showcore::OutputBackendKind::WolfmixDmxInputBridge);
+    CHECK(wolfmix.implementation == showcore::OutputImplementationStage::BridgeOnly);
+    CHECK(wolfmix.emberlights_supported_universes == 0U);
+    CHECK(!wolfmix.direct_configuration_allowed);
+    CHECK(showcore::has_output_capability(
+        wolfmix.capabilities, showcore::OutputCapability::ExternalDmxInput));
+
+    showcore::AtomicOutputBackendHealth health;
+    health.configure(showcore::OutputBackendKind::SoundSwitchMicro, 1U, 1U, true);
+    health.mark_opening();
+    health.mark_ready();
+    health.record_send(true, 0U, 6U);
+    health.record_send(false, 1234U, 6U);
+    auto snapshot = health.snapshot();
+    CHECK(snapshot.configured);
+    CHECK(snapshot.kind == showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(snapshot.state == showcore::OutputHealthState::Fault);
+    CHECK(snapshot.open_attempts == 1U);
+    CHECK(snapshot.open_successes == 1U);
+    CHECK(snapshot.frames_attempted == 2U);
+    CHECK(snapshot.frames_accepted == 1U);
+    CHECK(snapshot.frames_failed == 1U);
+    CHECK(snapshot.last_error == 1234U);
+    CHECK(snapshot.last_nonzero_slots == 6U);
+
+    health.mark_opening();
+    CHECK(health.snapshot().state == showcore::OutputHealthState::Recovering);
+    health.mark_ready();
+    snapshot = health.snapshot();
+    CHECK(snapshot.state == showcore::OutputHealthState::Ready);
+    CHECK(snapshot.reconnects == 1U);
+    CHECK(snapshot.open_attempts == 2U);
+    CHECK(snapshot.open_successes == 2U);
+    CHECK(snapshot.last_error == 0U);
+    health.mark_stopping();
+    CHECK(health.snapshot().state == showcore::OutputHealthState::Stopping);
+    health.mark_disabled();
+    CHECK(health.snapshot().state == showcore::OutputHealthState::Disabled);
 }
 
 void test_dmx_usb_pro() {
@@ -2255,6 +2320,21 @@ void test_runner_service_lifecycle() {
     CHECK(active.soundswitch_micro_write_failures == 0U);
     CHECK(active.soundswitch_micro_last_error == 0U);
     CHECK(active.soundswitch_micro_last_nonzero_slots == 0U);
+    CHECK(active.output_backends[0U].kind == showcore::OutputBackendKind::ArtNet);
+    CHECK(active.output_backends[1U].kind == showcore::OutputBackendKind::Sacn);
+    CHECK(active.output_backends[2U].kind == showcore::OutputBackendKind::DmxUsbPro);
+    CHECK(active.output_backends[2U].first_source_universe == 1U);
+    CHECK(active.output_backends[3U].kind == showcore::OutputBackendKind::DmxUsbPro);
+    CHECK(active.output_backends[3U].first_source_universe == 2U);
+    CHECK(active.output_backends[4U].kind ==
+          showcore::OutputBackendKind::SoundSwitchMicro);
+    CHECK(std::all_of(
+        active.output_backends.begin(), active.output_backends.end(),
+        [](const auto& output) {
+            return !output.configured &&
+                output.state == showcore::OutputHealthState::Disabled &&
+                output.frames_attempted == 0U;
+        }));
     CHECK(runner.clear_track_script());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     CHECK(runner.status().active_track_script == -1);
@@ -2586,6 +2666,7 @@ int main() {
     test_patch_and_render();
     test_16bit_render();
     test_artnet();
+    test_output_backend_contract_and_health();
     test_dmx_usb_pro();
     test_soundswitch_micro_protocol();
     test_sacn();

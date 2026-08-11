@@ -2868,7 +2868,26 @@ std::string Application::diagnostics_text() const {
            << "  last WinUSB error: " << status.soundswitch_micro_last_error
            << "  last non-zero slots: "
            << status.soundswitch_micro_last_nonzero_slots << "\r\n"
-           << "Frames: " << status.frames << "  Output frames: " << status.output_frames
+           << "Output backend health:\r\n";
+    for (const auto& backend : status.output_backends) {
+        const auto& descriptor = showcore::output_backend_descriptor(backend.kind);
+        output << "  " << descriptor.name << " U"
+               << static_cast<unsigned int>(backend.first_source_universe);
+        if (backend.source_universe_count > 1U) {
+            output << "-" << static_cast<unsigned int>(
+                backend.first_source_universe + backend.source_universe_count - 1U);
+        }
+        output << ": " << showcore::output_health_state_name(backend.state)
+               << "  configured: " << (backend.configured ? "yes" : "no")
+               << "  open: " << backend.open_successes << "/" << backend.open_attempts
+               << "  reconnects: " << backend.reconnects
+               << "  frames: " << backend.frames_accepted << "/"
+               << backend.frames_attempted
+               << "  failures: " << backend.frames_failed
+               << "  last error: " << backend.last_error
+               << "  non-zero slots: " << backend.last_nonzero_slots << "\r\n";
+    }
+    output << "Frames: " << status.frames << "  Output frames: " << status.output_frames
            << "  Send failures: " << status.output_send_failures
            << "  Queue drops: " << status.output_queue_drops
            << "  Superseded stale frames: " << status.output_superseded_frames << "\r\n"

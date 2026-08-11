@@ -21,6 +21,7 @@ SOURCES := \
 	src/fixture_library.cpp \
 	src/dmx_usb_pro.cpp \
 	src/soundswitch_micro.cpp \
+	src/output_backend.cpp \
 	src/artnet.cpp \
 	src/sacn.cpp \
 	src/os2l.cpp \

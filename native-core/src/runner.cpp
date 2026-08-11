@@ -39,6 +39,19 @@ inline constexpr std::uint64_t kPackedInvalidAutoloopAddress = 0x0FFFU;
 inline constexpr std::uint64_t kPackedAutoloopRepeatShift = 12U;
 inline constexpr std::uint64_t kPackedAutoloopProgressShift = 14U;
 inline constexpr std::uint64_t kPackedAutoloopCycleShift = 24U;
+inline constexpr std::size_t kArtNetOutputHealth = 0U;
+inline constexpr std::size_t kSacnOutputHealth = 1U;
+inline constexpr std::size_t kDmxUsbProUniverseOneHealth = 2U;
+inline constexpr std::size_t kDmxUsbProUniverseTwoHealth = 3U;
+inline constexpr std::size_t kSoundSwitchMicroOutputHealth = 4U;
+
+[[nodiscard]] std::uint16_t nonzero_slot_count(
+    const showcore::DmxUniverse& universe) noexcept {
+    return static_cast<std::uint16_t>(std::count_if(
+        universe.begin(), universe.end(), [](std::uint8_t value) {
+            return value != 0U;
+        }));
+}
 
 [[nodiscard]] std::uint16_t encode_autoloop(showcore::AutoloopAddress address) noexcept {
     return address.valid()
@@ -265,6 +278,23 @@ bool RunnerService::start(
             ? AdapterState::Disabled
             : AdapterState::Starting,
         std::memory_order_relaxed);
+    output_health_[kArtNetOutputHealth].configure(
+        showcore::OutputBackendKind::ArtNet, 1U, showcore::kV1UniverseCount,
+        connections_.artnet_enabled);
+    output_health_[kSacnOutputHealth].configure(
+        showcore::OutputBackendKind::Sacn, 1U, showcore::kV1UniverseCount,
+        connections_.sacn_enabled);
+    output_health_[kDmxUsbProUniverseOneHealth].configure(
+        showcore::OutputBackendKind::DmxUsbPro, 1U, 1U,
+        !connections_.dmx_usb_pro_ports[0U].empty());
+    output_health_[kDmxUsbProUniverseTwoHealth].configure(
+        showcore::OutputBackendKind::DmxUsbPro, 2U, 1U,
+        !connections_.dmx_usb_pro_ports[1U].empty());
+    output_health_[kSoundSwitchMicroOutputHealth].configure(
+        showcore::OutputBackendKind::SoundSwitchMicro,
+        connections_.soundswitch_micro_universe,
+        connections_.soundswitch_micro_universe == 0U ? 0U : 1U,
+        connections_.soundswitch_micro_universe != 0U);
 
     try {
         output_thread_ = std::thread(&RunnerService::run_output, this);
@@ -394,6 +424,9 @@ RunnerStatus RunnerService::status() const noexcept {
     }
     snapshot.soundswitch_micro =
         soundswitch_micro_state_.load(std::memory_order_relaxed);
+    for (std::size_t index = 0U; index < snapshot.output_backends.size(); ++index) {
+        snapshot.output_backends[index] = output_health_[index].snapshot();
+    }
     snapshot.sync_state = sync_state_.load(std::memory_order_relaxed);
     snapshot.clock_source = clock_source_.load(std::memory_order_relaxed);
     snapshot.bpm = static_cast<double>(bpm_milli_.load(std::memory_order_relaxed)) / 1000.0;
@@ -1616,8 +1649,14 @@ void RunnerService::run_output() noexcept {
         bool usb_ready = true;
         if (connections_.artnet_enabled) {
             if (!artnet.is_open()) {
+                output_health_[kArtNetOutputHealth].mark_opening();
                 artnet_state_.store(AdapterState::Starting, std::memory_order_relaxed);
                 static_cast<void>(artnet.open_ipv4(connections_.artnet_destination));
+                if (artnet.is_open()) {
+                    output_health_[kArtNetOutputHealth].mark_ready();
+                } else {
+                    output_health_[kArtNetOutputHealth].mark_fault(0U);
+                }
             }
             artnet_ready = artnet.is_open();
             artnet_state_.store(
@@ -1627,15 +1666,27 @@ void RunnerService::run_output() noexcept {
         if (connections_.sacn_enabled) {
             sacn_state_.store(AdapterState::Starting, std::memory_order_relaxed);
             sacn_ready = true;
+            bool sacn_open_attempted = false;
             for (std::uint16_t universe = 0; universe < showcore::kV1UniverseCount; ++universe) {
                 const auto output_universe = static_cast<std::uint16_t>(
                     connections_.sacn_universe_base + universe);
                 if (!sacn[universe].is_open()) {
+                    if (!sacn_open_attempted) {
+                        output_health_[kSacnOutputHealth].mark_opening();
+                        sacn_open_attempted = true;
+                    }
                     static_cast<void>(connections_.sacn_destination == "multicast"
                         ? sacn[universe].open_multicast(output_universe)
                         : sacn[universe].open_ipv4(connections_.sacn_destination));
                 }
                 sacn_ready = sacn_ready && sacn[universe].is_open();
+            }
+            if (sacn_open_attempted) {
+                if (sacn_ready) {
+                    output_health_[kSacnOutputHealth].mark_ready();
+                } else {
+                    output_health_[kSacnOutputHealth].mark_fault(0U);
+                }
             }
             sacn_state_.store(
                 sacn_ready ? AdapterState::Ready : AdapterState::Fault,
@@ -1649,9 +1700,16 @@ void RunnerService::run_output() noexcept {
                 continue;
             }
             if (!dmx_usb_pro[universe].is_open()) {
+                output_health_[kDmxUsbProUniverseOneHealth + universe].mark_opening();
                 dmx_usb_pro_state_[universe].store(
                     AdapterState::Starting, std::memory_order_relaxed);
                 static_cast<void>(dmx_usb_pro[universe].open(port));
+                if (dmx_usb_pro[universe].is_open()) {
+                    output_health_[kDmxUsbProUniverseOneHealth + universe].mark_ready();
+                } else {
+                    output_health_[kDmxUsbProUniverseOneHealth + universe].mark_fault(
+                        dmx_usb_pro[universe].last_error());
+                }
             }
             const bool opened = dmx_usb_pro[universe].is_open();
             usb_ready = usb_ready && opened;
@@ -1664,6 +1722,7 @@ void RunnerService::run_output() noexcept {
                 AdapterState::Disabled, std::memory_order_relaxed);
         } else {
             if (!soundswitch_micro.is_open()) {
+                output_health_[kSoundSwitchMicroOutputHealth].mark_opening();
                 soundswitch_micro_state_.store(
                     AdapterState::Starting, std::memory_order_relaxed);
                 const auto opened = soundswitch_micro.open(
@@ -1671,6 +1730,10 @@ void RunnerService::run_output() noexcept {
                 if (!opened) {
                     soundswitch_micro_last_error_.store(
                         soundswitch_micro.last_error(), std::memory_order_relaxed);
+                    output_health_[kSoundSwitchMicroOutputHealth].mark_fault(
+                        soundswitch_micro.last_error());
+                } else {
+                    output_health_[kSoundSwitchMicroOutputHealth].mark_ready();
                 }
             }
             const bool opened = soundswitch_micro.is_open();
@@ -1718,7 +1781,10 @@ void RunnerService::run_output() noexcept {
                     frame.frames.universes[universe],
                     static_cast<std::uint16_t>(connections_.artnet_base + universe),
                     frame.sequence);
-                artnet_success = artnet.send(packet) && artnet_success;
+                const bool sent = artnet.send(packet);
+                output_health_[kArtNetOutputHealth].record_send(
+                    sent, 0U, nonzero_slot_count(frame.frames.universes[universe]));
+                artnet_success = sent && artnet_success;
             }
             if (connections_.sacn_enabled && sacn[universe].is_open()) {
                 const auto packet = showcore::build_sacn_data_packet(
@@ -1727,22 +1793,35 @@ void RunnerService::run_output() noexcept {
                     frame.sequence,
                     cid,
                     activation->project_name);
-                sacn_success = sacn[universe].send(packet) && sacn_success;
+                const bool sent = sacn[universe].send(packet);
+                output_health_[kSacnOutputHealth].record_send(
+                    sent, 0U, nonzero_slot_count(frame.frames.universes[universe]));
+                sacn_success = sent && sacn_success;
             }
             if (!connections_.dmx_usb_pro_ports[universe].empty() &&
-                dmx_usb_pro[universe].is_open() &&
-                !dmx_usb_pro[universe].send(frame.frames.universes[universe])) {
-                usb_success = false;
-                dmx_usb_pro[universe].close();
-                dmx_usb_pro_state_[universe].store(
-                    AdapterState::Fault, std::memory_order_relaxed);
+                dmx_usb_pro[universe].is_open()) {
+                const bool sent = dmx_usb_pro[universe].send(
+                    frame.frames.universes[universe]);
+                const auto error = sent ? 0U : dmx_usb_pro[universe].last_error();
+                output_health_[kDmxUsbProUniverseOneHealth + universe].record_send(
+                    sent, error, nonzero_slot_count(frame.frames.universes[universe]));
+                if (!sent) {
+                    usb_success = false;
+                    dmx_usb_pro[universe].close();
+                    dmx_usb_pro_state_[universe].store(
+                        AdapterState::Fault, std::memory_order_relaxed);
+                }
             }
         }
         if (connections_.soundswitch_micro_universe != 0U &&
             soundswitch_micro.is_open()) {
             const auto universe = static_cast<std::size_t>(
                 connections_.soundswitch_micro_universe - 1U);
-            if (!soundswitch_micro.send(frame.frames.universes[universe])) {
+            const bool sent = soundswitch_micro.send(frame.frames.universes[universe]);
+            const auto nonzero = nonzero_slot_count(frame.frames.universes[universe]);
+            output_health_[kSoundSwitchMicroOutputHealth].record_send(
+                sent, sent ? 0U : soundswitch_micro.last_error(), nonzero);
+            if (!sent) {
                 usb_success = false;
                 soundswitch_micro_write_failures_.fetch_add(
                     1U, std::memory_order_relaxed);
@@ -1755,13 +1834,8 @@ void RunnerService::run_output() noexcept {
                 soundswitch_micro_write_frames_.fetch_add(
                     1U, std::memory_order_relaxed);
                 soundswitch_micro_last_error_.store(0U, std::memory_order_relaxed);
-                const auto& slots = frame.frames.universes[universe];
-                const auto nonzero = std::count_if(
-                    slots.begin(), slots.end(), [](std::uint8_t value) {
-                        return value != 0U;
-                    });
                 soundswitch_micro_last_nonzero_slots_.store(
-                    static_cast<std::uint16_t>(nonzero), std::memory_order_relaxed);
+                    nonzero, std::memory_order_relaxed);
             }
         }
         const bool success = artnet_success && sacn_success && usb_success;
@@ -1771,12 +1845,14 @@ void RunnerService::run_output() noexcept {
             next_retry = SteadyClock::now() + std::chrono::seconds(2);
             if (!artnet_success && connections_.artnet_enabled) {
                 artnet.close();
+                output_health_[kArtNetOutputHealth].mark_fault(0U);
                 artnet_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
             if (!sacn_success && connections_.sacn_enabled) {
                 for (auto& sender : sacn) {
                     sender.close();
                 }
+                output_health_[kSacnOutputHealth].mark_fault(0U);
                 sacn_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
         }
@@ -1785,6 +1861,9 @@ void RunnerService::run_output() noexcept {
 
     showcore::DmxFrames zero_frames;
     zero_frames.clear();
+    for (auto& health : output_health_) {
+        health.mark_stopping();
+    }
     const auto* final_activation = published_activation_.load(std::memory_order_acquire);
     const std::string_view final_project_name = final_activation == nullptr
         ? std::string_view{"EmberLights"}
@@ -1828,6 +1907,9 @@ void RunnerService::run_output() noexcept {
         sender.close();
     }
     soundswitch_micro.close();
+    for (auto& health : output_health_) {
+        health.mark_disabled();
+    }
 }
 
 }  // namespace emberlights
