@@ -2,6 +2,21 @@
 
 Priority is based on replacing SoundSwitch safely, not feature novelty.
 
+## Cross-cutting UI/UX and skin spine
+
+`18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` is binding for all UI work. These items cut across the milestone bands below and should be implemented before large amounts of additional hard-coded UI accumulate.
+
+- **U1 — P0:** Inventory existing Studio/Live callbacks and define stable typed command and state registries for every current user action/status.
+- **U2 — P1:** Route compatible keyboard/MIDI/controller actions through the shared command model; add command metadata, validation, and safe feedback/state lookup.
+- **U3 — P1:** Define the versioned `.emberskin` package/schema, validator, semantic theme tokens, responsive layout rules, and safe fallback skin.
+- **U4 — P2:** Re-express the current minimal UI as `EmberLights Default v0` through the skin path; add Command Explorer/control introspection and connection/persistence scope UX.
+- **U5 — P2:** Ship `SoundSwitch Reference v0` using original EmberLights assets but familiar SoundSwitch Studio/Performance information architecture; parity QA must be able to exercise implemented SoundSwitch-equivalent workflows through it.
+- **U6 — P2:** Persist last-opened project, chosen skin/layout locally; make logical project connection/output settings durable and connection changes immediately persisted with explicit reconnect/restart messaging rather than ambiguous Apply/Save behavior.
+- **U7 — P2:** Auto-connect/reconnect configured DJ sources, MIDI, and DMX outputs; expose actionable health in the Live status strip without requiring a mode-changing settings flow.
+- **U8 — P3:** Add user-customizable buttons/pads/faders/knobs and shared binding editor comparable in spirit to VirtualDJ custom controls/pad pages.
+- **U9 — P4:** Add visual skin/layout designer, responsive variants, skin export/import, and validation-before-activation.
+- **U10 — Gate:** Benchmark both bundled skins at 1366×768, 1920×1080, high DPI, and wide layouts before accepting the production UI toolkit; skin/UI work cannot violate Runner CPU/memory/jitter ceilings.
+
 ## P0 — Preserve the plan and prove the core
 
 1. Maintain the decision ledger and handoff package.
