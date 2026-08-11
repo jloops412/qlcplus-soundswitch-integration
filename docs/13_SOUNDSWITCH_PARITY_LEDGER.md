@@ -72,7 +72,7 @@ Statuses:
 
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
-| SYN-01 | Direct VirtualDJ scripted-track, Autoloop, fader, reverse, and MIDI behavior | Partial | Reconnecting OS2L server and end-to-end beat→sync→Autoloop→frame lab path pass; actual VirtualDJ and full transport behavior remain unverified. |
+| SYN-01 | Direct VirtualDJ scripted-track, Autoloop, fader, reverse, and MIDI behavior | Partial | Reconnecting OS2L server and end-to-end beat→sync→Autoloop→frame lab path pass. Joshua verified live VirtualDJ BPM/beat input; VirtualDJ must use `os2l=Yes` rather than `Auto` to connect without first pressing a DMX pad. Full transport behavior remains unverified. |
 | SYN-02 | Direct Serato DJ Pro integration | Research | Accepted as the second direct DJ integration after VirtualDJ; official/public route and replay corpus required before implementation claims. |
 | SYN-03 | One-to-four-deck normalized state | Partial | Contract accepted; mixer engine and adapters pending. |
 | SYN-04 | Blend, Cut, Scratch, and Upfader Only modes | Planned | Attribute-specific mixer rules and golden frame tests. |
@@ -102,11 +102,11 @@ Statuses:
 
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
-| OUT-01 | Reliable DMX output through supported interfaces | Partial | Art-Net and sACN pass byte/loopback tests. Native ENTTEC DMX USB Pro serial framing, Windows COM discovery, per-universe mapping, reconnect state, zero-frame shutdown, and stale-frame supersession now pass portable/syntax tests; physical interface qualification and broader USB matrix remain. |
+| OUT-01 | Reliable DMX output through supported interfaces | Partial | Art-Net and sACN pass byte/loopback tests. Native ENTTEC DMX USB Pro serial framing plus the independently established SoundSwitch Micro JLS1 initialization/frame contract, per-universe mapping, reconnect state, zero-frame shutdown, and stale-frame supersession pass core tests; physical Micro response, interface qualification, and broader USB matrix remain. |
 | OUT-02 | Art-Net output and third-party visualizer interoperability | Partial | ArtDMX golden bytes and exact loopback UDP delivery pass; real node/visualizer qualification and discovery remain. |
 | OUT-03 | sACN/E1.31 output | Partial | E1.31 packet construction, deterministic CID, unicast/multicast sender, byte-level tests, and UDP loopback pass; real receiver qualification remains. |
 | OUT-04 | QLC+ bridge for otherwise unsupported USB interfaces | Partial | Boundary specified; live loopback qualification pending. |
-| OUT-05 | Interface hot-plug, disconnect/reconnect, and visible status | Partial | Network and DMX USB Pro outputs retry independently, USB universe states are visible in Live/Diagnostics, and stale queued frames are superseded; controlled Windows unplug/replug and broader adapter tests remain. |
+| OUT-05 | Interface hot-plug, disconnect/reconnect, and visible status | Partial | Network, DMX USB Pro, and SoundSwitch Micro outputs retry independently. Diagnostics separates Micro open state, accepted/failed writes, last Windows error, and nonzero slot count; stale queued frames are superseded. Controlled Windows unplug/replug and broader adapter tests remain. |
 | OUT-06 | Philips Hue integration | Planned | Local bridge integration with latency/degradation tests. |
 | OUT-07 | Nanoleaf Shapes and Lines integration | Planned | Official local API capability/latency qualification. |
 | OUT-08 | Wireless DMX compatibility through transparent DMX transmitters | Planned | Documented transport guidance and representative hardware test. |
@@ -119,7 +119,7 @@ Statuses:
 | DAT-02 | Inspect and migrate `.ssproj` venues, patch, groups, looks, positions, attributes, and Autoloops | Partial | Read-only inventory, lossless source bundle, and controlled two-export byte-range comparison exist. A source-qualified 2.10.x converter now produces an output-disabled 71-fixture color-rig patch, 18 native looks, 32 source-named semantic Autoloops, hashes, and an approximation report. Exact address/cue decoding, movers/effects, broad-version support, and hardware qualification remain. |
 | DAT-03 | Recover packaged lighting files and copied audio-associated script metadata where decodable | Research | Read-only probes; unknown payloads preserved losslessly. |
 | DAT-04 | Relink moved audio and preserve scripted work | Partial | A moved file can relink one-at-a-time or through a bounded recursive music-folder scan only after an exact SHA-256/size match; same-named substitutions are refused and scripts retain their association. Metadata-assisted matching, background/cancellable scan progress, and conflict UI remain. |
-| DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, verified bounded 20-version history/restore, 100-state Studio Undo/Redo, and generation-stamped live hot-swap pass. Cross-version compatibility corpus and asset-bundle rollback remain. |
+| DAT-05 | Atomic saves, checksums, history, last-known-good activation, and recovery | Partial | Atomic temp-write/verify/replace, CRC32 validation, `.bak` recovery, verified bounded 20-version history/restore, 100-state Studio Undo/Redo, generation-stamped live hot-swap, one-step persisted Save & Apply Connections, and automatic last-project reopen are implemented. Cross-version compatibility corpus and asset-bundle rollback remain. |
 | DAT-06 | Fully offline show operation without a license server | Partial | Runner architecture requires no cloud; installer/activation proof pending. |
 | DAT-07 | Windows application and installer | Partial | Native Win32 application, per-user Inno Setup recipe, file association, portable ZIP, packaged qualification tool, checksums, and release manifest exist; signing, upgrade/rollback, and low-end qualification remain. |
 | DAT-08 | macOS parity | Planned | Explicitly follows the Windows production launch; portable core/adapter boundaries retained, platform qualification pending. |

@@ -339,15 +339,17 @@ template <typename Collection>
                 std::uint8_t framing = 0U;
                 if (!parse_number(f[17], project.connections.soundswitch_micro_universe) ||
                     !parse_number(f[18], framing) ||
-                    framing > showcore::soundswitch_micro_framing_value(
-                        showcore::SoundSwitchMicroFraming::EnttecUsbPro)) {
+                    framing > showcore::kSoundSwitchMicroLegacyMaximumFramingValue) {
                     return error(
                         ProjectIoError::InvalidValue,
                         record.line,
                         "Invalid SoundSwitch Micro CONNECTIONS values.");
                 }
+                // Preview.310 exposed three protocol-discovery candidates in
+                // this field. They are all migrated to the native JLS1
+                // contract now that the vendor frame has been established.
                 project.connections.soundswitch_micro_framing =
-                    static_cast<showcore::SoundSwitchMicroFraming>(framing);
+                    showcore::SoundSwitchMicroFraming::NativeJls1;
             }
         } else if (f[0] == "SAFETY") {
             if (f.size() != 8U ||
@@ -719,7 +721,7 @@ std::string serialize_project(const ProjectDocument& project) {
         number_text(project.connections.midi_output_index),
         project.connections.dmx_usb_pro_ports[0],
         project.connections.dmx_usb_pro_ports[1],
-        "dmxUsbProSerialV1+soundSwitchMicroWinUsbV1",
+        "dmxUsbProSerialV1+soundSwitchMicroJls1V1",
         number_text(project.connections.soundswitch_micro_universe),
         number_text(showcore::soundswitch_micro_framing_value(
             project.connections.soundswitch_micro_framing))});

@@ -122,6 +122,10 @@ struct RunnerStatus {
     std::uint64_t output_queue_drops{0};
     std::uint64_t output_superseded_frames{0};
     std::uint64_t output_send_failures{0};
+    std::uint64_t soundswitch_micro_write_frames{0};
+    std::uint64_t soundswitch_micro_write_failures{0};
+    std::uint32_t soundswitch_micro_last_error{0};
+    std::uint16_t soundswitch_micro_last_nonzero_slots{0};
     std::uint64_t os2l_connections{0};
     std::uint64_t os2l_messages{0};
     std::uint64_t os2l_decode_errors{0};
@@ -284,6 +288,10 @@ private:
     std::atomic<std::uint64_t> output_queue_drops_{0};
     std::atomic<std::uint64_t> output_superseded_frames_{0};
     std::atomic<std::uint64_t> output_send_failures_{0};
+    std::atomic<std::uint64_t> soundswitch_micro_write_frames_{0};
+    std::atomic<std::uint64_t> soundswitch_micro_write_failures_{0};
+    std::atomic<std::uint32_t> soundswitch_micro_last_error_{0};
+    std::atomic<std::uint16_t> soundswitch_micro_last_nonzero_slots_{0};
     std::atomic<std::uint64_t> os2l_connections_{0};
     std::atomic<std::uint64_t> os2l_messages_{0};
     std::atomic<std::uint64_t> os2l_decode_errors_{0};

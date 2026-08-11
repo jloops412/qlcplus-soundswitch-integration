@@ -210,6 +210,10 @@ bool RunnerService::start(
     output_queue_drops_.store(0, std::memory_order_relaxed);
     output_superseded_frames_.store(0, std::memory_order_relaxed);
     output_send_failures_.store(0, std::memory_order_relaxed);
+    soundswitch_micro_write_frames_.store(0, std::memory_order_relaxed);
+    soundswitch_micro_write_failures_.store(0, std::memory_order_relaxed);
+    soundswitch_micro_last_error_.store(0, std::memory_order_relaxed);
+    soundswitch_micro_last_nonzero_slots_.store(0, std::memory_order_relaxed);
     os2l_connections_.store(0, std::memory_order_relaxed);
     os2l_messages_.store(0, std::memory_order_relaxed);
     os2l_decode_errors_.store(0, std::memory_order_relaxed);
@@ -425,6 +429,14 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.output_superseded_frames =
         output_superseded_frames_.load(std::memory_order_relaxed);
     snapshot.output_send_failures = output_send_failures_.load(std::memory_order_relaxed);
+    snapshot.soundswitch_micro_write_frames =
+        soundswitch_micro_write_frames_.load(std::memory_order_relaxed);
+    snapshot.soundswitch_micro_write_failures =
+        soundswitch_micro_write_failures_.load(std::memory_order_relaxed);
+    snapshot.soundswitch_micro_last_error =
+        soundswitch_micro_last_error_.load(std::memory_order_relaxed);
+    snapshot.soundswitch_micro_last_nonzero_slots =
+        soundswitch_micro_last_nonzero_slots_.load(std::memory_order_relaxed);
     snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
     snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
     snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
@@ -1502,8 +1514,12 @@ void RunnerService::run_output() noexcept {
             if (!soundswitch_micro.is_open()) {
                 soundswitch_micro_state_.store(
                     AdapterState::Starting, std::memory_order_relaxed);
-                static_cast<void>(soundswitch_micro.open(
-                    connections_.soundswitch_micro_framing));
+                const auto opened = soundswitch_micro.open(
+                    connections_.soundswitch_micro_framing);
+                if (!opened) {
+                    soundswitch_micro_last_error_.store(
+                        soundswitch_micro.last_error(), std::memory_order_relaxed);
+                }
             }
             const bool opened = soundswitch_micro.is_open();
             usb_ready = usb_ready && opened;
@@ -1576,9 +1592,24 @@ void RunnerService::run_output() noexcept {
                 connections_.soundswitch_micro_universe - 1U);
             if (!soundswitch_micro.send(frame.frames.universes[universe])) {
                 usb_success = false;
+                soundswitch_micro_write_failures_.fetch_add(
+                    1U, std::memory_order_relaxed);
+                soundswitch_micro_last_error_.store(
+                    soundswitch_micro.last_error(), std::memory_order_relaxed);
                 soundswitch_micro.close();
                 soundswitch_micro_state_.store(
                     AdapterState::Fault, std::memory_order_relaxed);
+            } else {
+                soundswitch_micro_write_frames_.fetch_add(
+                    1U, std::memory_order_relaxed);
+                soundswitch_micro_last_error_.store(0U, std::memory_order_relaxed);
+                const auto& slots = frame.frames.universes[universe];
+                const auto nonzero = std::count_if(
+                    slots.begin(), slots.end(), [](std::uint8_t value) {
+                        return value != 0U;
+                    });
+                soundswitch_micro_last_nonzero_slots_.store(
+                    static_cast<std::uint16_t>(nonzero), std::memory_order_relaxed);
             }
         }
         const bool success = artnet_success && sacn_success && usb_success;

@@ -10,6 +10,8 @@
 #include <usbiodef.h>
 #include <winusb.h>
 
+#include "showcore/soundswitch_micro.hpp"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -29,6 +31,7 @@ namespace {
 
 constexpr std::wstring_view kVendorId = L"VID_15E4";
 constexpr std::wstring_view kProductId = L"PID_0053";
+constexpr UCHAR kBulkOutPipe = 0x01U;
 
 class DeviceInfoSet {
 public:
@@ -382,6 +385,261 @@ void enumerate_interface_guid(const GUID& guid, std::wostringstream& report) {
     }
 }
 
+[[nodiscard]] std::optional<std::wstring> find_target_interface_path(
+    const std::vector<GUID>& guids) {
+    for (const auto& guid : guids) {
+        DeviceInfoSet set(::SetupDiGetClassDevsW(
+            &guid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
+        if (!set.valid()) {
+            continue;
+        }
+        for (DWORD index = 0U;; ++index) {
+            SP_DEVICE_INTERFACE_DATA interface_data{};
+            interface_data.cbSize = sizeof(interface_data);
+            if (::SetupDiEnumDeviceInterfaces(
+                    set.get(), nullptr, &guid, index, &interface_data) == FALSE) {
+                break;
+            }
+            DWORD required = 0U;
+            static_cast<void>(::SetupDiGetDeviceInterfaceDetailW(
+                set.get(), &interface_data, nullptr, 0U, &required, nullptr));
+            if (required < sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W)) {
+                continue;
+            }
+            std::vector<BYTE> bytes(required, 0U);
+            auto* detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(bytes.data());
+            detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
+            if (::SetupDiGetDeviceInterfaceDetailW(
+                    set.get(), &interface_data, detail, required, nullptr, nullptr) != FALSE &&
+                is_target_text(detail->DevicePath)) {
+                return std::wstring(detail->DevicePath);
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::vector<GUID> target_interface_guids(const TargetDevice& device) {
+    std::vector<GUID> guids;
+    for (const auto& value : device.interface_guids) {
+        static_cast<void>(add_guid_text(value, guids));
+    }
+    if (std::none_of(guids.begin(), guids.end(), [](const GUID& value) {
+            return ::IsEqualGUID(value, GUID_DEVINTERFACE_USB_DEVICE) != FALSE;
+        })) {
+        guids.push_back(GUID_DEVINTERFACE_USB_DEVICE);
+    }
+    return guids;
+}
+
+[[nodiscard]] const wchar_t* framing_name(showcore::SoundSwitchMicroFraming framing) noexcept {
+    switch (framing) {
+    case showcore::SoundSwitchMicroFraming::NativeJls1:
+        return L"SoundSwitch native JLS1";
+    }
+    return L"Unknown";
+}
+
+[[nodiscard]] bool parse_dmx_address(std::wstring_view text, std::uint16_t& address) noexcept {
+    if (text.empty()) {
+        address = 1U;
+        return true;
+    }
+    std::uint32_t value = 0U;
+    for (const auto character : text) {
+        if (character < L'0' || character > L'9') {
+            return false;
+        }
+        value = value * 10U + static_cast<std::uint32_t>(character - L'0');
+        if (value > showcore::kUniverseSlots) {
+            return false;
+        }
+    }
+    if (value == 0U) {
+        return false;
+    }
+    address = static_cast<std::uint16_t>(value);
+    return true;
+}
+
+[[nodiscard]] bool affirmative(std::wstring_view text) noexcept {
+    return !text.empty() && (text.front() == L'y' || text.front() == L'Y');
+}
+
+struct ActiveTestResult {
+    bool opened{false};
+    bool writes_succeeded{false};
+    bool visible_match{false};
+    showcore::SoundSwitchMicroFraming framing{
+        showcore::SoundSwitchMicroFraming::NativeJls1};
+    DWORD error{ERROR_SUCCESS};
+    std::uint16_t address{1U};
+};
+
+[[nodiscard]] bool write_packet(
+    WINUSB_INTERFACE_HANDLE usb,
+    const showcore::SoundSwitchMicroPacket& packet,
+    DWORD& error) noexcept {
+    const BOOL terminate = FALSE;
+    if (::WinUsb_SetPipePolicy(
+            usb, kBulkOutPipe, SHORT_PACKET_TERMINATE,
+            sizeof(terminate), const_cast<BOOL*>(&terminate)) == FALSE) {
+        error = ::GetLastError();
+        return false;
+    }
+    ULONG transferred = 0U;
+    if (::WinUsb_WritePipe(
+            usb, kBulkOutPipe,
+            const_cast<PUCHAR>(packet.bytes.data()),
+            static_cast<ULONG>(packet.length), &transferred, nullptr) == FALSE) {
+        error = ::GetLastError();
+        return false;
+    }
+    if (transferred != packet.length) {
+        error = ERROR_WRITE_FAULT;
+        return false;
+    }
+    error = ERROR_SUCCESS;
+    return true;
+}
+
+[[nodiscard]] bool stream_packet(
+    WINUSB_INTERFACE_HANDLE usb,
+    const showcore::SoundSwitchMicroPacket& packet,
+    unsigned frames,
+    DWORD& error) {
+    for (unsigned frame = 0U; frame < frames; ++frame) {
+        if (!write_packet(usb, packet, error)) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    }
+    return true;
+}
+
+[[nodiscard]] ActiveTestResult run_active_test(
+    const std::wstring& path,
+    std::uint16_t address) {
+    ActiveTestResult result;
+    result.address = address;
+    FileHandle file(::CreateFileW(
+        path.c_str(), GENERIC_READ | GENERIC_WRITE,
+        0U, nullptr, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr));
+    if (!file.valid()) {
+        result.error = ::GetLastError();
+        return result;
+    }
+    WINUSB_INTERFACE_HANDLE raw_usb = nullptr;
+    if (::WinUsb_Initialize(file.get(), &raw_usb) == FALSE) {
+        result.error = ::GetLastError();
+        return result;
+    }
+    WinUsbHandle usb(raw_usb);
+    result.opened = true;
+
+    USB_INTERFACE_DESCRIPTOR descriptor{};
+    if (::WinUsb_QueryInterfaceSettings(usb.get(), 0U, &descriptor) == FALSE) {
+        result.error = ::GetLastError();
+        return result;
+    }
+    bool expected_pipe = false;
+    for (UCHAR index = 0U; index < descriptor.bNumEndpoints; ++index) {
+        WINUSB_PIPE_INFORMATION pipe{};
+        if (::WinUsb_QueryPipe(usb.get(), 0U, index, &pipe) != FALSE &&
+            pipe.PipeId == kBulkOutPipe && pipe.PipeType == UsbdPipeTypeBulk &&
+            pipe.MaximumPacketSize == 64U) {
+            expected_pipe = true;
+        }
+    }
+    if (!expected_pipe) {
+        result.error = ERROR_BAD_DEVICE;
+        return result;
+    }
+    ULONG timeout = 500U;
+    if (::WinUsb_SetPipePolicy(
+            usb.get(), kBulkOutPipe, PIPE_TRANSFER_TIMEOUT,
+            sizeof(timeout), &timeout) == FALSE) {
+        result.error = ::GetLastError();
+        return result;
+    }
+    for (const auto& initialization : showcore::kSoundSwitchMicroInitializationPackets) {
+        showcore::SoundSwitchMicroPacket packet;
+        packet.length = initialization.size();
+        std::copy(initialization.begin(), initialization.end(), packet.bytes.begin());
+        if (!write_packet(usb.get(), packet, result.error)) {
+            return result;
+        }
+    }
+
+    showcore::DmxUniverse off{};
+    showcore::DmxUniverse test{};
+    const auto first = static_cast<std::size_t>(address - 1U);
+    test[first] = 255U;
+    if (first + 1U < test.size()) {
+        test[first + 1U] = 255U;
+    }
+
+    constexpr std::array framings{
+        showcore::SoundSwitchMicroFraming::NativeJls1};
+    for (const auto framing : framings) {
+        result.framing = framing;
+        const auto off_packet = showcore::build_soundswitch_micro_packet(off, framing);
+        const auto test_packet = showcore::build_soundswitch_micro_packet(test, framing);
+        std::wcout << L"\nTesting " << framing_name(framing) << L".\n"
+                   << L"The isolated bench fixture may respond for about three seconds.\n";
+        DWORD error = ERROR_SUCCESS;
+        if (!stream_packet(usb.get(), off_packet, 8U, error) ||
+            !stream_packet(usb.get(), test_packet, 120U, error) ||
+            !stream_packet(usb.get(), off_packet, 8U, error)) {
+            result.error = error;
+            std::wcout << L"USB write failed (" << error << L": "
+                       << win32_message(error) << L").\n";
+            continue;
+        }
+        result.writes_succeeded = true;
+        std::wcout << L"Did the isolated fixture visibly respond? [y/N]: ";
+        std::wstring answer;
+        std::getline(std::wcin, answer);
+        if (affirmative(answer)) {
+            result.visible_match = true;
+            result.error = ERROR_SUCCESS;
+            break;
+        }
+    }
+
+    if (result.visible_match) {
+        const auto off_packet = showcore::build_soundswitch_micro_packet(off, result.framing);
+        DWORD ignored = ERROR_SUCCESS;
+        static_cast<void>(stream_packet(usb.get(), off_packet, 3U, ignored));
+    }
+    return result;
+}
+
+[[nodiscard]] std::filesystem::path report_path();
+
+[[nodiscard]] std::filesystem::path active_report_path() {
+    auto path = report_path();
+    path.replace_filename(L"SoundSwitch-Micro-active-test.txt");
+    return path;
+}
+
+void save_active_report(const ActiveTestResult& result) {
+    const auto path = active_report_path();
+    std::wofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        return;
+    }
+    output << L"EmberLights SoundSwitch Micro active test\n"
+           << L"Version: " << EMBERLIGHTS_VERSION << L"\n"
+           << L"DMX address: " << result.address << L"\n"
+           << L"Device opened: " << (result.opened ? L"yes" : L"no") << L"\n"
+           << L"USB writes completed: " << (result.writes_succeeded ? L"yes" : L"no") << L"\n"
+           << L"Visible DMX match: " << (result.visible_match ? L"yes" : L"no") << L"\n"
+           << L"Selected framing: " << framing_name(result.framing) << L"\n"
+           << L"Last Windows error: " << result.error << L"\n";
+}
+
 [[nodiscard]] std::filesystem::path report_path() {
     PWSTR desktop_raw = nullptr;
     if (::SHGetKnownFolderPath(FOLDERID_Desktop, KF_FLAG_DEFAULT, nullptr, &desktop_raw) == S_OK &&
@@ -448,6 +706,24 @@ void enumerate_interface_guid(const GUID& guid, std::wostringstream& report) {
         ::IsEqualGUID(guids.front(), GUID_DEVINTERFACE_USB_DEVICE) == FALSE) {
         return false;
     }
+    std::uint16_t address = 0U;
+    if (!parse_dmx_address(L"1", address) || address != 1U ||
+        !parse_dmx_address(L"512", address) || address != 512U ||
+        !parse_dmx_address(L"", address) || address != 1U ||
+        parse_dmx_address(L"0", address) || parse_dmx_address(L"513", address) ||
+        parse_dmx_address(L"1x", address)) {
+        return false;
+    }
+    showcore::DmxUniverse universe{};
+    universe[0] = 0xAAU;
+    const auto packet = showcore::build_soundswitch_micro_packet(
+        universe, showcore::SoundSwitchMicroFraming::NativeJls1);
+    if (packet.length != 522U || packet.bytes[0] != 's' ||
+        packet.bytes[4] != 0x01U || packet.bytes[6] != 0x02U ||
+        packet.bytes[8] != 0U || packet.bytes[9] != 0U ||
+        packet.bytes[10] != 0xAAU) {
+        return false;
+    }
     return true;
 }
 
@@ -458,11 +734,16 @@ int wmain(int argc, wchar_t** argv) {
         return self_test() ? 0 : 1;
     }
 
+    const bool active_test =
+        argc == 2 && std::wstring_view(argv[1]) == L"--active-test";
+
     std::wcout
-        << L"EmberLights SoundSwitch Micro Probe\n"
+        << L"EmberLights SoundSwitch Micro Output Test\n"
         << L"====================================\n\n"
-        << L"This reads only the SoundSwitch Micro device (VID 15E4, PID 0053).\n"
-        << L"It does not capture other USB traffic and will not transmit DMX.\n\n"
+        << L"This tool only opens the SoundSwitch Micro device (VID 15E4, PID 0053).\n"
+        << L"Descriptor collection is passive. EmberLights itself now owns the normal\n"
+        << L"full-universe output path; this probe does not transmit unless launched\n"
+        << L"manually with the --active-test argument.\n\n"
         << L"Plug the SoundSwitch Micro dongle into this PC now.\n"
         << L"Waiting up to 60 seconds...\n";
 
@@ -495,12 +776,57 @@ int wmain(int argc, wchar_t** argv) {
     output.close();
 
     std::wcout << L"\nDetected: " << device->description
-               << L"\nSaved report to:\n" << path.wstring()
-               << L"\n\nThe report will open in Notepad. Upload that file here.\n"
-               << L"Press Enter to close this window.";
-    static_cast<void>(::ShellExecuteW(
-        nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+               << L"\nSaved descriptor report to:\n" << path.wstring() << L"\n";
+    if (!active_test) {
+        static_cast<void>(::ShellExecuteW(
+            nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+        return 0;
+    }
+
+    std::wcout
+        << L"\nACTIVE TEST SETUP\n"
+        << L"1. Fully close SoundSwitch and EmberLights.\n"
+        << L"2. Connect Micro XLR -> Donner transmitter.\n"
+        << L"3. Connect only one non-hazardous bench fixture and set its DMX address.\n"
+        << L"4. Keep movers, fog, lasers, and all other effects disconnected.\n\n"
+        << L"Enter the bench fixture DMX address [default 1]: ";
+    std::wstring address_text;
+    std::getline(std::wcin, address_text);
+    std::uint16_t address = 1U;
+    if (!parse_dmx_address(address_text, address)) {
+        std::wcerr << L"Invalid address. Enter a number from 1 through 512.\n";
+        return 4;
+    }
+    std::wcout << L"Type TEST to authorize the bounded DMX output test: ";
+    std::wstring confirmation;
+    std::getline(std::wcin, confirmation);
+    if (upper(confirmation) != L"TEST") {
+        std::wcout << L"Active test cancelled; no USB output was sent.\n";
+        return 0;
+    }
+
+    const auto interface_path = find_target_interface_path(target_interface_guids(*device));
+    if (!interface_path.has_value()) {
+        std::wcerr << L"The target WinUSB interface path disappeared. Reconnect the Micro and retry.\n";
+        return 5;
+    }
+    const auto active = run_active_test(*interface_path, address);
+    save_active_report(active);
+    if (active.visible_match) {
+        std::wcout << L"\nSUCCESS: " << framing_name(active.framing)
+                   << L" produced visible DMX output.\n"
+                   << L"The result is saved on your Desktop as:\n"
+                   << active_report_path().wstring() << L"\n"
+                   << L"Upload that small text file here so the Micro can be marked physically verified.\n";
+    } else if (!active.opened) {
+        std::wcerr << L"\nThe Micro could not be opened (" << active.error << L": "
+                   << win32_message(active.error) << L"). Close SoundSwitch/EmberLights and retry.\n";
+    } else {
+        std::wcerr << L"\nThe native JLS1 test produced no visible output. The result report is on your Desktop;\n"
+                   << L"upload it here with the fixture model, DMX address, and receiver state.\n";
+    }
+    std::wcout << L"Press Enter to close.";
     std::wstring ignored;
     std::getline(std::wcin, ignored);
-    return 0;
+    return active.visible_match ? 0 : 6;
 }
