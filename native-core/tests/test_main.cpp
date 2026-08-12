@@ -2456,6 +2456,8 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     CHECK(serialized.find("relativePathUtf8Bytewise") != std::string::npos);
     CHECK(serialized.find(inspection.inventory_sha256) != std::string::npos);
     CHECK(serialized.find("recognizedSsfileHeader\": true") != std::string::npos);
+    CHECK(serialized.find("sourceRoot") == std::string::npos);
+    CHECK(serialized.find(inspection.source_root) == std::string::npos);
     std::string report_error;
     CHECK(emberlights::save_soundswitch_inspection_atomic(
         report, inspection, report_error));
@@ -2492,8 +2494,13 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     }
     const auto comparison_json = emberlights::serialize_soundswitch_comparison(comparison);
     CHECK(comparison_json.find("emberlights-soundswitch-comparison") != std::string::npos);
+    CHECK(comparison_json.find("\"formatVersion\": 2") != std::string::npos);
     CHECK(comparison_json.find("\"change\": \"modified\"") != std::string::npos);
     CHECK(comparison_json.find("venue-updated") == std::string::npos);
+    CHECK(comparison_json.find("beforeSourceRoot") == std::string::npos);
+    CHECK(comparison_json.find("afterSourceRoot") == std::string::npos);
+    CHECK(comparison_json.find(comparison.before.source_root) == std::string::npos);
+    CHECK(comparison_json.find(comparison.after.source_root) == std::string::npos);
     CHECK(emberlights::save_soundswitch_comparison_atomic(
         comparison_report, comparison, report_error));
     CHECK(std::filesystem::file_size(comparison_report, ignored) > 0U);
@@ -2504,6 +2511,17 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     CHECK(std::filesystem::is_regular_file(
         bundle / "payload" / "01234567-89ab-cdef-0123-456789abcdef.ssfile"));
     CHECK(std::filesystem::is_regular_file(bundle / "payload" / "future.payload"));
+    {
+        std::ifstream inventory(bundle / "inventory.json", std::ios::binary);
+        std::string line;
+        bool leaked_source_root = false;
+        while (std::getline(inventory, line)) {
+            leaked_source_root = leaked_source_root ||
+                line.find(inspection.source_root) != std::string::npos;
+        }
+        CHECK(static_cast<bool>(inventory) || inventory.eof());
+        CHECK(!leaked_source_root);
+    }
     CHECK(write_file(source / "still-writable-after-inspection.txt", "untouched"));
 
     const auto duplicate = emberlights::create_soundswitch_source_bundle(source, bundle);
@@ -2691,6 +2709,8 @@ void test_soundswitch_application_data_backup_inspection_and_bundle() {
     CHECK(same_content.complete());
     CHECK(same_content.source_kind == inspection.source_kind);
     CHECK(same_content.inventory_sha256 == inspection.inventory_sha256);
+    CHECK(emberlights::serialize_soundswitch_inspection(same_content) ==
+        emberlights::serialize_soundswitch_inspection(inspection));
     CHECK(write_file(reordered / "future.payload", "changed"));
     const auto changed_content = emberlights::inspect_soundswitch_project(reordered);
     CHECK(changed_content.complete());
@@ -2703,6 +2723,7 @@ void test_soundswitch_application_data_backup_inspection_and_bundle() {
     CHECK(serialized.find("emberlights-soundswitch-inventory") != std::string::npos);
     CHECK(serialized.find("\"backup\": true") != std::string::npos);
     CHECK(serialized.find(inspection.inventory_sha256) != std::string::npos);
+    CHECK(serialized.find(inspection.source_root) == std::string::npos);
 
     const auto bundled = emberlights::create_soundswitch_source_bundle(source, bundle);
     CHECK(bundled);

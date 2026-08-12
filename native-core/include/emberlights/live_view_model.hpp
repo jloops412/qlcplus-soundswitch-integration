@@ -81,6 +81,12 @@ struct LiveActiveContent {
 // commands. Selection and bank paging are view-local only.
 class LiveViewModel {
 public:
+    LiveViewModel() = default;
+    LiveViewModel(const LiveViewModel&) = delete;
+    LiveViewModel& operator=(const LiveViewModel&) = delete;
+    LiveViewModel(LiveViewModel&&) = delete;
+    LiveViewModel& operator=(LiveViewModel&&) = delete;
+
     void load_project(const ProjectDocument& active_project);
     void update(const RunnerStatus& status) noexcept;
 

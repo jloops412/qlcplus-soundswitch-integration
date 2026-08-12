@@ -59,6 +59,8 @@ struct SoundSwitchInspection {
     std::string format{"emberlights-soundswitch-inspection"};
     std::uint32_t format_version{2U};
     SoundSwitchSourceKind source_kind{SoundSwitchSourceKind::Unknown};
+    // Process-local discovery state used only to reopen verified artifacts.
+    // Portable inspection, comparison, and bundle reports never serialize it.
     std::string source_root;
     // The digest covers the source kind and every artifact field in
     // relative-path UTF-8 byte order. The root path and issues are excluded,
@@ -110,7 +112,7 @@ struct SoundSwitchArtifactComparison {
 
 struct SoundSwitchComparison {
     std::string format{"emberlights-soundswitch-comparison"};
-    std::uint32_t format_version{1U};
+    std::uint32_t format_version{2U};
     SoundSwitchInspection before;
     SoundSwitchInspection after;
     std::vector<SoundSwitchArtifactComparison> artifacts;

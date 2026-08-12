@@ -10,11 +10,17 @@
 #include <iostream>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <utility>
 
 namespace {
 
 int failures = 0;
+
+static_assert(!std::is_copy_constructible_v<emberlights::LiveViewModel>);
+static_assert(!std::is_copy_assignable_v<emberlights::LiveViewModel>);
+static_assert(!std::is_move_constructible_v<emberlights::LiveViewModel>);
+static_assert(!std::is_move_assignable_v<emberlights::LiveViewModel>);
 
 #define CHECK(condition)                                                        \
     do {                                                                        \

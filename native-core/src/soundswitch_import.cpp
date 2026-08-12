@@ -601,7 +601,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "source.notDirectory",
-            utf8_path(source_root),
+            "source",
             "The source must be a real directory, not a file or symbolic link.");
         return inspection;
     }
@@ -611,7 +611,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "source.canonicalizeFailed",
-            utf8_path(source_root),
+            "source",
             "The source directory could not be resolved safely.");
         return inspection;
     }
@@ -634,7 +634,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "source.enumerationFailed",
-            inspection.source_root,
+            "source",
             "The source directory could not be enumerated.");
         return inspection;
     }
@@ -646,7 +646,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                 inspection,
                 SoundSwitchIssueSeverity::Error,
                 "file.statusFailed",
-                utf8_path(entry.path()),
+                utf8_path(entry.path().lexically_relative(canonical_root)),
                 "A source entry could not be inspected.");
             error.clear();
             iterator.increment(error);
@@ -655,7 +655,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                     inspection,
                     SoundSwitchIssueSeverity::Error,
                     "source.enumerationInterrupted",
-                    inspection.source_root,
+                    "source",
                     "Directory enumeration was interrupted by a filesystem error.");
                 break;
             }
@@ -678,7 +678,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                     inspection,
                     SoundSwitchIssueSeverity::Error,
                     "limit.fileCount",
-                    inspection.source_root,
+                    "source",
                     "The project exceeds the configured file-count safety limit.");
                 break;
             }
@@ -688,7 +688,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                     inspection,
                     SoundSwitchIssueSeverity::Error,
                     "file.sizeFailed",
-                    utf8_path(entry.path()),
+                    utf8_path(entry.path().lexically_relative(canonical_root)),
                     "A source file size could not be read safely.");
                 error.clear();
             } else {
@@ -700,7 +700,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                         inspection,
                         SoundSwitchIssueSeverity::Error,
                         "limit.byteCount",
-                        utf8_path(entry.path()),
+                        utf8_path(entry.path().lexically_relative(canonical_root)),
                         "The project exceeds the configured byte-count safety limit.");
                     break;
                 }
@@ -710,7 +710,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                         inspection,
                         SoundSwitchIssueSeverity::Error,
                         "file.timeFailed",
-                        utf8_path(entry.path()),
+                        utf8_path(entry.path().lexically_relative(canonical_root)),
                         "A source file timestamp could not be read safely.");
                     error.clear();
                 } else {
@@ -736,7 +736,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                 inspection,
                 SoundSwitchIssueSeverity::Error,
                 "source.enumerationInterrupted",
-                inspection.source_root,
+                "source",
                 "Directory enumeration was interrupted by a filesystem error.");
             break;
         }
@@ -806,14 +806,14 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Warning,
             "format.applicationDataBackup",
-            inspection.source_root,
+            "source",
             "A manifestless SoundSwitch application-data backup was recognized by its required core databases. Its files can be preserved losslessly, but this classification does not claim semantic migration.");
     } else {
         add_issue(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "format.sourceLayoutUnknown",
-            inspection.source_root,
+            "source",
             "No active .ssproj manifest or complete application-data backup core was found. Select an exported project directory or a backup containing SoundSwitchVenues.bin, SoundSwitchAutoLoops.bin, and SoundSwitchTrackMap.bin.");
     }
     if (!has_active_kind(inspection, SoundSwitchArtifactKind::VenueDatabase)) {
@@ -821,7 +821,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Warning,
             "format.venueMissing",
-            inspection.source_root,
+            "source",
             "SoundSwitchVenues.bin was not found; venue and patch conversion may be unavailable.");
     }
     if (!has_active_kind(inspection, SoundSwitchArtifactKind::TrackScript) &&
@@ -830,7 +830,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Warning,
             "format.scriptsMissing",
-            inspection.source_root,
+            "source",
             "No .ssfile scripts were found in this project directory.");
     }
     if (unrecognized_ssfiles > 0U) {
@@ -867,9 +867,7 @@ std::string serialize_soundswitch_inspection(
            << ",\n    \"ordering\": \"relativePathUtf8Bytewise\",\n    \"sha256\": ";
     append_json_string(output, inspection.inventory_sha256);
     output << "\n  }"
-           << ",\n  \"sourceRoot\": ";
-    append_json_string(output, inspection.source_root);
-    output << ",\n  \"complete\": " << (inspection.complete() ? "true" : "false")
+           << ",\n  \"complete\": " << (inspection.complete() ? "true" : "false")
            << ",\n  \"summary\": {\n"
            << "    \"files\": " << inspection.artifacts.size() << ",\n"
            << "    \"totalBytes\": " << inspection.total_bytes << ",\n"
@@ -1069,11 +1067,7 @@ std::string serialize_soundswitch_comparison(
     append_json_string(output, comparison.format);
     output << ",\n  \"formatVersion\": " << comparison.format_version
            << ",\n  \"complete\": " << (comparison.complete() ? "true" : "false")
-           << ",\n  \"beforeSourceRoot\": ";
-    append_json_string(output, comparison.before.source_root);
-    output << ",\n  \"afterSourceRoot\": ";
-    append_json_string(output, comparison.after.source_root);
-    output << ",\n  \"summary\": {\n"
+           << ",\n  \"summary\": {\n"
            << "    \"unchanged\": " << comparison.unchanged_artifacts << ",\n"
            << "    \"added\": " << comparison.added_artifacts << ",\n"
            << "    \"removed\": " << comparison.removed_artifacts << ",\n"

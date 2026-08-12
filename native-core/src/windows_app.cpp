@@ -860,9 +860,9 @@ Application::~Application() noexcept {
     if (title_font_ != nullptr) {
         static_cast<void>(::DeleteObject(title_font_));
     }
-    if (background_brush_ != nullptr) {
-        static_cast<void>(::DeleteObject(background_brush_));
-    }
+    // background_brush_ is registered as the background brush for our window
+    // classes. Win32 owns a class brush until class/process teardown; deleting
+    // it here would leave the registered classes holding an invalid HBRUSH.
     if (surface_brush_ != nullptr) {
         static_cast<void>(::DeleteObject(surface_brush_));
     }
@@ -2427,7 +2427,7 @@ void Application::refresh_live_status() {
     std::wostringstream metrics;
     metrics << L"OS2L: " << adapter_state_name(status.os2l)
             << (status.os2l_listen_port != 0U
-                    ? L" on " + widen(project_.connections.os2l_bind) + L":" +
+                    ? L" on " + widen(live_project().connections.os2l_bind) + L":" +
                         std::to_wstring(status.os2l_listen_port)
                     : std::wstring{})
             << L"    MIDI: " << adapter_state_name(status.midi_input)
@@ -3247,13 +3247,15 @@ void Application::handle_command(int id, int notification, HWND) {
             (live_autoloop_bank_page_ + 1U) % showcore::kAutoloopControlPageCount);
         refresh_live_status();
         break;
-    case IdLiveSelectAllAutoloopBanks:
-        if (ui_commands_.invoke(
-                {emberlights::UiCommandId::AutoloopBankFilterEnableAll}) !=
-            emberlights::UiInvocationResult::Accepted) {
+    case IdLiveSelectAllAutoloopBanks: {
+        const auto result = ui_commands_.invoke(
+            {emberlights::UiCommandId::AutoloopBankFilterEnableAll});
+        if (result != emberlights::UiInvocationResult::Accepted &&
+            result != emberlights::UiInvocationResult::NoChange) {
             set_status(L"Start the show before changing Autoloop navigation banks.");
         }
         break;
+    }
     case IdLiveAutoloopBank1:
     case IdLiveAutoloopBank2:
     case IdLiveAutoloopBank3:
@@ -3417,8 +3419,8 @@ void Application::new_project() {
         return;
     }
     runner_.stop();
-    active_project_.reset();
     ui_commands_.set_active_project(nullptr);
+    active_project_.reset();
     project_ = emberlights::make_starter_project();
     current_path_.clear();
     edit_history_.clear();
@@ -3524,8 +3526,8 @@ void Application::restore_project_history_dialog() {
     }
 
     runner_.stop();
-    active_project_.reset();
     ui_commands_.set_active_project(nullptr);
+    active_project_.reset();
     static_cast<void>(::ModifyMenuW(
         ::GetSubMenu(::GetMenu(window_), 2),
         IdShowStartStop,
@@ -3538,6 +3540,7 @@ void Application::restore_project_history_dialog() {
         const auto message = widen(result.message);
         ::MessageBoxW(window_, message.c_str(), L"Could not restore saved version", MB_OK | MB_ICONERROR);
         refresh_live_lists();
+        refresh_overrides();
         refresh_live_status();
         return;
     }
@@ -3800,8 +3803,8 @@ bool Application::open_project(const std::filesystem::path& path) {
         return false;
     }
     runner_.stop();
-    active_project_.reset();
     ui_commands_.set_active_project(nullptr);
+    active_project_.reset();
     project_ = std::move(loaded);
     current_path_ = path;
     const auto remembered = remember_project_path(current_path_);
@@ -3893,8 +3896,8 @@ bool Application::save_project(bool save_as) {
         }
 
         runner_.stop();
-        active_project_.reset();
         ui_commands_.set_active_project(nullptr);
+        active_project_.reset();
         refresh_live_lists();
         refresh_overrides();
         refresh_live_status();
@@ -3953,8 +3956,8 @@ void Application::start_or_stop_show() {
     const auto current = runner_.status().state;
     if (current != emberlights::RunnerState::Stopped) {
         runner_.stop();
-        active_project_.reset();
         ui_commands_.set_active_project(nullptr);
+        active_project_.reset();
         static_cast<void>(::ModifyMenuW(
             ::GetSubMenu(::GetMenu(window_), 2),
             IdShowStartStop,
@@ -4007,6 +4010,9 @@ void Application::start_or_stop_show() {
             L"and Diagnostics.",
             L"Runner start failed",
             MB_OK | MB_ICONERROR);
+        refresh_live_lists();
+        refresh_overrides();
+        refresh_live_status();
         return;
     }
     active_project_ = run_project;
@@ -5602,8 +5608,8 @@ void Application::apply_connections() {
     }
     if (was_running && previous_connections != project_.connections) {
         runner_.stop();
-        active_project_.reset();
         ui_commands_.set_active_project(nullptr);
+        active_project_.reset();
         static_cast<void>(::ModifyMenuW(
             ::GetSubMenu(::GetMenu(window_), 2),
             IdShowStartStop,
