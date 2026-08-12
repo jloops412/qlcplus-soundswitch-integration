@@ -72,6 +72,8 @@ add_library(showcore STATIC
     src/soundswitch_v1.cpp
     src/soundswitch_migration_ir.cpp
     src/studio_document.cpp
+    src/studio_color.cpp
+    src/studio_preview.cpp
     src/compiler.cpp
     src/ui_command.cpp
     src/ui_state.cpp
@@ -144,6 +146,10 @@ target_link_libraries(live_ui_tests PRIVATE showcore)
 add_executable(studio_foundation_tests
     tests/test_studio_foundation.cpp)
 target_link_libraries(studio_foundation_tests PRIVATE showcore)
+
+add_executable(studio_authoring_tests
+    tests/test_studio_authoring.cpp)
+target_link_libraries(studio_authoring_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -309,6 +315,7 @@ add_test(NAME live_ui_tests COMMAND live_ui_tests)
 add_test(NAME studio_foundation_tests COMMAND studio_foundation_tests)
 set_tests_properties(studio_foundation_tests PROPERTIES
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME studio_authoring_tests COMMAND studio_authoring_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke
