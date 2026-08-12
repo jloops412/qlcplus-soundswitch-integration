@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://emberlights.dev/schema/ui/ui-registry-source-v1.json",
+  "title": "EmberLights Canonical UI Registry Set Source v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "registrySetVersion",
+    "registryGeneration",
+    "generatorVersion",
+    "status",
+    "nativeMode",
+    "fragments",
+    "ownerReservations"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "registrySetVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "registryGeneration": {"type": "integer", "minimum": 1},
+    "generatorVersion": {"const": "1.0.0"},
+    "status": {"enum": ["implementationDraft", "accepted", "deprecated"]},
+    "nativeMode": {"enum": ["spike", "integrated"]},
+    "fragments": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {"type": "string", "minLength": 1, "maxLength": 240}
+      }
+    },
+    "crossReferenceArtifacts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 240}
+    },
+    "ownerReservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue", "namespace", "semanticSlots", "rule"],
+        "properties": {
+          "issue": {"type": "integer", "minimum": 1},
+          "namespace": {"type": "string", "minLength": 1, "maxLength": 80},
+          "semanticSlots": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 160}
+          },
+          "rule": {"type": "string", "minLength": 1, "maxLength": 1024}
+        }
+      }
+    }
+  }
+}

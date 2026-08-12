@@ -73,7 +73,7 @@ DEPS := \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
-.PHONY: all runner_lab qualification migration test winmm-syntax dmx-usb-syntax bench smoke clean
+.PHONY: all runner_lab qualification migration test winmm-syntax dmx-usb-syntax bench smoke clean ui-registry-generate ui-registry-check surface-contract-gate
 
 all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
@@ -82,6 +82,16 @@ runner_lab: $(BUILD)/runner_lab
 qualification: $(BUILD)/emberlights_qualify
 
 migration: $(BUILD)/emberlights_migrate
+
+ui-registry-generate:
+	python3 tools/generate_ui_registry.py generate
+
+ui-registry-check:
+	python3 tools/generate_ui_registry.py check
+	PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ui_registry.py
+
+surface-contract-gate: ui-registry-check $(BUILD)/ui_command_state_tests
+	./$(BUILD)/ui_command_state_tests
 
 $(BUILD)/runner_demo: $(OBJECTS) $(BUILD)/src/demo.o
 	$(CXX) $^ $(LDFLAGS) -o $@

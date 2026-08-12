@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "registry-unknown-reference",
+  "references": {
+    "commands": ["missing.command"],
+    "states": ["missing.state"]
+  }
+}

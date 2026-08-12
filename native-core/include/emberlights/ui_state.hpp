@@ -1,65 +1,12 @@
 #pragma once
 
+#include "emberlights/generated/ui_registry.generated.hpp"
 #include "emberlights/runner.hpp"
 
 #include <array>
 #include <cstdint>
-#include <string_view>
 
 namespace emberlights {
-
-enum class UiStateUpdateClass : std::uint8_t {
-    Event,
-    Health,
-    Realtime
-};
-
-struct UiStateDefinition {
-    std::string_view id{};
-    UiStateUpdateClass update_class{UiStateUpdateClass::Event};
-};
-
-inline constexpr auto kLiveCoreUiStates = std::to_array<UiStateDefinition>({
-    {"project.active.id", UiStateUpdateClass::Event},
-    {"project.active.name", UiStateUpdateClass::Event},
-    {"runner.state", UiStateUpdateClass::Event},
-    {"runner.generation", UiStateUpdateClass::Event},
-    {"runner.frames", UiStateUpdateClass::Realtime},
-    {"runner.health", UiStateUpdateClass::Health},
-    {"transport.bpm", UiStateUpdateClass::Realtime},
-    {"transport.beatPosition", UiStateUpdateClass::Realtime},
-    {"transport.clockSource", UiStateUpdateClass::Health},
-    {"transport.syncState", UiStateUpdateClass::Health},
-    {"connection.os2l.status", UiStateUpdateClass::Health},
-    {"connection.os2l.discoveryStatus", UiStateUpdateClass::Health},
-    {"controller.input.status", UiStateUpdateClass::Health},
-    {"controller.output.status", UiStateUpdateClass::Health},
-    {"output.artnet.status", UiStateUpdateClass::Health},
-    {"output.sacn.status", UiStateUpdateClass::Health},
-    {"output.dmxUsbPro[0].status", UiStateUpdateClass::Health},
-    {"output.dmxUsbPro[1].status", UiStateUpdateClass::Health},
-    {"output.micro.status", UiStateUpdateClass::Health},
-    {"output.blackout", UiStateUpdateClass::Event},
-    {"output.workLight", UiStateUpdateClass::Event},
-    {"safety.hazard.fog.armed", UiStateUpdateClass::Event},
-    {"safety.hazard.haze.armed", UiStateUpdateClass::Event},
-    {"safety.hazard.laser.armed", UiStateUpdateClass::Event},
-    {"safety.hazard.spark.armed", UiStateUpdateClass::Event},
-    {"staticLook.active.id", UiStateUpdateClass::Event},
-    {"autoloop.active.id", UiStateUpdateClass::Event},
-    {"autoloop.active.bank", UiStateUpdateClass::Event},
-    {"autoloop.active.slot", UiStateUpdateClass::Event},
-    {"autoloop.active.progress", UiStateUpdateClass::Realtime},
-    {"autoloop.active.repeat", UiStateUpdateClass::Event},
-    {"autoloop.active.completedCycles", UiStateUpdateClass::Event},
-    {"autoloop.bankFilter.mask", UiStateUpdateClass::Event},
-    {"trackScript.active.id", UiStateUpdateClass::Event},
-    {"trackScript.elapsedBeat", UiStateUpdateClass::Realtime},
-    {"trackScript.consumedCueCount", UiStateUpdateClass::Event},
-    {"override.activePropertyCount", UiStateUpdateClass::Event},
-    {"output.controlOne.status", UiStateUpdateClass::Health},
-    {"output.controlOne.experimental", UiStateUpdateClass::Event},
-});
 
 struct LiveCoreUiState {
     std::uint64_t generation{0U};

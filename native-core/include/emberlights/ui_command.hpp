@@ -1,110 +1,12 @@
 #pragma once
 
+#include "emberlights/generated/ui_registry.generated.hpp"
 #include "emberlights/runner.hpp"
 
-#include <array>
 #include <cstdint>
 #include <string_view>
 
 namespace emberlights {
-
-enum class UiCommandId : std::uint8_t {
-    ShowStart,
-    ShowStop,
-    ShowToggleRunning,
-    BlackoutSet,
-    BlackoutToggle,
-    WorkLightSet,
-    WorkLightToggle,
-    ReleaseAllOverrides,
-    ManualBpmSet,
-    TapTempo,
-    HazardSetArmed,
-    HazardDisarmAll,
-    StaticLookActivate,
-    StaticLookToggle,
-    StaticLookHold,
-    StaticLookClear,
-    AutoloopLaunch,
-    AutoloopClear,
-    AutoloopNext,
-    AutoloopPrevious,
-    AutoloopBankFilterEnableAll,
-    AutoloopBankFilterSelectExclusive,
-    AutoloopBankFilterSetEnabled,
-    TrackScriptStart,
-    TrackScriptClear,
-    FixtureOverridePropertySet,
-    FixtureOverridePropertyRelease,
-    GroupOverridePropertySet,
-    GroupOverridePropertyRelease,
-    Count
-};
-
-enum class UiInvocationResult : std::uint8_t {
-    Accepted,
-    NoChange,
-    Unavailable,
-    InvalidArguments,
-    NotFound,
-    ValidationFailed,
-    QueueFull,
-    SafetyRejected,
-    Unsupported,
-    InternalError
-};
-
-enum class UiCommandInteraction : std::uint8_t {
-    Trigger,
-    Toggle,
-    Absolute,
-    Momentary,
-    Selection
-};
-
-struct UiCommandDefinition {
-    UiCommandId command{UiCommandId::ShowStart};
-    std::string_view id{};
-    std::string_view label{};
-    UiCommandInteraction interaction{UiCommandInteraction::Trigger};
-    bool emergency{false};
-    bool midi_bindable{true};
-    bool keyboard_bindable{true};
-};
-
-inline constexpr std::array<UiCommandDefinition,
-                            static_cast<std::size_t>(UiCommandId::Count)>
-    kUiCommandDefinitions{{
-        {UiCommandId::ShowStart, "show.start", "Start show", UiCommandInteraction::Trigger},
-        {UiCommandId::ShowStop, "show.stop", "Stop show", UiCommandInteraction::Trigger},
-        {UiCommandId::ShowToggleRunning, "show.toggleRunning", "Start or stop show", UiCommandInteraction::Toggle},
-        {UiCommandId::BlackoutSet, "output.blackout.set", "Set blackout", UiCommandInteraction::Absolute, true},
-        {UiCommandId::BlackoutToggle, "output.blackout.toggle", "Toggle blackout", UiCommandInteraction::Toggle, true},
-        {UiCommandId::WorkLightSet, "output.workLight.set", "Set work light", UiCommandInteraction::Absolute},
-        {UiCommandId::WorkLightToggle, "output.workLight.toggle", "Toggle work light", UiCommandInteraction::Toggle},
-        {UiCommandId::ReleaseAllOverrides, "override.releaseAll", "Release all overrides", UiCommandInteraction::Trigger},
-        {UiCommandId::ManualBpmSet, "transport.manualBpm.set", "Set manual BPM", UiCommandInteraction::Absolute},
-        {UiCommandId::TapTempo, "transport.tap", "Tap tempo", UiCommandInteraction::Trigger},
-        {UiCommandId::HazardSetArmed, "safety.hazard.setArmed", "Set hazard armed", UiCommandInteraction::Absolute},
-        {UiCommandId::HazardDisarmAll, "safety.hazard.disarmAll", "Disarm all hazards", UiCommandInteraction::Trigger},
-        {UiCommandId::StaticLookActivate, "staticLook.activate", "Activate Static Look", UiCommandInteraction::Trigger},
-        {UiCommandId::StaticLookToggle, "staticLook.toggle", "Toggle Static Look", UiCommandInteraction::Toggle},
-        {UiCommandId::StaticLookHold, "staticLook.hold", "Hold Static Look", UiCommandInteraction::Momentary},
-        {UiCommandId::StaticLookClear, "staticLook.clear", "Clear Static Look", UiCommandInteraction::Trigger},
-        {UiCommandId::AutoloopLaunch, "autoloop.launch", "Launch Autoloop", UiCommandInteraction::Trigger},
-        {UiCommandId::AutoloopClear, "autoloop.clear", "Clear Autoloop", UiCommandInteraction::Trigger},
-        {UiCommandId::AutoloopNext, "autoloop.next", "Next Autoloop", UiCommandInteraction::Trigger},
-        {UiCommandId::AutoloopPrevious, "autoloop.previous", "Previous Autoloop", UiCommandInteraction::Trigger},
-        {UiCommandId::AutoloopBankFilterEnableAll, "autoloop.bankFilter.enableAll", "Enable all Autoloop banks", UiCommandInteraction::Trigger},
-        {UiCommandId::AutoloopBankFilterSelectExclusive, "autoloop.bankFilter.selectExclusive", "Select exclusive Autoloop bank", UiCommandInteraction::Selection},
-        {UiCommandId::AutoloopBankFilterSetEnabled, "autoloop.bankFilter.setEnabled", "Set Autoloop bank enabled", UiCommandInteraction::Absolute},
-        {UiCommandId::TrackScriptStart, "trackScript.start", "Start Track Script", UiCommandInteraction::Trigger},
-        {UiCommandId::TrackScriptClear, "trackScript.clear", "Clear Track Script", UiCommandInteraction::Trigger},
-        {UiCommandId::FixtureOverridePropertySet, "fixture.override.property.set", "Set fixture property override", UiCommandInteraction::Absolute},
-        {UiCommandId::FixtureOverridePropertyRelease, "fixture.override.property.release", "Release fixture property override", UiCommandInteraction::Trigger},
-        {UiCommandId::GroupOverridePropertySet, "group.override.property.set", "Set group property override", UiCommandInteraction::Absolute},
-        {UiCommandId::GroupOverridePropertyRelease, "group.override.property.release", "Release group property override", UiCommandInteraction::Trigger},
-    }};
 
 struct UiCommandInvocation {
     UiCommandId command{UiCommandId::ShowStart};
