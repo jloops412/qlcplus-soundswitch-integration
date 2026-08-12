@@ -1,11 +1,13 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/fixture_profile_upgrade.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/runner.hpp"
 #include "emberlights/soundswitch_import.hpp"
+#include "emberlights/soundswitch_source_binding.hpp"
 #include "emberlights/soundswitch_v1.hpp"
 #include "showcore/artnet.hpp"
 #include "showcore/autoloop.hpp"
@@ -2419,7 +2421,7 @@ void test_soundswitch_read_only_inspection_and_bundle() {
         output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
         return static_cast<bool>(output);
     };
-    CHECK(write_file(source / "Example.ssproj", "{\"project\":\"test\"}\n"));
+    CHECK(write_file(source / ".ssproj", "{\"project\":\"test\"}\n"));
     CHECK(write_file(source / "SoundSwitchVenues.bin", "venue"));
     CHECK(write_file(
         source / "01234567-89ab-cdef-0123-456789abcdef.ssfile",
@@ -2429,6 +2431,11 @@ void test_soundswitch_read_only_inspection_and_bundle() {
 
     const auto inspection = emberlights::inspect_soundswitch_project(source);
     CHECK(inspection.complete());
+    CHECK(inspection.format_version == 2U);
+    CHECK(inspection.source_kind == emberlights::SoundSwitchSourceKind::ExportedProject);
+    CHECK(inspection.inventory_format == "emberlights-soundswitch-inventory");
+    CHECK(inspection.inventory_format_version == 1U);
+    CHECK(inspection.inventory_sha256.size() == 64U);
     CHECK(inspection.artifacts.size() == 5U);
     CHECK(inspection.total_bytes == 49U);
     CHECK(inspection.known_artifacts == 4U);
@@ -2445,6 +2452,9 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     }
     const auto serialized = emberlights::serialize_soundswitch_inspection(inspection);
     CHECK(serialized.find("emberlights-soundswitch-inspection") != std::string::npos);
+    CHECK(serialized.find("\"sourceKind\": \"exportedProject\"") != std::string::npos);
+    CHECK(serialized.find("relativePathUtf8Bytewise") != std::string::npos);
+    CHECK(serialized.find(inspection.inventory_sha256) != std::string::npos);
     CHECK(serialized.find("recognizedSsfileHeader\": true") != std::string::npos);
     std::string report_error;
     CHECK(emberlights::save_soundswitch_inspection_atomic(
@@ -2453,7 +2463,7 @@ void test_soundswitch_read_only_inspection_and_bundle() {
 
     std::filesystem::create_directories(after, ignored);
     CHECK(!ignored);
-    CHECK(write_file(after / "Example.ssproj", "{\"project\":\"test\"}\n"));
+    CHECK(write_file(after / ".ssproj", "{\"project\":\"test\"}\n"));
     CHECK(write_file(after / "SoundSwitchVenues.bin", "venue-updated"));
     CHECK(write_file(
         after / "01234567-89ab-cdef-0123-456789abcdef.ssfile",
@@ -2504,6 +2514,479 @@ void test_soundswitch_read_only_inspection_and_bundle() {
     std::filesystem::remove_all(bundle, ignored);
     std::filesystem::remove(report, ignored);
     std::filesystem::remove(comparison_report, ignored);
+}
+
+void test_soundswitch_source_binding_audit() {
+    constexpr std::string_view claimed_venue =
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    constexpr std::string_view claimed_loops =
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    constexpr std::string_view available_venue =
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+    constexpr std::string_view available_loops =
+        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+
+    emberlights::ProjectDocument project;
+    project.unknown_records.push_back(
+        "SOUNDSWITCH_SOURCE\t2.10.x\t{manifest}\t" +
+        std::string(claimed_venue) + "\t" + std::string(claimed_loops) +
+        "\tsemantic-v1-safe-patch");
+    emberlights::SoundSwitchInspection inspection;
+    inspection.source_kind = emberlights::SoundSwitchSourceKind::ApplicationDataBackup;
+    inspection.inventory_sha256 =
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    inspection.artifacts = {
+        {"SoundSwitchVenues.bin", emberlights::SoundSwitchArtifactKind::VenueDatabase,
+         10U, std::string(available_venue), false, false},
+        {"SoundSwitchAutoLoops.bin", emberlights::SoundSwitchArtifactKind::AutoloopDatabase,
+         11U, std::string(available_loops), false, false},
+        {"track.ssfile", emberlights::SoundSwitchArtifactKind::TrackScript,
+         12U, std::string(claimed_venue), false, true},
+        {"Autoloops/1.ssfile", emberlights::SoundSwitchArtifactKind::AutoloopScript,
+         13U, std::string(claimed_loops), false, true},
+        {"Autoloops/1.ssfile.bak", emberlights::SoundSwitchArtifactKind::AutoloopScript,
+         14U, std::string(available_venue), true, true},
+        {"Fixture.plfix", emberlights::SoundSwitchArtifactKind::FixturePersonality,
+         15U, std::string(available_loops), false, false}};
+
+    const auto mismatch = emberlights::audit_soundswitch_source_binding(
+        project, inspection);
+    CHECK(mismatch.status ==
+          emberlights::SoundSwitchSourceBindingStatus::SourceMismatch);
+    CHECK(!mismatch.exact_artifact_hash_match);
+    CHECK(!mismatch.semantic_import_qualified);
+    CHECK(mismatch.available_backup_count == 1U);
+    CHECK(mismatch.available_track_script_count == 1U);
+    CHECK(mismatch.available_autoloop_script_count == 1U);
+    CHECK(mismatch.available_fixture_personality_count == 1U);
+
+    auto evidenced = project;
+    emberlights::record_soundswitch_source_binding_evidence(
+        evidenced, mismatch,
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    const auto evidence_serialized = emberlights::serialize_project(evidenced);
+    CHECK(evidence_serialized.find("SOUNDSWITCH_AVAILABLE_SOURCE") != std::string::npos);
+    CHECK(evidence_serialized.find("sourceMismatch") != std::string::npos);
+    CHECK(evidence_serialized.find("SOUNDSWITCH_ARCHIVE_SHA256") != std::string::npos);
+    const auto records_before = evidenced.unknown_records.size();
+    emberlights::record_soundswitch_source_binding_evidence(
+        evidenced, mismatch,
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    CHECK(evidenced.unknown_records.size() == records_before);
+
+    const auto report = emberlights::serialize_soundswitch_source_binding_audit(
+        mismatch,
+        "project.emberlights",
+        std::string(claimed_venue),
+        "SoundSwitch extracted backup",
+        std::string(claimed_loops));
+    CHECK(report.find("\"status\": \"sourceMismatch\"") != std::string::npos);
+    CHECK(report.find("\"semanticImportQualified\": false") != std::string::npos);
+    CHECK(report.find("\"trackScriptCount\": 1") != std::string::npos);
+
+    inspection.artifacts[0].sha256 = std::string(claimed_venue);
+    inspection.artifacts[1].sha256 = std::string(claimed_loops);
+    const auto exact = emberlights::audit_soundswitch_source_binding(project, inspection);
+    CHECK(exact.status ==
+          emberlights::SoundSwitchSourceBindingStatus::ExactArtifactHashMatch);
+    CHECK(exact.exact_artifact_hash_match);
+    CHECK(!exact.semantic_import_qualified);
+
+    project.unknown_records.push_back(
+        "SOUNDSWITCH_SOURCE\tduplicate\t{x}\t" + std::string(claimed_venue) +
+        "\t" + std::string(claimed_loops) + "\tduplicate");
+    const auto ambiguous = emberlights::audit_soundswitch_source_binding(
+        project, inspection);
+    CHECK(ambiguous.status ==
+          emberlights::SoundSwitchSourceBindingStatus::ProjectClaimMalformed);
+}
+
+void test_soundswitch_application_data_backup_inspection_and_bundle() {
+    const auto source = std::filesystem::path("build/soundswitch-appdata-source");
+    const auto reordered = std::filesystem::path("build/soundswitch-appdata-reordered");
+    const auto incomplete = std::filesystem::path("build/soundswitch-appdata-incomplete");
+    const auto bundle = std::filesystem::path("build/soundswitch-appdata-bundle");
+    const auto incomplete_bundle =
+        std::filesystem::path("build/soundswitch-appdata-incomplete-bundle");
+    std::error_code ignored;
+    for (const auto& path : {source, reordered, incomplete, bundle, incomplete_bundle}) {
+        std::filesystem::remove_all(path, ignored);
+    }
+    std::filesystem::create_directories(source, ignored);
+    CHECK(!ignored);
+    std::filesystem::create_directories(reordered, ignored);
+    CHECK(!ignored);
+    std::filesystem::create_directories(incomplete, ignored);
+    CHECK(!ignored);
+
+    auto write_file = [](const std::filesystem::path& path, std::string_view bytes) {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        return static_cast<bool>(output);
+    };
+    const std::vector<std::pair<std::filesystem::path, std::string>> files{
+        {"future.payload", "preserve-me"},
+        {"Unknown-6x12w 6in1 LED.plfix", "fixture-personality"},
+        {"SSAutoLoop1.ssfile.bak", std::string{"\xAA\xAA\x09\x55old-loop", 12U}},
+        {"SoundSwitchAutoLoops.bin.bak", "old-autoloop-db"},
+        {"SSAutoLoop1.ssfile", std::string{"\xAA\xAA\x09\x55new-loop", 12U}},
+        {"SoundSwitchTrackMap.bin", "track-map"},
+        {"SoundSwitchAutoLoops.bin", "autoloop-db"},
+        {"SoundSwitchVenues.bin", "venues-db"}};
+    for (const auto& [relative, bytes] : files) {
+        CHECK(write_file(source / relative, bytes));
+    }
+    for (auto iterator = files.rbegin(); iterator != files.rend(); ++iterator) {
+        CHECK(write_file(reordered / iterator->first, iterator->second));
+    }
+
+    const auto inspection = emberlights::inspect_soundswitch_project(source);
+    CHECK(inspection.complete());
+    CHECK(inspection.source_kind ==
+        emberlights::SoundSwitchSourceKind::ApplicationDataBackup);
+    CHECK(inspection.format_version == 2U);
+    CHECK(inspection.inventory_format == "emberlights-soundswitch-inventory");
+    CHECK(inspection.inventory_format_version == 1U);
+    CHECK(inspection.inventory_sha256.size() == 64U);
+    CHECK(inspection.artifacts.size() == files.size());
+    CHECK(inspection.known_artifacts == 7U);
+    CHECK(inspection.unknown_artifacts == 1U);
+    CHECK(inspection.recognized_ssfiles == 2U);
+    CHECK(std::is_sorted(
+        inspection.artifacts.begin(), inspection.artifacts.end(),
+        [](const auto& first, const auto& second) {
+            return first.relative_path < second.relative_path;
+        }));
+    CHECK(std::any_of(
+        inspection.issues.begin(), inspection.issues.end(), [](const auto& issue) {
+            return issue.code == "format.applicationDataBackup";
+        }));
+
+    const auto find_artifact = [&](std::string_view path) {
+        return std::find_if(
+            inspection.artifacts.begin(), inspection.artifacts.end(),
+            [path](const auto& artifact) { return artifact.relative_path == path; });
+    };
+    const auto personality = find_artifact("Unknown-6x12w 6in1 LED.plfix");
+    CHECK(personality != inspection.artifacts.end());
+    if (personality != inspection.artifacts.end()) {
+        CHECK(personality->kind == emberlights::SoundSwitchArtifactKind::FixturePersonality);
+        CHECK(!personality->is_backup);
+    }
+    const auto database_backup = find_artifact("SoundSwitchAutoLoops.bin.bak");
+    CHECK(database_backup != inspection.artifacts.end());
+    if (database_backup != inspection.artifacts.end()) {
+        CHECK(database_backup->kind == emberlights::SoundSwitchArtifactKind::AutoloopDatabase);
+        CHECK(database_backup->is_backup);
+    }
+    const auto script_backup = find_artifact("SSAutoLoop1.ssfile.bak");
+    CHECK(script_backup != inspection.artifacts.end());
+    if (script_backup != inspection.artifacts.end()) {
+        CHECK(script_backup->kind == emberlights::SoundSwitchArtifactKind::AutoloopScript);
+        CHECK(script_backup->is_backup);
+        CHECK(script_backup->recognized_ssfile_header);
+    }
+
+    const auto same_content = emberlights::inspect_soundswitch_project(reordered);
+    CHECK(same_content.complete());
+    CHECK(same_content.source_kind == inspection.source_kind);
+    CHECK(same_content.inventory_sha256 == inspection.inventory_sha256);
+    CHECK(write_file(reordered / "future.payload", "changed"));
+    const auto changed_content = emberlights::inspect_soundswitch_project(reordered);
+    CHECK(changed_content.complete());
+    CHECK(changed_content.inventory_sha256 != inspection.inventory_sha256);
+
+    const auto serialized = emberlights::serialize_soundswitch_inspection(inspection);
+    CHECK(serialized.find("\"formatVersion\": 2") != std::string::npos);
+    CHECK(serialized.find("\"sourceKind\": \"applicationDataBackup\"") !=
+        std::string::npos);
+    CHECK(serialized.find("emberlights-soundswitch-inventory") != std::string::npos);
+    CHECK(serialized.find("\"backup\": true") != std::string::npos);
+    CHECK(serialized.find(inspection.inventory_sha256) != std::string::npos);
+
+    const auto bundled = emberlights::create_soundswitch_source_bundle(source, bundle);
+    CHECK(bundled);
+    CHECK(bundled.inspection.inventory_sha256 == inspection.inventory_sha256);
+    CHECK(std::filesystem::is_regular_file(bundle / "inventory.json"));
+    for (const auto& [relative, _] : files) {
+        CHECK(std::filesystem::is_regular_file(bundle / "payload" / relative));
+    }
+    const auto source_after_bundle = emberlights::inspect_soundswitch_project(source);
+    CHECK(source_after_bundle.inventory_sha256 == inspection.inventory_sha256);
+
+    CHECK(write_file(incomplete / "Example.ssproj.bak", "manifest-backup"));
+    CHECK(write_file(incomplete / "SoundSwitchVenues.bin", "venues-db"));
+    CHECK(write_file(incomplete / "SoundSwitchAutoLoops.bin", "autoloop-db"));
+    const auto incomplete_inspection =
+        emberlights::inspect_soundswitch_project(incomplete);
+    CHECK(!incomplete_inspection.complete());
+    CHECK(incomplete_inspection.source_kind == emberlights::SoundSwitchSourceKind::Unknown);
+    CHECK(std::any_of(
+        incomplete_inspection.issues.begin(), incomplete_inspection.issues.end(),
+        [](const auto& issue) { return issue.code == "format.sourceLayoutUnknown"; }));
+    const auto manifest_backup = std::find_if(
+        incomplete_inspection.artifacts.begin(), incomplete_inspection.artifacts.end(),
+        [](const auto& artifact) {
+            return artifact.relative_path == "Example.ssproj.bak";
+        });
+    CHECK(manifest_backup != incomplete_inspection.artifacts.end());
+    if (manifest_backup != incomplete_inspection.artifacts.end()) {
+        CHECK(manifest_backup->kind ==
+            emberlights::SoundSwitchArtifactKind::ProjectManifest);
+        CHECK(manifest_backup->is_backup);
+    }
+    const auto refused = emberlights::create_soundswitch_source_bundle(
+        incomplete, incomplete_bundle);
+    CHECK(refused.error == emberlights::SoundSwitchBundleError::InspectionFailed);
+    CHECK(!std::filesystem::exists(incomplete_bundle));
+
+    for (const auto& path : {source, reordered, incomplete, bundle, incomplete_bundle}) {
+        std::filesystem::remove_all(path, ignored);
+    }
+}
+
+void test_ir4_fixture_profile_upgrade() {
+    using showcore::ChannelEncoding;
+    using showcore::FixtureProfileSource;
+    using showcore::Property;
+
+    const auto six_channel = emberlights::make_both_lighting_bo_ir4_6ch_profile();
+    const auto ten_channel = emberlights::make_both_lighting_bo_ir4_10ch_profile();
+    const auto check_manual_profile = [](
+        const emberlights::FixtureProfileDefinition& profile,
+        const auto& expected_properties) {
+        CHECK(profile.source == FixtureProfileSource::BuiltIn);
+        CHECK(profile.source_revision == emberlights::kBothLightingBoIr4ManualRevision);
+        CHECK(profile.footprint == expected_properties.size());
+        CHECK(profile.channels.size() == expected_properties.size());
+        for (std::size_t index = 0U;
+             index < profile.channels.size() && index < expected_properties.size();
+             ++index) {
+            const auto& definition = profile.channels[index];
+            CHECK(definition.property == expected_properties[index]);
+            CHECK(definition.coarse_offset == index);
+            CHECK(definition.fine_offset == -1);
+            CHECK(definition.encoding == ChannelEncoding::Linear8);
+            CHECK(definition.dmx_min == 0U);
+            CHECK(definition.dmx_max == 255U);
+            CHECK(definition.default_value == 0U);
+        }
+    };
+    constexpr std::array<Property, 6U> expected_six{{
+        Property::Red,
+        Property::Green,
+        Property::Blue,
+        Property::White,
+        Property::Amber,
+        Property::UV}};
+    constexpr std::array<Property, 10U> expected_ten{{
+        Property::Intensity,
+        Property::Red,
+        Property::Green,
+        Property::Blue,
+        Property::White,
+        Property::Amber,
+        Property::UV,
+        Property::Strobe,
+        Property::Custom1,
+        Property::Custom2}};
+    CHECK(six_channel.id == emberlights::kBothLightingBoIr4SixChannelProfileId);
+    CHECK(ten_channel.id == emberlights::kBothLightingBoIr4TenChannelProfileId);
+    CHECK(six_channel.mode.find("manual-matched") != std::string::npos);
+    CHECK(ten_channel.mode.find("manual-matched") != std::string::npos);
+    check_manual_profile(six_channel, expected_six);
+    check_manual_profile(ten_channel, expected_ten);
+
+    const auto make_stale_profile = [] {
+        emberlights::FixtureProfileDefinition profile;
+        profile.id = "soundswitch.both-lighting.bo-ir4.mode1";
+        profile.manufacturer = "Both Lighting";
+        profile.model = "BO-IR4 LED Mini Spotlight";
+        profile.mode = "Mode 1";
+        profile.name = "Both Lighting BO-IR4 LED Mini Spotlight (Mode 1)";
+        profile.source = FixtureProfileSource::Local;
+        profile.source_revision = "soundswitch-2.10.3-safe-v1";
+        constexpr std::array<Property, 10U> properties{{
+            Property::Intensity,
+            Property::Red,
+            Property::Green,
+            Property::Blue,
+            Property::Amber,
+            Property::White,
+            Property::UV,
+            Property::Strobe,
+            Property::Custom1,
+            Property::Custom2}};
+        profile.footprint = static_cast<std::uint16_t>(properties.size());
+        for (std::size_t index = 0U; index < properties.size(); ++index) {
+            profile.channels.push_back({
+                properties[index],
+                static_cast<std::uint16_t>(index),
+                -1,
+                ChannelEncoding::Linear8,
+                0U,
+                255U,
+                0U});
+        }
+        return profile;
+    };
+    const auto make_upgrade_project = [&] {
+        auto project = emberlights::make_starter_project();
+        project.id = "ir4-profile-upgrade-test";
+        project.name = "IR-4 Profile Upgrade Preservation Test";
+        project.connections.artnet_destination = "192.0.2.45";
+        project.safety.max_intensity = 0.63F;
+        project.fixture_profiles.push_back(make_stale_profile());
+        project.fixtures.push_back({
+            "ir4-a", "IR-4 A", "soundswitch.both-lighting.bo-ir4.mode1",
+            1U, 1U, {"spotlight", "keep-role"}});
+        project.fixtures.push_back({
+            "unrelated", "Unrelated Dimmer", "builtin.generic.dimmer-1ch",
+            1U, 40U, {"unrelated"}});
+        project.fixtures.push_back({
+            "ir4-b", "IR-4 B", "soundswitch.both-lighting.bo-ir4.mode1",
+            1U, 20U, {"spotlight"}});
+        project.groups.push_back({
+            "group.keep", "Preserved Group", {"ir4-a", "unrelated", "ir4-b"}});
+        project.looks.push_back({
+            "look.keep", "Preserved Look", 432U,
+            {{"unrelated", Property::Intensity, showcore::PropertyValue::set(0.42F)}}});
+        project.autoloops.push_back({
+            "loop.keep", "Preserved Loop", 3U, 7U, 4.0F,
+            showcore::AutoloopRepeat::Infinite,
+            {{0.0F, "look.keep", showcore::AutoloopTransition::Cut}}});
+        project.unknown_records.push_back("FUTURE_KEEP\topaque-value");
+        return project;
+    };
+
+    auto exact_project = make_upgrade_project();
+    CHECK(emberlights::validate_project(exact_project).ok());
+    const auto exact_plan = emberlights::plan_known_fixture_profile_upgrades(exact_project);
+    CHECK(exact_plan.changes.size() == 1U);
+    if (!exact_plan.empty()) {
+        CHECK(exact_plan.changes[0].source_profile_id ==
+            "soundswitch.both-lighting.bo-ir4.mode1");
+        CHECK(exact_plan.changes[0].replacement_profile_id == ten_channel.id);
+        CHECK(exact_plan.changes[0].affected_fixture_ids ==
+            std::vector<std::string>({"ir4-a", "ir4-b"}));
+    }
+
+    const auto stale_index = exact_plan.empty()
+        ? 0U
+        : exact_plan.changes[0].source_profile_index;
+    const auto expect_signature_refused = [&](const auto& mutation) {
+        auto candidate = make_upgrade_project();
+        mutation(candidate.fixture_profiles.back());
+        CHECK(emberlights::plan_known_fixture_profile_upgrades(candidate).empty());
+    };
+    expect_signature_refused([](auto& profile) { profile.id += ".copy"; });
+    expect_signature_refused([](auto& profile) {
+        profile.mode = "Mode 1 (10 channel)";
+    });
+    expect_signature_refused([](auto& profile) { profile.name += " edited"; });
+    expect_signature_refused([](auto& profile) { profile.source_revision = "user-edit"; });
+    expect_signature_refused([](auto& profile) {
+        profile.channels[4].property = Property::White;
+        profile.channels[5].property = Property::Amber;
+    });
+    expect_signature_refused([](auto& profile) {
+        profile.channels[0].default_value = 1U;
+    });
+
+    if (!exact_plan.empty()) {
+        auto changed_after_review = make_upgrade_project();
+        changed_after_review.fixture_profiles[stale_index].channels[4].property = Property::White;
+        const auto before = emberlights::serialize_project(changed_after_review);
+        const auto rejected = emberlights::apply_fixture_profile_upgrade_plan(
+            changed_after_review, exact_plan);
+        CHECK(!rejected.applied);
+        CHECK(emberlights::serialize_project(changed_after_review) == before);
+
+        auto changed_fixture_set = make_upgrade_project();
+        changed_fixture_set.fixtures.push_back({
+            "ir4-added", "IR-4 Added After Review",
+            "soundswitch.both-lighting.bo-ir4.mode1", 1U, 60U, {"spotlight"}});
+        const auto fixture_set_before = emberlights::serialize_project(changed_fixture_set);
+        const auto fixture_set_rejected = emberlights::apply_fixture_profile_upgrade_plan(
+            changed_fixture_set, exact_plan);
+        CHECK(!fixture_set_rejected.applied);
+        CHECK(emberlights::serialize_project(changed_fixture_set) == fixture_set_before);
+
+        auto occupied_replacement = make_upgrade_project();
+        auto conflicting = ten_channel;
+        conflicting.source_revision = "user-owned-collision";
+        occupied_replacement.fixture_profiles.push_back(std::move(conflicting));
+        const auto occupied_before = emberlights::serialize_project(occupied_replacement);
+        const auto occupied_rejected = emberlights::apply_fixture_profile_upgrade_plan(
+            occupied_replacement, exact_plan);
+        CHECK(!occupied_rejected.applied);
+        CHECK(emberlights::serialize_project(occupied_replacement) == occupied_before);
+    }
+
+    auto upgraded = make_upgrade_project();
+    const auto upgrade_plan = emberlights::plan_known_fixture_profile_upgrades(upgraded);
+    auto expected = upgraded;
+    expected.fixture_profiles.push_back(ten_channel);
+    expected.fixture_profiles.push_back(six_channel);
+    for (auto& fixture : expected.fixtures) {
+        if (fixture.profile_id == "soundswitch.both-lighting.bo-ir4.mode1") {
+            fixture.profile_id = ten_channel.id;
+        }
+    }
+    if (!upgrade_plan.empty()) {
+        expected.unknown_records.push_back(
+            "FIXTURE_PROFILE_UPGRADE\tbo-ir4-stale-10ch\t" +
+            upgrade_plan.changes[0].before_behavior_fingerprint + "\t" +
+            upgrade_plan.changes[0].after_behavior_fingerprint +
+            "\tmanual-review-candidate");
+    }
+    expected.unknown_records.push_back(
+        "MIGRATED_PATCH_UNVERIFIED\tfixture-mode-address-universe-review-required");
+    expected.unknown_records.push_back(
+        "QUALIFICATION_INVALIDATED\tfixtureProfileUpgrade\tbo-ir4\t2026-08-11");
+    const auto applied = emberlights::apply_fixture_profile_upgrade_plan(upgraded, upgrade_plan);
+    CHECK(applied.applied);
+    CHECK(applied.changes.size() == 1U);
+    CHECK(emberlights::validate_project(upgraded).ok());
+    CHECK(emberlights::serialize_project(upgraded) == emberlights::serialize_project(expected));
+    CHECK(emberlights::plan_known_fixture_profile_upgrades(upgraded).empty());
+    const auto old_profile = std::find_if(
+        upgraded.fixture_profiles.begin(), upgraded.fixture_profiles.end(),
+        [](const auto& profile) {
+            return profile.id == "soundswitch.both-lighting.bo-ir4.mode1";
+        });
+    CHECK(old_profile != upgraded.fixture_profiles.end());
+    const auto unrelated = std::find_if(
+        upgraded.fixtures.begin(), upgraded.fixtures.end(),
+        [](const auto& fixture) { return fixture.id == "unrelated"; });
+    CHECK(unrelated != upgraded.fixtures.end());
+    if (unrelated != upgraded.fixtures.end()) {
+        CHECK(unrelated->profile_id == "builtin.generic.dimmer-1ch");
+        CHECK(unrelated->address == 40U);
+    }
+    const auto report = emberlights::serialize_fixture_profile_upgrade_report(
+        applied, "input.emberlights", "output.emberlights", "abc123");
+    CHECK(report.find("\"outputSha256\": \"abc123\"") != std::string::npos);
+    CHECK(report.find("Both Lighting IR-4 User Manual, printed page 8") !=
+        std::string::npos);
+    CHECK(report.find("\"affectedFixtureIds\": [\"ir4-a\", \"ir4-b\"]") !=
+        std::string::npos);
+
+    const auto round_trip_path =
+        std::filesystem::path("build/fixture-profile-upgrade-round-trip.emberlights");
+    std::error_code ignored;
+    std::filesystem::remove(round_trip_path, ignored);
+    CHECK(emberlights::save_project_atomic(round_trip_path, upgraded, false));
+    emberlights::ProjectDocument reopened;
+    CHECK(emberlights::load_project(round_trip_path, reopened, false));
+    CHECK(emberlights::serialize_project(reopened) == emberlights::serialize_project(upgraded));
+    CHECK(emberlights::plan_known_fixture_profile_upgrades(reopened).empty());
+    CHECK(std::any_of(
+        reopened.unknown_records.begin(), reopened.unknown_records.end(),
+        [](const auto& record) {
+            return record.starts_with("FIXTURE_PROFILE_UPGRADE\tbo-ir4-stale-10ch");
+        }));
+    std::filesystem::remove(round_trip_path, ignored);
 }
 
 void test_soundswitch_v1_semantic_conversion() {
@@ -2570,11 +3053,11 @@ void test_soundswitch_v1_semantic_conversion() {
         migration.project.fixture_profiles.begin(),
         migration.project.fixture_profiles.end(),
         [](const auto& profile) {
-            return profile.id == "soundswitch.both-lighting.bo-ir4.mode1";
+            return profile.id == emberlights::kBothLightingBoIr4TenChannelProfileId;
         });
     CHECK(ir4_profile != migration.project.fixture_profiles.end());
     if (ir4_profile != migration.project.fixture_profiles.end()) {
-        CHECK(ir4_profile->mode == "Mode 1 (10 channel)");
+        CHECK(ir4_profile->mode.find("10 Channel (manual-matched") == 0U);
         CHECK(ir4_profile->channels.size() == 10U);
         if (ir4_profile->channels.size() == 10U) {
             CHECK(ir4_profile->channels[0].property == showcore::Property::Intensity);
@@ -2597,7 +3080,7 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(report.find("emberlights-soundswitch-v1-migration") != std::string::npos);
     CHECK(report.find("\"outputEnabled\": false") != std::string::npos);
     CHECK(report.find("Test Loop 1") != std::string::npos);
-    CHECK(report.find("physical IR-4 display is set to 6 channels") != std::string::npos);
+    CHECK(report.find("Confirm the fixture display is 10CH") != std::string::npos);
     CHECK(report.find("source-qualified approximations") != std::string::npos);
     CHECK(emberlights::save_project_atomic(project_path, migration.project, false));
     emberlights::ProjectDocument loaded;
@@ -2707,6 +3190,9 @@ int main() {
     test_runner_os2l_startup_without_button_trigger();
     test_runner_service_lifecycle();
     test_soundswitch_read_only_inspection_and_bundle();
+    test_soundswitch_source_binding_audit();
+    test_soundswitch_application_data_backup_inspection_and_bundle();
+    test_ir4_fixture_profile_upgrade();
     test_soundswitch_v1_semantic_conversion();
 
     cleanup_test_network();

@@ -4,6 +4,7 @@
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
+#include "emberlights/live_view_model.hpp"
 #include "emberlights/runner.hpp"
 #include "emberlights/ui_command.hpp"
 #include "emberlights/ui_state.hpp"
@@ -726,6 +727,7 @@ private:
     void refresh_live_lists();
     void refresh_live_status();
     void refresh_overrides();
+    void refresh_override_properties();
     void refresh_profiles();
     void refresh_patch();
     void refresh_groups();
@@ -814,6 +816,9 @@ private:
     HWND status_bar_{nullptr};
     HFONT normal_font_{nullptr};
     HFONT title_font_{nullptr};
+    HBRUSH background_brush_{nullptr};
+    HBRUSH surface_brush_{nullptr};
+    HBRUSH field_brush_{nullptr};
     std::array<HWND, static_cast<std::size_t>(Page::Count)> pages_{};
     std::array<HWND, static_cast<std::size_t>(Page::Count)> navigation_{};
     std::array<std::vector<HWND>, static_cast<std::size_t>(Page::Count)> page_controls_{};
@@ -836,6 +841,7 @@ private:
 
     emberlights::RunnerService runner_{};
     emberlights::UiCommandFacade ui_commands_{runner_, *this};
+    emberlights::LiveViewModel live_view_model_{};
     std::optional<emberlights::ProjectDocument> active_project_{};
     showcore::WinMmMidiInput learn_input_{};
     bool midi_learning_{false};
@@ -854,9 +860,25 @@ Application::~Application() noexcept {
     if (title_font_ != nullptr) {
         static_cast<void>(::DeleteObject(title_font_));
     }
+    if (background_brush_ != nullptr) {
+        static_cast<void>(::DeleteObject(background_brush_));
+    }
+    if (surface_brush_ != nullptr) {
+        static_cast<void>(::DeleteObject(surface_brush_));
+    }
+    if (field_brush_ != nullptr) {
+        static_cast<void>(::DeleteObject(field_brush_));
+    }
 }
 
 bool Application::register_classes() {
+    background_brush_ = ::CreateSolidBrush(RGB(13, 17, 23));
+    surface_brush_ = ::CreateSolidBrush(RGB(22, 27, 34));
+    field_brush_ = ::CreateSolidBrush(RGB(30, 36, 45));
+    if (background_brush_ == nullptr || surface_brush_ == nullptr ||
+        field_brush_ == nullptr) {
+        return false;
+    }
     WNDCLASSEXW main_class{};
     main_class.cbSize = sizeof(main_class);
     main_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -864,7 +886,7 @@ bool Application::register_classes() {
     main_class.hInstance = instance_;
     main_class.hCursor = ::LoadCursorW(nullptr, IDC_ARROW);
     main_class.hIcon = ::LoadIconW(nullptr, IDI_APPLICATION);
-    main_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    main_class.hbrBackground = background_brush_;
     main_class.lpszClassName = kWindowClass;
     if (::RegisterClassExW(&main_class) == 0U) {
         return false;
@@ -875,7 +897,7 @@ bool Application::register_classes() {
     page_class.lpfnWndProc = &Application::page_proc;
     page_class.hInstance = instance_;
     page_class.hCursor = ::LoadCursorW(nullptr, IDC_ARROW);
-    page_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    page_class.hbrBackground = background_brush_;
     page_class.lpszClassName = kPageClass;
     return ::RegisterClassExW(&page_class) != 0U;
 }
@@ -1056,7 +1078,9 @@ LRESULT CALLBACK Application::page_proc(
     UINT message,
     WPARAM wparam,
     LPARAM lparam) {
-    if (message == WM_COMMAND || message == WM_NOTIFY || message == WM_CTLCOLORSTATIC) {
+    if (message == WM_COMMAND || message == WM_NOTIFY ||
+        message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT ||
+        message == WM_CTLCOLORLISTBOX || message == WM_CTLCOLORBTN) {
         return ::SendMessageW(::GetParent(window), message, wparam, lparam);
     }
     return ::DefWindowProcW(window, message, wparam, lparam);
@@ -1110,7 +1134,21 @@ LRESULT Application::handle_message(HWND window, UINT message, WPARAM wparam, LP
     case WM_CTLCOLORSTATIC: {
         const auto device = reinterpret_cast<HDC>(wparam);
         ::SetBkMode(device, TRANSPARENT);
-        return reinterpret_cast<LRESULT>(::GetStockObject(WHITE_BRUSH));
+        ::SetTextColor(device, RGB(235, 240, 247));
+        return reinterpret_cast<LRESULT>(background_brush_);
+    }
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX: {
+        const auto device = reinterpret_cast<HDC>(wparam);
+        ::SetTextColor(device, RGB(235, 240, 247));
+        ::SetBkColor(device, RGB(30, 36, 45));
+        return reinterpret_cast<LRESULT>(field_brush_);
+    }
+    case WM_CTLCOLORBTN: {
+        const auto device = reinterpret_cast<HDC>(wparam);
+        ::SetTextColor(device, RGB(235, 240, 247));
+        ::SetBkColor(device, RGB(22, 27, 34));
+        return reinterpret_cast<LRESULT>(surface_brush_);
     }
     case WM_CLOSE:
         if (maybe_save_changes()) {
@@ -1142,7 +1180,7 @@ void Application::create_menu_bar() {
         file, MF_STRING, IdFileRestoreHistory, L"Restore Saved &Version..."));
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(
-        file, MF_STRING, IdFileInspectSoundSwitch, L"Inspect SoundSwitch &Project..."));
+        file, MF_STRING, IdFileInspectSoundSwitch, L"Inspect SoundSwitch &Source..."));
     static_cast<void>(::AppendMenuW(
         file, MF_STRING, IdFileCompareSoundSwitch, L"Compare SoundSwitch &Exports..."));
     static_cast<void>(::AppendMenuW(
@@ -1235,6 +1273,9 @@ HWND Application::add_listview(HWND parent, int id) {
     if (list != nullptr) {
         ListView_SetExtendedListViewStyle(
             list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
+        ListView_SetBkColor(list, RGB(30, 36, 45));
+        ListView_SetTextBkColor(list, RGB(30, 36, 45));
+        ListView_SetTextColor(list, RGB(235, 240, 247));
     }
     return list;
 }
@@ -1272,8 +1313,11 @@ HWND Application::create_page(Page page) {
 
 void Application::create_navigation() {
     constexpr std::array<const wchar_t*, static_cast<std::size_t>(Page::Count)> names{{
-        L"Live", L"Live Overrides", L"Fixture Profiles", L"Patch", L"Groups", L"Static Looks",
-        L"Autoloops", L"Track Scripts", L"MIDI", L"Connections", L"Safety", L"Diagnostics"}};
+        L"LIVE • Home", L"LIVE • Overrides",
+        L"STUDIO • Profiles", L"STUDIO • Patch", L"STUDIO • Groups",
+        L"STUDIO • Static Looks", L"STUDIO • Autoloops", L"STUDIO • Track Scripts",
+        L"CONTROL • MIDI", L"SYSTEM • Connections", L"SYSTEM • Safety",
+        L"SYSTEM • Diagnostics"}};
     for (std::size_t index = 0; index < navigation_.size(); ++index) {
         navigation_[index] = add_button(
             window_, names[index], IdNavLive + static_cast<int>(index), BS_LEFT);
@@ -1287,7 +1331,7 @@ void Application::create_pages() {
     }
 
     auto page = pages_[static_cast<std::size_t>(Page::Live)];
-    auto title = add_label(page, L"Live Performance", IdLiveTitle);
+    auto title = add_label(page, L"Live Console", IdLiveTitle);
     ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
     add_label(page, L"Stopped", IdLiveState);
     add_button(page, L"Start Show", IdLiveStartStop);
@@ -1299,14 +1343,14 @@ void Application::create_pages() {
     add_button(page, L"Tap", IdLiveTap);
     add_label(page, L"Static Looks", 0);
     add_listbox(page, IdLiveLooks);
-    add_button(page, L"Toggle", IdLiveTriggerLook);
-    add_button(page, L"Clear", IdLiveClearLook);
+    add_button(page, L"Launch / Toggle", IdLiveTriggerLook);
+    add_button(page, L"Clear Look", IdLiveClearLook);
     add_label(page, L"Autoloops", 0);
     add_listbox(page, IdLiveAutoloops);
-    add_button(page, L"Trigger", IdLiveTriggerAutoloop);
+    add_button(page, L"Launch", IdLiveTriggerAutoloop);
     add_button(page, L"Previous", IdLivePreviousAutoloop);
     add_button(page, L"Next", IdLiveNextAutoloop);
-    add_button(page, L"Clear", IdLiveClearAutoloop);
+    add_button(page, L"Clear Loop", IdLiveClearAutoloop);
     add_label(page, L"Track Scripts", IdLiveTrackLabel);
     add_listbox(page, IdLiveTracks);
     add_button(page, L"Start Script", IdLiveTriggerTrack);
@@ -1667,8 +1711,8 @@ void Application::layout_page(Page page, int width, int height) {
         const auto list_bottom = 140 + list_height;
         move(9, margin, 112, column_width, 26);
         move(10, margin, 140, column_width, list_height);
-        move(11, margin, list_bottom + 10, 100, 30);
-        move(12, margin + 110, list_bottom + 10, 100, 30);
+        move(11, margin, list_bottom + 10, 140, 34);
+        move(12, margin + 150, list_bottom + 10, 110, 34);
         const auto right = margin + column_width + column_gap;
         move(13, right, 112, 120, 26);
         move(28, right + 126, 112, std::max(160, column_width - 126), 26);
@@ -1690,10 +1734,10 @@ void Application::layout_page(Page page, int width, int height) {
         const auto autoloop_list_bottom = 238 + autoloop_list_height;
         const auto live_controls_bottom = std::max(list_bottom, autoloop_list_bottom);
         move(14, right, 238, column_width, autoloop_list_height);
-        move(15, right, live_controls_bottom + 10, 90, 30);
-        move(16, right + 100, live_controls_bottom + 10, 90, 30);
-        move(17, right + 200, live_controls_bottom + 10, 90, 30);
-        move(18, right + 300, live_controls_bottom + 10, 90, 30);
+        move(15, right, live_controls_bottom + 10, 90, 34);
+        move(16, right + 100, live_controls_bottom + 10, 90, 34);
+        move(17, right + 200, live_controls_bottom + 10, 90, 34);
+        move(18, right + 300, live_controls_bottom + 10, 110, 34);
         move(19, margin, live_controls_bottom + 54, 180, 26);
         move(20, margin, live_controls_bottom + 80, usable_width, 64);
         move(21, margin, live_controls_bottom + 150, 110, 30);
@@ -2299,6 +2343,7 @@ void Application::refresh_live_lists() {
 void Application::refresh_live_status() {
     const auto page = pages_[static_cast<std::size_t>(Page::Live)];
     const auto status = runner_.status();
+    live_view_model_.update(status);
     std::wstring headline = runner_state_name(status.state);
     headline += L" • Clock ";
     headline += widen(number_text(status.bpm));
@@ -2435,33 +2480,28 @@ void Application::refresh_overrides() {
         return;
     }
     const auto fixtures = ::GetDlgItem(page, IdOverridesFixture);
-    const auto properties = ::GetDlgItem(page, IdOverridesProperty);
     static_cast<void>(::SendMessageW(fixtures, LB_RESETCONTENT, 0, 0));
-    static_cast<void>(::SendMessageW(properties, CB_RESETCONTENT, 0, 0));
     const auto& live = live_project();
-    for (std::size_t index = 0; index < live.fixtures.size(); ++index) {
-        const auto& fixture = live.fixtures[index];
+    live_view_model_.load_project(live);
+    live_view_model_.update(runner_.status());
+    const auto& targets = live_view_model_.override_targets();
+    for (std::size_t index = 0U; index < targets.size(); ++index) {
+        const auto& target = targets[index];
         std::ostringstream label;
-        label << "Fixture — " << fixture.name << " — U" << fixture.universe << " @ "
-              << fixture.address;
+        label << (target.kind == emberlights::LiveOverrideTargetKind::Fixture
+                      ? "Fixture — "
+                      : "Group — ")
+              << target.name << " (" << target.fixture_count << " fixture"
+              << (target.fixture_count == 1U ? "" : "s") << ')';
+        if (!target.complete) {
+            label << " — incomplete";
+        }
         listbox_add(fixtures, widen(label.str()), static_cast<std::intptr_t>(index));
     }
-    for (std::size_t index = 0; index < live.groups.size(); ++index) {
-        const auto& group = live.groups[index];
-        std::ostringstream label;
-        label << "Group — " << group.name << " (" << group.fixture_ids.size()
-              << " fixture" << (group.fixture_ids.size() == 1U ? "" : "s") << ')';
-        listbox_add(fixtures, widen(label.str()), -static_cast<std::intptr_t>(index) - 1);
-    }
-    if (!live.fixtures.empty()) {
+    if (!targets.empty()) {
         static_cast<void>(::SendMessageW(fixtures, LB_SETCURSEL, 0, 0));
     }
-    for (std::size_t index = 0U; index < showcore::kPropertyCount; ++index) {
-        const auto property = static_cast<showcore::Property>(index);
-        combo_add(properties, widen(emberlights::property_name(property)),
-                  static_cast<std::intptr_t>(property));
-    }
-    static_cast<void>(::SendMessageW(properties, CB_SETCURSEL, 0, 0));
+    refresh_override_properties();
     set_control_text(::GetDlgItem(page, IdOverridesValue), "100");
     set_page_message(
         Page::Overrides,
@@ -2470,6 +2510,53 @@ void Application::refresh_overrides() {
             ? "Patch at least one fixture before using Live Overrides."
             : "Select an active fixture or group, then start the show to apply transient manual overrides.",
         live.fixtures.empty());
+}
+
+void Application::refresh_override_properties() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    const auto targets = ::GetDlgItem(page, IdOverridesFixture);
+    const auto properties = ::GetDlgItem(page, IdOverridesProperty);
+    const auto previous_property = static_cast<showcore::Property>(combo_selected_data(
+        properties, static_cast<std::intptr_t>(showcore::Property::Count)));
+    static_cast<void>(::SendMessageW(properties, CB_RESETCONTENT, 0, 0));
+    const auto selected = static_cast<int>(::SendMessageW(targets, LB_GETCURSEL, 0, 0));
+    if (selected < 0) {
+        return;
+    }
+    const auto target_index = static_cast<std::size_t>(::SendMessageW(
+        targets, LB_GETITEMDATA, selected, 0));
+    if (target_index >= live_view_model_.override_targets().size()) {
+        return;
+    }
+    const auto& target = live_view_model_.override_targets()[target_index];
+    std::size_t selected_combo = 0U;
+    std::size_t added = 0U;
+    for (std::size_t index = 0U; index < showcore::kPropertyCount; ++index) {
+        const auto property = static_cast<showcore::Property>(index);
+        if (!target.supports_any(property) ||
+            property == showcore::Property::Fog ||
+            property == showcore::Property::Haze ||
+            property == showcore::Property::Laser ||
+            property == showcore::Property::Spark ||
+            (property == showcore::Property::Strobe &&
+             !live_view_model_.safety().strobe_allowed)) {
+            continue;
+        }
+        std::string label{emberlights::property_name(property)};
+        if (!target.supports_all(property)) {
+            label += " (" + std::to_string(target.support_count(property)) + "/" +
+                std::to_string(target.fixture_count) + " fixtures)";
+        }
+        combo_add(properties, widen(label), static_cast<std::intptr_t>(property));
+        if (property == previous_property) {
+            selected_combo = added;
+        }
+        ++added;
+    }
+    if (added > 0U) {
+        static_cast<void>(::SendMessageW(
+            properties, CB_SETCURSEL, static_cast<WPARAM>(selected_combo), 0));
+    }
 }
 
 void Application::refresh_profiles() {
@@ -3018,6 +3105,8 @@ void Application::handle_command(int id, int notification, HWND) {
             select_track(static_cast<std::int32_t>(::SendMessageW(
                 ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Tracks)], IdTrackList),
                 LB_GETCURSEL, 0, 0)));
+        } else if (id == IdOverridesFixture) {
+            refresh_override_properties();
         }
         return;
     }
@@ -3099,13 +3188,22 @@ void Application::handle_command(int id, int notification, HWND) {
         const auto list = ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Live)], IdLiveLooks);
         const auto selected = static_cast<int>(::SendMessageW(list, LB_GETCURSEL, 0, 0));
         if (selected >= 0) {
-            const auto index = static_cast<std::uint16_t>(::SendMessageW(
+            const auto index = static_cast<std::size_t>(::SendMessageW(
                 list, LB_GETITEMDATA, selected, 0));
-            static_cast<void>(runner_.toggle_look(index));
+            const auto& live = live_project();
+            if (index < live.looks.size()) {
+                emberlights::UiCommandInvocation invocation;
+                invocation.command = emberlights::UiCommandId::StaticLookToggle;
+                invocation.target_id = live.looks[index].id;
+                static_cast<void>(ui_commands_.invoke(invocation));
+            }
         }
         break;
     }
-    case IdLiveClearLook: static_cast<void>(runner_.clear_look()); break;
+    case IdLiveClearLook:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::StaticLookClear}));
+        break;
     case IdLiveTriggerAutoloop: {
         const auto list = ::GetDlgItem(
             pages_[static_cast<std::size_t>(Page::Live)], IdLiveAutoloops);
@@ -3115,15 +3213,26 @@ void Application::handle_command(int id, int notification, HWND) {
                 list, LB_GETITEMDATA, selected, 0));
             const auto& live = live_project();
             if (index < live.autoloops.size()) {
-                const auto& loop = live.autoloops[index];
-                static_cast<void>(runner_.trigger_autoloop({loop.bank, loop.slot}));
+                emberlights::UiCommandInvocation invocation;
+                invocation.command = emberlights::UiCommandId::AutoloopLaunch;
+                invocation.target_id = live.autoloops[index].id;
+                static_cast<void>(ui_commands_.invoke(invocation));
             }
         }
         break;
     }
-    case IdLivePreviousAutoloop: static_cast<void>(runner_.previous_autoloop()); break;
-    case IdLiveNextAutoloop: static_cast<void>(runner_.next_autoloop()); break;
-    case IdLiveClearAutoloop: static_cast<void>(runner_.clear_autoloop()); break;
+    case IdLivePreviousAutoloop:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::AutoloopPrevious}));
+        break;
+    case IdLiveNextAutoloop:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::AutoloopNext}));
+        break;
+    case IdLiveClearAutoloop:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::AutoloopClear}));
+        break;
     case IdLivePreviousAutoloopBankPage:
         if (live_autoloop_bank_page_ == 0U) {
             live_autoloop_bank_page_ = static_cast<std::uint16_t>(
@@ -3139,7 +3248,9 @@ void Application::handle_command(int id, int notification, HWND) {
         refresh_live_status();
         break;
     case IdLiveSelectAllAutoloopBanks:
-        if (!runner_.select_all_autoloop_banks()) {
+        if (ui_commands_.invoke(
+                {emberlights::UiCommandId::AutoloopBankFilterEnableAll}) !=
+            emberlights::UiInvocationResult::Accepted) {
             set_status(L"Start the show before changing Autoloop navigation banks.");
         }
         break;
@@ -3159,7 +3270,13 @@ void Application::handle_command(int id, int notification, HWND) {
             live_autoloop_bank_page_ * showcore::kAutoloopBanksPerControlPage + offset);
         const auto enabled = Button_GetCheck(::GetDlgItem(
             pages_[static_cast<std::size_t>(Page::Live)], id)) == BST_CHECKED;
-        if (!runner_.set_autoloop_bank_enabled(bank, enabled)) {
+        emberlights::UiCommandInvocation invocation;
+        invocation.command = emberlights::UiCommandId::AutoloopBankFilterSetEnabled;
+        invocation.bank = bank;
+        invocation.bool_value = enabled;
+        const auto result = ui_commands_.invoke(invocation);
+        if (result != emberlights::UiInvocationResult::Accepted &&
+            result != emberlights::UiInvocationResult::NoChange) {
             set_status(L"Start the show before changing Autoloop navigation banks.");
             refresh_live_status();
         }
@@ -3179,7 +3296,12 @@ void Application::handle_command(int id, int notification, HWND) {
         }
         const auto bank = static_cast<std::uint16_t>(
             live_autoloop_bank_page_ * showcore::kAutoloopBanksPerControlPage + offset);
-        if (!runner_.select_exclusive_autoloop_bank(bank)) {
+        emberlights::UiCommandInvocation invocation;
+        invocation.command = emberlights::UiCommandId::AutoloopBankFilterSelectExclusive;
+        invocation.bank = bank;
+        const auto result = ui_commands_.invoke(invocation);
+        if (result != emberlights::UiInvocationResult::Accepted &&
+            result != emberlights::UiInvocationResult::NoChange) {
             set_status(L"Start the show before changing Autoloop navigation banks.");
         }
         break;
@@ -3188,13 +3310,22 @@ void Application::handle_command(int id, int notification, HWND) {
         const auto list = ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Live)], IdLiveTracks);
         const auto selected = static_cast<int>(::SendMessageW(list, LB_GETCURSEL, 0, 0));
         if (selected >= 0) {
-            const auto index = static_cast<std::uint16_t>(::SendMessageW(
+            const auto index = static_cast<std::size_t>(::SendMessageW(
                 list, LB_GETITEMDATA, selected, 0));
-            static_cast<void>(runner_.trigger_track_script(index));
+            const auto& live = live_project();
+            if (index < live.track_scripts.size()) {
+                emberlights::UiCommandInvocation invocation;
+                invocation.command = emberlights::UiCommandId::TrackScriptStart;
+                invocation.target_id = live.track_scripts[index].id;
+                static_cast<void>(ui_commands_.invoke(invocation));
+            }
         }
         break;
     }
-    case IdLiveClearTrack: static_cast<void>(runner_.clear_track_script()); break;
+    case IdLiveClearTrack:
+        static_cast<void>(ui_commands_.invoke(
+            {emberlights::UiCommandId::TrackScriptClear}));
+        break;
     case IdLiveFogArm:
     case IdLiveHazeArm:
     case IdLiveLaserArm:
@@ -3287,6 +3418,7 @@ void Application::new_project() {
     }
     runner_.stop();
     active_project_.reset();
+    ui_commands_.set_active_project(nullptr);
     project_ = emberlights::make_starter_project();
     current_path_.clear();
     edit_history_.clear();
@@ -3393,6 +3525,7 @@ void Application::restore_project_history_dialog() {
 
     runner_.stop();
     active_project_.reset();
+    ui_commands_.set_active_project(nullptr);
     static_cast<void>(::ModifyMenuW(
         ::GetSubMenu(::GetMenu(window_), 2),
         IdShowStartStop,
@@ -3510,11 +3643,12 @@ void Application::import_qlc_fixture_dialog() {
 
 void Application::inspect_soundswitch_dialog() {
     const auto source = choose_folder(
-        window_, L"Select the exported SoundSwitch .ssproj project directory");
+        window_,
+        L"Select a SoundSwitch project or extracted application-data directory");
     if (!source.has_value()) {
         return;
     }
-    set_status(L"Inspecting SoundSwitch project read-only and hashing every payload...");
+    set_status(L"Inspecting SoundSwitch source read-only and hashing every payload...");
     static_cast<void>(::UpdateWindow(window_));
     const auto inspection = emberlights::inspect_soundswitch_project(*source);
 
@@ -3556,7 +3690,7 @@ void Application::inspect_soundswitch_dialog() {
         window_, summary.str().c_str(), L"SoundSwitch inspection",
         MB_OK | (inspection.complete() ? MB_ICONINFORMATION : MB_ICONWARNING));
     set_status(inspection.complete()
-        ? L"SoundSwitch inspection complete. A real sample bundle is still required for verified semantic conversion."
+        ? L"SoundSwitch source inventory complete. This preserves evidence but does not claim semantic conversion."
         : L"SoundSwitch inspection found blocking issues; review the JSON report.");
 }
 
@@ -3620,7 +3754,8 @@ void Application::compare_soundswitch_dialog() {
 
 void Application::bundle_soundswitch_dialog() {
     const auto source = choose_folder(
-        window_, L"Select the exported SoundSwitch .ssproj project directory");
+        window_,
+        L"Select a SoundSwitch project or extracted application-data directory");
     if (!source.has_value()) {
         return;
     }
@@ -3666,6 +3801,7 @@ bool Application::open_project(const std::filesystem::path& path) {
     }
     runner_.stop();
     active_project_.reset();
+    ui_commands_.set_active_project(nullptr);
     project_ = std::move(loaded);
     current_path_ = path;
     const auto remembered = remember_project_path(current_path_);
@@ -3735,6 +3871,7 @@ bool Application::save_project(bool save_as) {
         const auto activation = runner_.activate(std::move(compilation.show), project_);
         if (activation) {
             active_project_ = project_;
+            ui_commands_.set_active_project(&*active_project_);
             const auto snapshot = emberlights::save_project_atomic(
                 emberlights::project_active_path(current_path_), project_, false);
             refresh_live_lists();
@@ -3757,6 +3894,7 @@ bool Application::save_project(bool save_as) {
 
         runner_.stop();
         active_project_.reset();
+        ui_commands_.set_active_project(nullptr);
         refresh_live_lists();
         refresh_overrides();
         refresh_live_status();
@@ -3816,6 +3954,7 @@ void Application::start_or_stop_show() {
     if (current != emberlights::RunnerState::Stopped) {
         runner_.stop();
         active_project_.reset();
+        ui_commands_.set_active_project(nullptr);
         static_cast<void>(::ModifyMenuW(
             ::GetSubMenu(::GetMenu(window_), 2),
             IdShowStartStop,
@@ -3871,6 +4010,7 @@ void Application::start_or_stop_show() {
         return;
     }
     active_project_ = run_project;
+    ui_commands_.set_active_project(&*active_project_);
     if (!recovered_activation) {
         const auto snapshot = emberlights::save_project_atomic(
             emberlights::project_active_path(current_path_), run_project, false);
@@ -3925,9 +4065,14 @@ void Application::apply_fixture_override(bool active) {
                          "Select an active fixture before changing an override.", true);
         return;
     }
-    const auto target = static_cast<std::intptr_t>(::SendMessageW(
+    const auto target_index = static_cast<std::size_t>(::SendMessageW(
         fixtures, LB_GETITEMDATA, selected, 0));
-    const auto& live = live_project();
+    if (target_index >= live_view_model_.override_targets().size()) {
+        set_page_message(Page::Overrides, IdOverridesMessage,
+                         "The selected target is not in the active Live view.", true);
+        return;
+    }
+    const auto& target = live_view_model_.override_targets()[target_index];
     const auto property = static_cast<showcore::Property>(combo_selected_data(
         ::GetDlgItem(page, IdOverridesProperty),
         static_cast<std::intptr_t>(showcore::Property::Intensity)));
@@ -3939,42 +4084,25 @@ void Application::apply_fixture_override(bool active) {
                          "Enter an override value from 0 through 100.", true);
         return;
     }
-    std::string target_name;
-    bool applied = false;
-    if (target >= 0) {
-        const auto fixture = static_cast<std::size_t>(target);
-        if (fixture < live.fixtures.size()) {
-            target_name = live.fixtures[fixture].name;
-            applied = runner_.set_property(
-                static_cast<std::uint16_t>(fixture), property, percentage / 100.0F, active);
-        }
-    } else {
-        const auto group_index = static_cast<std::size_t>(-target - 1);
-        if (group_index < live.groups.size()) {
-            const auto& group = live.groups[group_index];
-            showcore::FixtureGroup fixtures_in_group;
-            bool complete = true;
-            for (const auto& fixture_id : group.fixture_ids) {
-                const auto fixture = std::find_if(
-                    live.fixtures.begin(), live.fixtures.end(), [&](const auto& candidate) {
-                        return candidate.id == fixture_id;
-                    });
-                if (fixture == live.fixtures.end() || !fixtures_in_group.add(
-                        static_cast<std::uint16_t>(fixture - live.fixtures.begin()))) {
-                    complete = false;
-                    break;
-                }
-            }
-            if (complete && fixtures_in_group.count != 0U) {
-                target_name = group.name;
-                applied = runner_.set_group_property(
-                    fixtures_in_group, property, percentage / 100.0F, active);
-            }
-        }
-    }
-    if (!applied) {
-        set_page_message(Page::Overrides, IdOverridesMessage,
-                         "The selected target is not available in the active show package. Start the show before changing manual overrides.", true);
+    const auto& target_name = target.name;
+    emberlights::UiCommandInvocation invocation;
+    invocation.property = property;
+    invocation.number_value = percentage / 100.0F;
+    invocation.command = target.kind == emberlights::LiveOverrideTargetKind::Fixture
+        ? (active ? emberlights::UiCommandId::FixtureOverridePropertySet
+                  : emberlights::UiCommandId::FixtureOverridePropertyRelease)
+        : (active ? emberlights::UiCommandId::GroupOverridePropertySet
+                  : emberlights::UiCommandId::GroupOverridePropertyRelease);
+    invocation.target_id = target.id;
+    const auto result = ui_commands_.invoke(invocation);
+    if (result != emberlights::UiInvocationResult::Accepted &&
+        result != emberlights::UiInvocationResult::NoChange) {
+        std::ostringstream error;
+        error << "Override rejected: "
+              << emberlights::ui_invocation_result_name(result)
+              << ". The target may not support this property, the show may be stopped, "
+                 "or a safety gate may be active.";
+        set_page_message(Page::Overrides, IdOverridesMessage, error.str(), true);
         return;
     }
     std::ostringstream message;
@@ -5475,6 +5603,7 @@ void Application::apply_connections() {
     if (was_running && previous_connections != project_.connections) {
         runner_.stop();
         active_project_.reset();
+        ui_commands_.set_active_project(nullptr);
         static_cast<void>(::ModifyMenuW(
             ::GetSubMenu(::GetMenu(window_), 2),
             IdShowStartStop,
