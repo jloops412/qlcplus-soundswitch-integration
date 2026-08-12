@@ -1,0 +1,31 @@
+{
+  "kind": "values",
+  "definitions": [
+    {
+      "id": "target.first",
+      "status": "implemented",
+      "introducedGeneration": 2,
+      "callable": false,
+      "deprecated": false,
+      "label": "First",
+      "description": "First target.",
+      "kind": "target",
+      "token": "sameTarget",
+      "valueType": "id",
+      "missingBehavior": "unavailable"
+    },
+    {
+      "id": "target.second",
+      "status": "implemented",
+      "introducedGeneration": 2,
+      "callable": false,
+      "deprecated": false,
+      "label": "Second",
+      "description": "Second target.",
+      "kind": "target",
+      "token": "sameTarget",
+      "valueType": "id",
+      "missingBehavior": "unavailable"
+    }
+  ]
+}

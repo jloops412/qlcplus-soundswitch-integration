@@ -288,18 +288,52 @@ UiInvocationResult UiCommandFacade::invoke(
         if (index > std::numeric_limits<std::uint16_t>::max()) {
             return UiInvocationResult::ValidationFailed;
         }
+        auto owner = invocation.static_look_owner;
+        if (owner.kind == StaticLookOwnerKind::None) {
+            owner.kind = StaticLookOwnerKind::Ui;
+        }
         bool posted = false;
         if (invocation.command == UiCommandId::StaticLookActivate) {
-            posted = runner_.trigger_look(static_cast<std::uint16_t>(index));
+            posted = runner_.trigger_look(
+                static_cast<std::uint16_t>(index), owner);
         } else if (invocation.command == UiCommandId::StaticLookToggle) {
-            posted = runner_.toggle_look(static_cast<std::uint16_t>(index));
+            posted = runner_.toggle_look(
+                static_cast<std::uint16_t>(index), owner);
         } else {
+            if (owner.feedback_token == 0U) {
+                return UiInvocationResult::InvalidArguments;
+            }
+            const auto& current = status.static_look;
+            const bool same_owner =
+                current.owner_kind == owner.kind &&
+                current.owner_feedback_token == owner.feedback_token;
+            if (invocation.bool_value &&
+                current.look_index == static_cast<std::int32_t>(index) &&
+                current.behavior == StaticLookBehavior::Hold &&
+                current.status != StaticLookActivationStatus::None &&
+                current.status != StaticLookActivationStatus::Releasing &&
+                same_owner) {
+                return UiInvocationResult::NoChange;
+            }
             if (!invocation.bool_value &&
-                status.active_look != static_cast<std::int32_t>(index)) {
+                (owner.expected_package_generation == 0U ||
+                 owner.expected_activation_generation == 0U)) {
+                return UiInvocationResult::InvalidArguments;
+            }
+            if (!invocation.bool_value &&
+                (current.look_index != static_cast<std::int32_t>(index) ||
+                 current.behavior != StaticLookBehavior::Hold ||
+                 current.status == StaticLookActivationStatus::None ||
+                 current.status == StaticLookActivationStatus::Releasing ||
+                 !same_owner ||
+                 current.package_generation !=
+                     owner.expected_package_generation ||
+                 current.activation_generation !=
+                     owner.expected_activation_generation)) {
                 return UiInvocationResult::NoChange;
             }
             posted = runner_.hold_look(
-                static_cast<std::uint16_t>(index), invocation.bool_value);
+                static_cast<std::uint16_t>(index), invocation.bool_value, owner);
         }
         return posted ? UiInvocationResult::Accepted : UiInvocationResult::QueueFull;
     }
@@ -307,7 +341,8 @@ UiInvocationResult UiCommandFacade::invoke(
         if (status.state != RunnerState::Running) {
             return UiInvocationResult::Unavailable;
         }
-        if (status.active_look < 0) {
+        if (status.static_look.status == StaticLookActivationStatus::None ||
+            status.static_look.status == StaticLookActivationStatus::Releasing) {
             return UiInvocationResult::NoChange;
         }
         return runner_.clear_look()

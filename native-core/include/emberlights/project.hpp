@@ -6,6 +6,8 @@
 #include "showcore/midi.hpp"
 #include "showcore/soundswitch_micro.hpp"
 
+#include "emberlights/studio_color_types.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -208,6 +210,7 @@ struct ProjectDocument {
     std::vector<FixtureProfileDefinition> fixture_profiles;
     std::vector<FixtureDefinition> fixtures;
     std::vector<GroupDefinition> groups;
+    std::vector<StudioColorPaletteAsset> color_palettes;
     std::vector<LookDefinition> looks;
     std::vector<AutoloopDefinition> autoloops;
     std::vector<AudioAssetDefinition> audio_assets;

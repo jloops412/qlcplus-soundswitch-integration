@@ -125,15 +125,20 @@ Do not reimplement this as a separate UI-only scene engine.
 
 ### 3.7 The VirtualDJ first-command behavior is primarily a client activation issue
 
-The EmberLights listener cannot force VirtualDJ, which is the TCP client, to initiate a direct-IP connection. Existing VirtualDJ behavior/evidence indicates that direct-IP OS2L may remain dormant until an OS2L command/button is invoked. The immediate deterministic solution is to provide a harmless VirtualDJ startup action, while longer-term discovery support is developed.
-
-The recommended startup action is:
+The EmberLights listener cannot force VirtualDJ, which is the TCP client, to
+initiate a direct-IP connection. EmberLights now advertises `_os2l._tcp`
+through Windows DNS-SD, so the primary setup is `os2l=Auto` with
+`os2lDirectIp` blank. Where discovery is unavailable, use `os2l=Yes`, the
+matching direct endpoint, and this reserved fallback action:
 
 ```text
-wait 100ms & os2l_button 'blackout' off
+wait 100ms & os2l_button 'EmberLights Keepalive' off
 ```
 
-The `off` command is safe in EmberLights and causes VirtualDJ to exercise the OS2L path. EmberLights should provide this as a copyable setup command and should not instruct the user to press a performance pad manually on every launch.
+`EmberLights Keepalive` is ignored before action routing, so it exercises the
+client path without clearing an intentional blackout or changing a Look.
+Installed Windows/VirtualDJ discovery, fallback, launch-order, and reconnect
+evidence remain required; the listener still needs to move outside Start Show.
 
 ## 4. Ranked root-cause hypotheses for no physical light
 
@@ -505,18 +510,23 @@ Do not rely indefinitely on Windows enumeration indices for MIDI or output devic
 
 ### 10.1 Immediate reliable setup
 
-Connections must show and copy the exact recommended VirtualDJ startup action:
+Connections must recommend automatic discovery first:
 
 ```text
-wait 100ms & os2l_button 'blackout' off
+os2l=Auto
+os2lDirectIp=<blank>
 ```
 
-Label it as the direct-IP activation workaround and keep the existing settings:
+It must also show and copy the safe direct-IP fallback:
 
 ```text
 os2l=Yes
-os2lDirectIp=127.0.0.1:9996
+os2lDirectIp=<displayed listener endpoint>
+wait 100ms & os2l_button 'EmberLights Keepalive' off
 ```
+
+The fallback action is a reserved no-op and must never route to blackout,
+Static Look, or Autoloop behavior.
 
 The application should distinguish:
 
@@ -545,9 +555,13 @@ Add nonblocking OS2L feedback output for commands that have meaningful button st
 
 Feedback must be derived from authoritative Runner state, not optimistic button clicks.
 
-### 10.4 Discovery is a follow-up, not a Micro blocker
+### 10.4 Discovery implementation and installed evidence
 
-Add `_os2l._tcp` DNS-SD/mDNS advertisement after direct-IP startup is reliable. Discovery may eliminate the explicit startup action in supported VirtualDJ configurations, but it must not delay the raw Micro/fixture proof.
+`_os2l._tcp` Windows DNS-SD advertisement is implemented and is the primary
+setup. Keep direct-IP plus the reserved Keepalive action as a fallback. Neither
+software implementation counts as installed VirtualDJ evidence: exercise both
+paths on Windows, including discovery-service absence and reconnect, without
+delaying the raw Micro/fixture proof.
 
 ### 10.5 Launch-order matrix
 
@@ -563,7 +577,8 @@ Test all combinations:
 
 ### 10.6 Acceptance gate E
 
-- With the documented VirtualDJ startup action, OS2L connects without manually pressing a performance/DMX pad.
+- With automatic discovery or the documented safe fallback, OS2L connects
+  without manually pressing a performance/DMX pad.
 - BPM and beat begin without entering a mode-changing flow.
 - Listener survives client restart and reports Waiting versus Connected truthfully.
 - Clock fallback/recovery continues to work.

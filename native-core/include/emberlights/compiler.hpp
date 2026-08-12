@@ -1,7 +1,9 @@
 #pragma once
 
+#include "emberlights/autoloop_source.hpp"
 #include "emberlights/project.hpp"
 #include "showcore/autoloop.hpp"
+#include "showcore/autoloop_program.hpp"
 #include "showcore/engine.hpp"
 #include "showcore/fixture_library.hpp"
 #include "showcore/look.hpp"
@@ -63,10 +65,16 @@ public:
         return engine_.patch().size();
     }
     [[nodiscard]] const showcore::FixtureGroup* group(std::size_t index) const noexcept;
+    [[nodiscard]] const showcore::CompiledAutoloopPackage* autoloop_v2_package()
+        const noexcept { return autoloop_v2_package_.get(); }
 
 private:
     friend struct CompilationResult;
     friend CompilationResult compile_project(const ProjectDocument& project);
+    friend CompilationResult compile_project(
+        const ProjectDocument& project,
+        const AutoloopSourceDocument& source,
+        const showcore::AutoloopCompileLimits& limits);
 
     showcore::CompiledFixtureLibrary fixture_library_{};
     showcore::Engine engine_{};
@@ -85,6 +93,8 @@ private:
     std::array<CompiledTrackScript, kMaximumTrackScripts> track_scripts_{};
     std::array<showcore::FixtureGroup, kMaximumCompiledGroups> groups_{};
     showcore::MidiMappingEngine midi_mappings_{};
+    std::unique_ptr<const showcore::CompiledAutoloopPackage>
+        autoloop_v2_package_{};
     std::size_t look_count_{0};
     std::size_t look_assignment_count_{0};
     std::size_t track_cue_count_{0};
@@ -102,5 +112,11 @@ struct CompilationResult {
 };
 
 [[nodiscard]] CompilationResult compile_project(const ProjectDocument& project);
+// Explicit opt-in overload. The format-1-only overload above is deliberately
+// unchanged and never synthesizes or activates V2 content.
+[[nodiscard]] CompilationResult compile_project(
+    const ProjectDocument& project,
+    const AutoloopSourceDocument& source,
+    const showcore::AutoloopCompileLimits& limits = {});
 
 }  // namespace emberlights

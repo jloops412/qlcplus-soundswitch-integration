@@ -11,6 +11,10 @@ Windows 10 build 1809 or later and Windows 11 are the current implementation tar
 
 Every packaged build records its product version and source commit in About/Diagnostics. GitHub artifacts also contain a SHA-256 checksum file and machine-readable release manifest.
 
+The Windows package additionally carries `EmberLights-Windows-payload-manifest.json`. It binds the package version and exact checked-out commit to the SHA-256 and size of every CMake-staged file, and records the testing-preview/non-outputting/no-physical-claim safety boundary. CI rejects the package if `git rev-parse HEAD` differs from that declared commit. On pull requests the exact checkout may be GitHub's synthetic merge commit; the contributor head is recorded separately as `sourceHeadCommit` in the external release manifest rather than being mislabeled as the packaged tree. Packaging also fails if a required application, tool, template, operator document, or notice is missing; if paths collide under Windows rules; or if the staged, portable, and installed payloads differ. The external release evidence retains the same payload manifest plus the report from the installed `emberlights_qualify.exe` smoke.
+
+Windows CI verifies a clean isolated install, `.emberlights` association, full installed-payload hashes, GUI startup, non-outputting Micro and Control One self-tests, a two-second qualification smoke with network output disabled, uninstall, and association cleanup. It separately extracts and verifies the portable ZIP and launches its GUI smoke. These checks do not yet exercise upgrade from an older build, rollback, Authenticode, hardware, or physical DMX; the format-2 release manifest reports upgrade and rollback as `not-run` until those distinct gates exist.
+
 Only one EmberLights process runs per Windows session, preventing duplicate DMX transmitters and OS2L listeners. Opening an `.emberlights` file while the app is already running forwards that project to the existing window, including its normal unsaved-changes prompt. The installer also asks the running app to close before replacing files.
 
 ## Safe first launch
@@ -67,7 +71,7 @@ Before assigning the Micro to a normal project, run **EmberLights Hardware Test*
 
 Do not use this build as the only lighting controller at a live event. It still needs the acceptance evidence in `04_V1_SCOPE_AND_ACCEPTANCE.md`, including real VirtualDJ/OS2L capture, Control One capture and feedback, representative Art-Net/sACN/USB-DMX receiver tests, interface disconnect/reconnect tests, low-end Windows measurements, eight-hour soak tests, shadow rehearsals, and a low-risk pilot.
 
-The installer is not code-signed yet, so Windows may show an unknown-publisher warning. Signing, upgrade/rollback validation, and public distribution are release gates rather than hidden limitations.
+The installer is not code-signed yet, so Windows may show an unknown-publisher warning. Signing, cross-version upgrade/rollback validation, and public distribution are release gates rather than hidden limitations. A matching payload hash, startup smoke, or synthetic qualification report proves package identity and software execution only; it does not graduate a hardware attempt or establish physical output.
 
 ## Machine qualification
 

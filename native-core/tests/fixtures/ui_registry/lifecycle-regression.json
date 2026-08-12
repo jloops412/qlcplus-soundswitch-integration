@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "sourceDigest": "lifecycle-regression",
+  "commands": [],
+  "states": [],
+  "components": [
+    {"id": "test.component", "status": "planned", "classification": "nativeComplex", "callable": false}
+  ],
+  "capabilities": [
+    {"id": "test.capability", "status": "implemented", "absenceBehavior": "reject", "callable": false}
+  ],
+  "values": [
+    {"id": "test.value", "status": "implemented", "kind": "enum", "valueType": "enum", "enumValues": ["a", "b"], "callable": false}
+  ],
+  "results": [
+    {"id": "testResult", "status": "implemented", "terminal": true}
+  ],
+  "interactions": []
+}

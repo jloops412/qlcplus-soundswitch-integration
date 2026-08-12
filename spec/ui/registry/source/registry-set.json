@@ -1,15 +1,18 @@
 {
   "schemaVersion": 1,
-  "registrySetVersion": "1.0.0",
-  "registryGeneration": 1,
-  "generatorVersion": "1.0.0",
+  "registrySetVersion": "1.1.0",
+  "registryGeneration": 2,
+  "generatorVersion": "1.1.0",
   "status": "implementationDraft",
   "nativeMode": "integrated",
   "fragments": {
+    "capabilities": ["capabilities/content.json"],
     "commands": ["commands/live-core.json"],
-    "states": ["states/live-core.json"],
+    "components": ["components/runtime-safe.json"],
+    "interactions": ["interactions/core.json"],
     "results": ["results/core.json"],
-    "interactions": ["interactions/core.json"]
+    "states": ["states/live-core.json"],
+    "values": ["values/core.json"]
   },
   "crossReferenceArtifacts": [
     "native-core/tests/fixtures/ui_registry/spike-binding.json"

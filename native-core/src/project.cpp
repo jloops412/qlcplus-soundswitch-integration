@@ -3,6 +3,8 @@
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
+#include "emberlights/hardware_qualification.hpp"
+#include "emberlights/studio_color.hpp"
 
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/fixture_library.hpp"
@@ -533,6 +535,52 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         }
     }
 
+    if (project.color_palettes.size() > kMaximumStudioPaletteAssets) {
+        add_issue(result, ProjectIssueSeverity::Error, "palette.capacity", project.id,
+                  "The project exceeds the supported Studio palette capacity.");
+    }
+    std::unordered_set<std::string_view> palette_ids;
+    std::size_t palette_swatch_count = 0U;
+    for (const auto& palette : project.color_palettes) {
+        if (palette.asset_version != kStudioColorPaletteAssetVersion) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.version", palette.id,
+                      "Studio palette asset version is not supported by this build.");
+        }
+        if (!valid_identifier(palette.id) || !palette_ids.insert(palette.id).second) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.id", palette.id,
+                      "Studio palette IDs must be unique, non-empty, and 96 characters or fewer.");
+        }
+        if (palette.name.empty() || palette.name.size() > kMaximumStudioPaletteNameLength) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.name", palette.id,
+                      "A Studio palette needs a display name of 255 characters or fewer.");
+        }
+        if (palette.swatches.size() > kMaximumStudioPaletteSwatches) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.swatchCapacity", palette.id,
+                      "A Studio palette exceeds its supported swatch capacity.");
+        }
+        palette_swatch_count += palette.swatches.size();
+        std::unordered_set<std::string_view> swatch_ids;
+        for (const auto& swatch : palette.swatches) {
+            if (!valid_identifier(swatch.id) || !swatch_ids.insert(swatch.id).second) {
+                add_issue(result, ProjectIssueSeverity::Error, "palette.swatchId", palette.id,
+                          "Swatch IDs must be unique within a palette and 96 characters or fewer.");
+            }
+            if (swatch.name.empty() ||
+                swatch.name.size() > kMaximumStudioSwatchNameLength) {
+                add_issue(result, ProjectIssueSeverity::Error, "palette.swatchName", swatch.id,
+                          "A swatch needs a display name of 255 characters or fewer.");
+            }
+            if (!valid_studio_color(swatch.color)) {
+                add_issue(result, ProjectIssueSeverity::Error, "palette.swatchColor", swatch.id,
+                          "A swatch contains a non-finite or out-of-range color value.");
+            }
+        }
+    }
+    if (palette_swatch_count > kMaximumStudioPaletteSwatchesTotal) {
+        add_issue(result, ProjectIssueSeverity::Error, "palette.totalSwatchCapacity", project.id,
+                  "The project exceeds the total supported Studio swatch capacity.");
+    }
+
     std::unordered_set<std::string_view> look_ids;
     std::unordered_set<std::string_view> look_names;
     std::size_t assignment_count = 0;
@@ -792,6 +840,17 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     if (project.midi_mappings.size() > showcore::kMaxMidiMappings) {
         add_issue(result, ProjectIssueSeverity::Error, "midi.capacity", project.id,
                   "The project exceeds the V1 MIDI mapping capacity.");
+    }
+    const auto qualification = evaluate_fixture_qualification_gate(project);
+    for (const auto& issue : qualification.issues) {
+        add_issue(
+            result,
+            qualification.physical_output_requested
+                ? ProjectIssueSeverity::Error
+                : ProjectIssueSeverity::Warning,
+            issue.code,
+            issue.subject,
+            issue.message);
     }
     return result;
 }

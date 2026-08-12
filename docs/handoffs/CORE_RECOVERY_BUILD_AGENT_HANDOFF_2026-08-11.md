@@ -280,20 +280,24 @@ Begin a bounded `ConnectionCoordinator` extraction with replaceable `DjTransport
 
 ### Slice F — Deterministic VirtualDJ/OS2L startup (P0)
 
-Keep:
+Use standards-based discovery first:
 
 ```text
-os2l=Yes
-os2lDirectIp=127.0.0.1:9996
+os2l=Auto
+os2lDirectIp=<blank>
 ```
 
-Expose a copyable VirtualDJ startup action:
+When Windows DNS-SD discovery is unavailable, expose the direct-IP fallback
+with `os2l=Yes`, the displayed listener endpoint, and this copyable ONINIT
+action:
 
 ```text
-wait 100ms & os2l_button 'blackout' off
+wait 100ms & os2l_button 'EmberLights Keepalive' off
 ```
 
-This harmless `off` command activates VirtualDJ's direct-IP path without requiring Joshua to press a performance pad manually.
+`EmberLights Keepalive` is a reserved no-op intercepted before performance
+action routing. It activates VirtualDJ's direct-IP path without clearing an
+intentional blackout, changing a Look, or requiring a performance pad.
 
 Move OS2L listener lifetime out of Start Show. When a loaded project enables OS2L, the listener should be available before Runner starts.
 
@@ -309,7 +313,9 @@ held/fallback clock
 fault with bind/error detail
 ```
 
-Test all launch orders and VirtualDJ restart. mDNS/DNS-SD discovery is a later improvement and must not block the direct-IP fix.
+Test discovery and fallback across all launch orders and VirtualDJ restart.
+DNS-SD advertisement exists, but installed Windows/VirtualDJ evidence and
+listener lifetime outside Start Show remain open gates.
 
 ### Slice G — Static Look Toggle/Hold semantics (P0/P1)
 

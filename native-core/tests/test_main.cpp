@@ -2218,26 +2218,32 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(wait_for_live_state(0, {7U, 3U}, 2U));
         CHECK(send_all(client, blue_on));
         CHECK(wait_for_live_state(1, {7U, 3U}, 3U));
-        CHECK(send_all(client, red_off));
+        CHECK(send_all(client, red_on));
         CHECK(wait_for_live_state(1, {7U, 3U}, 4U));
+        CHECK(send_all(client, red_off));
+        CHECK(wait_for_live_state(1, {7U, 3U}, 5U));
         CHECK(send_all(client, blue_off));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 5U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 6U));
+        CHECK(send_all(client, red_on));
+        CHECK(wait_for_live_state(0, {7U, 3U}, 7U));
+        CHECK(send_all(client, red_off));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 8U));
         CHECK(send_all(client, alternate_on));
-        CHECK(wait_for_live_state(-1, {7U, 4U}, 6U));
+        CHECK(wait_for_live_state(-1, {7U, 4U}, 9U));
         CHECK(send_all(client, alternate_off));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 7U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 10U));
         constexpr std::string_view blackout_on =
             R"({"evt":"btn","name":"blackout","state":"on"})";
         constexpr std::string_view blackout_off =
             R"({"evt":"btn","name":"blackout","state":"off"})";
         CHECK(send_all(client, blackout_on));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 8U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 11U));
         CHECK(runner.status().blackout);
         CHECK(send_all(client, keepalive));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 9U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 12U));
         CHECK(runner.status().blackout);
         CHECK(send_all(client, blackout_off));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 10U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 13U));
         CHECK(!runner.status().blackout);
         CHECK(status.dropped_os2l_actions == 0U);
         close_test_socket(client);
@@ -2248,6 +2254,22 @@ void test_runner_os2l_startup_without_button_trigger() {
 }
 
 void test_runner_service_lifecycle() {
+    emberlights::StaticLookBindingLease adapter_lease;
+    CHECK(adapter_lease.record_begin(0x77U, 4U, 12U));
+    CHECK(adapter_lease.outstanding());
+    CHECK(!adapter_lease.record_begin(0x77U, 4U, 13U));
+    const auto adapter_release = adapter_lease.consume_release(
+        emberlights::StaticLookOwnerKind::Midi, 0x77U);
+    CHECK(adapter_release.expected_package_generation == 4U);
+    CHECK(adapter_release.expected_activation_generation == 12U);
+    CHECK(!adapter_lease.outstanding());
+    CHECK(adapter_lease.record_begin(0x77U, 4U, 13U));
+    adapter_lease.clear();
+    CHECK(!adapter_lease.outstanding());
+    CHECK(adapter_lease.consume_release(
+              emberlights::StaticLookOwnerKind::Midi, 0x77U)
+              .expected_activation_generation == 0U);
+
     auto project = make_test_project();
     project.connections.os2l_enabled = false;
     project.connections.artnet_enabled = false;
@@ -2273,19 +2295,195 @@ void test_runner_service_lifecycle() {
         }
         return runner.status().active_look == expected;
     };
-    CHECK(runner.trigger_look(0U));
+    auto wait_for_static_look = [&](auto predicate) {
+        const auto look_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        auto snapshot = runner.status();
+        while (!predicate(snapshot.static_look) &&
+               std::chrono::steady_clock::now() < look_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            snapshot = runner.status();
+        }
+        return snapshot;
+    };
+    const emberlights::StaticLookOwnerContext owner_a{
+        emberlights::StaticLookOwnerKind::Test, 0xA1U, 0U, 0U};
+    const emberlights::StaticLookOwnerContext owner_b{
+        emberlights::StaticLookOwnerKind::Controller, 0xB2U, 0U, 0U};
+    CHECK(!runner.hold_look(0U, true, {}));
+    CHECK(!runner.hold_look(0U, true, {
+        emberlights::StaticLookOwnerKind::Test, 0U, 0U, 0U}));
+    CHECK(!runner.hold_look(0U, false, owner_a));
+
+    CHECK(runner.trigger_look(0U, owner_a));
     CHECK(wait_for_active_look(0));
-    CHECK(runner.toggle_look(0U));
+    auto explicit_activation = runner.status().static_look;
+    CHECK(explicit_activation.look_index == 0);
+    CHECK(explicit_activation.package_generation == 1U);
+    CHECK(explicit_activation.activation_generation != 0U);
+    CHECK(explicit_activation.owner_kind == emberlights::StaticLookOwnerKind::Test);
+    CHECK(explicit_activation.owner_feedback_token == owner_a.feedback_token);
+    CHECK(explicit_activation.behavior == emberlights::StaticLookBehavior::Explicit);
+    CHECK(explicit_activation.status ==
+              emberlights::StaticLookActivationStatus::Activating ||
+          explicit_activation.status ==
+              emberlights::StaticLookActivationStatus::Active);
+    const auto status_allocations_before =
+        g_allocations.load(std::memory_order_relaxed);
+    for (std::size_t sample = 0U; sample < 4096U; ++sample) {
+        const auto coherent = runner.status();
+        CHECK(coherent.active_look == coherent.static_look.look_index);
+        if (coherent.static_look.status ==
+            emberlights::StaticLookActivationStatus::None) {
+            CHECK(coherent.static_look.look_index == -1);
+            CHECK(coherent.static_look.activation_generation == 0U);
+        } else {
+            CHECK(coherent.static_look.look_index >= 0);
+            CHECK(coherent.static_look.package_generation != 0U);
+            CHECK(coherent.static_look.activation_generation != 0U);
+            CHECK(coherent.static_look.owner_kind !=
+                  emberlights::StaticLookOwnerKind::None);
+            CHECK(coherent.static_look.behavior !=
+                  emberlights::StaticLookBehavior::None);
+            CHECK(coherent.static_look.transition_progress >= 0.0F);
+            CHECK(coherent.static_look.transition_progress <= 1.0F);
+        }
+    }
+    CHECK(g_allocations.load(std::memory_order_relaxed) ==
+          status_allocations_before);
+
+    CHECK(runner.toggle_look(0U, owner_a));
     CHECK(wait_for_active_look(-1));
-    CHECK(runner.toggle_look(0U));
+    CHECK(runner.toggle_look(0U, owner_a));
     CHECK(wait_for_active_look(0));
-    CHECK(runner.hold_look(1U, true));
-    CHECK(wait_for_active_look(1));
-    CHECK(runner.hold_look(0U, false));
+    const auto toggled = runner.status().static_look;
+    CHECK(toggled.behavior == emberlights::StaticLookBehavior::Latch);
+    CHECK(toggled.activation_generation >
+          explicit_activation.activation_generation);
+
+    CHECK(runner.hold_look(1U, true, owner_a));
+    auto held_a = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0xA1U;
+    }).static_look;
+    CHECK(held_a.activation_generation > toggled.activation_generation);
+    CHECK(runner.hold_look(1U, true, owner_a));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    CHECK(runner.status().active_look == 1);
-    CHECK(runner.hold_look(1U, false));
+    CHECK(runner.status().static_look.activation_generation ==
+          held_a.activation_generation);
+
+    CHECK(runner.hold_look(1U, true, owner_b));
+    auto held_b = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0xB2U;
+    }).static_look;
+    CHECK(held_b.activation_generation > held_a.activation_generation);
+
+    auto stale_owner_a = owner_a;
+    stale_owner_a.expected_package_generation = held_a.package_generation;
+    stale_owner_a.expected_activation_generation =
+        held_a.activation_generation;
+    CHECK(runner.hold_look(1U, false, stale_owner_a));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          held_b.activation_generation);
+    CHECK(runner.status().static_look.owner_feedback_token ==
+          owner_b.feedback_token);
+
+    auto owner_b_release = owner_b;
+    owner_b_release.expected_package_generation = held_b.package_generation;
+    owner_b_release.expected_activation_generation =
+        held_b.activation_generation;
+    CHECK(runner.hold_look(1U, false, owner_b_release));
     CHECK(wait_for_active_look(-1));
+
+    CHECK(runner.hold_look(0U, true, owner_a));
+    held_a = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold;
+    }).static_look;
+    CHECK(runner.hold_look(1U, true, owner_b));
+    held_b = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.owner_feedback_token == 0xB2U;
+    }).static_look;
+    stale_owner_a.expected_package_generation = held_a.package_generation;
+    stale_owner_a.expected_activation_generation =
+        held_a.activation_generation;
+    CHECK(runner.hold_look(0U, false, stale_owner_a));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          held_b.activation_generation);
+
+    CHECK(runner.toggle_look(1U, owner_a));
+    const auto latch_replacement = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.behavior == emberlights::StaticLookBehavior::Latch;
+    }).static_look;
+    CHECK(latch_replacement.activation_generation >
+          held_b.activation_generation);
+    owner_b_release.expected_package_generation = held_b.package_generation;
+    owner_b_release.expected_activation_generation =
+        held_b.activation_generation;
+    CHECK(runner.hold_look(1U, false, owner_b_release));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          latch_replacement.activation_generation);
+
+    CHECK(runner.clear_look());
+    CHECK(wait_for_active_look(-1));
+
+    const auto command_allocations_before =
+        g_allocations.load(std::memory_order_relaxed);
+    CHECK(runner.hold_look(0U, true, owner_a));
+    const auto allocation_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold;
+    }).static_look;
+    auto allocation_release = owner_a;
+    allocation_release.expected_package_generation =
+        allocation_hold.package_generation;
+    allocation_release.expected_activation_generation =
+        allocation_hold.activation_generation;
+    CHECK(runner.hold_look(0U, false, allocation_release));
+    CHECK(wait_for_active_look(-1));
+    CHECK(g_allocations.load(std::memory_order_relaxed) ==
+          command_allocations_before);
+
+    CHECK(runner.trigger_autoloop({7U, 3U}));
+    const auto autoloop_deadline = std::chrono::steady_clock::now() +
+        std::chrono::seconds(2);
+    auto before_cover = runner.status();
+    while ((before_cover.active_autoloop !=
+                showcore::AutoloopAddress{7U, 3U} ||
+            before_cover.active_autoloop_progress < 0.01F) &&
+           std::chrono::steady_clock::now() < autoloop_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        before_cover = runner.status();
+    }
+    CHECK((before_cover.active_autoloop ==
+           showcore::AutoloopAddress{7U, 3U}));
+    CHECK(runner.hold_look(0U, true, owner_a));
+    held_a = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold;
+    }).static_look;
+    const auto covered_progress = runner.status().active_autoloop_progress;
+    std::this_thread::sleep_for(std::chrono::milliseconds(125));
+    const auto still_covered = runner.status();
+    CHECK((still_covered.active_autoloop ==
+           showcore::AutoloopAddress{7U, 3U}));
+    CHECK(still_covered.active_autoloop_progress != covered_progress);
+    stale_owner_a.expected_package_generation = held_a.package_generation;
+    stale_owner_a.expected_activation_generation = held_a.activation_generation;
+    CHECK(runner.hold_look(0U, false, stale_owner_a));
+    CHECK(wait_for_active_look(-1));
+    const auto revealed = runner.status();
+    CHECK((revealed.active_autoloop ==
+           showcore::AutoloopAddress{7U, 3U}));
+    CHECK(revealed.active_autoloop_progress != before_cover.active_autoloop_progress);
     const auto all_banks = ~std::uint64_t{0};
     auto wait_for_bank_mask = [&](std::uint64_t expected) {
         const auto mask_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
@@ -2330,7 +2528,7 @@ void test_runner_service_lifecycle() {
     CHECK(wait_for_override_count(0U));
     CHECK(!runner.set_group_property(manual_group, showcore::Property::Count, 0.5F));
     CHECK(!runner.set_property(0U, showcore::Property::Count, 0.5F));
-    CHECK(runner.trigger_look(0));
+    CHECK(runner.hold_look(0U, true, owner_a));
     CHECK(runner.trigger_autoloop({7, 3}));
     CHECK(runner.trigger_track_script(0));
     CHECK(runner.set_manual_bpm(128.0));
@@ -2341,6 +2539,8 @@ void test_runner_service_lifecycle() {
     CHECK(active.frames >= 3U);
     CHECK(active.output_frames >= 1U);
     CHECK(active.active_look == 0);
+    CHECK(active.static_look.behavior == emberlights::StaticLookBehavior::Hold);
+    CHECK(active.static_look.package_generation == 1U);
     CHECK((active.active_autoloop == showcore::AutoloopAddress{7, 3}));
     CHECK(active.active_autoloop_repeat == showcore::AutoloopRepeat::Infinite);
     CHECK(active.active_autoloop_progress >= 0.0F && active.active_autoloop_progress <= 1.0F);
@@ -2406,12 +2606,31 @@ void test_runner_service_lifecycle() {
     CHECK(activated.package_activations == 1U);
     CHECK(activated.package_activation_failures == 0U);
     CHECK(activated.frames > active.frames);
-    CHECK(activated.active_look == 0);
+    CHECK(activated.active_look == -1);
+    CHECK(activated.static_look.status ==
+          emberlights::StaticLookActivationStatus::None);
     CHECK((activated.active_autoloop == showcore::AutoloopAddress{7, 3}));
     CHECK(activated.active_autoloop_repeat == showcore::AutoloopRepeat::Infinite);
     CHECK(activated.active_autoloop_progress >= 0.0F && activated.active_autoloop_progress <= 1.0F);
     CHECK(activated.active_autoloop_bank_mask == (std::uint64_t{1} << 7U));
     CHECK(activated.manual_override_count == 0U);
+
+    CHECK(runner.hold_look(0U, true, owner_a));
+    const auto new_package_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 && current.package_generation == 2U;
+    }).static_look;
+    CHECK(new_package_hold.activation_generation >
+          active.static_look.activation_generation);
+    auto old_package_release = owner_a;
+    old_package_release.expected_package_generation =
+        active.static_look.package_generation;
+    old_package_release.expected_activation_generation =
+        active.static_look.activation_generation;
+    CHECK(runner.hold_look(0U, false, old_package_release));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          new_package_hold.activation_generation);
+    CHECK(runner.status().static_look.package_generation == 2U);
 
     auto restart_project = updated_project;
     restart_project.connections.frame_rate = 39U;

@@ -304,3 +304,536 @@ agent/autoloops-v2-model
 That agent executes only Pass A from doc 34. It must not begin Runner selection or Studio/migration work. After #58 merges, assign #59; after #59 and PR #53 merge, assign #60.
 
 Use #57 and this checkpoint additively for continuity. Do not replace the plan with a new one on each pass.
+
+## 11. Additive AL2-003 authoring/content-pack checkpoint — 2026-08-12
+
+A bounded toolkit-neutral part of #60 now exists on the combined local base.
+The issue reservation is comment `5267965507`. This checkpoint advances only
+source authoring and original pack management; it does not claim the complete
+Pass C stop condition.
+
+### Implemented source-authoring boundary
+
+- `AutoloopAuthoringService` edits the accepted
+  `AutoloopSourceDocument`; it does not define another timeline, time, color,
+  fixture-capability, compiled, or persistence model.
+- every snapshot is normalized, validated, generation-stamped, and carries the
+  canonical source digest;
+- a changed candidate commits atomically, increments generation once, and keeps
+  one source-level Undo/Redo step; identical candidates are `NoChange`, and
+  stale generations do not mutate source;
+- create, rename, deep content duplicate, and explicit delete are transactional;
+  deletion reports every dependent placement, shared dependency, and orphaned
+  program/launch/provenance record before it can remove referenced placements;
+- content identity remains separate from placement identity: the same asset can
+  be placed again, while duplicate creates new asset/program/launch/provenance
+  identities;
+- assign, unassign, move, swap, and deterministic wrapping next-open operations
+  use the existing 64 x 32 address contract; occupied destinations refuse the
+  edit and require an explicit swap.
+
+This service is a bounded source-edit session, not a replacement for
+`StudioDocumentService`. Rich Autoloop project persistence must later make the
+Studio document service authoritative for save/history/durable dirty state and
+commit the same validated canonical source through a versioned project seam.
+
+### Original EmberLights starter pack
+
+- pack ID `emberlights.starter.autoloops`, version `1` / semantic version
+  `1.0.0`, is generated deterministically from original EmberLights rules;
+- it contains 128 independently named semantic placements across banks 0..3,
+  with 128 stable assets/programs/launch profiles/provenance records;
+- programs use the accepted signed 64-bit 960-PPQ musical time and semantic
+  Intensity/RGB property blocks derived through the shared `StudioColor` type;
+  they contain no raw DMX, fixture assumptions, strobe, vendor defaults, source
+  labels, private migrated content, or random input;
+- the pack records its canonical source digest, stable management-key prefix,
+  original-content provenance, and current distribution-license boundary;
+- Populate fills empty addresses only and never overwrites an occupied user
+  placement; repeated Populate is idempotent;
+- Reset matches exact recognized pack management keys, restores only proven
+  pack-owned record IDs, reports the exact changed assets and linked placements,
+  never deletes unrelated user records, and commits as one Undoable source
+  transaction;
+- an unknown management key or unrelated stable-ID collision fails closed
+  instead of being treated as pack ownership.
+
+### Evidence at this checkpoint
+
+- focused `autoloop_v2_studio_tests` pass with warnings fatal;
+- canonical source serialize/parse/reserialize and deterministic pack digest
+  pass;
+- generation, stale/no-change, one-step Undo/Redo, invalid-candidate retention,
+  duplicate identity, exact delete dependency, placement overwrite refusal,
+  swap/move/unassign/next-open, and full 2,048-address capacity tests pass;
+- pack Populate/Reset/idempotency/user-preservation/stale-plan tests pass;
+- all 128 pack programs compile through `compile_autoloop_programs` on a
+  representative synthetic semantic target, repeated compiled digests match,
+  and a 127-program compiler limit rejects before package creation;
+- full Make warnings-fatal native tests and all build targets pass;
+- the current integrated Surface Contract Gate is generation 2 with the same
+  accepted 29 commands and 39 states, plus planned non-callable metadata, and
+  digest `d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945`;
+- Runner dry-run smoke, WinMM/DMX USB Windows syntax checks, and focused
+  ASan+UBSan (`detect_leaks=0`) pass.
+
+CMake is not installed in this Linux workspace, so the additive CMake target
+was inspected but not configured here. Windows cross-build/installed startup,
+installer packaging, physical fixture behavior, and gig qualification were not
+run or claimed.
+
+### Remaining ordered boundaries
+
+- versioned rich-source persistence was not implemented by the authoring-pack
+  slice; it is now delivered under the bounded section 14 contract below;
+- exact V2 no-output preview was not implemented by the authoring-pack slice;
+  it is now delivered under the bounded section 12 contract below and remains
+  separate from physical output or fixture qualification;
+- linked persisted palette/Position/Attribute realization and capability
+  degradation matrices remain coordinated Studio/fixture work;
+- deterministic AutoScript, cancellation/work scheduling, proposal preview,
+  and commit remain #60 work;
+- the SoundSwitch Autoloop delta corpus remains unavailable in this lane, so
+  `soundswitch.autoloop_delta_corpus_unavailable` remains the exact blocker;
+  no decoder, name heuristic, migration fidelity, or re-import claim was added;
+- no Runner/director/output/hardware, fixture profile, UI registry, Windows UI,
+  skin, AutoScript, migration IR, or source/compiler implementation file changed.
+
+## 12. Additive AL2-003 exact V2 preview checkpoint — 2026-08-12
+
+Issue #60 reservation comment `5268305894` extends the existing
+`StudioPreviewService`; it does not add a second preview engine or make Studio
+timing authority.
+
+### Implemented preview boundary
+
+- one atomic load validates the document generation, source generation and
+  canonical source digest, compiles the format-1 project candidate, resolves
+  V2 target selectors against that candidate venue, and calls the accepted
+  `compile_autoloop_programs` compiler;
+- the last-good candidate remains active when project compilation, source
+  digest validation, target/capability resolution or V2 compilation fails;
+- successful snapshots carry document/source generations, canonical source
+  digest, immutable compiled-package digest, placement/asset/program identity,
+  exact renderer frame digest, current rendered frames and semantic ownership;
+- bounded restart, absolute tick seek, nearest-tick beat seek, half-open phase
+  seek and tick advance stay within
+  `kMaximumStudioAutoloopPreviewTransportTick`; phase, loop tick and completed
+  cycles come from the shared 960-PPQ program length;
+- the most recent 256 exact rendered frame-digest records are retained with an
+  explicit dropped-record count;
+- direct Property Block/Curve programs that the venue can realize use the
+  production immutable compiler, `AutoloopProgramEvaluator`, layer resolver,
+  safety policy and fixture renderer;
+- Palette, Position, Attribute, Movement, Effect and legacy references are not
+  guessed. Until a coordinated semantic reference resolver supplies canonical
+  assignments, the production compiler reports `MissingReference` and the
+  candidate fails closed;
+- custom transition references retain the compiler's
+  `UnsupportedPayload` diagnostic; target/property capability gaps retain
+  `MissingCapability`; evaluator rejection clears the V2 layer and reports an
+  explicit internal diagnostic instead of reusing an approximate frame;
+- format-1 Static Look, Autoloop and draft-palette preview continue through
+  their existing APIs and renderer path.
+
+### Structural no-output boundary
+
+`StudioPreviewService` owns only editable/canonical source, immutable compiled
+packages, evaluator/layer buffers and `CompiledShow`'s engine. It has no Runner,
+output-backend, Art-Net, sACN, USB, Control One, SoundSwitch Micro or device
+session dependency and exposes `output_disabled = true` in every snapshot.
+Tests deliberately enable valid project connection settings while previewing;
+those settings are compiled as document data but no adapter/session is created.
+
+### Focused evidence
+
+- warning-fatal `autoloop_v2_preview_tests` cover deterministic identical
+  source/package/frame digests, exact RGB DMX slots and semantic ownership;
+- restart, tick/beat/phase seek, advance and exact loop-boundary wrap pass;
+- stale document/source generations, reused generations, mismatched source
+  digests and out-of-range transport retain the previous exact frame;
+- unresolved Palette/Position/Attribute references, custom transitions and a
+  missing fixture capability fail closed with their exact compiler diagnostics;
+- the trace remains bounded at 256 entries and reports dropped history;
+- existing warning-fatal Studio authoring, V2 source/compiler and V2 authoring
+  pack suites pass unchanged.
+- full warning-fatal Make test/all targets, generation-2 UI and Ember Action
+  registry checks plus `surface-contract-gate`, dry-run Runner smoke, WinMM and
+  DMX USB Windows syntax checks, and focused ASan+UBSan pass.
+
+The accepted evaluator's zero-allocation contract remains covered by
+`autoloop_v2_model_tests`. This Studio service intentionally allocates while
+building user-facing fixture/ownership/diagnostic snapshots and SHA-256 trace
+strings; it is not a Runner scheduler path and does not claim zero allocation.
+
+### Remaining ordered boundaries
+
+- Windows Studio UI wiring from an authoring draft into the now-authoritative
+  rich-source document transaction;
+- canonical linked Palette/Position/Attribute/Movement/Effect reference
+  resolution and qualified exact/degraded fixture matrices;
+- deterministic AutoScript proposal/cancellation/preview/commit;
+- SoundSwitch controlled-delta evidence and decoder work, still blocked by
+  `soundswitch.autoloop_delta_corpus_unavailable`;
+- Windows installed-app, physical fixture, hardware-output, resource/soak and
+  gig qualification. No such claim is made by output-disabled preview.
+
+## 13. Additive AL2-002 Runner integration checkpoint — 2026-08-12
+
+Issue #59 reservation comment `5268370538` and evidence comment `5268700941`
+record the narrow `CompiledShow`/Runner activation seam. Feature integration
+commit `074b4df` contains the locally cherry-picked result.
+
+### Implemented runtime boundary
+
+- `CompiledShow` optionally owns one immutable V2 package compiled from the
+  canonical source; format-1-only compilation retains a null package and the
+  exact legacy path;
+- Runner activates the package with its package generation, publishes bounded
+  director/ownership status, routes existing Autoloop/bank commands, advances
+  from normalized Runner transport, and hot-swaps through the existing atomic
+  activation boundary without adding registry IDs or output-adapter work;
+- V2 evaluates into a private fixed-storage `LayerStack`. Autonomous and Manual
+  contributions are copied deliberately, while `TrackScript` has one explicit
+  mutually exclusive owner: legacy Static Look, legacy Autoloop, or compiled
+  V2. Director ticks cannot overwrite an active legacy buffer;
+- ownership handoff retires stale V2 scripted content before legacy playback,
+  package clear preserves an active legacy script, and stop/fault/incompatible
+  activation clears only V2-owned contributions;
+- manual Overlay preserves lower progression; Replace suppresses and restores
+  the lower automated layer through the director's explicit mode; repeated
+  scheduler ticks remain allocation-free.
+
+### Integrated evidence and remaining boundary
+
+- exact legacy `TrackScript` layer-buffer parity is covered across 32 frames
+  with V2 active; V1/no-package Runner behavior, V2 package activation/hot
+  swap, stale generation, ownership handoff, Once return, Overlay/Replace,
+  deterministic replay, and zero-allocation ticks pass;
+- the combined branch passes 16 warning-fatal native executables, all Make
+  targets, both generation-2 registry gates, smoke, WinMM/DMX USB syntax,
+  benchmarks, and fresh focused ASan+UBSan;
+- TrackDuration fails closed as `TrackBoundaryUnavailable` until Runner exposes
+  a trustworthy track epoch. Non-Static-Look semantic references remain exact
+  compile failures until coordinated Palette/Position/Attribute/Movement/
+  Effect resolvers exist;
+- CMake/installed Windows, physical output, source-decoder fidelity, long soak,
+  and gig qualification were not run or claimed.
+
+## 14. Additive AL2-003 rich-source persistence checkpoint — 2026-08-12
+
+Issue #60 reservation comment `5268856525` records this local-only persistence
+slice from production-integration base `e48f605`. It makes the existing
+`StudioDocumentService` authoritative for rich Autoloop save/history without
+changing the typed format-1 `AUTOLOOP`/`STEP` model.
+
+### Persisted record contract
+
+- one `EMBERLIGHTS_AUTOLOOP_SOURCE_RECORD` version-1 record carries the
+  accepted canonical `AutoloopSourceDocument` through the existing format-1
+  unknown-record channel;
+- the bounded envelope records its canonical byte count (maximum 8 MiB),
+  source format version, lowercase SHA-256 canonical source digest, and exact
+  lowercase-hex canonical source bytes;
+- canonical serialization remains owned by `serialize_autoloop_source`; the
+  persistence helper does not define another source, timeline, musical-time,
+  color, compiler, fixture, or Runner model;
+- one recognized record is replaced in place or appended when absent. Every
+  unrelated unknown record retains its bytes and relative order, including
+  through save/reopen;
+- malformed fields/encoding, duplicate recognized records, unsupported record
+  or source versions, size mismatch/overflow, digest mismatch, invalid source,
+  and parseable-but-noncanonical source all fail closed;
+- project parse/load and pre-save verification reject an invalid recognized
+  record. Unrecognized future records remain opaque and preserved;
+- the format-1 project header/version and typed legacy Autoloop collections are
+  unchanged, and the format-1 compatibility adapter produces the same digest
+  before and after a rich-source transaction.
+
+### Authoritative Studio transaction
+
+- each `StudioDocumentSnapshot` exposes the validated persisted source plus a
+  stamp containing presence, record version, source version, and source digest;
+- `apply_autoloop_source` checks both the active document generation and the
+  complete prior stamp, then commits the canonical record as one existing
+  `ProjectEditHistory` transaction;
+- a caller presenting the current numeric generation with an older digest or
+  version is rejected as stale, so reused generations cannot bypass source
+  identity checks;
+- the generic full-document candidate path cannot add, remove, or replace the
+  rich source; such changes must use the generation-and-stamp transaction;
+- New/Open/Restore boundaries validate the recognized record, establish their
+  existing durable baseline behavior, and never turn navigation into an edit;
+- existing dirty comparison, atomic save acknowledgement, one-step Undo/Redo,
+  and save/reopen behavior now cover rich source without a parallel history or
+  persistence authority.
+
+### Evidence and remaining boundary
+
+- focused warnings-fatal `autoloop_v2_persistence_tests` pass deterministic
+  record/idempotence, canonical source round-trip, unknown-record preservation,
+  atomic save/reopen, dirty acknowledgement, one-step Undo/Redo, stale numeric
+  generation plus digest/version mismatch, generic-candidate add/remove/change
+  bypass refusal, no-record stamp/generation pairing, legacy format-1 stability,
+  malformed/duplicate/version/size/digest rejection, and pre-save
+  no-file-on-failure cases;
+- full `make -j2 test` passes 17 native executables; `make -j2 all` passes every
+  target;
+- generation-2 UI and Ember Action registry checks, `surface-contract-gate`,
+  dry-run Runner smoke (42 frames, zero decode errors/dropped beats/send
+  failures), and WinMM/DMX USB Windows syntax checks pass;
+- a fresh focused ASan+UBSan build/run passes with
+  `detect_leaks=0:halt_on_error=1`; CMake is not installed in this Linux lane,
+  so its additive target was inspected but not configured or claimed.
+
+Rich source persistence/save/reopen/history is therefore no longer an open
+AL2-003 boundary. Remaining work is the in-flight deterministic AutoScript
+proposal/commit slice, canonical linked Palette/Position/Attribute/Movement/
+Effect resolution and qualified exact/degraded capability matrices, installed
+Windows application/packaging verification, and controlled-delta migration
+evidence. The exact decoder blocker remains
+`soundswitch.autoloop_delta_corpus_unavailable`. No Runner/output/device,
+registry, fixture-profile truth, skin, migration decoder/IR, AutoScript, Windows
+UI, backlog, or parity-ledger file changed in this slice.
+## 15. Additive AL2-003 deterministic AutoScript proposal checkpoint — 2026-08-12
+
+Issue #60 reservation comment `5268893342` adds the first versioned,
+rule-based AutoScript service on integrated production base `e48f605`. The
+service works only from an immutable `AutoloopAuthoringSnapshot` and returns a
+reviewable proposal; it does not mutate the active authoring source while it
+generates.
+
+### Request, generation and provenance boundary
+
+- requests use signed 64-bit 960-PPQ track, loop and grid ticks and require
+  exactly one ordered, non-overlapping musical-section or energy-band
+  timeline;
+- an explicit seed is mandatory, including when the intended seed is zero;
+  eligible semantic role selectors are stable IDs, with an explicit
+  diagnostic when the request falls back to the semantic Master target;
+- style and complexity are bounded enums. Musical-section energy and
+  energy-band ranges use exact per-mille integers rather than a wall-clock,
+  audio-analysis or platform-randomness authority;
+- generator ID `emberlights.autoscript.rule-based`, version `1`, normalized
+  complete request parameters, seed, request digest and deterministic evidence
+  status are recorded in ordinary `Generated` provenance;
+- generated stable asset/program/launch/provenance/placement IDs derive from
+  normalized structural inputs. A different seed retains those identities and
+  placement intent while changing only seeded semantic choices and recorded
+  provenance/digests. After one proposal is accepted, regeneration over that
+  same structural identity fails closed on the existing IDs; replacement must
+  use explicit `AutoloopAuthoringService` dependency-aware delete/edit
+  transactions before a fresh proposal, never an AutoScript overwrite;
+- output is ordinary editable `AutoloopSourceDocument` content: semantic
+  Master/RoleSelector targets, Intensity/RGB Property Blocks, 960-PPQ programs,
+  launch profiles and placements. It contains no raw DMX, fixture profile,
+  vendor preset, private source, strobe/hazard, opaque runtime recipe, model
+  call or I/O operation.
+
+### Bounded proposal/commit boundary
+
+- hard service caps are 32 timeline segments, 4 role selectors, 32 generated
+  assets, 8,192 generated events, 16,384 complete-candidate events, 16 MiB of
+  canonical candidate source, 100,000 work operations and 4,096 four-beat bars
+  of musical track time; each request supplies equal or tighter explicit
+  content and operation budgets;
+- an atomic cancellation token is checked before work, through source scans and
+  at every segment/event construction checkpoint, plus immediately before
+  final canonicalization and publication. Those final checkpoints consume the
+  explicit operation budget as well. Cancellation or budget exhaustion
+  discards local work and returns no candidate;
+- the immutable proposal carries base generation/source digest, normalized
+  request digest, canonical preview-source digest, proposal digest, exact
+  generated IDs/addresses/event count, operations used and stable diagnostics;
+- the complete candidate is exposed read-only for output-disabled validation
+  and preview. The active `AutoloopAuthoringService` remains byte-identical
+  until an explicit commit;
+- commit rechecks proposal integrity, base generation and base source digest,
+  then calls `AutoloopAuthoringService::apply_candidate` once. The accepted
+  generation is one source transaction and one Undo restores the exact prior
+  canonical source;
+- occupied requested addresses, out-of-range contiguous placement, stable-ID
+  collision, source capacity, stale generation, invalid input, cancellation,
+  content/operation exhaustion and integrity/validation failure all fail
+  closed. Generation always appends its own records to the copied base and
+  never skips, replaces or deletes unrelated content.
+
+### Evidence and remaining scope
+
+- focused warning-fatal `autoloop_autoscript_tests` pass for exact repeated
+  request/source/compiled digests, normalized input ordering, seeded variation
+  with stable IDs, semantic-only records, full normalized provenance,
+  preview-without-mutation, one-transaction commit/Undo, stale generation,
+  occupied placement, catalog capacity, initial and post-commit regeneration
+  stable-ID collision, cancellation and hard content/operation/byte budgets,
+  including exhaustion at the final publication checkpoint;
+- full warning-fatal Make `all` and `test` pass with the additive target;
+- generation-2 UI and Ember Action registry checks plus
+  `surface-contract-gate` pass at 29 commands, 39 states and digest
+  `d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945`;
+- Runner dry-run smoke, WinMM/DMX USB Windows syntax checks and fresh focused
+  ASan+UBSan (`detect_leaks=0`) pass.
+
+CMake and a Windows cross-compiler are not installed in this Linux lane, so
+the additive CMake target was inspected but not configured and an installed
+Windows build was not run. Toolkit scheduling/UI acceptance orchestration,
+rich source persistence, canonical Palette/Position/Attribute/Movement/Effect
+selection, SoundSwitch controlled-delta decoding, physical hardware, soak and
+gig qualification remain separate work. The migration blocker remains exactly
+`soundswitch.autoloop_delta_corpus_unavailable`.
+
+No source-model/compiler, Studio document/color/preview, migration, Runner,
+output/hardware, fixture/profile, registry/UI, Windows UI, skin, project-format,
+backlog or decision-ledger file changed in this slice.
+
+## 16. Additive AL2-003 Studio/AutoScript transaction bridge — 2026-08-12
+
+Issue #60 reservation comment `5269197040` adds one narrow bridge on exact
+integrated base `d083226`. It connects the existing deterministic AutoScript
+proposal service to the existing authoritative persisted Studio document
+transaction; it does not introduce another source, history or persistence
+service.
+
+### Snapshot and commit authority
+
+- `propose_studio_autoloop_autoscript` accepts one immutable
+  `StudioDocumentSnapshot`. A present rich-source record supplies its validated
+  canonical `AutoloopSourceDocument`; an absent record supplies the canonical
+  empty rich source and never adapts or mutates format-1 `AUTOLOOP` records;
+- the returned immutable handoff captures the exact Studio document
+  generation, all four persistence-stamp fields (presence, record version,
+  source format version and digest), the effective base-source digest, the
+  existing AutoScript proposal and a versioned bridge digest;
+- proposal creation remains output-disabled and no-mutation. Existing rich
+  source is copied into the complete proposal candidate, so generation appends
+  its own semantic assets/programs/launch profiles/provenance/placements and
+  never overwrites unrelated persisted content;
+- commit first compares the active document generation and complete stamp,
+  reconstructs the active effective rich source, and rechecks its canonical
+  digest. It then independently recomputes the existing versioned AutoScript
+  proposal digest, canonical preview-source digest and bridge digest. The
+  independent recomputation is deliberately locked to AutoScript generator
+  version 1; any digest-format change must update the owning version and its
+  golden vectors in lockstep, while one-sided drift is rejected before the
+  document authority is invoked;
+- only a ready, unchanged handoff reaches
+  `StudioDocumentService::apply_autoloop_source`, exactly once with the same
+  document generation and full persistence stamp. That existing authority
+  performs the sole project mutation and records one complete document Undo
+  transaction;
+- failed proposal, occupied placement, malformed/unsupported stamp, mismatched
+  source bytes, stale document generation, stale persisted source and failed
+  proposal/source/bridge integrity all fail closed before mutation. Undo/Redo
+  restores exact prior/later project bytes and successful content survives the
+  ordinary atomic save/load and OpenedDocument path.
+
+### Evidence and remaining scope
+
+- focused warning-fatal `autoloop_autoscript_studio_tests` pass for absent
+  source first commit with unchanged format-1 Autoloop adapter digest, existing
+  persisted-source preservation, same-generation stamp/source validation, stale
+  document and source rejection, one document Undo/Redo, atomic save/reopen and
+  invalid/occupied proposal no-mutation. Fixed generator-v1 and bridge-v1 digest
+  vectors enforce the lockstep/version invariant;
+- existing warning-fatal AutoScript, rich-source persistence and Autoloops V2
+  Studio suites pass beside the new bridge target;
+- full warning-fatal Make `all` and `test` pass, including all V1/V2 Studio,
+  preview, runtime and Runner suites;
+- generation-2 UI and Ember Action registry checks plus
+  `surface-contract-gate` pass at 29 commands, 39 states and digest
+  `d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945`;
+- Runner dry-run smoke passes with 42 frames, zero decode errors, dropped beats
+  or send failures; WinMM and DMX USB Windows syntax checks pass;
+- core and full-performance benches pass; a fresh focused ASan+UBSan build and
+  run passes with leak detection disabled; `git diff --check` passes.
+
+CMake and a Windows cross-compiler are not installed in this Linux lane, so
+the additive CMake source/test entries were inspected but not configured and
+no installed Windows build is claimed. UI scheduling, proposal acceptance and
+preview presentation, canonical linked Position/Attribute/Movement/Effect
+resolution, SoundSwitch controlled-delta decoding, physical hardware, soak and
+gig qualification remain separate work. The exact migration blocker remains
+`soundswitch.autoloop_delta_corpus_unavailable`.
+
+No existing Studio document/persistence/AutoScript authority, source schema,
+project format, Studio color/preview, migration, Runner/output/hardware,
+fixture/profile, registry/UI, Windows UI, skin, backlog or decision-ledger file
+changed in this slice.
+
+## 17. Additive AL2-003 Studio Palette resolution checkpoint — 2026-08-12
+
+Issue #60 reservation comment `5269174721` records this local-only slice from
+exact integration base `5f79eb5`. It resolves project-owned Studio palette
+swatches into the accepted compiled Autoloop reference contract without adding
+a color model, source field, persistence record, Runner path, or output owner.
+
+### Stable reference and capability contract
+
+- a V2 Palette event's `reference_id` matches only an exact stable
+  `StudioColorSwatch::id` across the current project's palette assets. Display
+  names, palette names, fixture/channel names, raw DMX offsets/ranges/defaults,
+  and color-wheel slots are never interpreted;
+- zero stable-ID matches is `Missing`, more than one match anywhere in the
+  project is `Ambiguous`, a complete semantic realization is `Exact`, an
+  accepted lossy `realize_studio_color` result is `Degraded`, and a missing
+  profile/semantic color capability or partial target realization is
+  `Unsupported`;
+- each unique `(swatch ID, target kind, target stable ref)` produces at most
+  one `AutoloopReferenceBinding`, even when multiple events reuse it. The
+  assignment list is deterministic by runtime fixture/property and is bounded
+  by the existing compiler target/reference/assignment limits;
+- target membership uses the existing Master/Group/Fixture/RoleSelector
+  semantics and the compiler's existing intersection capability mask. A mixed
+  target whose fixtures require nonuniform properties (for example RGB and
+  white-only fixtures under one Master target) fails closed as
+  `MissingCapability`; it is not reported as a partially degraded success.
+  Authors can use distinct target-scoped references when each target is
+  individually realizable;
+- a single-capability target may be `Degraded` (for example a white-only target
+  receiving RGB intent) only when every fixture has a complete usable semantic
+  realization and every resulting property belongs to the target intersection;
+- missing, ambiguous, and unsupported Palette candidates return structured
+  resolution evidence and compiler-aligned diagnostics before immutable
+  compilation. Position, Attribute, Movement, Effect, legacy references and
+  custom transitions retain their existing fail-closed compiler behavior.
+
+### Preview and no-output boundary
+
+`StudioPreviewService` supplies the resulting target/reference spans to the
+production V2 compiler and evaluator, retains exact/degraded resolution records
+in its outcome/snapshot, and renders through the existing output-disabled
+production fixture renderer. A rejected newer project/source candidate leaves
+the prior document/source generations, source/package digests, rendered frame,
+and last-good Palette resolution active. The resolver and preview headers and
+implementation have no Runner, output-backend, network/USB adapter, or device
+session dependency; valid connection settings in adversarial tests never open
+an output path.
+
+### Evidence and remaining boundary
+
+- focused warning-fatal `autoloop_v2_palette_resolution_tests` cover exact RGB,
+  degraded white-only, independent target-scoped RGB/white bindings, reused
+  reference deduplication, heterogeneous-target refusal, unknown and duplicate
+  stable IDs, deterministic duplicate reporting/package/frame digests, display
+  name non-inference, raw color-wheel DMX non-inference, exact rendered DMX,
+  bounded target-fixture/reference-assignment capacity refusal,
+  output-disabled snapshots, and last-good retention;
+- existing warning-fatal `autoloop_v2_preview_tests` pass unchanged, including
+  Position/Attribute/custom-transition/capability refusal, generation/digest
+  guards, bounded transport/trace and deterministic frames;
+- full `make -j2 test` passes 18 native executables and `make -j2 all` passes
+  every target; both generation-2 registry checks, `surface-contract-gate`,
+  dry-run Runner smoke (42 frames, zero decode errors/dropped beats/send
+  failures), and WinMM/DMX USB Windows syntax checks pass;
+- a fresh focused ASan+UBSan build/run passes with
+  `detect_leaks=0:halt_on_error=1`; CMake is not installed in this Linux lane,
+  so its additive source/test entries were inspected but not configured or
+  claimed.
+
+Canonical Position/Attribute/Movement/Effect resolution, legacy linked-Look
+resolution, transition profiles, richer cross-capability authoring UX,
+installed Windows verification, physical qualification, and migration decoder
+evidence remain separate boundaries. The decoder blocker remains
+`soundswitch.autoloop_delta_corpus_unavailable`. No registry, persisted source
+or project schema, Runner/output/device, hardware/fixture truth, migration,
+AutoScript, skin, broad UI, backlog, or parity-ledger file changed here.

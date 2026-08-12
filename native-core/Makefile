@@ -34,9 +34,23 @@ SOURCES := \
 	src/winmm_midi.cpp \
 	src/look.cpp \
 	src/autoloop.cpp \
+	src/autoloop_source.cpp \
+	src/autoloop_persistence.cpp \
+	src/autoloop_program.cpp \
+	src/autoloop_authoring.cpp \
+	src/autoloop_content_pack.cpp \
+	src/autoloop_autoscript.cpp \
+	src/autoloop_autoscript_studio.cpp \
+	src/autoloop_palette_resolution.cpp \
+	src/autoloop_director.cpp \
+	src/autoloop_runtime.cpp \
 	src/engine.cpp \
 	src/project.cpp \
 	src/hardware_qualification.cpp \
+	src/raw_hardware_test.cpp \
+	src/raw_hardware_test_operator.cpp \
+	src/connection_layout.cpp \
+	src/connection_coordinator.cpp \
 	src/project_edit_history.cpp \
 	src/project_io.cpp \
 	src/file_identity.cpp \
@@ -49,6 +63,8 @@ SOURCES := \
 	src/studio_document.cpp \
 	src/static_look_authoring.cpp \
 	src/static_look_preview.cpp \
+	src/studio_color.cpp \
+	src/studio_preview.cpp \
 	src/compiler.cpp \
 	src/ui_command.cpp \
 	src/ui_state.cpp \
@@ -65,17 +81,37 @@ DEPS := \
 	$(BUILD)/src/soundswitch_migrate.d \
 	$(BUILD)/tests/test_main.d \
 	$(BUILD)/tests/test_soundswitch_micro_session.d \
+	$(BUILD)/tests/test_raw_hardware_test.d \
+	$(BUILD)/tests/test_raw_hardware_test_operator.d \
+	$(BUILD)/tests/test_connection_layout.d \
+	$(BUILD)/tests/test_connection_coordinator.d \
 	$(BUILD)/tests/test_soundswitch_control_one.d \
 	$(BUILD)/tests/test_ui_command_state.d \
 	$(BUILD)/tests/test_live_ui.d \
 	$(BUILD)/tests/test_studio_foundation.d \
 	$(BUILD)/tests/test_static_look_authoring.d \
+	$(BUILD)/tests/test_studio_authoring.d \
+	$(BUILD)/src/ember_action_json.d \
+	$(BUILD)/src/ember_action_compiler.d \
+	$(BUILD)/src/ember_action_registry_adapter.d \
+	$(BUILD)/src/ember_action_executor.d \
+	$(BUILD)/tests/test_ember_action_foundation.d \
+	$(BUILD)/tests/test_ember_action_executor.d \
+	$(BUILD)/tests/test_autoloop_v2_model.d \
+	$(BUILD)/tests/test_autoloop_v2_persistence.d \
+	$(BUILD)/tests/test_autoloop_v2_studio.d \
+	$(BUILD)/tests/test_autoloop_autoscript.d \
+	$(BUILD)/tests/test_autoloop_autoscript_studio.d \
+	$(BUILD)/tests/test_autoloop_v2_runtime.d \
+	$(BUILD)/tests/test_autoloop_v2_preview.d \
+	$(BUILD)/tests/test_autoloop_v2_palette_resolution.d \
+	$(BUILD)/tests/test_autoloop_v2_runner.d \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
-.PHONY: all runner_lab qualification migration test winmm-syntax dmx-usb-syntax bench smoke clean ui-registry-generate ui-registry-check surface-contract-gate
+.PHONY: all runner_lab qualification migration test ember-action-test ember-action-registry-generate ember-action-registry-check winmm-syntax dmx-usb-syntax bench smoke clean ui-registry-generate ui-registry-check surface-contract-gate
 
-all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/core_bench $(BUILD)/performance_bench
+all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/raw_hardware_test_tests $(BUILD)/raw_hardware_test_operator_tests $(BUILD)/connection_layout_tests $(BUILD)/connection_coordinator_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/studio_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/autoloop_v2_model_tests $(BUILD)/autoloop_v2_persistence_tests $(BUILD)/autoloop_v2_studio_tests $(BUILD)/autoloop_autoscript_tests $(BUILD)/autoloop_autoscript_studio_tests $(BUILD)/autoloop_v2_runtime_tests $(BUILD)/autoloop_v2_preview_tests $(BUILD)/autoloop_v2_palette_resolution_tests $(BUILD)/autoloop_v2_runner_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
 runner_lab: $(BUILD)/runner_lab
 
@@ -90,7 +126,13 @@ ui-registry-check:
 	python3 tools/generate_ui_registry.py check
 	PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ui_registry.py
 
-surface-contract-gate: ui-registry-check $(BUILD)/ui_command_state_tests
+ember-action-registry-generate:
+	python3 tools/generate_ember_action_registry_adapter.py generate
+
+ember-action-registry-check:
+	python3 tools/generate_ember_action_registry_adapter.py check
+
+surface-contract-gate: ui-registry-check ember-action-registry-check $(BUILD)/ui_command_state_tests
 	./$(BUILD)/ui_command_state_tests
 
 $(BUILD)/runner_demo: $(OBJECTS) $(BUILD)/src/demo.o
@@ -121,6 +163,18 @@ $(BUILD)/core_tests: $(OBJECTS) $(BUILD)/tests/test_main.o
 $(BUILD)/soundswitch_micro_session_tests: $(OBJECTS) $(BUILD)/tests/test_soundswitch_micro_session.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/raw_hardware_test_tests: $(OBJECTS) $(BUILD)/tests/test_raw_hardware_test.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/raw_hardware_test_operator_tests: $(OBJECTS) $(BUILD)/tests/test_raw_hardware_test_operator.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/connection_coordinator_tests: $(OBJECTS) $(BUILD)/tests/test_connection_coordinator.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/connection_layout_tests: $(OBJECTS) $(BUILD)/tests/test_connection_layout.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/soundswitch_control_one_tests: $(OBJECTS) $(BUILD)/tests/test_soundswitch_control_one.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -136,6 +190,42 @@ $(BUILD)/studio_foundation_tests: $(OBJECTS) $(BUILD)/tests/test_studio_foundati
 $(BUILD)/static_look_authoring_tests: $(OBJECTS) $(BUILD)/tests/test_static_look_authoring.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/studio_authoring_tests: $(OBJECTS) $(BUILD)/tests/test_studio_authoring.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/ember_action_foundation_tests: $(BUILD)/src/file_identity.o $(BUILD)/src/ember_action_json.o $(BUILD)/src/ember_action_compiler.o $(BUILD)/src/ember_action_registry_adapter.o $(BUILD)/tests/test_ember_action_foundation.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/ember_action_executor_tests: $(BUILD)/src/file_identity.o $(BUILD)/src/ember_action_json.o $(BUILD)/src/ember_action_compiler.o $(BUILD)/src/ember_action_registry_adapter.o $(BUILD)/src/ember_action_executor.o $(BUILD)/tests/test_ember_action_executor.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_model_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_model.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_persistence_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_persistence.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_studio_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_studio.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_autoscript_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_autoscript.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_autoscript_studio_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_autoscript_studio.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_runtime_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_runtime.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_preview_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_preview.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_palette_resolution_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_palette_resolution.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_v2_runner_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_runner.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/core_bench: $(OBJECTS) $(BUILD)/bench/bench_main.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -146,14 +236,34 @@ $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests
+test: ember-action-registry-check $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/raw_hardware_test_tests $(BUILD)/raw_hardware_test_operator_tests $(BUILD)/connection_layout_tests $(BUILD)/connection_coordinator_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/studio_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/autoloop_v2_model_tests $(BUILD)/autoloop_v2_persistence_tests $(BUILD)/autoloop_v2_studio_tests $(BUILD)/autoloop_autoscript_tests $(BUILD)/autoloop_autoscript_studio_tests $(BUILD)/autoloop_v2_runtime_tests $(BUILD)/autoloop_v2_preview_tests $(BUILD)/autoloop_v2_palette_resolution_tests $(BUILD)/autoloop_v2_runner_tests
 	./$(BUILD)/core_tests
 	./$(BUILD)/soundswitch_micro_session_tests
+	./$(BUILD)/raw_hardware_test_tests
+	./$(BUILD)/raw_hardware_test_operator_tests
+	./$(BUILD)/connection_layout_tests
+	./$(BUILD)/connection_coordinator_tests
 	./$(BUILD)/soundswitch_control_one_tests
 	./$(BUILD)/ui_command_state_tests
 	./$(BUILD)/live_ui_tests
 	./$(BUILD)/studio_foundation_tests
 	./$(BUILD)/static_look_authoring_tests
+	./$(BUILD)/studio_authoring_tests
+	./$(BUILD)/ember_action_foundation_tests
+	./$(BUILD)/ember_action_executor_tests
+	./$(BUILD)/autoloop_v2_model_tests
+	./$(BUILD)/autoloop_v2_persistence_tests
+	./$(BUILD)/autoloop_v2_studio_tests
+	./$(BUILD)/autoloop_autoscript_tests
+	./$(BUILD)/autoloop_autoscript_studio_tests
+	./$(BUILD)/autoloop_v2_runtime_tests
+	./$(BUILD)/autoloop_v2_preview_tests
+	./$(BUILD)/autoloop_v2_palette_resolution_tests
+	./$(BUILD)/autoloop_v2_runner_tests
+
+ember-action-test: ember-action-registry-check $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests
+	./$(BUILD)/ember_action_foundation_tests
+	./$(BUILD)/ember_action_executor_tests
 
 winmm-syntax:
 	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \

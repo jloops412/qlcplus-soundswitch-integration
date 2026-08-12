@@ -3,7 +3,9 @@
     {
       "artifact": "native-core/tests/fixtures/ui_registry/spike-binding.json",
       "resolved": {
-        "capabilities": [],
+        "capabilities": [
+          "content.staticLooks"
+        ],
         "commands": [
           "autoloop.launch",
           "group.override.property.set",
@@ -11,25 +13,45 @@
           "show.start",
           "staticLook.hold"
         ],
-        "components": [],
+        "components": [
+          "ember.activeLayers",
+          "ember.autoloopMatrix",
+          "ember.staticLookMatrix"
+        ],
+        "interactions": [
+          "absolute",
+          "momentary",
+          "trigger"
+        ],
+        "results": [
+          "accepted",
+          "queueFull",
+          "safetyRejected"
+        ],
         "states": [
           "autoloop.active.progress",
           "output.blackout",
           "output.micro.status",
           "runner.state",
           "staticLook.active.id"
+        ],
+        "values": [
+          "target.staticLook",
+          "unit.normalized",
+          "value.adapterState",
+          "value.fixtureProperty"
         ]
       },
       "status": "valid"
     }
   ],
   "deferredPlanningArtifacts": {
-    "reason": "Bundled layout and inactive capture-required profile references include planned commands/states owned by later #31/#32/#59 work; SKIN2-001 does not publish them as callable to make fixtures pass.",
-    "status": "notValidatedByFirstSlice"
+    "reason": "Full bundled layout/profile validation still includes planned commands, components, and states owned by later #31/#32/#59 work; generation 2 does not publish fake callable IDs to make those artifacts pass.",
+    "status": "notValidatedByGeneration2"
   },
-  "registryGeneration": 1,
+  "registryGeneration": 2,
   "schemaVersion": 1,
-  "scope": "bounded-native-registry-spike",
-  "sourceDigest": "c7f0306c2c875c9a3387693f0af84273fbf55e7113e4baf3ea782a19c5313605",
+  "scope": "canonical-registry-contracts-generation-2",
+  "sourceDigest": "d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945",
   "status": "valid"
 }

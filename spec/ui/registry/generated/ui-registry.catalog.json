@@ -1,4 +1,35 @@
 {
+  "capabilities": [
+    {
+      "absenceBehavior": "reject",
+      "callable": false,
+      "category": "content",
+      "conflicts": [],
+      "dependencies": [],
+      "deprecated": false,
+      "description": "The active compiled package supports stable-ID Static Look activation and authoritative active-state feedback.",
+      "experimental": false,
+      "id": "content.staticLooks",
+      "introducedGeneration": 2,
+      "label": "Static Looks",
+      "origin": "project",
+      "qualificationStatus": "softwareVerified",
+      "relevantCommands": [
+        "staticLook.activate",
+        "staticLook.clear",
+        "staticLook.hold",
+        "staticLook.toggle"
+      ],
+      "relevantComponents": [
+        "ember.staticLookMatrix"
+      ],
+      "relevantStates": [
+        "staticLook.active.id"
+      ],
+      "status": "implemented",
+      "version": "1.0.0"
+    }
+  ],
   "commands": [
     {
       "availability": "runner.state == 'running'",
@@ -1069,7 +1100,268 @@
       "undoable": false
     }
   ],
-  "generator": "emberlights-ui-registry-generator/1.0.0",
+  "components": [
+    {
+      "accessibilityRole": "status",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents Runner-owned active content, safety, and override summaries without resolving lighting layers.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.activeLayers",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Active Layers",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {},
+      "requiredCapabilities": [],
+      "requiredCommands": [
+        "autoloop.clear",
+        "override.releaseAll",
+        "staticLook.clear",
+        "trackScript.clear"
+      ],
+      "requiredStates": [
+        "autoloop.active.completedCycles",
+        "autoloop.active.id",
+        "autoloop.active.progress",
+        "output.blackout",
+        "output.workLight",
+        "override.activePropertyCount",
+        "staticLook.active.id",
+        "trackScript.active.id",
+        "trackScript.elapsedBeat"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "safe"
+      ]
+    },
+    {
+      "accessibilityRole": "grid",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents a bounded, virtualized bank and slot window over registered Autoloop commands and state.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.autoloopMatrix",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Autoloop Matrix",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {
+        "bankWindowSize": {
+          "maximum": 64,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "showEmptySlots": {
+          "type": "boolean"
+        },
+        "showProgress": {
+          "type": "boolean"
+        },
+        "slotsPerBank": {
+          "maximum": 32,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [
+        "autoloop.bankFilter.enableAll",
+        "autoloop.bankFilter.selectExclusive",
+        "autoloop.bankFilter.setEnabled",
+        "autoloop.clear",
+        "autoloop.launch",
+        "autoloop.next",
+        "autoloop.previous"
+      ],
+      "requiredStates": [
+        "autoloop.active.bank",
+        "autoloop.active.completedCycles",
+        "autoloop.active.id",
+        "autoloop.active.progress",
+        "autoloop.active.repeat",
+        "autoloop.active.slot",
+        "autoloop.bankFilter.mask"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "region",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents adapter-owned configured and actual connection status through bounded snapshots.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.connectionPanel",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Connection Panel",
+      "optionalCapabilities": [],
+      "performanceClass": "healthBounded",
+      "properties": {},
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [
+        "connection.os2l.discoveryStatus",
+        "connection.os2l.status",
+        "controller.input.status",
+        "controller.output.status",
+        "output.artnet.status",
+        "output.controlOne.status",
+        "output.dmxUsbPro[0].status",
+        "output.dmxUsbPro[1].status",
+        "output.micro.status",
+        "output.sacn.status"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "controller",
+        "dj",
+        "full",
+        "outputs",
+        "summary"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "safe",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "log",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents bounded health, timing, adapter, validation, and active-content diagnostics without performing adapter work.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.diagnostics",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Diagnostics",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {},
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [
+        "connection.os2l.status",
+        "controller.input.status",
+        "output.artnet.status",
+        "output.controlOne.status",
+        "output.micro.status",
+        "output.sacn.status",
+        "runner.frames",
+        "runner.generation",
+        "runner.health",
+        "runner.state"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "safe",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "grid",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents registered Static Look activation, hold, toggle, clear, and active-state feedback by stable ID.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.staticLookMatrix",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Static Look Matrix",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {
+        "showBindingHints": {
+          "type": "boolean"
+        },
+        "showProgress": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [
+        "content.staticLooks"
+      ],
+      "requiredCommands": [
+        "staticLook.activate",
+        "staticLook.clear",
+        "staticLook.hold",
+        "staticLook.toggle"
+      ],
+      "requiredStates": [
+        "staticLook.active.id"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    }
+  ],
+  "generator": "emberlights-ui-registry-generator/1.1.0",
   "interactions": [
     {
       "id": "absolute",
@@ -1119,18 +1411,24 @@
       ]
     }
   ],
-  "registryGeneration": 1,
-  "registrySetVersion": "1.0.0",
+  "registryGeneration": 2,
+  "registrySetVersion": "1.1.0",
   "results": [
     {
+      "description": "The command request was accepted by its authoritative service.",
       "id": "accepted",
+      "introducedGeneration": 1,
+      "label": "Accepted",
       "nativeName": "Accepted",
       "nativeOrdinal": 0,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "Reserved typed outcome for a cancelled asynchronous operation; not a native result yet.",
       "id": "cancelled",
+      "introducedGeneration": 1,
+      "label": "Cancelled",
       "ownerIssues": [
         31,
         64
@@ -1139,21 +1437,30 @@
       "terminal": true
     },
     {
+      "description": "The authoritative service failed without accepting the request.",
       "id": "internalError",
+      "introducedGeneration": 1,
+      "label": "Internal error",
       "nativeName": "InternalError",
       "nativeOrdinal": 9,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "One or more invocation arguments failed the registered value contract.",
       "id": "invalidArguments",
+      "introducedGeneration": 1,
+      "label": "Invalid arguments",
       "nativeName": "InvalidArguments",
       "nativeOrdinal": 3,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "Reserved typed outcome for an unavailable stable target; not a native result yet.",
       "id": "missingTarget",
+      "introducedGeneration": 1,
+      "label": "Missing target",
       "ownerIssues": [
         31,
         64
@@ -1162,14 +1469,20 @@
       "terminal": true
     },
     {
+      "description": "The request was valid but authoritative state already matched it.",
       "id": "noChange",
+      "introducedGeneration": 1,
+      "label": "No change",
       "nativeName": "NoChange",
       "nativeOrdinal": 1,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "The current native facade could not resolve the requested object.",
       "id": "notFound",
+      "introducedGeneration": 1,
+      "label": "Not found",
       "nativeName": "NotFound",
       "nativeOrdinal": 4,
       "notes": "Distinct current native result; not silently aliased to missingTarget.",
@@ -1177,21 +1490,30 @@
       "terminal": true
     },
     {
+      "description": "The bounded command queue had no available capacity.",
       "id": "queueFull",
+      "introducedGeneration": 1,
+      "label": "Queue full",
       "nativeName": "QueueFull",
       "nativeOrdinal": 6,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "An authoritative safety gate rejected the request.",
       "id": "safetyRejected",
+      "introducedGeneration": 1,
+      "label": "Safety rejected",
       "nativeName": "SafetyRejected",
       "nativeOrdinal": 7,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "Reserved non-terminal outcome carrying a bounded operation identity; not a native result yet.",
       "id": "startedAsync",
+      "introducedGeneration": 1,
+      "label": "Started asynchronously",
       "ownerIssues": [
         31,
         64
@@ -1203,21 +1525,30 @@
       "terminal": false
     },
     {
+      "description": "The registered operation is not currently available.",
       "id": "unavailable",
+      "introducedGeneration": 1,
+      "label": "Unavailable",
       "nativeName": "Unavailable",
       "nativeOrdinal": 2,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "The current implementation does not support the registered operation for this target.",
       "id": "unsupported",
+      "introducedGeneration": 1,
+      "label": "Unsupported",
       "nativeName": "Unsupported",
       "nativeOrdinal": 8,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "The authoritative service rejected the request after domain validation.",
       "id": "validationFailed",
+      "introducedGeneration": 1,
+      "label": "Validation failed",
       "nativeName": "ValidationFailed",
       "nativeOrdinal": 5,
       "status": "implemented",
@@ -1225,7 +1556,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "c7f0306c2c875c9a3387693f0af84273fbf55e7113e4baf3ea782a19c5313605",
+  "sourceDigest": "d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945",
   "states": [
     {
       "authority": "runnerScheduler",
@@ -2154,5 +2485,209 @@
       }
     }
   ],
-  "status": "implementationDraft"
+  "status": "implementationDraft",
+  "values": [
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable compiled Autoloop identity.",
+      "id": "target.autoloop",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Autoloop target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "autoloop",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable fixture identity in the active project and compiled package.",
+      "id": "target.fixture",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Fixture target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "fixture",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable fixture-group identity in the active project and compiled package.",
+      "id": "target.fixtureGroup",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Fixture group target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "fixtureGroup",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable active-project identity.",
+      "id": "target.project",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Project target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "project",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable compiled Static Look identity.",
+      "id": "target.staticLook",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Static Look target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "staticLook",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable compiled Track Script identity.",
+      "id": "target.trackScript",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Track Script target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "trackScript",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Musical beat-count unit; Runner remains timing authority.",
+      "id": "unit.beats",
+      "introducedGeneration": 2,
+      "kind": "unit",
+      "label": "Beats",
+      "status": "implemented",
+      "token": "beats",
+      "valueType": "number"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Transport tempo in beats per minute.",
+      "id": "unit.bpm",
+      "introducedGeneration": 2,
+      "kind": "unit",
+      "label": "Beats per minute",
+      "status": "implemented",
+      "token": "bpm",
+      "valueType": "number"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Finite normalized value from zero through one.",
+      "id": "unit.normalized",
+      "introducedGeneration": 2,
+      "kind": "unit",
+      "label": "Normalized",
+      "maximum": 1,
+      "minimum": 0,
+      "status": "implemented",
+      "token": "normalized",
+      "valueType": "number"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Current normalized native adapter lifecycle state.",
+      "enumValues": [
+        "disabled",
+        "starting",
+        "waiting",
+        "ready",
+        "fault"
+      ],
+      "id": "value.adapterState",
+      "introducedGeneration": 2,
+      "kind": "enum",
+      "label": "Adapter state",
+      "status": "implemented",
+      "unknownValueBehavior": "reject",
+      "valueType": "enum"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Canonical semantic fixture-property vocabulary used by the native core.",
+      "enumValues": [
+        "intensity",
+        "red",
+        "green",
+        "blue",
+        "white",
+        "amber",
+        "uv",
+        "cyan",
+        "magenta",
+        "yellow",
+        "lime",
+        "indigo",
+        "pan",
+        "tilt",
+        "panRotate",
+        "tiltRotate",
+        "panTiltSpeed",
+        "strobe",
+        "shutter",
+        "colorWheel",
+        "gobo",
+        "goboRotation",
+        "prism",
+        "prismRotation",
+        "focus",
+        "zoom",
+        "iris",
+        "frost",
+        "animation",
+        "animationRotation",
+        "effect",
+        "effectSpeed",
+        "fan",
+        "fog",
+        "haze",
+        "laser",
+        "spark",
+        "custom1",
+        "custom2",
+        "custom3",
+        "custom4",
+        "custom5",
+        "custom6",
+        "custom7",
+        "custom8",
+        "custom9",
+        "custom10",
+        "custom11",
+        "custom12",
+        "custom13",
+        "custom14",
+        "custom15",
+        "custom16"
+      ],
+      "id": "value.fixtureProperty",
+      "introducedGeneration": 2,
+      "kind": "enum",
+      "label": "Fixture property",
+      "status": "implemented",
+      "unknownValueBehavior": "reject",
+      "valueType": "enum"
+    }
+  ]
 }

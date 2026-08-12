@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "sourceDigest": "contract-breaking",
+  "commands": [],
+  "states": [],
+  "components": [
+    {"id": "test.component", "status": "implemented", "classification": "primitive", "callable": false}
+  ],
+  "capabilities": [
+    {"id": "test.capability", "status": "implemented", "absenceBehavior": "disable", "callable": false}
+  ],
+  "values": [
+    {"id": "test.value", "status": "implemented", "kind": "unit", "valueType": "number", "token": "test", "callable": false}
+  ],
+  "results": [
+    {"id": "testResult", "status": "implemented", "terminal": false}
+  ],
+  "interactions": []
+}

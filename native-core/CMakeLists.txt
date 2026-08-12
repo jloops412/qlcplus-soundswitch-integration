@@ -60,9 +60,23 @@ add_library(showcore STATIC
     src/winmm_midi.cpp
     src/look.cpp
     src/autoloop.cpp
+    src/autoloop_source.cpp
+    src/autoloop_persistence.cpp
+    src/autoloop_program.cpp
+    src/autoloop_authoring.cpp
+    src/autoloop_content_pack.cpp
+    src/autoloop_autoscript.cpp
+    src/autoloop_autoscript_studio.cpp
+    src/autoloop_palette_resolution.cpp
+    src/autoloop_director.cpp
+    src/autoloop_runtime.cpp
     src/engine.cpp
     src/project.cpp
     src/hardware_qualification.cpp
+    src/raw_hardware_test.cpp
+    src/raw_hardware_test_operator.cpp
+    src/connection_layout.cpp
+    src/connection_coordinator.cpp
     src/project_edit_history.cpp
     src/project_io.cpp
     src/file_identity.cpp
@@ -75,6 +89,8 @@ add_library(showcore STATIC
     src/studio_document.cpp
     src/static_look_authoring.cpp
     src/static_look_preview.cpp
+    src/studio_color.cpp
+    src/studio_preview.cpp
     src/compiler.cpp
     src/ui_command.cpp
     src/ui_state.cpp
@@ -132,6 +148,22 @@ add_executable(soundswitch_micro_session_tests
     tests/test_soundswitch_micro_session.cpp)
 target_link_libraries(soundswitch_micro_session_tests PRIVATE showcore)
 
+add_executable(raw_hardware_test_tests
+    tests/test_raw_hardware_test.cpp)
+target_link_libraries(raw_hardware_test_tests PRIVATE showcore)
+
+add_executable(raw_hardware_test_operator_tests
+    tests/test_raw_hardware_test_operator.cpp)
+target_link_libraries(raw_hardware_test_operator_tests PRIVATE showcore)
+
+add_executable(connection_coordinator_tests
+    tests/test_connection_coordinator.cpp)
+target_link_libraries(connection_coordinator_tests PRIVATE showcore)
+
+add_executable(connection_layout_tests
+    tests/test_connection_layout.cpp)
+target_link_libraries(connection_layout_tests PRIVATE showcore)
+
 add_executable(soundswitch_control_one_tests
     tests/test_soundswitch_control_one.cpp)
 target_link_libraries(soundswitch_control_one_tests PRIVATE showcore)
@@ -151,6 +183,61 @@ target_link_libraries(studio_foundation_tests PRIVATE showcore)
 add_executable(static_look_authoring_tests
     tests/test_static_look_authoring.cpp)
 target_link_libraries(static_look_authoring_tests PRIVATE showcore)
+
+add_executable(studio_authoring_tests
+    tests/test_studio_authoring.cpp)
+target_link_libraries(studio_authoring_tests PRIVATE showcore)
+
+add_executable(ember_action_foundation_tests
+    src/ember_action_json.cpp
+    src/ember_action_compiler.cpp
+    src/ember_action_registry_adapter.cpp
+    tests/test_ember_action_foundation.cpp)
+target_link_libraries(ember_action_foundation_tests PRIVATE showcore)
+
+add_executable(ember_action_executor_tests
+    src/ember_action_json.cpp
+    src/ember_action_compiler.cpp
+    src/ember_action_registry_adapter.cpp
+    src/ember_action_executor.cpp
+    tests/test_ember_action_executor.cpp)
+target_link_libraries(ember_action_executor_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_model_tests
+    tests/test_autoloop_v2_model.cpp)
+target_link_libraries(autoloop_v2_model_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_persistence_tests
+    tests/test_autoloop_v2_persistence.cpp)
+target_link_libraries(autoloop_v2_persistence_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_studio_tests
+    tests/test_autoloop_v2_studio.cpp)
+target_link_libraries(autoloop_v2_studio_tests PRIVATE showcore)
+
+add_executable(autoloop_autoscript_tests
+    tests/test_autoloop_autoscript.cpp)
+target_link_libraries(autoloop_autoscript_tests PRIVATE showcore)
+
+add_executable(autoloop_autoscript_studio_tests
+    tests/test_autoloop_autoscript_studio.cpp)
+target_link_libraries(autoloop_autoscript_studio_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_runtime_tests
+    tests/test_autoloop_v2_runtime.cpp)
+target_link_libraries(autoloop_v2_runtime_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_preview_tests
+    tests/test_autoloop_v2_preview.cpp)
+target_link_libraries(autoloop_v2_preview_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_palette_resolution_tests
+    tests/test_autoloop_v2_palette_resolution.cpp)
+target_link_libraries(autoloop_v2_palette_resolution_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_runner_tests
+    tests/test_autoloop_v2_runner.cpp)
+target_link_libraries(autoloop_v2_runner_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -250,8 +337,8 @@ if(WIN32)
             /W4 /WX /permissive-)
     endif()
 
-    install(TARGETS EmberLights midi_capture RUNTIME DESTINATION .)
-    install(TARGETS emberlights_qualify emberlights_migrate soundswitch_micro_probe
+    install(TARGETS EmberLights RUNTIME DESTINATION .)
+    install(TARGETS midi_capture emberlights_qualify emberlights_migrate soundswitch_micro_probe
         soundswitch_control_one_probe
         RUNTIME DESTINATION Tools)
     install(FILES "${EMBERLIGHTS_V1_TEMPLATE}" DESTINATION Templates)
@@ -311,6 +398,10 @@ if(WIN32)
 endif()
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
+add_test(NAME raw_hardware_test_tests COMMAND raw_hardware_test_tests)
+add_test(NAME raw_hardware_test_operator_tests COMMAND raw_hardware_test_operator_tests)
+add_test(NAME connection_coordinator_tests COMMAND connection_coordinator_tests)
+add_test(NAME connection_layout_tests COMMAND connection_layout_tests)
 add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)
 add_test(NAME ui_command_state_tests COMMAND ui_command_state_tests)
 add_test(NAME live_ui_tests COMMAND live_ui_tests)
@@ -318,6 +409,24 @@ add_test(NAME studio_foundation_tests COMMAND studio_foundation_tests)
 set_tests_properties(studio_foundation_tests PROPERTIES
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 add_test(NAME static_look_authoring_tests COMMAND static_look_authoring_tests)
+add_test(NAME studio_authoring_tests COMMAND studio_authoring_tests)
+add_test(NAME ember_action_foundation_tests COMMAND ember_action_foundation_tests)
+set_tests_properties(ember_action_foundation_tests PROPERTIES
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME ember_action_executor_tests COMMAND ember_action_executor_tests)
+set_tests_properties(ember_action_executor_tests PROPERTIES
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME autoloop_v2_model_tests COMMAND autoloop_v2_model_tests)
+add_test(NAME autoloop_v2_persistence_tests COMMAND autoloop_v2_persistence_tests)
+add_test(NAME autoloop_v2_studio_tests COMMAND autoloop_v2_studio_tests)
+add_test(NAME autoloop_autoscript_tests COMMAND autoloop_autoscript_tests)
+add_test(NAME autoloop_autoscript_studio_tests
+    COMMAND autoloop_autoscript_studio_tests)
+add_test(NAME autoloop_v2_runtime_tests COMMAND autoloop_v2_runtime_tests)
+add_test(NAME autoloop_v2_preview_tests COMMAND autoloop_v2_preview_tests)
+add_test(NAME autoloop_v2_palette_resolution_tests
+    COMMAND autoloop_v2_palette_resolution_tests)
+add_test(NAME autoloop_v2_runner_tests COMMAND autoloop_v2_runner_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke

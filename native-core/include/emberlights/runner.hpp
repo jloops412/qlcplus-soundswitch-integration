@@ -1,5 +1,6 @@
 #pragma once
 
+#include "emberlights/autoloop_runtime.hpp"
 #include "emberlights/compiler.hpp"
 #include "emberlights/project.hpp"
 #include "showcore/midi.hpp"
@@ -55,6 +56,123 @@ struct RunnerActivationResult {
     }
 };
 
+struct RunnerAutoloopV2Status {
+    AutoloopRuntimeMode mode{AutoloopRuntimeMode::LegacyV1};
+    AutoloopTrackScriptOwner track_script_owner{
+        AutoloopTrackScriptOwner::None};
+    bool track_script_suppressed_by_replace{false};
+    bool package_active{false};
+    std::uint64_t package_generation{0U};
+    showcore::AutoloopDirectorFault fault{
+        showcore::AutoloopDirectorFault::None};
+    showcore::AutoloopDirectorResult last_result{
+        showcore::AutoloopDirectorResult::None};
+    showcore::AutoloopDirectorSource active_source{
+        showcore::AutoloopDirectorSource::None};
+    showcore::CompiledAutoloopPlaybackMode active_mode{
+        showcore::CompiledAutoloopPlaybackMode::Overlay};
+    showcore::AutoloopRepeat active_repeat{showcore::AutoloopRepeat::Once};
+    showcore::AutoloopAddress active_address{};
+    float active_progress{0.0F};
+    std::uint32_t active_completed_cycles{0U};
+    std::uint64_t active_bank_mask{~std::uint64_t{0U}};
+    bool has_pending_bank_mask{false};
+    std::uint64_t pending_bank_mask{0U};
+};
+
+enum class StaticLookOwnerKind : std::uint8_t {
+    None,
+    Ui,
+    Keyboard,
+    Midi,
+    Controller,
+    Moment,
+    External,
+    Test
+};
+
+enum class StaticLookBehavior : std::uint8_t {
+    None,
+    Latch,
+    Hold,
+    Explicit
+};
+
+enum class StaticLookActivationStatus : std::uint8_t {
+    None,
+    Activating,
+    Active,
+    Releasing
+};
+
+// This context is supplied by a trusted binding/invocation service. The
+// feedback token is an opaque, non-sensitive control identity; it is never a
+// project/skin registry argument. Expected generations are zero on begin and
+// both are required on release to bind it to the observed activation.
+struct StaticLookOwnerContext {
+    StaticLookOwnerKind kind{StaticLookOwnerKind::External};
+    std::uint64_t feedback_token{0U};
+    std::uint64_t expected_package_generation{0U};
+    std::uint64_t expected_activation_generation{0U};
+};
+
+// Bounded transport adapters use one lease per binding/target. Repeated begin
+// events cannot overwrite an outstanding generation; the matching release
+// consumes it, after which a later clean begin may activate again.
+struct StaticLookBindingLease {
+    std::uint64_t owner_feedback_token{0U};
+    std::uint64_t package_generation{0U};
+    std::uint64_t activation_generation{0U};
+
+    [[nodiscard]] constexpr bool outstanding() const noexcept {
+        return activation_generation != 0U;
+    }
+
+    [[nodiscard]] constexpr bool record_begin(
+        std::uint64_t owner_token,
+        std::uint64_t package,
+        std::uint64_t activation) noexcept {
+        if (outstanding() || owner_token == 0U || package == 0U ||
+            activation == 0U) {
+            return false;
+        }
+        owner_feedback_token = owner_token;
+        package_generation = package;
+        activation_generation = activation;
+        return true;
+    }
+
+    [[nodiscard]] constexpr StaticLookOwnerContext consume_release(
+        StaticLookOwnerKind kind,
+        std::uint64_t owner_token) noexcept {
+        StaticLookOwnerContext context{kind, owner_token, 0U, 0U};
+        if (outstanding() && owner_feedback_token == owner_token) {
+            context.expected_package_generation = package_generation;
+            context.expected_activation_generation = activation_generation;
+            clear();
+        }
+        return context;
+    }
+
+    constexpr void clear() noexcept {
+        owner_feedback_token = 0U;
+        package_generation = 0U;
+        activation_generation = 0U;
+    }
+};
+
+struct RunnerStaticLookActivation {
+    std::int32_t look_index{-1};
+    std::uint64_t package_generation{0U};
+    std::uint64_t activation_generation{0U};
+    StaticLookOwnerKind owner_kind{StaticLookOwnerKind::None};
+    std::uint64_t owner_feedback_token{0U};
+    StaticLookBehavior behavior{StaticLookBehavior::None};
+    StaticLookActivationStatus status{StaticLookActivationStatus::None};
+    std::uint64_t activated_at_ms{0U};
+    float transition_progress{0.0F};
+};
+
 enum class RunnerCommandType : std::uint8_t {
     TriggerLook,
     ToggleLook,
@@ -87,6 +205,8 @@ struct RunnerCommand {
     std::array<std::uint64_t, (showcore::kMaxFixtures + 63U) / 64U> fixture_mask{};
     std::uint64_t timestamp_ms{0};
     std::uint64_t generation{0};
+    StaticLookOwnerContext static_look_owner{};
+    StaticLookBehavior static_look_behavior{StaticLookBehavior::None};
 };
 
 struct RunnerStatus {
@@ -108,6 +228,7 @@ struct RunnerStatus {
     double bpm{0.0};
     double beat_position{0.0};
     std::int32_t active_look{-1};
+    RunnerStaticLookActivation static_look{};
     showcore::AutoloopAddress active_autoloop{};
     showcore::AutoloopRepeat active_autoloop_repeat{showcore::AutoloopRepeat::Once};
     float active_autoloop_progress{0.0F};
@@ -152,6 +273,7 @@ struct RunnerStatus {
     std::uint64_t package_generation{0};
     std::uint64_t package_activations{0};
     std::uint64_t package_activation_failures{0};
+    RunnerAutoloopV2Status autoloop_v2{};
 };
 
 struct RunnerMidiMonitorEvent {
@@ -204,9 +326,16 @@ public:
     [[nodiscard]] bool post(const RunnerCommand& command) noexcept;
     void set_blackout(bool active) noexcept;
     void set_work_light(bool active) noexcept;
-    [[nodiscard]] bool trigger_look(std::uint16_t index) noexcept;
-    [[nodiscard]] bool toggle_look(std::uint16_t index) noexcept;
-    [[nodiscard]] bool hold_look(std::uint16_t index, bool active) noexcept;
+    [[nodiscard]] bool trigger_look(
+        std::uint16_t index,
+        StaticLookOwnerContext owner = {}) noexcept;
+    [[nodiscard]] bool toggle_look(
+        std::uint16_t index,
+        StaticLookOwnerContext owner = {}) noexcept;
+    [[nodiscard]] bool hold_look(
+        std::uint16_t index,
+        bool active,
+        StaticLookOwnerContext owner) noexcept;
     [[nodiscard]] bool clear_look() noexcept;
     [[nodiscard]] bool trigger_autoloop(showcore::AutoloopAddress address) noexcept;
     [[nodiscard]] bool clear_autoloop() noexcept;
@@ -258,6 +387,8 @@ private:
     void run_scheduler() noexcept;
     void run_input() noexcept;
     void run_output() noexcept;
+    void publish_static_look_status(
+        const RunnerStaticLookActivation& activation) noexcept;
 
     std::unique_ptr<ActivationState> active_activation_;
     std::unique_ptr<ActivationState> pending_activation_;
@@ -295,9 +426,41 @@ private:
     std::atomic<showcore::ClockSource> clock_source_{showcore::ClockSource::None};
     std::atomic<std::uint32_t> bpm_milli_{0};
     std::atomic<std::int64_t> beat_milli_{0};
+    std::atomic<std::uint64_t> static_look_status_sequence_{0U};
     std::atomic<std::int32_t> active_look_{-1};
+    std::atomic<std::uint64_t> static_look_package_generation_{0U};
+    std::atomic<std::uint64_t> static_look_activation_generation_{0U};
+    std::atomic<StaticLookOwnerKind> static_look_owner_kind_{
+        StaticLookOwnerKind::None};
+    std::atomic<std::uint64_t> static_look_owner_feedback_token_{0U};
+    std::atomic<StaticLookBehavior> static_look_behavior_{
+        StaticLookBehavior::None};
+    std::atomic<StaticLookActivationStatus> static_look_activation_status_{
+        StaticLookActivationStatus::None};
+    std::atomic<std::uint64_t> static_look_activated_at_ms_{0U};
+    std::atomic<std::uint16_t> static_look_transition_milli_{0U};
     std::atomic<std::uint64_t> active_autoloop_playback_{0x0FFFU};
     std::atomic<std::uint64_t> active_autoloop_bank_mask_{~std::uint64_t{0}};
+    std::atomic<AutoloopRuntimeMode> autoloop_v2_mode_{
+        AutoloopRuntimeMode::LegacyV1};
+    std::atomic<AutoloopTrackScriptOwner> autoloop_v2_track_owner_{
+        AutoloopTrackScriptOwner::None};
+    std::atomic<bool> autoloop_v2_track_suppressed_by_replace_{false};
+    std::atomic<bool> autoloop_v2_package_active_{false};
+    std::atomic<std::uint64_t> autoloop_v2_generation_{0U};
+    std::atomic<showcore::AutoloopDirectorFault> autoloop_v2_fault_{
+        showcore::AutoloopDirectorFault::None};
+    std::atomic<showcore::AutoloopDirectorResult> autoloop_v2_result_{
+        showcore::AutoloopDirectorResult::None};
+    std::atomic<showcore::AutoloopDirectorSource> autoloop_v2_source_{
+        showcore::AutoloopDirectorSource::None};
+    std::atomic<showcore::CompiledAutoloopPlaybackMode> autoloop_v2_playback_mode_{
+        showcore::CompiledAutoloopPlaybackMode::Overlay};
+    std::atomic<std::uint64_t> autoloop_v2_playback_{0x0FFFU};
+    std::atomic<std::uint64_t> autoloop_v2_active_bank_mask_{
+        ~std::uint64_t{0U}};
+    std::atomic<bool> autoloop_v2_has_pending_bank_mask_{false};
+    std::atomic<std::uint64_t> autoloop_v2_pending_bank_mask_{0U};
     std::atomic<std::int32_t> active_track_script_{-1};
     std::atomic<std::int64_t> active_track_script_beat_milli_{0};
     std::atomic<std::uint32_t> active_track_script_consumed_cues_{0};
@@ -338,6 +501,7 @@ private:
     std::atomic<std::uint64_t> package_generation_{0};
     std::atomic<std::uint64_t> package_activations_{0};
     std::atomic<std::uint64_t> package_activation_failures_{0};
+    std::uint64_t static_look_activation_sequence_{0U};
 };
 
 }  // namespace emberlights

@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/connection_layout.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
@@ -393,6 +394,50 @@ enum ControlId : int {
     IdDiagnosticsValidate
 };
 
+constexpr std::array<int, emberlights::kConnectionLayoutItemCount>
+    kConnectionLayoutControlIds{{
+        IdConnectionsTitle,
+        0,
+        IdProjectName,
+        IdOs2lEnabled,
+        0,
+        IdOs2lBind,
+        0,
+        IdOs2lPort,
+        IdArtnetEnabled,
+        0,
+        IdArtnetDestination,
+        0,
+        IdArtnetBase,
+        IdSacnEnabled,
+        0,
+        IdSacnDestination,
+        0,
+        IdSacnBase,
+        0,
+        IdDmxUsbProUniverse1,
+        0,
+        IdDmxUsbProUniverse2,
+        0,
+        IdSoundSwitchMicroUniverse,
+        0,
+        IdSoundSwitchMicroFraming,
+        0,
+        IdSoundSwitchControlOneMode,
+        0,
+        IdFrameRate,
+        0,
+        IdManualBpm,
+        0,
+        IdMidiInput,
+        0,
+        IdMidiOutput,
+        IdRefreshMidi,
+        IdCopyVirtualDjSetup,
+        IdConnectionsApply,
+        IdConnectionsMessage,
+    }};
+
 [[nodiscard]] HMENU control_menu(int id) noexcept {
     return reinterpret_cast<HMENU>(static_cast<INT_PTR>(id));
 }
@@ -733,6 +778,10 @@ private:
 
     void layout();
     void layout_page(Page page, int width, int height);
+    void layout_connections();
+    void scroll_connections(UINT scroll_code);
+    void scroll_connections_wheel(short wheel_delta);
+    void reveal_connections_focus();
     void show_page(Page page);
     void update_title();
     void update_edit_menu();
@@ -860,6 +909,10 @@ private:
     std::array<HWND, static_cast<std::size_t>(Page::Count)> navigation_{};
     std::array<std::vector<HWND>, static_cast<std::size_t>(Page::Count)> page_controls_{};
     Page active_page_{Page::Live};
+    emberlights::ConnectionLayout connections_layout_{};
+    std::int32_t connections_scroll_offset_{0};
+    int connections_wheel_delta_{0};
+    HWND last_connections_focus_{nullptr};
 
     emberlights::ProjectDocument project_{emberlights::make_starter_project()};
     emberlights::ProjectEditHistory edit_history_{};
@@ -998,16 +1051,35 @@ int Application::run(
         {FVIRTKEY, VK_F8, IdLiveBlackout}}};
     const auto accelerators = ::CreateAcceleratorTableW(
         accelerator_definitions.data(), static_cast<int>(accelerator_definitions.size()));
+    ACCEL connections_apply_definition{
+        static_cast<BYTE>(FVIRTKEY | FALT),
+        static_cast<WORD>('A'),
+        IdConnectionsApply};
+    const auto connections_accelerator = ::CreateAcceleratorTableW(
+        &connections_apply_definition, 1);
     while (::GetMessageW(&message, nullptr, 0, 0) > 0) {
-        if ((accelerators == nullptr ||
+        const auto connections_accelerator_handled =
+            connections_accelerator != nullptr &&
+            emberlights::connection_layout_keyboard_action(
+                active_page_ == Page::Connections,
+                emberlights::ConnectionKeyboardIntent::AltApply) ==
+                emberlights::ConnectionLayoutAction::SaveAndApply &&
+            ::TranslateAcceleratorW(
+                window_, connections_accelerator, &message) != 0;
+        if (!connections_accelerator_handled &&
+            (accelerators == nullptr ||
              ::TranslateAcceleratorW(window_, accelerators, &message) == 0) &&
             !::IsDialogMessageW(window_, &message)) {
             ::TranslateMessage(&message);
             ::DispatchMessageW(&message);
         }
+        reveal_connections_focus();
     }
     if (accelerators != nullptr) {
         ::DestroyAcceleratorTable(accelerators);
+    }
+    if (connections_accelerator != nullptr) {
+        ::DestroyAcceleratorTable(connections_accelerator);
     }
     return static_cast<int>(message.wParam);
 }
@@ -1069,6 +1141,18 @@ bool Application::window_tree_ready() const noexcept {
             navigation_.begin(), navigation_.end(), [](HWND navigation) { return navigation == nullptr; })) {
         return false;
     }
+    const auto& connection_controls =
+        page_controls_[static_cast<std::size_t>(Page::Connections)];
+    if (connection_controls.size() != kConnectionLayoutControlIds.size() ||
+        !std::equal(
+            connection_controls.begin(),
+            connection_controls.end(),
+            kConnectionLayoutControlIds.begin(),
+            [](HWND control, int expected_id) {
+                return ::GetDlgCtrlID(control) == expected_id;
+            })) {
+        return false;
+    }
     constexpr std::array<std::pair<Page, int>, 12> critical_controls{{
         {Page::Live, IdLiveStartStop},
         {Page::Overrides, IdOverridesApply},
@@ -1116,6 +1200,32 @@ LRESULT CALLBACK Application::page_proc(
     UINT message,
     WPARAM wparam,
     LPARAM lparam) {
+    auto* application = reinterpret_cast<Application*>(
+        ::GetWindowLongPtrW(window, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+        const auto* creation = reinterpret_cast<const CREATESTRUCTW*>(lparam);
+        application = static_cast<Application*>(creation->lpCreateParams);
+        static_cast<void>(::SetWindowLongPtrW(
+            window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(application)));
+    }
+    if (application != nullptr &&
+        window == application->pages_[static_cast<std::size_t>(Page::Connections)]) {
+        if (message == WM_VSCROLL) {
+            application->scroll_connections(LOWORD(wparam));
+            return 0;
+        }
+        if (message == WM_MOUSEWHEEL) {
+            application->scroll_connections_wheel(GET_WHEEL_DELTA_WPARAM(wparam));
+            return 0;
+        }
+        if (message == DM_GETDEFID &&
+            emberlights::connection_layout_keyboard_action(
+                application->active_page_ == Page::Connections,
+                emberlights::ConnectionKeyboardIntent::DefaultActivate) ==
+                emberlights::ConnectionLayoutAction::SaveAndApply) {
+            return MAKELRESULT(IdConnectionsApply, DC_HASDEFID);
+        }
+    }
     if (message == WM_COMMAND || message == WM_NOTIFY ||
         message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT ||
         message == WM_CTLCOLORLISTBOX || message == WM_CTLCOLORBTN) {
@@ -1133,8 +1243,39 @@ LRESULT Application::handle_message(HWND window, UINT message, WPARAM wparam, LP
         return 0;
     }
     case WM_SIZE:
+        last_connections_focus_ = nullptr;
         layout();
         return 0;
+    case WM_DPICHANGED: {
+        last_connections_focus_ = nullptr;
+        const auto* suggested = reinterpret_cast<const RECT*>(lparam);
+        if (suggested != nullptr) {
+            static_cast<void>(::SetWindowPos(
+                window,
+                nullptr,
+                suggested->left,
+                suggested->top,
+                suggested->right - suggested->left,
+                suggested->bottom - suggested->top,
+                SWP_NOACTIVATE | SWP_NOZORDER));
+        }
+        layout();
+        return 0;
+    }
+    case WM_MOUSEWHEEL:
+        if (active_page_ == Page::Connections) {
+            scroll_connections_wheel(GET_WHEEL_DELTA_WPARAM(wparam));
+            return 0;
+        }
+        return ::DefWindowProcW(window, message, wparam, lparam);
+    case DM_GETDEFID:
+        if (emberlights::connection_layout_keyboard_action(
+                active_page_ == Page::Connections,
+                emberlights::ConnectionKeyboardIntent::DefaultActivate) ==
+            emberlights::ConnectionLayoutAction::SaveAndApply) {
+            return MAKELRESULT(IdConnectionsApply, DC_HASDEFID);
+        }
+        return ::DefWindowProcW(window, message, wparam, lparam);
     case WM_COMMAND:
         handle_command(
             LOWORD(wparam),
@@ -1337,7 +1478,8 @@ HWND Application::create_page(Page page) {
         WS_EX_CONTROLPARENT,
         kPageClass,
         L"",
-        WS_CHILD | WS_CLIPCHILDREN,
+        WS_CHILD | WS_CLIPCHILDREN |
+            (page == Page::Connections ? WS_VSCROLL : 0U),
         0,
         0,
         100,
@@ -1345,7 +1487,7 @@ HWND Application::create_page(Page page) {
         window_,
         nullptr,
         instance_,
-        nullptr);
+        this);
     return pages_[index];
 }
 
@@ -1680,11 +1822,11 @@ void Application::create_pages() {
     add_combo(page, IdMidiInput);
     add_label(page, L"MIDI feedback output", 0);
     add_combo(page, IdMidiOutput);
-    add_button(page, L"Refresh MIDI + USB-DMX", IdRefreshMidi);
+    add_button(page, L"&Refresh MIDI + USB-DMX", IdRefreshMidi);
     add_button(page, L"Copy VirtualDJ Setup", IdCopyVirtualDjSetup);
     add_button(
         page,
-        L"&Save && Apply Connections",
+        L"Save && &Apply Connections",
         IdConnectionsApply,
         BS_DEFPUSHBUTTON);
     add_label(
@@ -2030,57 +2172,7 @@ void Application::layout_page(Page page, int width, int height) {
         move(13, margin, height - 70, usable_width, 32);
         break;
     case Page::Connections: {
-        // Keep every connection field reachable at practical laptop sizes.
-        // Indices follow creation order; labels deliberately remain separate
-        // controls so keyboard focus stays on the corresponding field.
-        const auto wide_field = std::max(180, std::min(400, usable_width - 500));
-        move(1, margin, 70, 140, 27);
-        move(2, margin + 144, 70, wide_field, 27);
-        move(3, margin + 160 + wide_field, 70, 230, 28);
-
-        move(4, margin, 106, 140, 27);
-        move(5, margin + 144, 106, 230, 27);
-        move(6, margin + 390, 106, 52, 27);
-        move(7, margin + 446, 106, 100, 27);
-
-        move(8, margin, 148, 190, 28);
-        move(9, margin + 204, 148, 90, 27);
-        move(10, margin + 298, 148, 220, 27);
-        move(11, margin + 534, 148, 118, 27);
-        move(12, margin + 656, 148, 100, 27);
-
-        move(13, margin, 184, 190, 28);
-        move(14, margin + 204, 184, 90, 27);
-        move(15, margin + 298, 184, 220, 27);
-        move(16, margin + 534, 184, 118, 27);
-        move(17, margin + 656, 184, 100, 27);
-
-        move(18, margin, 226, 155, 27);
-        move(19, margin + 159, 226, 175, 200);
-        move(20, margin + 350, 226, 155, 27);
-        move(21, margin + 509, 226, 175, 200);
-
-        move(22, margin, 262, 170, 27);
-        move(23, margin + 174, 262, 175, 200);
-        move(24, margin + 365, 262, 120, 27);
-        move(25, margin + 489, 262, 195, 200);
-
-        move(26, margin, 298, 190, 27);
-        move(27, margin + 194, 298, 240, 200);
-        move(28, margin + 450, 298, 90, 27);
-        move(29, margin + 544, 298, 100, 27);
-
-        move(30, margin, 334, 150, 27);
-        move(31, margin + 154, 334, 100, 27);
-        move(32, margin + 276, 334, 92, 27);
-        move(33, margin + 372, 334, 250, 200);
-        move(34, margin, 370, 150, 27);
-        move(35, margin + 154, 370, 250, 200);
-
-        move(36, margin, height - 112, 210, 32);
-        move(37, margin + 220, height - 112, 190, 32);
-        move(38, margin + 420, height - 112, 230, 32);
-        move(39, margin, height - 72, usable_width, 54);
+        layout_connections();
         break;
     }
     case Page::Safety:
@@ -2108,7 +2200,208 @@ void Application::layout_page(Page page, int width, int height) {
     }
 }
 
+void Application::layout_connections() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Connections)];
+    if (page == nullptr) {
+        return;
+    }
+    RECT client{};
+    if (::GetClientRect(page, &client) == FALSE) {
+        return;
+    }
+    const auto reported_dpi = ::GetDpiForWindow(page);
+    const auto dpi = static_cast<std::uint16_t>(std::clamp<UINT>(
+        reported_dpi == 0U ? emberlights::kConnectionLayoutDefaultDpi : reported_dpi,
+        emberlights::kConnectionLayoutMinimumDpi,
+        emberlights::kConnectionLayoutMaximumDpi));
+    connections_layout_ = emberlights::compute_connection_layout({
+        static_cast<std::int32_t>(std::max(1L, client.right - client.left)),
+        static_cast<std::int32_t>(std::max(1L, client.bottom - client.top)),
+        dpi,
+        connections_scroll_offset_});
+    connections_scroll_offset_ = connections_layout_.scroll_offset;
+
+    SCROLLINFO scroll{};
+    scroll.cbSize = sizeof(scroll);
+    scroll.fMask = SIF_PAGE | SIF_POS | SIF_RANGE;
+    scroll.nMin = 0;
+    scroll.nMax = std::max(0, connections_layout_.content_height - 1);
+    scroll.nPage = static_cast<UINT>(
+        std::max(1, connections_layout_.scroll_viewport.height));
+    scroll.nPos = connections_layout_.scroll_offset;
+    static_cast<void>(::SetScrollInfo(page, SB_VERT, &scroll, TRUE));
+
+    RECT update{
+        connections_layout_.action_bar.x,
+        connections_layout_.action_bar.y,
+        connections_layout_.action_bar.right(),
+        connections_layout_.action_bar.bottom()};
+    static_cast<void>(::InvalidateRect(page, &update, TRUE));
+
+    auto& controls =
+        page_controls_[static_cast<std::size_t>(Page::Connections)];
+    const auto count = std::min(
+        controls.size(), emberlights::kConnectionLayoutItemCount);
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto control = controls[index];
+        const auto& rectangle = connections_layout_.items[index];
+        wchar_t class_name[16]{};
+        const auto is_combo = ::GetClassNameW(
+            control,
+            class_name,
+            static_cast<int>(sizeof(class_name) / sizeof(class_name[0]))) > 0 &&
+            ::lstrcmpiW(class_name, L"ComboBox") == 0;
+        const auto control_height = is_combo
+            ? std::max(
+                  rectangle.height,
+                  static_cast<std::int32_t>(
+                      (200LL * connections_layout_.dpi + 48LL) / 96LL))
+            : rectangle.height;
+        ::MoveWindow(
+            control,
+            rectangle.x,
+            rectangle.y,
+            rectangle.width,
+            control_height,
+            TRUE);
+
+        if (index >= emberlights::kConnectionLayoutScrollableItemCount) {
+            static_cast<void>(::SetWindowRgn(control, nullptr, TRUE));
+            continue;
+        }
+
+        const auto left = std::max(
+            rectangle.x, connections_layout_.scroll_viewport.x);
+        const auto top = std::max(
+            rectangle.y, connections_layout_.scroll_viewport.y);
+        const auto right = std::min(
+            rectangle.right(), connections_layout_.scroll_viewport.right());
+        const auto bottom = std::min(
+            rectangle.y + control_height,
+            connections_layout_.scroll_viewport.bottom());
+        const auto has_intersection = left < right && top < bottom;
+        const auto region = ::CreateRectRgn(
+            has_intersection ? left - rectangle.x : 0,
+            has_intersection ? top - rectangle.y : 0,
+            has_intersection ? right - rectangle.x : 0,
+            has_intersection ? bottom - rectangle.y : 0);
+        if (region != nullptr && ::SetWindowRgn(control, region, TRUE) == 0) {
+            static_cast<void>(::DeleteObject(region));
+        }
+    }
+}
+
+void Application::scroll_connections(UINT scroll_code) {
+    if (connections_layout_.viewport.width <= 0) {
+        layout_connections();
+    }
+    auto requested = static_cast<std::int64_t>(connections_scroll_offset_);
+    const auto line = std::max<std::int32_t>(
+        1,
+        static_cast<std::int32_t>(
+            (36LL * connections_layout_.dpi + 48LL) / 96LL));
+    const auto page = std::max<std::int32_t>(
+        line,
+        connections_layout_.scroll_viewport.height - line);
+    switch (scroll_code) {
+    case SB_TOP: requested = 0; break;
+    case SB_BOTTOM: requested = connections_layout_.maximum_scroll_offset; break;
+    case SB_LINEUP: requested -= line; break;
+    case SB_LINEDOWN: requested += line; break;
+    case SB_PAGEUP: requested -= page; break;
+    case SB_PAGEDOWN: requested += page; break;
+    case SB_THUMBPOSITION:
+    case SB_THUMBTRACK: {
+        SCROLLINFO scroll{};
+        scroll.cbSize = sizeof(scroll);
+        scroll.fMask = SIF_TRACKPOS;
+        if (::GetScrollInfo(
+                pages_[static_cast<std::size_t>(Page::Connections)],
+                SB_VERT,
+                &scroll) != FALSE) {
+            requested = scroll.nTrackPos;
+        }
+        break;
+    }
+    case SB_ENDSCROLL:
+    default:
+        return;
+    }
+    connections_scroll_offset_ = static_cast<std::int32_t>(std::clamp<std::int64_t>(
+        requested,
+        0,
+        connections_layout_.maximum_scroll_offset));
+    layout_connections();
+}
+
+void Application::scroll_connections_wheel(short wheel_delta) {
+    connections_wheel_delta_ += wheel_delta;
+    const auto notches = connections_wheel_delta_ / WHEEL_DELTA;
+    connections_wheel_delta_ %= WHEEL_DELTA;
+    if (notches == 0) {
+        return;
+    }
+    UINT lines = 3U;
+    static_cast<void>(::SystemParametersInfoW(
+        SPI_GETWHEELSCROLLLINES, 0U, &lines, 0U));
+    const auto line = std::max<std::int32_t>(
+        1,
+        static_cast<std::int32_t>(
+            (36LL * connections_layout_.dpi + 48LL) / 96LL));
+    const auto distance = lines == WHEEL_PAGESCROLL
+        ? std::max<std::int32_t>(
+              line, connections_layout_.scroll_viewport.height - line)
+        : line * static_cast<std::int32_t>(std::min(lines, 100U));
+    const auto requested = static_cast<std::int64_t>(connections_scroll_offset_) -
+        static_cast<std::int64_t>(notches) * distance;
+    connections_scroll_offset_ = static_cast<std::int32_t>(std::clamp<std::int64_t>(
+        requested,
+        0,
+        connections_layout_.maximum_scroll_offset));
+    layout_connections();
+}
+
+void Application::reveal_connections_focus() {
+    if (active_page_ != Page::Connections) {
+        last_connections_focus_ = nullptr;
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Connections)];
+    auto focused = ::GetFocus();
+    while (focused != nullptr && ::GetParent(focused) != page) {
+        focused = ::GetParent(focused);
+    }
+    if (focused == nullptr) {
+        last_connections_focus_ = nullptr;
+        return;
+    }
+    if (focused == last_connections_focus_) {
+        return;
+    }
+    last_connections_focus_ = focused;
+    const auto& controls =
+        page_controls_[static_cast<std::size_t>(Page::Connections)];
+    const auto found = std::find(controls.begin(), controls.end(), focused);
+    if (found == controls.end()) {
+        return;
+    }
+    const auto index = static_cast<std::size_t>(found - controls.begin());
+    if (index >= emberlights::kConnectionLayoutScrollableItemCount) {
+        return;
+    }
+    const auto requested = emberlights::connection_layout_scroll_to_reveal(
+        connections_layout_,
+        static_cast<emberlights::ConnectionLayoutItem>(index));
+    if (requested != connections_scroll_offset_) {
+        connections_scroll_offset_ = requested;
+        layout_connections();
+    }
+}
+
 void Application::show_page(Page page) {
+    if (active_page_ != page) {
+        last_connections_focus_ = nullptr;
+    }
     active_page_ = page;
     for (std::size_t index = 0; index < pages_.size(); ++index) {
         ::ShowWindow(pages_[index], index == static_cast<std::size_t>(page) ? SW_SHOW : SW_HIDE);

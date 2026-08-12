@@ -2,7 +2,12 @@
   "schemaVersion": 1,
   "id": "registry-unknown-reference",
   "references": {
+    "capabilities": ["missing.capability"],
     "commands": ["missing.command"],
-    "states": ["missing.state"]
+    "components": ["missing.component"],
+    "interactions": ["missingInteraction"],
+    "results": ["missingResult"],
+    "states": ["missing.state"],
+    "values": ["missing.value"]
   }
 }

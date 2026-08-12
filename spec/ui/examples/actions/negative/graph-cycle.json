@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "com.test.action.cycle",
+  "version": "1.0.0",
+  "label": "Cycle",
+  "compatibility": {
+    "minimumAppVersion": "0.1.0",
+    "commandRegistry": ">=1 <2",
+    "stateRegistry": ">=1 <2",
+    "capabilityRegistry": ">=1 <2"
+  },
+  "parameters": {},
+  "requires": {"commands": [], "states": [], "capabilities": []},
+  "entryPoints": {"onPress": "node.first"},
+  "nodes": {
+    "node.first": {"kind": "Sequence", "children": ["node.second"]},
+    "node.second": {"kind": "Sequence", "children": ["node.first"]}
+  },
+  "feedback": {}
+}

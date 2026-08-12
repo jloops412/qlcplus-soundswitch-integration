@@ -27,7 +27,7 @@ The current build is a **testing preview**. Gig-qualified V1 is the next claim t
 | Diagnostics | Live counters and project validation are visible. | Durable structured session log, crash evidence, redacted export, release/build identity, and supportable fault codes. |
 | Project durability | Atomic save, checksum, `.bak` recovery, verified 20-version local restore history, 100-state Studio Undo/Redo, and unknown-record retention pass. | Schema migration tests, cross-version open/save corpus, asset bundle import/export, and cross-machine rollback workflow. |
 | Fixture onboarding | Local profiles and bounded QXF/OFL-export import work. | Searchable pinned offline catalog, conformance corpus, safe updates/sharing, richer range editing, and cell-aware fixtures. |
-| Installer lifecycle | Per-user installer and portable ZIP are produced by CI. | Authenticode signing, clean install/upgrade/uninstall/rollback tests, checksums/release manifest, and supported Windows matrix. |
+| Installer lifecycle | The source workflow requires one CMake-staged, version/commit-bound payload manifest; byte verification of the staged, portable, and installed trees; isolated clean install, file association, GUI/probe/qualification smoke, uninstall, and cleanup; and external checksums plus format-2 release evidence. The next Windows CI run must supply the actual passing artifact evidence. | Authenticode signing, cross-version upgrade and rollback tests (still reported `not-run`), repeated real-machine coverage, and a supported Windows matrix. |
 | Network/security | OS2L defaults to loopback; Runner is offline-first. | Trusted-network warnings, endpoint threat review, dependency/SBOM evidence, malformed-input fuzzing, and no-internet operation proof. |
 | Licensing/provenance | Third-party notices and QLC+/OFL boundaries are documented. | Art-Net OEM code, final fixture-corpus attribution, complete distributed-file audit, and release license decision. |
 
@@ -56,7 +56,7 @@ The binding detail remains in `13_SOUNDSWITCH_PARITY_LEDGER.md`. Major unfinishe
 
 Installed builds include `Tools\emberlights_qualify.exe`. It compiles and runs a 128-fixture, two-universe semantic show at 40 Hz, repeatedly exercises live commands and emergency state, measures scheduling health, and writes a machine-readable JSON report.
 
-The tool does not transmit DMX by default. `--network-loopback` additionally exercises Art-Net and sACN packet transmission, but use that flag only on an isolated machine with no local QLC+ bridge or other software capable of forwarding loopback packets to real hardware.
+The tool does not transmit DMX by default. Windows package CI runs that non-outputting default from the installed executable and retains its version/commit-bound JSON report. `--network-loopback` additionally exercises Art-Net and sACN packet transmission, but use that flag only on an isolated machine with no local QLC+ bridge or other software capable of forwarding loopback packets to real hardware.
 
 Quick smoke run:
 
