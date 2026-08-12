@@ -74,3 +74,4 @@ The immediate order is:
 Parallel work explicitly assigned by Joshua may proceed in isolated lanes when it does not alter or delay the active core. For Studio, follow issue #46 and docs 28/29, reserve shared files, and stop the first slice at the document-service/source-manifest/migration-IR foundation.
 
 Do not let a polished UI, AI feature, broad catalog, Wolfmix emulation, speculative fixture profile, or proprietary hardware experiment delay the gig-safe SoundSwitch replacement core.
+

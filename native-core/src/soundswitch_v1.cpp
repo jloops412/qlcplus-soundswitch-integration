@@ -2,6 +2,7 @@
 
 #include "emberlights/compiler.hpp"
 #include "emberlights/file_identity.hpp"
+#include "emberlights/fixture_profile_upgrade.hpp"
 
 #include <algorithm>
 #include <array>
@@ -404,12 +405,8 @@ ProjectDocument make_safe_color_rig_v1_template(
         {Property::Intensity, Property::Strobe, Property::Red, Property::Green,
          Property::Blue, Property::White, Property::Amber, Property::UV,
          Property::Custom1, Property::Custom2, Property::Custom3}));
-    project.fixture_profiles.push_back(make_profile(
-        "soundswitch.both-lighting.bo-ir4.mode1",
-        "Both Lighting", "BO-IR4 LED Mini Spotlight", "Mode 1 (10 channel)",
-        {Property::Intensity, Property::Red, Property::Green, Property::Blue,
-         Property::White, Property::Amber, Property::UV, Property::Strobe,
-         Property::Custom1, Property::Custom2}));
+    project.fixture_profiles.push_back(make_both_lighting_bo_ir4_6ch_profile());
+    project.fixture_profiles.push_back(make_both_lighting_bo_ir4_10ch_profile());
 
     std::vector<std::string> all_color;
     std::vector<std::string> uplights;
@@ -462,7 +459,7 @@ ProjectDocument make_safe_color_rig_v1_template(
         project.fixtures.push_back({
             id,
             "BO-IR4 Spotlight " + std::to_string(index + 1U),
-            "soundswitch.both-lighting.bo-ir4.mode1",
+            std::string(kBothLightingBoIr4TenChannelProfileId),
             1U,
             static_cast<std::uint16_t>(244U + index * 10U),
             {"spotlight", "color", "accent"}});
@@ -475,6 +472,11 @@ ProjectDocument make_safe_color_rig_v1_template(
     project.groups.push_back({"group.wash", "Wash (Dance Floor)", {"wash-fx-hex-1"}});
     project.groups.push_back({"group.ir4", "BO-IR4 Spotlights", ir4});
     project.groups.push_back({"group.all-color", "All Color Fixtures", all_color});
+    project.unknown_records.push_back(
+        "MIGRATED_PATCH_UNVERIFIED\tfixture-mode-address-universe-review-required");
+    project.unknown_records.push_back(
+        "FIXTURE_PROFILE_EVIDENCE\tbo-ir4\tboth-lighting-ir4-user-manual\tprinted-page-8\t"
+        "https://cdn.shopify.com/s/files/1/0716/8645/5572/files/IR-4_User_Manual.pdf?v=1785942928");
 
     const Color red{1.0F, 0.0F, 0.0F};
     const Color blue{0.0F, 0.08F, 1.0F};
@@ -590,7 +592,8 @@ SoundSwitchV1MigrationResult create_soundswitch_v1_project(
     result.warnings = {
         "All Art-Net, sACN, and USB-DMX outputs are disabled until the physical patch is checked.",
         "Universe 1 addresses 1-263 are a safe non-overlapping staging layout, not decoded SoundSwitch addresses.",
-        "The staged IR-4 fixtures use the manufacturer 10-channel ordering. If the physical IR-4 display is set to 6 channels, select the built-in 6-channel profile and repatch before enabling output.",
+        "The staged IR-4 fixtures use the manufacturer-manual 10-channel profile. Confirm the fixture display is 10CH; if it is 6CH, explicitly select the built-in 6-channel profile and repatch before enabling output.",
+        "The IR-4 manual calls the sixth emitter UV in its specifications and Purple in the DMX table; EmberLights uses semantic UV and keeps physical confirmation open.",
         "BO-S601, 360 Tube, and Wash FX Hex staged modes remain source-qualified approximations until each physical display and official DMX chart is checked.",
         "The 32 active Autoloop names were retained; their native semantic patterns were rebuilt from the names rather than claimed as binary cue decoding.",
         "Mover, GigBar, PartyBar, cold-spark, and purchased track-show payloads remain in the original archive and are not enabled in this first-pilot color rig.",

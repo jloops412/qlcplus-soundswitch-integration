@@ -1,4 +1,5 @@
 #include "showcore/os2l.hpp"
+#include "showcore/number_chars.hpp"
 
 #include <charconv>
 #include <cctype>
@@ -95,7 +96,8 @@ template <typename Number>
     if (end == index) {
         return Os2lParseError::InvalidNumber;
     }
-    const auto result = std::from_chars(json.data() + index, json.data() + end, output);
+    const auto result = showcore::parse_number_chars(
+        json.data() + index, json.data() + end, output);
     if (result.ec != std::errc{} || result.ptr != json.data() + end) {
         return Os2lParseError::InvalidNumber;
     }

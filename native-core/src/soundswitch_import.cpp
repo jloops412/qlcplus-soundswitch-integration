@@ -240,12 +240,17 @@ struct FileHashResult {
     return std::find(extensions.begin(), extensions.end(), extension) != extensions.end();
 }
 
-[[nodiscard]] SoundSwitchArtifactKind classify_artifact(
+struct ArtifactClassification {
+    SoundSwitchArtifactKind kind{SoundSwitchArtifactKind::Unknown};
+    bool is_backup{false};
+};
+
+[[nodiscard]] SoundSwitchArtifactKind classify_primary_artifact(
     const std::filesystem::path& relative) {
     const auto filename = lowercase(utf8_path(relative.filename()));
     const auto extension = lowercase(utf8_path(relative.extension()));
     const auto relative_text = lowercase("/" + utf8_path(relative) + "/");
-    if (extension == ".ssproj") {
+    if (extension == ".ssproj" || filename == ".ssproj") {
         return SoundSwitchArtifactKind::ProjectManifest;
     }
     if (filename == "soundswitchvenues.bin") {
@@ -271,7 +276,21 @@ struct FileHashResult {
     if (has_audio_extension(extension)) {
         return SoundSwitchArtifactKind::Audio;
     }
+    if (extension == ".plfix") {
+        return SoundSwitchArtifactKind::FixturePersonality;
+    }
     return SoundSwitchArtifactKind::Unknown;
+}
+
+[[nodiscard]] ArtifactClassification classify_artifact(
+    const std::filesystem::path& relative) {
+    const auto extension = lowercase(utf8_path(relative.extension()));
+    if (extension != ".bak") {
+        return {classify_primary_artifact(relative), false};
+    }
+    auto primary = relative;
+    primary.replace_filename(relative.filename().stem());
+    return {classify_primary_artifact(primary), true};
 }
 
 void add_issue(
@@ -284,12 +303,63 @@ void add_issue(
         {severity, std::move(code), std::move(subject), std::move(message)});
 }
 
-[[nodiscard]] bool has_kind(
+[[nodiscard]] bool has_active_kind(
     const SoundSwitchInspection& inspection,
     SoundSwitchArtifactKind kind) noexcept {
     return std::any_of(
         inspection.artifacts.begin(), inspection.artifacts.end(),
-        [kind](const auto& artifact) { return artifact.kind == kind; });
+        [kind](const auto& artifact) {
+            return !artifact.is_backup && artifact.kind == kind;
+        });
+}
+
+[[nodiscard]] bool is_script_kind(SoundSwitchArtifactKind kind) noexcept {
+    return kind == SoundSwitchArtifactKind::AutoloopScript ||
+        kind == SoundSwitchArtifactKind::TrackScript;
+}
+
+void hash_inventory_u64(Sha256& hash, std::uint64_t value) noexcept {
+    std::array<std::uint8_t, 8> encoded{};
+    for (std::size_t index = 0U; index < encoded.size(); ++index) {
+        encoded[encoded.size() - 1U - index] =
+            static_cast<std::uint8_t>(value >> (index * 8U));
+    }
+    hash.update(encoded.data(), encoded.size());
+}
+
+void hash_inventory_string(Sha256& hash, std::string_view value) noexcept {
+    hash_inventory_u64(hash, static_cast<std::uint64_t>(value.size()));
+    hash.update(
+        reinterpret_cast<const std::uint8_t*>(value.data()), value.size());
+}
+
+[[nodiscard]] std::string compute_inventory_sha256(
+    const SoundSwitchInspection& inspection) {
+    std::vector<const SoundSwitchArtifact*> sorted;
+    sorted.reserve(inspection.artifacts.size());
+    for (const auto& artifact : inspection.artifacts) {
+        sorted.push_back(&artifact);
+    }
+    std::sort(sorted.begin(), sorted.end(), [](const auto* first, const auto* second) {
+        return first->relative_path < second->relative_path;
+    });
+
+    Sha256 hash;
+    hash_inventory_string(hash, inspection.inventory_format);
+    hash_inventory_u64(hash, inspection.inventory_format_version);
+    hash_inventory_string(hash, soundswitch_source_kind_name(inspection.source_kind));
+    hash_inventory_u64(hash, static_cast<std::uint64_t>(sorted.size()));
+    for (const auto* artifact : sorted) {
+        hash_inventory_string(hash, artifact->relative_path);
+        hash_inventory_string(hash, soundswitch_artifact_kind_name(artifact->kind));
+        const std::array<std::uint8_t, 2> flags{{
+            artifact->is_backup ? std::uint8_t{1} : std::uint8_t{0},
+            artifact->recognized_ssfile_header ? std::uint8_t{1} : std::uint8_t{0}}};
+        hash.update(flags.data(), flags.size());
+        hash_inventory_u64(hash, artifact->size);
+        hash_inventory_string(hash, artifact->sha256);
+    }
+    return hexadecimal(hash.finish());
 }
 
 inline constexpr std::size_t kMaximumComparisonRanges = 64U;
@@ -483,7 +553,17 @@ const char* soundswitch_artifact_kind_name(SoundSwitchArtifactKind kind) noexcep
     case SoundSwitchArtifactKind::TrackScript: return "trackScript";
     case SoundSwitchArtifactKind::RecordableData: return "recordableData";
     case SoundSwitchArtifactKind::Audio: return "audio";
+    case SoundSwitchArtifactKind::FixturePersonality: return "fixturePersonality";
     case SoundSwitchArtifactKind::Unknown: return "unknown";
+    }
+    return "unknown";
+}
+
+const char* soundswitch_source_kind_name(SoundSwitchSourceKind kind) noexcept {
+    switch (kind) {
+    case SoundSwitchSourceKind::Unknown: return "unknown";
+    case SoundSwitchSourceKind::ExportedProject: return "exportedProject";
+    case SoundSwitchSourceKind::ApplicationDataBackup: return "applicationDataBackup";
     }
     return "unknown";
 }
@@ -521,7 +601,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "source.notDirectory",
-            utf8_path(source_root),
+            "source",
             "The source must be a real directory, not a file or symbolic link.");
         return inspection;
     }
@@ -531,7 +611,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "source.canonicalizeFailed",
-            utf8_path(source_root),
+            "source",
             "The source directory could not be resolved safely.");
         return inspection;
     }
@@ -554,7 +634,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             inspection,
             SoundSwitchIssueSeverity::Error,
             "source.enumerationFailed",
-            inspection.source_root,
+            "source",
             "The source directory could not be enumerated.");
         return inspection;
     }
@@ -566,7 +646,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                 inspection,
                 SoundSwitchIssueSeverity::Error,
                 "file.statusFailed",
-                utf8_path(entry.path()),
+                utf8_path(entry.path().lexically_relative(canonical_root)),
                 "A source entry could not be inspected.");
             error.clear();
             iterator.increment(error);
@@ -575,7 +655,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                     inspection,
                     SoundSwitchIssueSeverity::Error,
                     "source.enumerationInterrupted",
-                    inspection.source_root,
+                    "source",
                     "Directory enumeration was interrupted by a filesystem error.");
                 break;
             }
@@ -598,7 +678,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                     inspection,
                     SoundSwitchIssueSeverity::Error,
                     "limit.fileCount",
-                    inspection.source_root,
+                    "source",
                     "The project exceeds the configured file-count safety limit.");
                 break;
             }
@@ -608,7 +688,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                     inspection,
                     SoundSwitchIssueSeverity::Error,
                     "file.sizeFailed",
-                    utf8_path(entry.path()),
+                    utf8_path(entry.path().lexically_relative(canonical_root)),
                     "A source file size could not be read safely.");
                 error.clear();
             } else {
@@ -620,7 +700,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                         inspection,
                         SoundSwitchIssueSeverity::Error,
                         "limit.byteCount",
-                        utf8_path(entry.path()),
+                        utf8_path(entry.path().lexically_relative(canonical_root)),
                         "The project exceeds the configured byte-count safety limit.");
                     break;
                 }
@@ -630,7 +710,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                         inspection,
                         SoundSwitchIssueSeverity::Error,
                         "file.timeFailed",
-                        utf8_path(entry.path()),
+                        utf8_path(entry.path().lexically_relative(canonical_root)),
                         "A source file timestamp could not be read safely.");
                     error.clear();
                 } else {
@@ -656,7 +736,7 @@ SoundSwitchInspection inspect_soundswitch_project(
                 inspection,
                 SoundSwitchIssueSeverity::Error,
                 "source.enumerationInterrupted",
-                inspection.source_root,
+                "source",
                 "Directory enumeration was interrupted by a filesystem error.");
             break;
         }
@@ -691,11 +771,12 @@ SoundSwitchInspection inspect_soundswitch_project(
         }
         SoundSwitchArtifact artifact;
         artifact.relative_path = utf8_path(file.relative);
-        artifact.kind = classify_artifact(file.relative);
+        const auto classification = classify_artifact(file.relative);
+        artifact.kind = classification.kind;
+        artifact.is_backup = classification.is_backup;
         artifact.size = file.size;
         artifact.sha256 = hash.digest;
-        const bool is_ssfile = artifact.kind == SoundSwitchArtifactKind::AutoloopScript ||
-            artifact.kind == SoundSwitchArtifactKind::TrackScript;
+        const bool is_ssfile = is_script_kind(artifact.kind);
         artifact.recognized_ssfile_header = is_ssfile && hash.header_size == 4U &&
             hash.header == std::array<std::uint8_t, 4>{{0xAAU, 0xAAU, 0x09U, 0x55U}};
         if (artifact.recognized_ssfile_header) {
@@ -711,29 +792,45 @@ SoundSwitchInspection inspect_soundswitch_project(
         inspection.artifacts.push_back(std::move(artifact));
     }
 
-    if (!has_kind(inspection, SoundSwitchArtifactKind::ProjectManifest)) {
+    const bool has_manifest =
+        has_active_kind(inspection, SoundSwitchArtifactKind::ProjectManifest);
+    const bool has_application_data_core =
+        has_active_kind(inspection, SoundSwitchArtifactKind::VenueDatabase) &&
+        has_active_kind(inspection, SoundSwitchArtifactKind::AutoloopDatabase) &&
+        has_active_kind(inspection, SoundSwitchArtifactKind::TrackMap);
+    if (has_manifest) {
+        inspection.source_kind = SoundSwitchSourceKind::ExportedProject;
+    } else if (has_application_data_core) {
+        inspection.source_kind = SoundSwitchSourceKind::ApplicationDataBackup;
+        add_issue(
+            inspection,
+            SoundSwitchIssueSeverity::Warning,
+            "format.applicationDataBackup",
+            "source",
+            "A manifestless SoundSwitch application-data backup was recognized by its required core databases. Its files can be preserved losslessly, but this classification does not claim semantic migration.");
+    } else {
         add_issue(
             inspection,
             SoundSwitchIssueSeverity::Error,
-            "format.manifestMissing",
-            inspection.source_root,
-            "No .ssproj manifest was found. Select the exported SoundSwitch project directory.");
+            "format.sourceLayoutUnknown",
+            "source",
+            "No active .ssproj manifest or complete application-data backup core was found. Select an exported project directory or a backup containing SoundSwitchVenues.bin, SoundSwitchAutoLoops.bin, and SoundSwitchTrackMap.bin.");
     }
-    if (!has_kind(inspection, SoundSwitchArtifactKind::VenueDatabase)) {
+    if (!has_active_kind(inspection, SoundSwitchArtifactKind::VenueDatabase)) {
         add_issue(
             inspection,
             SoundSwitchIssueSeverity::Warning,
             "format.venueMissing",
-            inspection.source_root,
+            "source",
             "SoundSwitchVenues.bin was not found; venue and patch conversion may be unavailable.");
     }
-    if (!has_kind(inspection, SoundSwitchArtifactKind::TrackScript) &&
-        !has_kind(inspection, SoundSwitchArtifactKind::AutoloopScript)) {
+    if (!has_active_kind(inspection, SoundSwitchArtifactKind::TrackScript) &&
+        !has_active_kind(inspection, SoundSwitchArtifactKind::AutoloopScript)) {
         add_issue(
             inspection,
             SoundSwitchIssueSeverity::Warning,
             "format.scriptsMissing",
-            inspection.source_root,
+            "source",
             "No .ssfile scripts were found in this project directory.");
     }
     if (unrecognized_ssfiles > 0U) {
@@ -752,6 +849,7 @@ SoundSwitchInspection inspect_soundswitch_project(
             std::to_string(inspection.unknown_artifacts) + " payload(s)",
             "Unknown files are inventoried and preserved losslessly; they are not interpreted.");
     }
+    inspection.inventory_sha256 = compute_inventory_sha256(inspection);
     return inspection;
 }
 
@@ -761,9 +859,15 @@ std::string serialize_soundswitch_inspection(
     output << "{\n  \"format\": ";
     append_json_string(output, inspection.format);
     output << ",\n  \"formatVersion\": " << inspection.format_version
-           << ",\n  \"sourceRoot\": ";
-    append_json_string(output, inspection.source_root);
-    output << ",\n  \"complete\": " << (inspection.complete() ? "true" : "false")
+           << ",\n  \"sourceKind\": ";
+    append_json_string(output, soundswitch_source_kind_name(inspection.source_kind));
+    output << ",\n  \"inventory\": {\n    \"format\": ";
+    append_json_string(output, inspection.inventory_format);
+    output << ",\n    \"formatVersion\": " << inspection.inventory_format_version
+           << ",\n    \"ordering\": \"relativePathUtf8Bytewise\",\n    \"sha256\": ";
+    append_json_string(output, inspection.inventory_sha256);
+    output << "\n  }"
+           << ",\n  \"complete\": " << (inspection.complete() ? "true" : "false")
            << ",\n  \"summary\": {\n"
            << "    \"files\": " << inspection.artifacts.size() << ",\n"
            << "    \"totalBytes\": " << inspection.total_bytes << ",\n"
@@ -781,6 +885,7 @@ std::string serialize_soundswitch_inspection(
         append_json_string(output, soundswitch_artifact_kind_name(artifact.kind));
         output << ", \"size\": " << artifact.size << ", \"sha256\": ";
         append_json_string(output, artifact.sha256);
+        output << ", \"backup\": " << (artifact.is_backup ? "true" : "false");
         output << ", \"recognizedSsfileHeader\": "
                << (artifact.recognized_ssfile_header ? "true" : "false") << '}';
     }
@@ -962,11 +1067,7 @@ std::string serialize_soundswitch_comparison(
     append_json_string(output, comparison.format);
     output << ",\n  \"formatVersion\": " << comparison.format_version
            << ",\n  \"complete\": " << (comparison.complete() ? "true" : "false")
-           << ",\n  \"beforeSourceRoot\": ";
-    append_json_string(output, comparison.before.source_root);
-    output << ",\n  \"afterSourceRoot\": ";
-    append_json_string(output, comparison.after.source_root);
-    output << ",\n  \"summary\": {\n"
+           << ",\n  \"summary\": {\n"
            << "    \"unchanged\": " << comparison.unchanged_artifacts << ",\n"
            << "    \"added\": " << comparison.added_artifacts << ",\n"
            << "    \"removed\": " << comparison.removed_artifacts << ",\n"

@@ -8,8 +8,14 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 
 namespace {
@@ -36,6 +42,56 @@ void handle_signal(int) noexcept {
     return "unknown";
 }
 
+[[nodiscard]] std::string json_escape(std::string_view value) {
+    std::ostringstream output;
+    for (const auto character : value) {
+        switch (character) {
+        case '"': output << "\\\""; break;
+        case '\\': output << "\\\\"; break;
+        case '\n': output << "\\n"; break;
+        case '\r': output << "\\r"; break;
+        case '\t': output << "\\t"; break;
+        default:
+            if (static_cast<unsigned char>(character) < 0x20U) {
+                output << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+                       << static_cast<unsigned int>(
+                              static_cast<unsigned char>(character));
+            } else {
+                output << character;
+            }
+        }
+    }
+    return output.str();
+}
+
+[[nodiscard]] std::string raw_short_hex(const showcore::MidiMessage& message) {
+    const auto encoded = showcore::encode_short_midi(message);
+    if (!encoded) {
+        return {};
+    }
+    std::ostringstream output;
+    output << std::hex << std::setfill('0')
+           << std::setw(2) << (encoded.packed & 0xFFU) << ' '
+           << std::setw(2) << ((encoded.packed >> 8U) & 0xFFU) << ' '
+           << std::setw(2) << ((encoded.packed >> 16U) & 0xFFU);
+    return output.str();
+}
+
+void print_json_message(
+    std::ostream& output,
+    const showcore::MidiMessage& message,
+    std::string_view label) {
+    output << "{\"event\":\"midi_short\",\"label\":\""
+           << json_escape(label)
+           << "\",\"device\":" << message.device_id
+           << ",\"type\":\"" << message_name(message.type)
+           << "\",\"channel\":" << static_cast<unsigned>(message.channel)
+           << ",\"number\":" << static_cast<unsigned>(message.number)
+           << ",\"value\":" << message.value
+           << ",\"timestampMs\":" << message.timestamp_ms
+           << ",\"rawHex\":\"" << raw_short_hex(message) << "\"}\n";
+}
+
 void print_ports(const showcore::MidiPortList& ports, std::string_view heading) {
     std::cout << heading << " count=" << ports.count;
     if (ports.truncated) {
@@ -54,11 +110,20 @@ void print_ports(const showcore::MidiPortList& ports, std::string_view heading) 
 
 void print_usage() {
     std::cout
-        << "Usage: midi_capture [--list] [--all | --input INDEX ...] [--duration SECONDS]\n"
+        << "Usage: midi_capture [--list] [--all | --input INDEX ...] [options]\n"
         << "  --list              List WinMM MIDI input/output ports\n"
         << "  --all               Monitor every enumerated input port\n"
         << "  --input INDEX       Monitor one input; may be repeated\n"
         << "  --duration SECONDS  Stop automatically; 0 runs until Ctrl+C\n"
+        << "  --json-lines        Emit stable machine-readable short-MIDI events\n"
+        << "  --label TEXT        Tag every captured event with one logical control ID\n"
+        << "  --output FILE       Save JSON Lines capture to a new file (implies --json-lines)\n"
+        << "  --force             Permit replacing the selected capture output file\n"
+        << "\nControl One example:\n"
+        << "  midi_capture --input 0 --duration 10 --label pads.autoloop.1 "
+           "--output control-one-pad-1.jsonl\n"
+        << "Capture one labeled physical control at a time with SoundSwitch closed. "
+           "This tool records short MIDI input only; it never probes output feedback or OLED.\n"
         << "  --help              Show this help\n";
 }
 
@@ -70,6 +135,10 @@ int main(int argc, char** argv) {
     std::uint32_t duration_seconds = 0;
     bool list = argc == 1;
     bool all = false;
+    bool json_lines = false;
+    bool force = false;
+    std::string label;
+    std::filesystem::path output_path;
 
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument = argv[index];
@@ -83,6 +152,27 @@ int main(int argc, char** argv) {
         }
         if (argument == "--all") {
             all = true;
+            continue;
+        }
+        if (argument == "--json-lines") {
+            json_lines = true;
+            continue;
+        }
+        if (argument == "--force") {
+            force = true;
+            continue;
+        }
+        if ((argument == "--label" || argument == "--output") && index + 1 < argc) {
+            if (argument == "--label") {
+                label = argv[++index];
+                if (label.size() > 160U) {
+                    std::cerr << "Capture label is longer than 160 characters\n";
+                    return EXIT_FAILURE;
+                }
+            } else {
+                output_path = std::filesystem::path(argv[++index]);
+                json_lines = true;
+            }
             continue;
         }
         if ((argument == "--input" || argument == "--duration") && index + 1 < argc) {
@@ -133,6 +223,30 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
+    std::ofstream capture_file;
+    std::ostream* event_output = &std::cout;
+    if (!output_path.empty()) {
+        std::error_code filesystem_error;
+        if (!force && std::filesystem::exists(output_path, filesystem_error)) {
+            std::cerr << "Capture output already exists; use --force to replace it\n";
+            return EXIT_FAILURE;
+        }
+        const auto parent = output_path.parent_path();
+        if (!parent.empty()) {
+            std::filesystem::create_directories(parent, filesystem_error);
+            if (filesystem_error) {
+                std::cerr << "Unable to create capture output folder\n";
+                return EXIT_FAILURE;
+            }
+        }
+        capture_file.open(output_path, std::ios::binary | std::ios::trunc);
+        if (!capture_file) {
+            std::cerr << "Unable to open capture output file\n";
+            return EXIT_FAILURE;
+        }
+        event_output = &capture_file;
+    }
+
     showcore::WinMmMidiInput capture;
     for (std::size_t index = 0; index < requested_count; ++index) {
         const auto logical_device_id = static_cast<std::uint32_t>(index + 1U);
@@ -145,6 +259,18 @@ int main(int argc, char** argv) {
                   << " logical_device=" << logical_device_id << '\n';
     }
 
+    if (json_lines) {
+        *event_output << "{\"event\":\"capture_start\",\"format\":"
+                      << "\"emberlights-midi-short-capture\",\"formatVersion\":1,"
+                      << "\"label\":\"" << json_escape(label)
+                      << "\",\"durationSeconds\":" << duration_seconds
+                      << ",\"inputSystemIndices\":[";
+        for (std::size_t index = 0U; index < requested_count; ++index) {
+            *event_output << (index == 0U ? "" : ",") << requested_inputs[index];
+        }
+        *event_output << "]}\n";
+    }
+
     std::signal(SIGINT, &handle_signal);
     std::signal(SIGTERM, &handle_signal);
     const auto started = std::chrono::steady_clock::now();
@@ -155,12 +281,16 @@ int main(int argc, char** argv) {
         while (capture.poll(message)) {
             received = true;
             ++message_count;
-            std::cout << "midi device=" << message.device_id
-                      << " type=" << message_name(message.type)
-                      << " channel=" << static_cast<unsigned>(message.channel + 1U)
-                      << " number=" << static_cast<unsigned>(message.number)
-                      << " value=" << message.value
-                      << " timestamp_ms=" << message.timestamp_ms << '\n';
+            if (json_lines) {
+                print_json_message(*event_output, message, label);
+            } else {
+                std::cout << "midi device=" << message.device_id
+                          << " type=" << message_name(message.type)
+                          << " channel=" << static_cast<unsigned>(message.channel + 1U)
+                          << " number=" << static_cast<unsigned>(message.number)
+                          << " value=" << message.value
+                          << " timestamp_ms=" << message.timestamp_ms << '\n';
+            }
         }
         if (duration_seconds > 0U &&
             std::chrono::steady_clock::now() - started >=
@@ -172,8 +302,19 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (json_lines) {
+        *event_output << "{\"event\":\"capture_stop\",\"label\":\""
+                      << json_escape(label)
+                      << "\",\"messages\":" << message_count
+                      << ",\"dropped\":" << capture.dropped_messages() << "}\n";
+        event_output->flush();
+    }
     std::cout << "MIDI capture stopped messages=" << message_count
-              << " dropped=" << capture.dropped_messages() << '\n';
+              << " dropped=" << capture.dropped_messages();
+    if (!output_path.empty()) {
+        std::cout << " output=" << output_path.string();
+    }
+    std::cout << '\n';
     capture.close_all();
     return EXIT_SUCCESS;
 }

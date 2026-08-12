@@ -1,4 +1,5 @@
 #include "emberlights/project_io.hpp"
+#include "showcore/number_chars.hpp"
 
 #include <algorithm>
 #include <array>
@@ -238,14 +239,8 @@ template <typename Value>
         return false;
     }
     Value parsed{};
-    auto result = [&]() {
-        if constexpr (std::is_floating_point_v<Value>) {
-            return std::from_chars(
-                text.data(), text.data() + text.size(), parsed, std::chars_format::general);
-        } else {
-            return std::from_chars(text.data(), text.data() + text.size(), parsed);
-        }
-    }();
+    const auto result = showcore::parse_number_chars(
+        text.data(), text.data() + text.size(), parsed);
     if (result.ec != std::errc{} || result.ptr != text.data() + text.size()) {
         return false;
     }

@@ -21,6 +21,23 @@ enum class UiCommandId : std::uint8_t {
     TapTempo,
     HazardSetArmed,
     HazardDisarmAll,
+    StaticLookActivate,
+    StaticLookToggle,
+    StaticLookHold,
+    StaticLookClear,
+    AutoloopLaunch,
+    AutoloopClear,
+    AutoloopNext,
+    AutoloopPrevious,
+    AutoloopBankFilterEnableAll,
+    AutoloopBankFilterSelectExclusive,
+    AutoloopBankFilterSetEnabled,
+    TrackScriptStart,
+    TrackScriptClear,
+    FixtureOverridePropertySet,
+    FixtureOverridePropertyRelease,
+    GroupOverridePropertySet,
+    GroupOverridePropertyRelease,
     Count
 };
 
@@ -29,6 +46,8 @@ enum class UiInvocationResult : std::uint8_t {
     NoChange,
     Unavailable,
     InvalidArguments,
+    NotFound,
+    ValidationFailed,
     QueueFull,
     SafetyRejected,
     Unsupported,
@@ -38,7 +57,9 @@ enum class UiInvocationResult : std::uint8_t {
 enum class UiCommandInteraction : std::uint8_t {
     Trigger,
     Toggle,
-    Absolute
+    Absolute,
+    Momentary,
+    Selection
 };
 
 struct UiCommandDefinition {
@@ -66,6 +87,23 @@ inline constexpr std::array<UiCommandDefinition,
         {UiCommandId::TapTempo, "transport.tap", "Tap tempo", UiCommandInteraction::Trigger},
         {UiCommandId::HazardSetArmed, "safety.hazard.setArmed", "Set hazard armed", UiCommandInteraction::Absolute},
         {UiCommandId::HazardDisarmAll, "safety.hazard.disarmAll", "Disarm all hazards", UiCommandInteraction::Trigger},
+        {UiCommandId::StaticLookActivate, "staticLook.activate", "Activate Static Look", UiCommandInteraction::Trigger},
+        {UiCommandId::StaticLookToggle, "staticLook.toggle", "Toggle Static Look", UiCommandInteraction::Toggle},
+        {UiCommandId::StaticLookHold, "staticLook.hold", "Hold Static Look", UiCommandInteraction::Momentary},
+        {UiCommandId::StaticLookClear, "staticLook.clear", "Clear Static Look", UiCommandInteraction::Trigger},
+        {UiCommandId::AutoloopLaunch, "autoloop.launch", "Launch Autoloop", UiCommandInteraction::Trigger},
+        {UiCommandId::AutoloopClear, "autoloop.clear", "Clear Autoloop", UiCommandInteraction::Trigger},
+        {UiCommandId::AutoloopNext, "autoloop.next", "Next Autoloop", UiCommandInteraction::Trigger},
+        {UiCommandId::AutoloopPrevious, "autoloop.previous", "Previous Autoloop", UiCommandInteraction::Trigger},
+        {UiCommandId::AutoloopBankFilterEnableAll, "autoloop.bankFilter.enableAll", "Enable all Autoloop banks", UiCommandInteraction::Trigger},
+        {UiCommandId::AutoloopBankFilterSelectExclusive, "autoloop.bankFilter.selectExclusive", "Select exclusive Autoloop bank", UiCommandInteraction::Selection},
+        {UiCommandId::AutoloopBankFilterSetEnabled, "autoloop.bankFilter.setEnabled", "Set Autoloop bank enabled", UiCommandInteraction::Absolute},
+        {UiCommandId::TrackScriptStart, "trackScript.start", "Start Track Script", UiCommandInteraction::Trigger},
+        {UiCommandId::TrackScriptClear, "trackScript.clear", "Clear Track Script", UiCommandInteraction::Trigger},
+        {UiCommandId::FixtureOverridePropertySet, "fixture.override.property.set", "Set fixture property override", UiCommandInteraction::Absolute},
+        {UiCommandId::FixtureOverridePropertyRelease, "fixture.override.property.release", "Release fixture property override", UiCommandInteraction::Trigger},
+        {UiCommandId::GroupOverridePropertySet, "group.override.property.set", "Set group property override", UiCommandInteraction::Absolute},
+        {UiCommandId::GroupOverridePropertyRelease, "group.override.property.release", "Release group property override", UiCommandInteraction::Trigger},
     }};
 
 struct UiCommandInvocation {
@@ -73,6 +111,9 @@ struct UiCommandInvocation {
     bool bool_value{false};
     double number_value{0.0};
     showcore::Property property{showcore::Property::Count};
+    std::string_view target_id{};
+    showcore::AutoloopAddress autoloop_address{};
+    std::uint16_t bank{static_cast<std::uint16_t>(showcore::kMaxAutoloopBanks)};
 };
 
 class UiAppCommandHost {
@@ -87,12 +128,20 @@ public:
     UiCommandFacade(RunnerService& runner, UiAppCommandHost& app) noexcept
         : runner_(runner), app_(app) {}
 
+    // The caller supplies the immutable ProjectDocument used to compile the
+    // currently active Runner package. Draft/Studio documents must not be set
+    // here because stable IDs are resolved to compiled indices before posting.
+    void set_active_project(const ProjectDocument* project) noexcept {
+        active_project_ = project;
+    }
+
     [[nodiscard]] UiInvocationResult invoke(
         const UiCommandInvocation& invocation) noexcept;
 
 private:
     RunnerService& runner_;
     UiAppCommandHost& app_;
+    const ProjectDocument* active_project_{nullptr};
 };
 
 [[nodiscard]] const UiCommandDefinition* find_ui_command(

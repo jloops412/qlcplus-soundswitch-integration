@@ -8,6 +8,12 @@
 
 namespace emberlights {
 
+enum class SoundSwitchSourceKind : std::uint8_t {
+    Unknown,
+    ExportedProject,
+    ApplicationDataBackup
+};
+
 enum class SoundSwitchArtifactKind : std::uint8_t {
     ProjectManifest,
     VenueDatabase,
@@ -18,6 +24,7 @@ enum class SoundSwitchArtifactKind : std::uint8_t {
     TrackScript,
     RecordableData,
     Audio,
+    FixturePersonality,
     Unknown
 };
 
@@ -38,6 +45,7 @@ struct SoundSwitchArtifact {
     SoundSwitchArtifactKind kind{SoundSwitchArtifactKind::Unknown};
     std::uint64_t size{0};
     std::string sha256;
+    bool is_backup{false};
     bool recognized_ssfile_header{false};
 };
 
@@ -49,8 +57,17 @@ struct SoundSwitchInspectionOptions {
 
 struct SoundSwitchInspection {
     std::string format{"emberlights-soundswitch-inspection"};
-    std::uint32_t format_version{1U};
+    std::uint32_t format_version{2U};
+    SoundSwitchSourceKind source_kind{SoundSwitchSourceKind::Unknown};
+    // Process-local discovery state used only to reopen verified artifacts.
+    // Portable inspection, comparison, and bundle reports never serialize it.
     std::string source_root;
+    // The digest covers the source kind and every artifact field in
+    // relative-path UTF-8 byte order. The root path and issues are excluded,
+    // so identical source trees have the same inventory identity.
+    std::string inventory_format{"emberlights-soundswitch-inventory"};
+    std::uint32_t inventory_format_version{1U};
+    std::string inventory_sha256;
     std::vector<SoundSwitchArtifact> artifacts;
     std::vector<SoundSwitchInspectionIssue> issues;
     std::uint64_t total_bytes{0};
@@ -95,7 +112,7 @@ struct SoundSwitchArtifactComparison {
 
 struct SoundSwitchComparison {
     std::string format{"emberlights-soundswitch-comparison"};
-    std::uint32_t format_version{1U};
+    std::uint32_t format_version{2U};
     SoundSwitchInspection before;
     SoundSwitchInspection after;
     std::vector<SoundSwitchArtifactComparison> artifacts;
@@ -172,6 +189,8 @@ struct SoundSwitchBundleResult {
 
 [[nodiscard]] const char* soundswitch_artifact_kind_name(
     SoundSwitchArtifactKind kind) noexcept;
+[[nodiscard]] const char* soundswitch_source_kind_name(
+    SoundSwitchSourceKind kind) noexcept;
 [[nodiscard]] const char* soundswitch_artifact_change_name(
     SoundSwitchArtifactChange change) noexcept;
 
