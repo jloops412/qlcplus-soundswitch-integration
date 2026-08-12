@@ -1,5 +1,6 @@
 #pragma once
 
+#include "emberlights/fixture_profile_ids.hpp"
 #include "emberlights/project.hpp"
 
 #include <cstddef>
@@ -9,13 +10,6 @@
 #include <vector>
 
 namespace emberlights {
-
-inline constexpr std::string_view kBothLightingBoIr4SixChannelProfileId =
-    "builtin.both-lighting.bo-ir4.6ch.manual-v1";
-inline constexpr std::string_view kBothLightingBoIr4TenChannelProfileId =
-    "builtin.both-lighting.bo-ir4.10ch.manual-v1";
-inline constexpr std::string_view kBothLightingBoIr4ManualRevision =
-    "both-lighting-ir4-user-manual-p8-2026-08-11";
 
 enum class KnownFixtureProfileUpgrade : std::uint8_t {
     BothLightingBoIr4StaleTenChannel

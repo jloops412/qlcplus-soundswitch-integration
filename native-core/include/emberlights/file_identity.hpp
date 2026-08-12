@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -26,5 +27,11 @@ struct FileIdentityResult {
     std::uint64_t maximum_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL);
 
 [[nodiscard]] bool is_sha256_digest(std::string_view value) noexcept;
+
+// Deterministic in-memory identity for Studio evidence, compiled fixture
+// behavior, and offline frame inspection. These helpers perform no I/O.
+[[nodiscard]] std::string sha256_bytes(
+    std::span<const std::uint8_t> bytes);
+[[nodiscard]] std::string sha256_text(std::string_view text);
 
 }  // namespace emberlights

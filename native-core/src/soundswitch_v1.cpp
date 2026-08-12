@@ -405,8 +405,8 @@ ProjectDocument make_safe_color_rig_v1_template(
         {Property::Intensity, Property::Strobe, Property::Red, Property::Green,
          Property::Blue, Property::White, Property::Amber, Property::UV,
          Property::Custom1, Property::Custom2, Property::Custom3}));
-    project.fixture_profiles.push_back(make_both_lighting_bo_ir4_6ch_profile());
-    project.fixture_profiles.push_back(make_both_lighting_bo_ir4_10ch_profile());
+    // make_starter_project already owns the canonical manual-backed IR-4 6CH
+    // and 10CH snapshots. Reuse them instead of minting duplicate identities.
 
     std::vector<std::string> all_color;
     std::vector<std::string> uplights;
@@ -475,8 +475,10 @@ ProjectDocument make_safe_color_rig_v1_template(
     project.unknown_records.push_back(
         "MIGRATED_PATCH_UNVERIFIED\tfixture-mode-address-universe-review-required");
     project.unknown_records.push_back(
-        "FIXTURE_PROFILE_EVIDENCE\tbo-ir4\tboth-lighting-ir4-user-manual\tprinted-page-8\t"
-        "https://cdn.shopify.com/s/files/1/0716/8645/5572/files/IR-4_User_Manual.pdf?v=1785942928");
+        "FIXTURE_PROFILE_EVIDENCE\tbo-ir4\t"
+        "sha256:1267e289b2c0577ec749f0de5265105db5e86b6ae3b2e12414cc00777fd3c03a\t"
+        "pdf-page-5\t"
+        "https://cdn.shopify.com/s/files/1/0716/8645/5572/files/BL_IR-4_BO-IR4.pdf?v=1679519527");
 
     const Color red{1.0F, 0.0F, 0.0F};
     const Color blue{0.0F, 0.08F, 1.0F};

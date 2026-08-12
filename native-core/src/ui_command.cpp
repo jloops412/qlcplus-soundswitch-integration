@@ -1,5 +1,7 @@
 #include "emberlights/ui_command.hpp"
 
+#include "emberlights/fixture_capabilities.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -39,23 +41,6 @@ inline constexpr std::size_t kMissingIndex = std::numeric_limits<std::size_t>::m
     return found == project.fixtures.end()
         ? kMissingIndex
         : static_cast<std::size_t>(found - project.fixtures.begin());
-}
-
-[[nodiscard]] const FixtureProfileDefinition* fixture_profile(
-    const ProjectDocument& project,
-    const FixtureDefinition& fixture) noexcept {
-    const auto found = std::find_if(
-        project.fixture_profiles.begin(), project.fixture_profiles.end(),
-        [&](const auto& profile) { return profile.id == fixture.profile_id; });
-    return found == project.fixture_profiles.end() ? nullptr : &*found;
-}
-
-[[nodiscard]] bool profile_supports_property(
-    const FixtureProfileDefinition& profile,
-    showcore::Property property) noexcept {
-    return std::any_of(
-        profile.channels.begin(), profile.channels.end(),
-        [property](const auto& channel) { return channel.property == property; });
 }
 
 [[nodiscard]] std::size_t look_index(
@@ -107,14 +92,15 @@ struct ResolvedGroup {
         if (index == kMissingIndex || index >= included.size()) {
             return result;
         }
-        const auto* profile = fixture_profile(project, project.fixtures[index]);
+        const auto* profile = find_fixture_profile(
+            project, project.fixtures[index].profile_id);
         if (profile == nullptr) {
             return result;
         }
         if (!included[index]) {
             included[index] = true;
             has_member = true;
-            if (profile_supports_property(*profile, property)) {
+            if (fixture_profile_supports_property(*profile, property)) {
                 result.supports_property = true;
             } else {
                 continue;
@@ -450,12 +436,12 @@ UiInvocationResult UiCommandFacade::invoke(
         if (index == kMissingIndex) {
             return UiInvocationResult::NotFound;
         }
-        const auto* profile = fixture_profile(
-            *active_project_, active_project_->fixtures[index]);
+        const auto* profile = find_fixture_profile(
+            *active_project_, active_project_->fixtures[index].profile_id);
         if (profile == nullptr) {
             return UiInvocationResult::ValidationFailed;
         }
-        if (!profile_supports_property(*profile, invocation.property)) {
+        if (!fixture_profile_supports_property(*profile, invocation.property)) {
             return UiInvocationResult::Unsupported;
         }
         if (active) {

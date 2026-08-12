@@ -14,6 +14,14 @@ Binding documents:
 - `29_STUDIO_V1_BUILD_HANDOFF.md`
 - existing UI program, parity ledger, migration guide, architecture, and fixture plans
 
+> 2026-08-12 additive update: STUDIO-001 (`StudioDocumentService`) is now
+> implemented and tested. Issue #52 consumes it for toolkit-neutral Static Look
+> drafts, one-generation commits, stale rejection, and one-entry Undo/Redo. The
+> transitional Win32 shell still keeps a legacy project/history mirror, so making
+> the document service authoritative for New/Open/Save/Undo/Redo and all editors
+> remains a STUDIO-001 integration task. See document 32; this note updates the
+> implementation status without replacing the checkpoint's accepted boundaries.
+
 ## 1. Current product truth
 
 ### Merged foundation

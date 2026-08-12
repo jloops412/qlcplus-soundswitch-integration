@@ -1,11 +1,14 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/fixture_capabilities.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/live_view_model.hpp"
 #include "emberlights/runner.hpp"
+#include "emberlights/static_look_authoring.hpp"
+#include "emberlights/static_look_preview.hpp"
 #include "emberlights/ui_command.hpp"
 #include "emberlights/ui_state.hpp"
 #include "emberlights/soundswitch_import.hpp"
@@ -272,7 +275,33 @@ enum ControlId : int {
     IdLookDelete,
     IdLookName,
     IdLookFade,
+    IdLookTarget,
+    IdLookCapabilities,
+    IdLookRgbHex,
+    IdLookPickRgb,
+    IdLookRed,
+    IdLookGreen,
+    IdLookBlue,
+    IdLookWhite,
+    IdLookAmber,
+    IdLookUv,
+    IdLookIntensity,
+    IdLookApplyColor,
+    IdLookSwatchRed,
+    IdLookSwatchGreen,
+    IdLookSwatchBlue,
+    IdLookSwatchWhite,
+    IdLookSwatchAmber,
+    IdLookSwatchUv,
+    IdLookSwatchBlack,
+    IdLookProperty,
+    IdLookOwnership,
+    IdLookValue,
+    IdLookApplyProperty,
+    IdLookRemoveProperty,
     IdLookAssignments,
+    IdLookPreview,
+    IdLookPreviewText,
     IdLookHelp,
     IdLookMessage,
 
@@ -725,6 +754,9 @@ private:
     void refresh_patch();
     void refresh_groups();
     void refresh_looks();
+    void refresh_look_targets();
+    void refresh_look_capabilities();
+    void refresh_look_draft_view();
     void refresh_autoloops();
     void refresh_tracks();
     void refresh_track_audio_assets(std::string_view selected_asset_id);
@@ -774,6 +806,16 @@ private:
     void duplicate_look();
     void save_look();
     void delete_look();
+    [[nodiscard]] std::string selected_look_target_id() const;
+    [[nodiscard]] bool read_static_look_color(
+        emberlights::StaticLookColor& color,
+        std::string& error_message) const;
+    void pick_static_look_rgb();
+    void apply_static_look_color();
+    void apply_static_look_swatch(std::string_view swatch_id);
+    void apply_static_look_property();
+    void remove_static_look_property();
+    void preview_static_look();
     void select_autoloop(std::int32_t index);
     void new_autoloop();
     void duplicate_autoloop();
@@ -830,6 +872,7 @@ private:
     std::int32_t fixture_index_{-1};
     std::int32_t group_index_{-1};
     std::int32_t look_index_{-1};
+    std::optional<emberlights::StaticLookDraft> look_draft_{};
     std::int32_t autoloop_index_{-1};
     std::int32_t track_index_{-1};
     std::uint16_t live_autoloop_bank_page_{0U};
@@ -1474,12 +1517,51 @@ void Application::create_pages() {
     add_edit(page, IdLookName);
     add_label(page, L"Crossfade (ms)", 0);
     add_edit(page, IdLookFade);
-    add_label(page, L"Fixture assignments", 0);
-    add_edit(page, IdLookAssignments, true);
+    add_label(page, L"Fixture or group target", 0);
+    add_combo(page, IdLookTarget);
+    add_label(page, L"", IdLookCapabilities);
+    add_label(page, L"RGB picker", 0);
+    add_edit(page, IdLookRgbHex, false, true);
+    add_button(page, L"Choose RGB...", IdLookPickRgb);
+    add_label(page, L"R %", 0);
+    add_edit(page, IdLookRed);
+    add_label(page, L"G %", 0);
+    add_edit(page, IdLookGreen);
+    add_label(page, L"B %", 0);
+    add_edit(page, IdLookBlue);
+    add_label(page, L"W %", 0);
+    add_edit(page, IdLookWhite);
+    add_label(page, L"A %", 0);
+    add_edit(page, IdLookAmber);
+    add_label(page, L"UV %", 0);
+    add_edit(page, IdLookUv);
+    add_label(page, L"Master %", 0);
+    add_edit(page, IdLookIntensity);
+    add_button(page, L"Apply Full Color", IdLookApplyColor, BS_DEFPUSHBUTTON);
+    add_button(page, L"Red", IdLookSwatchRed);
+    add_button(page, L"Green", IdLookSwatchGreen);
+    add_button(page, L"Blue", IdLookSwatchBlue);
+    add_button(page, L"White", IdLookSwatchWhite);
+    add_button(page, L"Amber", IdLookSwatchAmber);
+    add_button(page, L"UV", IdLookSwatchUv);
+    add_button(page, L"Black", IdLookSwatchBlack);
+    add_label(page, L"Property", 0);
+    add_combo(page, IdLookProperty);
+    add_label(page, L"Ownership", 0);
+    add_combo(page, IdLookOwnership);
+    add_label(page, L"Value %", 0);
+    add_edit(page, IdLookValue);
+    add_button(page, L"Apply Property", IdLookApplyProperty);
+    add_button(page, L"Remove", IdLookRemoveProperty);
+    add_label(page, L"Authored fixture ownership", 0);
+    add_edit(page, IdLookAssignments, true, true);
+    add_button(page, L"Build Exact Offline DMX Preview", IdLookPreview);
+    add_edit(page, IdLookPreviewText, true, true);
     add_label(
         page,
-        L"One per line: fixture-id or group-id, property, value. Value is 0–1, off, or "
-        L"release. Group targets expand when saved. Example: dance-washes,red,1",
+        L"Full Color owns every supported RGBWAUV emitter, including zero, opens a real "
+        L"master, and forces strobe off. The RGB picker changes RGB only; W/A/UV stay "
+        L"direct. Preview uses the production renderer but never opens an output adapter.",
         IdLookHelp);
     add_label(page, L"", IdLookMessage);
 
@@ -1824,22 +1906,60 @@ void Application::layout_page(Page page, int width, int height) {
         break;
     }
     case Page::Looks: {
-        const auto left_width = std::min(330, usable_width / 3);
-        move(1, margin, 70, left_width, height - 150);
-        move(2, margin, height - 68, 70, 30);
-        move(3, margin + 78, height - 68, 90, 30);
-        move(4, margin + 176, height - 68, 90, 30);
-        move(5, margin + 274, height - 68, 70, 30);
-        const auto x = margin + left_width + 24;
-        const auto form_width = usable_width - left_width - 24;
-        move(6, x, 70, 110, 26);
-        move(7, x + 110, 70, form_width - 110, 27);
-        move(8, x, 108, 110, 26);
-        move(9, x + 110, 108, 100, 27);
-        move(10, x, 148, form_width, 26);
-        move(11, x, 178, form_width, std::max(190, height - 345));
-        move(12, x, height - 130, form_width, 50);
-        move(13, x, height - 72, form_width, 30);
+        const auto left_width = std::min(230, usable_width / 3);
+        move(1, margin, 70, left_width, std::max(250, height - 200));
+        move(2, margin, height - 112, 70, 30);
+        move(3, margin + 78, height - 112, 96, 30);
+        move(4, margin, height - 74, 102, 30);
+        move(5, margin + 110, height - 74, 70, 30);
+
+        const auto x = margin + left_width + 18;
+        const auto form_width = usable_width - left_width - 18;
+        move(6, x, 70, 48, 26);
+        move(7, x + 48, 70, std::max(150, form_width - 286), 27);
+        move(8, x + form_width - 226, 70, 136, 26);
+        move(9, x + form_width - 90, 70, 90, 27);
+        move(10, x, 104, 142, 26);
+        move(11, x + 142, 104, form_width - 142, 250);
+        move(12, x, 134, form_width, 28);
+        move(13, x, 166, 76, 26);
+        move(14, x + 76, 166, 86, 27);
+        move(15, x + 170, 166, 116, 28);
+
+        const auto emitter_width = std::max(58, form_width / 7);
+        for (std::size_t emitter = 0U; emitter < 7U; ++emitter) {
+            const auto emitter_x = x + static_cast<int>(emitter) * emitter_width;
+            const auto label_index = 16U + emitter * 2U;
+            move(label_index, emitter_x, 198, emitter_width - 6, 22);
+            move(label_index + 1U, emitter_x, 220, emitter_width - 6, 27);
+        }
+        move(30, x, 256, 132, 30);
+        const auto swatch_width = std::max(52, (form_width - 144) / 4);
+        move(31, x + 142, 256, swatch_width, 30);
+        move(32, x + 148 + swatch_width, 256, swatch_width, 30);
+        move(33, x + 154 + swatch_width * 2, 256, swatch_width, 30);
+        move(34, x + 160 + swatch_width * 3, 256, swatch_width, 30);
+        move(35, x, 292, 78, 30);
+        move(36, x + 84, 292, 62, 30);
+        move(37, x + 152, 292, 70, 30);
+
+        move(38, x + 236, 292, 66, 26);
+        move(39, x + 302, 292, std::max(105, form_width - 302), 250);
+        move(40, x, 330, 76, 26);
+        move(41, x + 76, 330, 112, 250);
+        move(42, x + 198, 330, 62, 26);
+        move(43, x + 260, 330, 62, 27);
+        move(44, x + 332, 330, 118, 30);
+        move(45, x + 458, 330, std::max(72, form_width - 458), 30);
+
+        const auto pane_gap = 10;
+        const auto pane_width = (form_width - pane_gap) / 2;
+        move(46, x, 370, pane_width, 26);
+        move(47, x, 398, pane_width, std::max(112, height - 540));
+        move(48, x + pane_width + pane_gap, 366, pane_width, 30);
+        move(49, x + pane_width + pane_gap, 398, pane_width, std::max(112, height - 540));
+        move(50, x, height - 132, form_width, 60);
+        move(51, x, height - 66, form_width, 30);
         break;
     }
     case Page::Autoloops: {
@@ -2034,6 +2154,7 @@ void Application::reset_authoring_selection() {
     fixture_index_ = -1;
     group_index_ = -1;
     look_index_ = -1;
+    look_draft_.reset();
     autoloop_index_ = -1;
     track_index_ = -1;
 }
@@ -2270,6 +2391,71 @@ void listview_set_row(
         stream << '\n';
     }
     return stream.str();
+}
+
+void set_static_look_color_controls(
+    HWND page,
+    const emberlights::StaticLookColor& color) {
+    constexpr std::array ids{
+        IdLookRed,
+        IdLookGreen,
+        IdLookBlue,
+        IdLookWhite,
+        IdLookAmber,
+        IdLookUv,
+        IdLookIntensity};
+    const std::array values{
+        color.red,
+        color.green,
+        color.blue,
+        color.white,
+        color.amber,
+        color.uv,
+        color.intensity};
+    for (std::size_t index = 0U; index < ids.size(); ++index) {
+        const auto percent = std::clamp(values[index], 0.0F, 1.0F) * 100.0F;
+        std::ostringstream formatted;
+        formatted << std::fixed << std::setprecision(3) << percent;
+        auto text = formatted.str();
+        while (!text.empty() && text.back() == '0') {
+            text.pop_back();
+        }
+        if (!text.empty() && text.back() == '.') {
+            text.pop_back();
+        }
+        set_control_text(::GetDlgItem(page, ids[index]), text);
+    }
+    set_control_text(
+        ::GetDlgItem(page, IdLookRgbHex),
+        emberlights::format_rgb_hex(color));
+}
+
+[[nodiscard]] std::string static_look_outcome_text(
+    std::string_view action,
+    const emberlights::StaticLookAuthoringOutcome& outcome) {
+    std::ostringstream message;
+    switch (outcome.result) {
+    case emberlights::StaticLookAuthoringResult::Applied:
+        message << action << " updated " << outcome.fixtures_modified << " of "
+                << outcome.fixtures_considered << " target fixtures ("
+                << outcome.assignments_written << " owned properties).";
+        break;
+    case emberlights::StaticLookAuthoringResult::NoChange:
+        message << action << " already matches this draft.";
+        break;
+    case emberlights::StaticLookAuthoringResult::TargetNotFound:
+        return "Select a patched fixture or fixture group first.";
+    case emberlights::StaticLookAuthoringResult::EmptyTarget:
+        return "The selected fixture group is empty.";
+    case emberlights::StaticLookAuthoringResult::Unsupported:
+        return "The selected target does not support that property or direct color.";
+    case emberlights::StaticLookAuthoringResult::InvalidValue:
+        return "Enter values from 0 through 100 percent.";
+    }
+    for (const auto& warning : outcome.warnings) {
+        message << " Warning: " << warning;
+    }
+    return message.str();
 }
 
 [[nodiscard]] std::string autoloop_steps_text(const emberlights::AutoloopDefinition& loop) {
@@ -2650,12 +2836,163 @@ void Application::refresh_looks() {
     for (std::size_t index = 0; index < project_.looks.size(); ++index) {
         listbox_add(list, widen(project_.looks[index].name), index);
     }
+    const auto ownership = ::GetDlgItem(page, IdLookOwnership);
+    const auto previous_ownership = combo_selected_data(
+        ownership, static_cast<std::intptr_t>(showcore::ValueMode::Set));
+    static_cast<void>(::SendMessageW(ownership, CB_RESETCONTENT, 0, 0));
+    combo_add(
+        ownership,
+        L"SET (own value)",
+        static_cast<std::intptr_t>(showcore::ValueMode::Set));
+    combo_add(
+        ownership,
+        L"FORCE_ZERO (hard off)",
+        static_cast<std::intptr_t>(showcore::ValueMode::ForceZero));
+    combo_add(
+        ownership,
+        L"RELEASE (lower layers)",
+        static_cast<std::intptr_t>(showcore::ValueMode::Release));
+    combo_select_data(ownership, previous_ownership);
+    ::EnableWindow(
+        ::GetDlgItem(page, IdLookValue),
+        combo_selected_data(ownership) ==
+            static_cast<std::intptr_t>(showcore::ValueMode::Set));
+    refresh_look_targets();
     if (look_index_ >= 0 && static_cast<std::size_t>(look_index_) < project_.looks.size()) {
         static_cast<void>(::SendMessageW(list, LB_SETCURSEL, look_index_, 0));
         select_look(look_index_);
     } else {
         new_look();
     }
+}
+
+void Application::refresh_look_targets() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto combo = ::GetDlgItem(page, IdLookTarget);
+    const auto previous_id = selected_look_target_id();
+    static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+    std::intptr_t preferred = -1;
+    for (std::size_t index = 0U; index < project_.fixtures.size(); ++index) {
+        const auto& fixture = project_.fixtures[index];
+        const auto* profile = emberlights::find_fixture_profile(project_, fixture.profile_id);
+        std::ostringstream label;
+        label << "Fixture: " << fixture.name;
+        if (profile != nullptr) {
+            label << " — " << profile->mode;
+        }
+        combo_add(combo, widen(label.str()), static_cast<std::intptr_t>(index));
+        if (fixture.id == previous_id) {
+            preferred = static_cast<std::intptr_t>(index);
+        }
+    }
+    for (std::size_t index = 0U; index < project_.groups.size(); ++index) {
+        const auto& group = project_.groups[index];
+        const auto data = static_cast<std::intptr_t>(project_.fixtures.size() + index);
+        std::ostringstream label;
+        label << "Group: " << group.name << " (" << group.fixture_ids.size() << ')';
+        combo_add(combo, widen(label.str()), data);
+        if (group.id == previous_id) {
+            preferred = data;
+        }
+    }
+    combo_select_data(combo, preferred);
+    refresh_look_capabilities();
+}
+
+void Application::refresh_look_capabilities() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto target_id = selected_look_target_id();
+    const auto capabilities = emberlights::inspect_fixture_target(project_, target_id);
+    std::ostringstream summary;
+    if (!capabilities.target_found) {
+        summary << "Patch a fixture or create a non-empty group before authoring color.";
+    } else {
+        summary << capabilities.fixtures.size() << " fixture";
+        if (capabilities.fixtures.size() != 1U) {
+            summary << 's';
+        }
+        constexpr std::array properties{
+            showcore::Property::Intensity,
+            showcore::Property::Red,
+            showcore::Property::Green,
+            showcore::Property::Blue,
+            showcore::Property::White,
+            showcore::Property::Amber,
+            showcore::Property::UV};
+        for (const auto property : properties) {
+            const auto& support = capabilities.capability(property);
+            if (support.supported()) {
+                summary << " • " << emberlights::property_name(property) << ' '
+                        << support.supported_fixture_count << '/'
+                        << support.target_fixture_count;
+            }
+        }
+        if (capabilities.fixtures.size() == 1U) {
+            summary << " • " << capabilities.fixtures.front().profile_id;
+        }
+        if (!capabilities.warnings.empty()) {
+            summary << " • WARNING: " << capabilities.warnings.front();
+        }
+    }
+    set_control_text(::GetDlgItem(page, IdLookCapabilities), summary.str());
+
+    const auto properties = ::GetDlgItem(page, IdLookProperty);
+    const auto previous_property = combo_selected_data(
+        properties, static_cast<std::intptr_t>(showcore::Property::Intensity));
+    static_cast<void>(::SendMessageW(properties, CB_RESETCONTENT, 0, 0));
+    for (std::size_t index = 0U; index < showcore::kPropertyCount; ++index) {
+        const auto property = static_cast<showcore::Property>(index);
+        const auto& support = capabilities.capability(property);
+        if (!support.supported()) {
+            continue;
+        }
+        std::ostringstream label;
+        label << emberlights::property_name(property);
+        if (support.partial()) {
+            label << " (" << support.supported_fixture_count << '/'
+                  << support.target_fixture_count << ')';
+        }
+        combo_add(properties, widen(label.str()), static_cast<std::intptr_t>(property));
+    }
+    combo_select_data(properties, previous_property);
+}
+
+void Application::refresh_look_draft_view() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    set_control_text(
+        ::GetDlgItem(page, IdLookAssignments),
+        look_draft_.has_value() ? look_assignments_text(look_draft_->look) : "");
+    set_control_text(::GetDlgItem(page, IdLookPreviewText), "");
+    emberlights::StaticLookColor color;
+    const auto target = emberlights::inspect_fixture_target(
+        project_, selected_look_target_id());
+    if (look_draft_.has_value() && !target.fixtures.empty()) {
+        const auto fixture_id = target.fixtures.front().fixture_id;
+        const auto value_for = [&](showcore::Property property, float fallback) {
+            const auto found = std::find_if(
+                look_draft_->look.assignments.begin(),
+                look_draft_->look.assignments.end(),
+                [&](const auto& assignment) {
+                    return assignment.fixture_id == fixture_id &&
+                        assignment.property == property;
+                });
+            if (found == look_draft_->look.assignments.end() ||
+                found->value.mode == showcore::ValueMode::Release) {
+                return fallback;
+            }
+            return found->value.mode == showcore::ValueMode::ForceZero
+                ? 0.0F
+                : found->value.value;
+        };
+        color.red = value_for(showcore::Property::Red, 0.0F);
+        color.green = value_for(showcore::Property::Green, 0.0F);
+        color.blue = value_for(showcore::Property::Blue, 0.0F);
+        color.white = value_for(showcore::Property::White, 0.0F);
+        color.amber = value_for(showcore::Property::Amber, 0.0F);
+        color.uv = value_for(showcore::Property::UV, 0.0F);
+        color.intensity = value_for(showcore::Property::Intensity, 1.0F);
+    }
+    set_static_look_color_controls(page, color);
 }
 
 void Application::refresh_autoloops() {
@@ -3129,6 +3466,19 @@ void Application::handle_command(int id, int notification, HWND) {
         update_midi_targets();
         return;
     }
+    if (id == IdLookTarget && notification == CBN_SELCHANGE && !refreshing_) {
+        refresh_look_capabilities();
+        refresh_look_draft_view();
+        return;
+    }
+    if (id == IdLookOwnership && notification == CBN_SELCHANGE && !refreshing_) {
+        const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+        ::EnableWindow(
+            ::GetDlgItem(page, IdLookValue),
+            combo_selected_data(::GetDlgItem(page, IdLookOwnership)) ==
+                static_cast<std::intptr_t>(showcore::ValueMode::Set));
+        return;
+    }
 
     std::optional<emberlights::ProjectDocument> before_edit;
     if (is_authoring_edit_command(id)) {
@@ -3377,6 +3727,18 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdLookDuplicate: duplicate_look(); break;
     case IdLookSave: save_look(); break;
     case IdLookDelete: delete_look(); break;
+    case IdLookPickRgb: pick_static_look_rgb(); break;
+    case IdLookApplyColor: apply_static_look_color(); break;
+    case IdLookSwatchRed: apply_static_look_swatch("red"); break;
+    case IdLookSwatchGreen: apply_static_look_swatch("green"); break;
+    case IdLookSwatchBlue: apply_static_look_swatch("blue"); break;
+    case IdLookSwatchWhite: apply_static_look_swatch("white-emitter"); break;
+    case IdLookSwatchAmber: apply_static_look_swatch("amber-emitter"); break;
+    case IdLookSwatchUv: apply_static_look_swatch("uv-emitter"); break;
+    case IdLookSwatchBlack: apply_static_look_swatch("black"); break;
+    case IdLookApplyProperty: apply_static_look_property(); break;
+    case IdLookRemoveProperty: remove_static_look_property(); break;
+    case IdLookPreview: preview_static_look(); break;
     case IdAutoloopNew: new_autoloop(); break;
     case IdAutoloopDuplicate: duplicate_autoloop(); break;
     case IdAutoloopSave: save_autoloop(); break;
@@ -4743,77 +5105,6 @@ void Application::delete_group() {
 
 namespace {
 
-[[nodiscard]] bool parse_normalized_value(
-    std::string_view text,
-    showcore::PropertyValue& value) {
-    const auto cleaned = trim(text);
-    if (cleaned == "off" || cleaned == "zero") {
-        value = showcore::PropertyValue::force_zero();
-        return true;
-    }
-    if (cleaned == "release") {
-        value = showcore::PropertyValue::release();
-        return true;
-    }
-    float numeric = 0.0F;
-    if (!cleaned.empty() && cleaned.back() == '%') {
-        if (!parse_number(std::string_view(cleaned).substr(0, cleaned.size() - 1U), numeric)) {
-            return false;
-        }
-        numeric /= 100.0F;
-    } else if (!parse_number(cleaned, numeric)) {
-        return false;
-    }
-    if (!std::isfinite(numeric) || numeric < 0.0F || numeric > 1.0F) {
-        return false;
-    }
-    value = showcore::PropertyValue::set(numeric);
-    return true;
-}
-
-[[nodiscard]] bool parse_look_rows(
-    std::string_view text,
-    const emberlights::ProjectDocument& project,
-    std::vector<emberlights::LookAssignmentDefinition>& assignments,
-    std::string& error_message) {
-    assignments.clear();
-    std::size_t row = 0;
-    for (const auto& line : lines(text)) {
-        ++row;
-        const auto fields = split_csv(line);
-        emberlights::LookAssignmentDefinition assignment;
-        if (fields.size() != 3U || fields[0].empty() ||
-            !emberlights::parse_property(fields[1], assignment.property) ||
-            assignment.property == showcore::Property::Count ||
-            !parse_normalized_value(fields[2], assignment.value)) {
-            error_message = "Assignment row " + number_text(row) +
-                " must be target-id, property, and a 0–1/off/release value.";
-            return false;
-        }
-        const auto expansion = emberlights::expand_look_target(
-            project,
-            fields[0],
-            assignment.property,
-            assignment.value,
-            assignments);
-        if (!expansion.target_found) {
-            error_message = "Assignment row " + number_text(row) +
-                " references an unknown fixture or group ID.";
-            return false;
-        }
-        if (expansion.assignments_added == 0U) {
-            error_message = "Assignment row " + number_text(row) +
-                " references an empty fixture group.";
-            return false;
-        }
-    }
-    if (assignments.empty()) {
-        error_message = "A Static Look needs at least one fixture-property assignment.";
-        return false;
-    }
-    return true;
-}
-
 [[nodiscard]] bool parse_autoloop_rows(
     std::string_view text,
     std::vector<emberlights::AutoloopStepDefinition>& steps,
@@ -4892,7 +5183,10 @@ void Application::select_look(std::int32_t index) {
     const auto& look = project_.looks[static_cast<std::size_t>(index)];
     set_control_text(::GetDlgItem(page, IdLookName), look.name);
     set_control_text(::GetDlgItem(page, IdLookFade), number_text(look.fade_ms));
-    set_control_text(::GetDlgItem(page, IdLookAssignments), look_assignments_text(look));
+    look_draft_ = emberlights::make_static_look_draft(0U, look.id, look.name);
+    look_draft_->source_index = static_cast<std::size_t>(index);
+    look_draft_->look = look;
+    refresh_look_draft_view();
     ::EnableWindow(::GetDlgItem(page, IdLookDelete), TRUE);
     set_page_message(Page::Looks, IdLookMessage, "Editing Static Look " + look.id + ".");
 }
@@ -4902,42 +5196,60 @@ void Application::new_look() {
     const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
     set_control_text(::GetDlgItem(page, IdLookName), "");
     set_control_text(::GetDlgItem(page, IdLookFade), "750");
-    set_control_text(::GetDlgItem(page, IdLookAssignments), "");
+    set_control_text(::GetDlgItem(page, IdLookValue), "100");
+    combo_select_data(
+        ::GetDlgItem(page, IdLookOwnership),
+        static_cast<std::intptr_t>(showcore::ValueMode::Set));
+    ::EnableWindow(::GetDlgItem(page, IdLookValue), TRUE);
+    look_draft_ = emberlights::make_static_look_draft(0U, "", "New Static Look");
+    look_draft_->look.name.clear();
+    refresh_look_draft_view();
     ::EnableWindow(::GetDlgItem(page, IdLookDelete), FALSE);
     set_page_message(Page::Looks, IdLookMessage,
-                     "Use fixture IDs from Patch. Unlisted properties continue the underlying show.");
+                     "Choose a target, then apply a full color or explicit property ownership.");
 }
 
 void Application::duplicate_look() {
     if (look_index_ < 0 || static_cast<std::size_t>(look_index_) >= project_.looks.size()) {
         return;
     }
-    const auto source = project_.looks[static_cast<std::size_t>(look_index_)];
-    new_look();
+    const auto source = look_draft_.has_value()
+        ? *look_draft_
+        : emberlights::make_static_look_draft(0U, "", "Static Look");
+    const auto source_name = source.look.name;
+    look_index_ = -1;
+    look_draft_ = emberlights::duplicate_static_look_draft(
+        source, "", source_name + " Copy");
     const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
-    set_control_text(::GetDlgItem(page, IdLookName), source.name + " Copy");
-    set_control_text(::GetDlgItem(page, IdLookFade), number_text(source.fade_ms));
-    set_control_text(::GetDlgItem(page, IdLookAssignments), look_assignments_text(source));
+    static_cast<void>(::SendMessageW(::GetDlgItem(page, IdLookList), LB_SETCURSEL, -1, 0));
+    set_control_text(::GetDlgItem(page, IdLookName), look_draft_->look.name);
+    set_control_text(::GetDlgItem(page, IdLookFade), number_text(look_draft_->look.fade_ms));
+    refresh_look_draft_view();
+    ::EnableWindow(::GetDlgItem(page, IdLookDelete), FALSE);
+    set_page_message(Page::Looks, IdLookMessage,
+                     "Duplicated into an unsaved Static Look draft.");
 }
 
 void Application::save_look() {
     const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
-    emberlights::LookDefinition look;
+    if (!look_draft_.has_value()) {
+        new_look();
+    }
+    auto look = look_draft_->look;
     look.name = trim(control_text(::GetDlgItem(page, IdLookName)));
-    if (look.name.empty() ||
+    if (look.name.empty() || look.name.size() > emberlights::kMaximumStaticLookNameLength ||
         !parse_number(control_text(::GetDlgItem(page, IdLookFade)), look.fade_ms) ||
-        look.fade_ms > 30000U) {
+        look.fade_ms > emberlights::kMaximumStaticLookFadeMs) {
         set_page_message(Page::Looks, IdLookMessage,
                          "Name and a crossfade from 0 through 30000 ms are required.", true);
         return;
     }
-    std::string parse_error;
-    if (!parse_look_rows(
-            control_text(::GetDlgItem(page, IdLookAssignments)),
-            project_,
-            look.assignments,
-            parse_error)) {
-        set_page_message(Page::Looks, IdLookMessage, parse_error, true);
+    if (look.assignments.empty()) {
+        set_page_message(
+            Page::Looks,
+            IdLookMessage,
+            "Apply a full color or a property before saving this Static Look.",
+            true);
         return;
     }
     look.id = look_index_ >= 0
@@ -4958,6 +5270,9 @@ void Application::save_look() {
     if (look_index_ < 0) {
         look_index_ = static_cast<std::int32_t>(project_.looks.size() - 1U);
     }
+    look_draft_->look = look;
+    look_draft_->look.id = project_.looks[static_cast<std::size_t>(look_index_)].id;
+    look_draft_->source_index = static_cast<std::size_t>(look_index_);
     mark_dirty();
     refresh_looks();
     refresh_autoloops();
@@ -4971,26 +5286,14 @@ void Application::delete_look() {
         return;
     }
     const auto id = project_.looks[static_cast<std::size_t>(look_index_)].id;
-    if (std::any_of(
-            project_.autoloops.begin(), project_.autoloops.end(), [&](const auto& loop) {
-                return std::any_of(
-                    loop.steps.begin(), loop.steps.end(),
-                    [&](const auto& step) { return step.look_id == id; });
-            })) {
-        set_page_message(Page::Looks, IdLookMessage,
-                         "This Static Look is used by an Autoloop. Reassign those steps first.", true);
-        return;
-    }
-    if (std::any_of(
-            project_.track_scripts.begin(), project_.track_scripts.end(), [&](const auto& track) {
-                return std::any_of(
-                    track.cues.begin(), track.cues.end(), [&](const auto& cue) {
-                        return cue.action == emberlights::TrackCueAction::TriggerLook &&
-                            cue.target_ref == id;
-                    });
-            })) {
-        set_page_message(Page::Looks, IdLookMessage,
-                         "This Static Look is used by a track script. Reassign those cues first.", true);
+    const auto dependencies = emberlights::inspect_static_look_dependencies(project_, id);
+    if (dependencies.blocked()) {
+        std::ostringstream message;
+        message << "This Static Look is still referenced by "
+                << dependencies.autoloop_steps << " Autoloop step(s), "
+                << dependencies.track_cues << " track cue(s), and "
+                << dependencies.midi_bindings << " MIDI binding(s). Reassign them first.";
+        set_page_message(Page::Looks, IdLookMessage, message.str(), true);
         return;
     }
     if (::MessageBoxW(window_, L"Delete this Static Look?", L"Delete Static Look",
@@ -4999,10 +5302,221 @@ void Application::delete_look() {
     }
     project_.looks.erase(project_.looks.begin() + look_index_);
     look_index_ = -1;
+    look_draft_.reset();
     mark_dirty();
     refresh_looks();
+    refresh_autoloops();
     refresh_tracks();
+    refresh_midi();
     refresh_live_lists();
+}
+
+std::string Application::selected_look_target_id() const {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto data = combo_selected_data(::GetDlgItem(page, IdLookTarget), -1);
+    if (data < 0) {
+        return {};
+    }
+    const auto index = static_cast<std::size_t>(data);
+    if (index < project_.fixtures.size()) {
+        return project_.fixtures[index].id;
+    }
+    const auto group_index = index - project_.fixtures.size();
+    return group_index < project_.groups.size()
+        ? project_.groups[group_index].id
+        : std::string{};
+}
+
+bool Application::read_static_look_color(
+    emberlights::StaticLookColor& color,
+    std::string& error_message) const {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    constexpr std::array ids{
+        IdLookRed,
+        IdLookGreen,
+        IdLookBlue,
+        IdLookWhite,
+        IdLookAmber,
+        IdLookUv,
+        IdLookIntensity};
+    std::array<float, ids.size()> values{};
+    for (std::size_t index = 0U; index < ids.size(); ++index) {
+        if (!parse_number(control_text(::GetDlgItem(page, ids[index])), values[index]) ||
+            !std::isfinite(values[index]) || values[index] < 0.0F ||
+            values[index] > 100.0F) {
+            error_message = "Every direct emitter and Master value must be from 0 through 100 percent.";
+            return false;
+        }
+        values[index] /= 100.0F;
+    }
+    color = {values[0], values[1], values[2], values[3], values[4], values[5], values[6]};
+    return true;
+}
+
+void Application::pick_static_look_rgb() {
+    emberlights::StaticLookColor color;
+    std::string error_message;
+    if (!read_static_look_color(color, error_message)) {
+        set_page_message(Page::Looks, IdLookMessage, error_message, true);
+        return;
+    }
+    static std::array<COLORREF, 16U> custom_colors{};
+    CHOOSECOLORW chooser{};
+    chooser.lStructSize = sizeof(chooser);
+    chooser.hwndOwner = window_;
+    chooser.rgbResult = RGB(
+        static_cast<BYTE>(std::lround(color.red * 255.0F)),
+        static_cast<BYTE>(std::lround(color.green * 255.0F)),
+        static_cast<BYTE>(std::lround(color.blue * 255.0F)));
+    chooser.lpCustColors = custom_colors.data();
+    chooser.Flags = CC_FULLOPEN | CC_RGBINIT;
+    if (::ChooseColorW(&chooser) == FALSE) {
+        return;
+    }
+    color.red = static_cast<float>(GetRValue(chooser.rgbResult)) / 255.0F;
+    color.green = static_cast<float>(GetGValue(chooser.rgbResult)) / 255.0F;
+    color.blue = static_cast<float>(GetBValue(chooser.rgbResult)) / 255.0F;
+    set_static_look_color_controls(
+        pages_[static_cast<std::size_t>(Page::Looks)], color);
+    set_page_message(
+        Page::Looks,
+        IdLookMessage,
+        "RGB selected. White, Amber, and UV were left unchanged; choose Apply Full Color to author it.");
+}
+
+void Application::apply_static_look_color() {
+    if (!look_draft_.has_value()) {
+        new_look();
+    }
+    emberlights::StaticLookColor color;
+    std::string error_message;
+    if (!read_static_look_color(color, error_message)) {
+        set_page_message(Page::Looks, IdLookMessage, error_message, true);
+        return;
+    }
+    const auto outcome = emberlights::apply_static_look_color(
+        *look_draft_, project_, selected_look_target_id(), color);
+    refresh_look_draft_view();
+    set_page_message(
+        Page::Looks,
+        IdLookMessage,
+        static_look_outcome_text("Full color", outcome),
+        !outcome);
+}
+
+void Application::apply_static_look_swatch(std::string_view swatch_id) {
+    const auto swatches = emberlights::built_in_static_look_swatches();
+    const auto found = std::find_if(
+        swatches.begin(), swatches.end(),
+        [swatch_id](const auto& swatch) { return swatch.id == swatch_id; });
+    if (found == swatches.end()) {
+        return;
+    }
+    set_static_look_color_controls(
+        pages_[static_cast<std::size_t>(Page::Looks)], found->color);
+    apply_static_look_color();
+}
+
+void Application::apply_static_look_property() {
+    if (!look_draft_.has_value()) {
+        new_look();
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto property_data = combo_selected_data(::GetDlgItem(page, IdLookProperty), -1);
+    if (property_data < 0) {
+        set_page_message(
+            Page::Looks, IdLookMessage,
+            "The selected target has no supported properties.", true);
+        return;
+    }
+    const auto property = static_cast<showcore::Property>(property_data);
+    const auto mode = static_cast<showcore::ValueMode>(
+        combo_selected_data(
+            ::GetDlgItem(page, IdLookOwnership),
+            static_cast<std::intptr_t>(showcore::ValueMode::Set)));
+    showcore::PropertyValue value;
+    if (mode == showcore::ValueMode::Release) {
+        value = showcore::PropertyValue::release();
+    } else if (mode == showcore::ValueMode::ForceZero) {
+        value = showcore::PropertyValue::force_zero();
+    } else {
+        float percent = 0.0F;
+        if (!parse_number(control_text(::GetDlgItem(page, IdLookValue)), percent) ||
+            !std::isfinite(percent) || percent < 0.0F || percent > 100.0F) {
+            set_page_message(
+                Page::Looks, IdLookMessage,
+                "SET ownership needs a value from 0 through 100 percent.", true);
+            return;
+        }
+        value = showcore::PropertyValue::set(percent / 100.0F);
+    }
+    const auto outcome = emberlights::apply_static_look_property(
+        *look_draft_, project_, selected_look_target_id(), property, value);
+    refresh_look_draft_view();
+    set_page_message(
+        Page::Looks,
+        IdLookMessage,
+        static_look_outcome_text("Property ownership", outcome),
+        !outcome);
+}
+
+void Application::remove_static_look_property() {
+    if (!look_draft_.has_value()) {
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto property_data = combo_selected_data(::GetDlgItem(page, IdLookProperty), -1);
+    if (property_data < 0) {
+        return;
+    }
+    const auto outcome = emberlights::remove_static_look_property(
+        *look_draft_,
+        project_,
+        selected_look_target_id(),
+        static_cast<showcore::Property>(property_data));
+    refresh_look_draft_view();
+    set_page_message(
+        Page::Looks,
+        IdLookMessage,
+        static_look_outcome_text("Property removal", outcome),
+        !outcome);
+}
+
+void Application::preview_static_look() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    if (!look_draft_.has_value() || look_draft_->look.assignments.empty()) {
+        set_page_message(
+            Page::Looks, IdLookMessage,
+            "Apply at least one color or property before building a preview.", true);
+        return;
+    }
+    auto draft = *look_draft_;
+    draft.look.name = trim(control_text(::GetDlgItem(page, IdLookName)));
+    if (draft.look.name.empty()) {
+        draft.look.name = "Unsaved Static Look Preview";
+    }
+    if (!parse_number(control_text(::GetDlgItem(page, IdLookFade)), draft.look.fade_ms) ||
+        draft.look.fade_ms > emberlights::kMaximumStaticLookFadeMs) {
+        set_page_message(
+            Page::Looks, IdLookMessage,
+            "Preview needs a crossfade from 0 through 30000 ms.", true);
+        return;
+    }
+    if (draft.look.id.empty()) {
+        draft.look.id = unique_id("preview-look", draft.look.name);
+        draft.source_index.reset();
+    }
+    const auto preview = emberlights::preview_static_look_draft(project_, draft);
+    set_control_text(
+        ::GetDlgItem(page, IdLookPreviewText),
+        emberlights::format_static_look_preview(preview));
+    set_page_message(
+        Page::Looks,
+        IdLookMessage,
+        preview
+            ? "Exact offline DMX frame built. No output adapter was opened."
+            : "Offline preview failed; review the trace and validation errors.",
+        !preview);
 }
 
 void Application::select_autoloop(std::int32_t index) {

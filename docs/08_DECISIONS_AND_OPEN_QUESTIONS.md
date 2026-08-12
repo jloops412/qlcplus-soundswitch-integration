@@ -1,6 +1,6 @@
 # Decisions and Open Questions
 
-Last updated: 2026-08-11.
+Last updated: 2026-08-12.
 
 ## Accepted decisions
 
@@ -74,6 +74,9 @@ Last updated: 2026-08-11.
 | D-066 | Every preview and tagged release packages both supported build hosts: a fully installed-smoke-tested Windows Studio/Live installer and an installed-smoke-tested Linux Runner/tooling DEB plus portable archive. | Cross-platform compilation alone does not prove install layout, runtime dependencies, upgrade/removal identity, or that release artifacts contain runnable binaries. Linux desktop parity is not implied; Windows remains the full V1 launch platform. |
 | D-067 | UI migration begins with a typed toolkit-neutral command/result/state facade over the existing Win32 shell. | G1A routes show start/stop, blackout, work light, Release All, manual BPM/tap, and hazard controls through stable command IDs and explicit outcomes. Current Win32 remains the strangler view; later skins, keyboard, MIDI, and external surfaces must reuse the same commands and state rather than duplicate domain behavior. |
 | D-068 | OS2L startup uses standards-based `_os2l._tcp` discovery first and a reserved no-op VirtualDJ ONINIT action only as the direct-IP fallback. | VirtualDJ is the TCP client, so an EmberLights listener cannot force its direct-IP path to open. Windows DNS-SD advertisement lets VirtualDJ discover and reconnect transparently when supported. The fallback name `EmberLights Keepalive` is explicitly ignored before action routing, unlike the historical `blackout off` workaround, so waking the client cannot cancel an intentional blackout. Listener, discovery, socket-error, and discovery-error states remain separate and observable. |
+| D-069 | Static Scene workflow extends the existing `Look` model through capability-aware authoring; it does not introduce a second scene entity. Full Color explicitly owns every supported RGBWAUV emitter, including zero, plus physical master and modeled strobe safety where available. | Sparse property layering remains valuable for intentional overlays, but a color scene must not leak unwanted emitters or strobe from lower layers. One Look model preserves persistence, playback, MIDI, Autoloop, TrackScript, Undo, and migration compatibility. |
+| D-070 | An RGB picker controls only Red, Green, and Blue until a measured, revisioned fixture calibration exists; White, Amber, and UV remain direct independent emitter values. | A richer picker cannot infer fixture-specific colorimetry, gamma, or emitter extraction honestly. Direct channels provide a ground-truth test surface and avoid surprising physical colors. |
+| D-071 | Unknown or compound fixture functions are quarantined at an evidence-backed safe/default value and hidden from generic Live/Studio sliders. Offline Look preview uses the production compiler/renderer but opens no output adapter. | Treating a program, macro, wheel, switching channel, or color-speed selector as linear can change fixture mode or corrupt intended color. Exact rendered frames and attribution diagnose software semantics without bypassing Runner or being mistaken for physical qualification. |
 
 ## Superseded recommendations
 

@@ -1197,7 +1197,11 @@ void RunnerService::run_scheduler() noexcept {
         };
 
         auto clear_static_look = [&]() noexcept {
-            runtime.static_look.clear(now_ms, 100U, engine.layers());
+            const auto fade_ms = runtime.selected_look >= 0
+                ? show->look_fade_ms(
+                    static_cast<std::size_t>(runtime.selected_look))
+                : 100U;
+            runtime.static_look.clear(now_ms, fade_ms, engine.layers());
             runtime.selected_look = -1;
         };
 
@@ -1387,8 +1391,7 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             case showcore::ActionType::ClearLook:
                 if (active) {
-                    runtime.static_look.clear(now_ms, 100U, engine.layers());
-                    runtime.selected_look = -1;
+                    clear_static_look();
                 }
                 break;
             case showcore::ActionType::ClearAutoloop:

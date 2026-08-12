@@ -1,5 +1,6 @@
 #pragma once
 
+#include "emberlights/fixture_profile_ids.hpp"
 #include "emberlights/project.hpp"
 #include "showcore/soundswitch_micro.hpp"
 #include "showcore/types.hpp"
@@ -8,9 +9,6 @@
 #include <cstdint>
 
 namespace emberlights {
-
-inline constexpr std::string_view kBothLightingIr4SixChannelProfileId =
-    "builtin.both-lighting.ir-4.6ch";
 
 enum class Ir4QualificationError : std::uint8_t {
     None,

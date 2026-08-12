@@ -1,5 +1,7 @@
 #include "emberlights/qlc_fixture_import.hpp"
 
+#include "emberlights/file_identity.hpp"
+
 #include "showcore/fixture.hpp"
 #include "showcore/fixture_library.hpp"
 
@@ -513,6 +515,9 @@ template <typename Value>
     return result;
 }
 
+// Compact deterministic suffixes keep generated stable IDs within the fixed
+// profile text limit. They are identifiers only; source evidence uses the full
+// SHA-256 digest recorded in source_revision below.
 [[nodiscard]] std::uint64_t fnv1a(std::string_view value) noexcept {
     std::uint64_t hash = 1469598103934665603ULL;
     for (const auto character : value) {
@@ -1376,22 +1381,19 @@ QlcFixtureImportResult import_qlc_fixture(
     }
 
     std::string creator_name = "QLC+";
-    std::string creator_version = "unknown";
     if (const auto* creator = first_child(root, "Creator"); creator != nullptr) {
         const auto parsed_name = child_text(*creator, "Name");
-        const auto parsed_version = child_text(*creator, "Version");
         if (!parsed_name.empty()) creator_name = parsed_name;
-        if (!parsed_version.empty()) creator_version = parsed_version;
     }
     if (lower_copy(creator_name).starts_with("ofl")) {
         result.source = showcore::FixtureProfileSource::OpenFixtureLibrary;
     }
-    result.source_revision = std::string(kQlcFixtureAdapterVersion) + "@" +
-        slug_component(creator_name, 18U) + "-" + slug_component(creator_version, 24U) + "#" +
-        hex64(fnv1a(qxf)).substr(0U, 12U);
-    if (result.source_revision.size() > showcore::kFixtureProfileTextLength) {
-        result.source_revision.resize(showcore::kFixtureProfileTextLength);
-    }
+    // Source identity must survive catalog refreshes and same-ID/different-file
+    // comparisons. The old 12-hex FNV fragment was collision-prone and could
+    // not serve as evidence. Creator metadata still selects OFL provenance;
+    // the full source digest now occupies the revision field.
+    result.source_revision = std::string(kQlcFixtureAdapterVersion) +
+        "#sha256:" + sha256_text(qxf);
 
     std::unordered_map<std::string, QlcChannel> channels;
     bool duplicate_channel_name = false;

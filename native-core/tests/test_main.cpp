@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
@@ -459,6 +460,10 @@ void test_qlc_fixture_import() {
     CHECK(imported.profiles.size() == 1U);
     CHECK(imported.error_count() >= 1U);
     CHECK(imported.warning_count() >= 2U);
+    CHECK(imported.source_revision ==
+        std::string(emberlights::kQlcFixtureAdapterVersion) +
+            "#sha256:" + emberlights::sha256_text(qxf));
+    CHECK(imported.source_revision.size() <= showcore::kFixtureProfileTextLength);
     const auto& profile = imported.profiles[0];
     CHECK(profile.source == showcore::FixtureProfileSource::QlcPlus);
     CHECK(profile.mode == "Safe 5ch");
@@ -2824,23 +2829,31 @@ void test_ir4_fixture_profile_upgrade() {
         Property::White,
         Property::Amber,
         Property::UV}};
-    constexpr std::array<Property, 10U> expected_ten{{
-        Property::Intensity,
-        Property::Red,
-        Property::Green,
-        Property::Blue,
-        Property::White,
-        Property::Amber,
-        Property::UV,
-        Property::Strobe,
-        Property::Custom1,
-        Property::Custom2}};
     CHECK(six_channel.id == emberlights::kBothLightingBoIr4SixChannelProfileId);
     CHECK(ten_channel.id == emberlights::kBothLightingBoIr4TenChannelProfileId);
     CHECK(six_channel.mode.find("manual-matched") != std::string::npos);
     CHECK(ten_channel.mode.find("manual-matched") != std::string::npos);
     check_manual_profile(six_channel, expected_six);
-    check_manual_profile(ten_channel, expected_ten);
+    CHECK(ten_channel.footprint == 10U);
+    CHECK(ten_channel.channels.size() == 10U);
+    constexpr std::array<Property, 7U> expected_ten_linear{{
+        Property::Intensity, Property::Red, Property::Green, Property::Blue,
+        Property::White, Property::Amber, Property::UV}};
+    for (std::size_t index = 0U; index < expected_ten_linear.size(); ++index) {
+        CHECK(ten_channel.channels[index].property == expected_ten_linear[index]);
+        CHECK(ten_channel.channels[index].encoding == ChannelEncoding::Linear8);
+        CHECK(ten_channel.channels[index].coarse_offset == index);
+    }
+    CHECK(ten_channel.channels[7].property == Property::Strobe);
+    CHECK(ten_channel.channels[7].encoding == ChannelEncoding::Ranged8);
+    CHECK(ten_channel.channels[7].dmx_min == 1U);
+    CHECK(ten_channel.channels[7].dmx_max == 255U);
+    CHECK(ten_channel.channels[7].default_value == 0U);
+    for (std::size_t index = 8U; index < 10U; ++index) {
+        CHECK(ten_channel.channels[index].property == Property::Count);
+        CHECK(ten_channel.channels[index].encoding == ChannelEncoding::Constant8);
+        CHECK(ten_channel.channels[index].default_value == 0U);
+    }
 
     const auto make_stale_profile = [] {
         emberlights::FixtureProfileDefinition profile;
@@ -2971,8 +2984,6 @@ void test_ir4_fixture_profile_upgrade() {
     auto upgraded = make_upgrade_project();
     const auto upgrade_plan = emberlights::plan_known_fixture_profile_upgrades(upgraded);
     auto expected = upgraded;
-    expected.fixture_profiles.push_back(ten_channel);
-    expected.fixture_profiles.push_back(six_channel);
     for (auto& fixture : expected.fixtures) {
         if (fixture.profile_id == "soundswitch.both-lighting.bo-ir4.mode1") {
             fixture.profile_id = ten_channel.id;
@@ -3012,7 +3023,7 @@ void test_ir4_fixture_profile_upgrade() {
     const auto report = emberlights::serialize_fixture_profile_upgrade_report(
         applied, "input.emberlights", "output.emberlights", "abc123");
     CHECK(report.find("\"outputSha256\": \"abc123\"") != std::string::npos);
-    CHECK(report.find("Both Lighting IR-4 User Manual, printed page 8") !=
+    CHECK(report.find("Both Lighting IR-4 User Manual, PDF page 5") !=
         std::string::npos);
     CHECK(report.find("\"affectedFixtureIds\": [\"ir4-a\", \"ir4-b\"]") !=
         std::string::npos);
