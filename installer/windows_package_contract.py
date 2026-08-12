@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import struct
 import sys
 import tempfile
 from typing import Any, Iterable
@@ -19,6 +20,8 @@ FORMAT_VERSION = 1
 MANIFEST_NAME = "EmberLights-Windows-payload-manifest.json"
 MAX_FILES = 4096
 MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+MAX_PE_BYTES = 512 * 1024 * 1024
+PE_MACHINE_AMD64 = 0x8664
 
 REQUIRED_FILES = (
     "EmberLights.exe",
@@ -62,6 +65,13 @@ _WINDOWS_RESERVED_NAMES = {
     *(f"COM{index}" for index in range(1, 10)),
     *(f"LPT{index}" for index in range(1, 10)),
 }
+_PORTABLE_RUNTIME_DLL_PATTERN = re.compile(
+    r"^(?:"
+    r"libc\+\+|libc\+\+abi|libunwind|libstdc\+\+-6|libwinpthread-1|"
+    r"libgcc_s_[^.]+|vcruntime[0-9][^.]*|msvcp[0-9][^.]*|concrt[0-9][^.]*"
+    r")\.dll$",
+    re.IGNORECASE,
+)
 
 
 class ContractError(RuntimeError):
@@ -159,11 +169,135 @@ def _assert_required(paths: set[str]) -> None:
         raise ContractError("payload is missing required files: " + ", ".join(missing))
 
 
+def _read_pe_imports(path: Path) -> tuple[int, set[str]] | None:
+    """Return the PE machine and normal import names, or None for a non-PE file."""
+
+    with path.open("rb") as source:
+        prefix = source.read(64)
+        if len(prefix) < 2 or prefix[:2] != b"MZ":
+            return None
+        size = path.stat().st_size
+        if size > MAX_PE_BYTES:
+            raise ContractError(f"PE image exceeds the {MAX_PE_BYTES}-byte limit: {path}")
+        source.seek(0)
+        image = source.read()
+
+    def unpack(fmt: str, offset: int, label: str) -> tuple[int, ...]:
+        width = struct.calcsize(fmt)
+        if offset < 0 or offset + width > len(image):
+            raise ContractError(f"truncated PE {label}: {path}")
+        return struct.unpack_from(fmt, image, offset)
+
+    pe_offset = unpack("<I", 0x3C, "DOS header")[0]
+    if pe_offset + 24 > len(image) or image[pe_offset : pe_offset + 4] != b"PE\0\0":
+        raise ContractError(f"invalid PE signature: {path}")
+    machine, section_count = unpack("<HH", pe_offset + 4, "COFF header")
+    optional_size = unpack("<H", pe_offset + 20, "COFF optional-header size")[0]
+    optional_offset = pe_offset + 24
+    optional_end = optional_offset + optional_size
+    if optional_end > len(image):
+        raise ContractError(f"truncated PE optional header: {path}")
+    magic = unpack("<H", optional_offset, "optional-header magic")[0]
+    if magic == 0x20B:
+        data_directory_offset = optional_offset + 112
+    elif magic == 0x10B:
+        data_directory_offset = optional_offset + 96
+    else:
+        raise ContractError(f"unsupported PE optional-header magic 0x{magic:04x}: {path}")
+    if data_directory_offset + 16 > optional_end:
+        raise ContractError(f"PE import directory is outside the optional header: {path}")
+    import_rva, import_size = unpack(
+        "<II", data_directory_offset + 8, "import directory"
+    )
+
+    section_offset = optional_end
+    sections: list[tuple[int, int, int, int]] = []
+    if section_count > 96:
+        raise ContractError(f"PE section count exceeds the contract limit: {path}")
+    for index in range(section_count):
+        header = section_offset + index * 40
+        virtual_size, virtual_address, raw_size, raw_offset = unpack(
+            "<IIII", header + 8, "section table"
+        )
+        if raw_offset + raw_size > len(image):
+            raise ContractError(f"PE section extends beyond the image: {path}")
+        sections.append((virtual_address, virtual_size, raw_offset, raw_size))
+
+    def rva_to_offset(rva: int, label: str) -> int:
+        for virtual_address, virtual_size, raw_offset, raw_size in sections:
+            extent = max(virtual_size, raw_size)
+            if virtual_address <= rva < virtual_address + extent:
+                delta = rva - virtual_address
+                if delta >= raw_size or raw_offset + delta >= len(image):
+                    break
+                return raw_offset + delta
+        raise ContractError(f"PE {label} RVA is not backed by file data: {path}")
+
+    if import_rva == 0 and import_size == 0:
+        return machine, set()
+    if import_rva == 0 or import_size < 20:
+        raise ContractError(f"PE import directory is malformed: {path}")
+    descriptor_offset = rva_to_offset(import_rva, "import directory")
+    descriptor_limit = min(import_size // 20, 4096)
+    imports: set[str] = set()
+    terminated = False
+    for index in range(descriptor_limit):
+        descriptor = unpack(
+            "<IIIII", descriptor_offset + index * 20, "import descriptor"
+        )
+        if descriptor == (0, 0, 0, 0, 0):
+            terminated = True
+            break
+        name_rva = descriptor[3]
+        name_offset = rva_to_offset(name_rva, "import name")
+        name_end = image.find(b"\0", name_offset, min(len(image), name_offset + 260))
+        if name_end < 0:
+            raise ContractError(f"PE import name is unterminated or too long: {path}")
+        try:
+            name = image[name_offset:name_end].decode("ascii").casefold()
+        except UnicodeDecodeError as error:
+            raise ContractError(f"PE import name is not ASCII: {path}") from error
+        if not name or "/" in name or "\\" in name:
+            raise ContractError(f"PE import name is invalid: {path}")
+        imports.add(name)
+    if not terminated:
+        raise ContractError(f"PE import table has no bounded terminator: {path}")
+    return machine, imports
+
+
+def _assert_windows_runtime_closure(payload: list[tuple[str, Path]]) -> None:
+    """Require x64 images and every non-system toolchain runtime beside its importer."""
+
+    casefolded_paths = {relative.casefold() for relative, _ in payload}
+    for relative, candidate in payload:
+        if candidate.suffix.casefold() not in (".exe", ".dll"):
+            continue
+        pe = _read_pe_imports(candidate)
+        if pe is None:
+            continue
+        machine, imports = pe
+        if machine != PE_MACHINE_AMD64:
+            raise ContractError(
+                f"Windows payload image is not x86-64 (machine=0x{machine:04x}): {relative}"
+            )
+        parent = PurePosixPath(relative).parent
+        for imported in sorted(imports):
+            if not _PORTABLE_RUNTIME_DLL_PATTERN.fullmatch(imported):
+                continue
+            sibling = (parent / imported).as_posix()
+            if sibling.casefold() not in casefolded_paths:
+                raise ContractError(
+                    f"Windows payload image {relative!r} imports unbundled runtime "
+                    f"{imported!r}; link it statically or stage it beside the image"
+                )
+
+
 def create_manifest(root: Path, version: str, commit: str) -> dict[str, Any]:
     root = _root_directory(root)
     version, commit = _validate_identity(version, commit)
     payload = _payload_files(root)
     _assert_required({relative for relative, _ in payload})
+    _assert_windows_runtime_closure(payload)
     manifest: dict[str, Any] = {
         "format": FORMAT,
         "formatVersion": FORMAT_VERSION,
@@ -314,6 +448,7 @@ def verify_manifest(
         raise ContractError(
             f"payload tree differs from manifest; missing={missing_files}, unexpected={extras}"
         )
+    _assert_windows_runtime_closure(list(actual.items()))
     for relative, entry in listed.items():
         candidate = actual[relative]
         actual_size = candidate.stat().st_size

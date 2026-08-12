@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import struct
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,24 @@ class WindowsPackageContractTests(unittest.TestCase):
             destination = root / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(f"payload-{index}-{relative}\n".encode("utf-8"))
+
+    def write_minimal_pe(self, path: Path, imported_dll: str, machine: int = 0x8664) -> None:
+        image = bytearray(0x400)
+        image[:2] = b"MZ"
+        struct.pack_into("<I", image, 0x3C, 0x80)
+        image[0x80:0x84] = b"PE\0\0"
+        struct.pack_into("<HHIIIHH", image, 0x84, machine, 1, 0, 0, 0, 0xF0, 0x22)
+        optional = 0x98
+        struct.pack_into("<H", image, optional, 0x20B)
+        struct.pack_into("<I", image, optional + 108, 16)
+        struct.pack_into("<II", image, optional + 120, 0x1000, 40)
+        section = optional + 0xF0
+        image[section : section + 8] = b".idata\0\0"
+        struct.pack_into("<IIII", image, section + 8, 0x200, 0x1000, 0x200, 0x200)
+        struct.pack_into("<IIIII", image, 0x200, 0, 0, 0, 0x1040, 0)
+        encoded_name = imported_dll.encode("ascii") + b"\0"
+        image[0x240 : 0x240 + len(encoded_name)] = encoded_name
+        path.write_bytes(image)
 
     def test_manifest_is_deterministic_and_round_trips(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -41,6 +60,27 @@ class WindowsPackageContractTests(unittest.TestCase):
             self.make_stage(root)
             (root / contract.REQUIRED_FILES[-1]).unlink()
             with self.assertRaisesRegex(contract.ContractError, "missing required"):
+                contract.create_manifest(root, VERSION, COMMIT)
+
+    def test_create_rejects_unbundled_cross_toolchain_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_stage(root)
+            self.write_minimal_pe(root / "EmberLights.exe", "libc++.dll")
+            with self.assertRaisesRegex(contract.ContractError, "unbundled runtime"):
+                contract.create_manifest(root, VERSION, COMMIT)
+            (root / "libc++.dll").write_bytes(b"bundled runtime")
+            contract.create_manifest(root, VERSION, COMMIT)
+
+    def test_create_accepts_system_import_and_rejects_non_x64_image(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_stage(root)
+            application = root / "EmberLights.exe"
+            self.write_minimal_pe(application, "KERNEL32.dll")
+            contract.create_manifest(root, VERSION, COMMIT)
+            self.write_minimal_pe(application, "KERNEL32.dll", machine=0x14C)
+            with self.assertRaisesRegex(contract.ContractError, "not x86-64"):
                 contract.create_manifest(root, VERSION, COMMIT)
 
     def test_verify_rejects_payload_mutation(self) -> None:
