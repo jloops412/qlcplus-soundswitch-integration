@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-12",
+  "product": "VirtualDJ",
+  "authorityPolicy": "official-public-documentation-only",
+  "purpose": "Clean-room architectural and migration evidence for EmberLights Skins Platform V2.",
+  "sources": [
+    {
+      "id": "vdj.skin-sdk",
+      "title": "Skin SDK",
+      "url": "https://virtualdj.com/wiki/skin%20sdk%20.html",
+      "sourceClass": "official-vdjpedia",
+      "artifactKinds": [
+        "skin-xml",
+        "skin-assets",
+        "skin-preview"
+      ],
+      "observations": [
+        "Skin source uses an XML root with declared dimensions and metadata.",
+        "Visual elements and containers are represented as XML children.",
+        "Referenced graphics and preview metadata are part of the documented skin model."
+      ],
+      "emberUses": [
+        "bounded read-only source probe",
+        "designer artboard/reference import",
+        "layout/component migration evidence",
+        "asset/provenance inventory"
+      ],
+      "prohibitedUses": [
+        "execution",
+        "canonical Ember runtime schema",
+        "proprietary asset redistribution"
+      ]
+    },
+    {
+      "id": "vdj.interface-settings",
+      "title": "Interface Settings",
+      "url": "https://virtualdj.com/manuals/virtualdj/settings/interface.html",
+      "sourceClass": "official-user-manual",
+      "artifactKinds": [
+        "installed-skin",
+        "skin-preview",
+        "editable-skin-export"
+      ],
+      "observations": [
+        "Users can select installed interfaces/skins and view metadata/previews.",
+        "The application offers an export/edit path for a selected skin."
+      ],
+      "emberUses": [
+        "artifact manager",
+        "side-by-side versions",
+        "fork/edit workflow",
+        "preview and provenance metadata"
+      ]
+    },
+    {
+      "id": "vdj.custom-buttons",
+      "title": "Custom Buttons",
+      "url": "https://virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/custombuttons.html",
+      "sourceClass": "official-user-manual",
+      "artifactKinds": [
+        "custom-button",
+        "custom-dial",
+        "vdjscript-action"
+      ],
+      "observations": [
+        "Users assign actions through categorized, described, auto-filled editing UI.",
+        "Buttons can have labels and multiple assigned action presets."
+      ],
+      "emberUses": [
+        "Command/Action Explorer",
+        "compatible action filtering",
+        "custom control editor",
+        "action preset management"
+      ]
+    },
+    {
+      "id": "vdj.pads-editor",
+      "title": "Pads Editor",
+      "url": "https://virtualdj.com/manuals/virtualdj/editors/padseditor.html",
+      "sourceClass": "official-user-manual",
+      "artifactKinds": [
+        "pad-page",
+        "pad-action",
+        "shift-action",
+        "pressure-action",
+        "pad-feedback-color",
+        "page-parameter",
+        "pad-menu"
+      ],
+      "observations": [
+        "Pad pages can be created, hidden, favorited, edited, and deleted.",
+        "Pads support ordinary/shift and documented pressure/color behavior.",
+        "Pages can expose parameters and menus.",
+        "Documented layouts support 8-pad and 16-pad modes with shift variants."
+      ],
+      "emberUses": [
+        "custom pages and pad banks",
+        "modifier/shift layers",
+        "typed page-local context",
+        "pressure/value entry points where supported",
+        "selector-derived feedback"
+      ],
+      "prohibitedUses": [
+        "fixed Ember pad capacity",
+        "opaque script execution"
+      ]
+    },
+    {
+      "id": "vdj.vdjscript",
+      "title": "VDJScript",
+      "url": "https://virtualdj.com/wiki/VDJScript%29",
+      "sourceClass": "official-vdjpedia",
+      "artifactKinds": [
+        "action-language",
+        "skin-action",
+        "keyboard-action",
+        "controller-action"
+      ],
+      "observations": [
+        "The same action language is used by skins, keyboard shortcuts, and controller mappings.",
+        "The language supports simple commands and compound macros."
+      ],
+      "emberUses": [
+        "shared Ember Action vocabulary",
+        "visual Action Graph",
+        "optional expert text over canonical IR",
+        "cross-surface equivalence testing"
+      ],
+      "prohibitedUses": [
+        "executing VDJScript",
+        "general-purpose scripting in Perform",
+        "untyped hidden globals"
+      ]
+    },
+    {
+      "id": "vdj.verb-catalog",
+      "title": "List of VDJScript verbs",
+      "url": "https://virtualdj.com/manuals/virtualdj/appendix/vdjscriptverbs.html",
+      "sourceClass": "official-user-manual",
+      "artifactKinds": [
+        "action-catalog"
+      ],
+      "observations": [
+        "A broad documented action catalog feeds editor and mapping workflows."
+      ],
+      "emberUses": [
+        "generated Command/State/Component/Capability Explorer",
+        "versioned source-to-canonical mapping rules"
+      ]
+    },
+    {
+      "id": "vdj.controller-overview",
+      "title": "Controller Developers",
+      "url": "https://virtualdj.com/wiki/Controller%20Developers",
+      "sourceClass": "official-vdjpedia",
+      "artifactKinds": [
+        "controller-definition-xml",
+        "controller-mapper-xml"
+      ],
+      "observations": [
+        "Controller definition and action mapping are separate files.",
+        "Definition names physical MIDI/HID zones; mapping associates those names with actions."
+      ],
+      "emberUses": [
+        "separate logical device definition and mapping profile",
+        "shared action registry",
+        "source adapter boundary"
+      ]
+    },
+    {
+      "id": "vdj.controller-mapper",
+      "title": "Controller Mapping File v8",
+      "url": "https://virtualdj.com/wiki/ControllerMappingFile_v8.html",
+      "sourceClass": "official-vdjpedia",
+      "artifactKinds": [
+        "controller-mapper-xml"
+      ],
+      "observations": [
+        "Mapper XML identifies a device/version and maps named controls to VDJScript actions."
+      ],
+      "emberUses": [
+        "read-only mapper parser",
+        "controller-profile binding proposal",
+        "source action preservation",
+        "versioned rule evidence"
+      ]
+    },
+    {
+      "id": "vdj.controller-midi-definition",
+      "title": "MIDI Controller Definition",
+      "url": "https://virtualdj.com/wiki/controllerdefinitionmidi.html",
+      "sourceClass": "official-vdjpedia",
+      "artifactKinds": [
+        "controller-definition-xml",
+        "midi-input-definition",
+        "midi-feedback-definition",
+        "physical-layout-metadata"
+      ],
+      "observations": [
+        "Definition XML can describe buttons, sliders, high-resolution values, encoders, LEDs, colors, displays, SysEx, matching metadata, and pad geometry."
+      ],
+      "emberUses": [
+        "typed input capability proposal",
+        "resolution and relative-dialect preservation",
+        "feedback capability proposal",
+        "physical-layout metadata",
+        "machine-identity redaction"
+      ],
+      "prohibitedUses": [
+        "unreviewed raw SysEx execution",
+        "portable serial/device identity leakage"
+      ]
+    }
+  ],
+  "migrationStatuses": [
+    "exact",
+    "translated",
+    "approximated",
+    "opaque",
+    "unsupported",
+    "conflicted"
+  ],
+  "globalRules": [
+    "Source files remain immutable and are never executed.",
+    "Every parsed item receives a source pointer, adapter/rule version, status, diagnostic, and proposed target.",
+    "Unknown action or visual semantics remain opaque or unsupported.",
+    "Responsive conversion is classified separately from exact source geometry parsing.",
+    "User-owned assets require provenance and license review before redistribution.",
+    "CI uses synthetic or explicitly redistributable fixtures only."
+  ]
+}
