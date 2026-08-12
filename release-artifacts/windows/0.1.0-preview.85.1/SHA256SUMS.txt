@@ -1,0 +1,3 @@
+b2d28dda1c2cdc7bec124d42900e4839d2fdf3413126a551b264148a1eb719ed  EmberLights-0.1.0-preview.85.1-Portable.zip
+21ff42cc3e07fd9f23feff021ce9e934640f8821ea0e950ac8d0c357d1ed2247  EmberLights-0.1.0-preview.85.1-Setup.exe
+29b113fa7460fc36000d2a846af679ecdfc9328cf7dea4e4ac7856da96edbf5e  EmberLights-Windows-payload-manifest.json

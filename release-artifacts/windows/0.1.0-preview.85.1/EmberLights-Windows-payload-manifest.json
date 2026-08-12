@@ -1,0 +1,106 @@
+{
+  "format": "emberlights-windows-payload-manifest",
+  "formatVersion": 1,
+  "product": "EmberLights",
+  "platform": "windows-x64",
+  "version": "0.1.0-preview.85.1",
+  "commit": "8c6f803dc92ec98c182d9666e01c591b90fe98fa",
+  "safetyBoundary": {
+    "releaseClaim": "testing-preview",
+    "defaultOutput": "disabled",
+    "selfTests": "non-outputting",
+    "physicalQualification": "not-claimed"
+  },
+  "files": [
+    {
+      "path": "docs/15_WINDOWS_V1_TESTING.md",
+      "size": 12629,
+      "sha256": "56f1590ea4ff33c077116d9872903094f4c0b25639bc5c36cd9ffbb7b9263496"
+    },
+    {
+      "path": "docs/16_QLC_FIXTURE_IMPORT.md",
+      "size": 3003,
+      "sha256": "26161180a2a823aa5c53141e05003e50a032ea0e19ed8675e75fbbf8b301ff28"
+    },
+    {
+      "path": "docs/17_PRODUCTION_RELEASE_GATE.md",
+      "size": 7832,
+      "sha256": "467cb5aa03e974bbe9e498c3c625c4a956290b68b569c58c2bdd736768f01183"
+    },
+    {
+      "path": "docs/18_SOUNDSWITCH_MIGRATION.md",
+      "size": 5743,
+      "sha256": "0157605f00e532e5c6e6530acda28992584c2a796cee6357c361c0fdbeb4a43d"
+    },
+    {
+      "path": "docs/20_CONTROL_ONE_DMX_QUALIFICATION.md",
+      "size": 3683,
+      "sha256": "accf4bd8b352c803afd8ca9e398895f1cdd0995c1b447da546b62625ffc03eeb"
+    },
+    {
+      "path": "docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md",
+      "size": 2196,
+      "sha256": "ce6f3957ca4ea918a41f8fb0ff47873a420488c4dcae299f9360c7682a61161a"
+    },
+    {
+      "path": "docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md",
+      "size": 8193,
+      "sha256": "868b2db0cd64abf31099b93ef4be6ba424144eb4e193b41131c4593febbe578f"
+    },
+    {
+      "path": "docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md",
+      "size": 2625,
+      "sha256": "934f87fde12c03e9550e2384a686040c8b404e01569722f822eafa226957e593"
+    },
+    {
+      "path": "docs/MORNING_HARDWARE_TEST.md",
+      "size": 7301,
+      "sha256": "b5ba677ca7d4df3beff779bd03e097e1f820648f263db2fb9308e16a1b401070"
+    },
+    {
+      "path": "docs/README.md",
+      "size": 5335,
+      "sha256": "64b562f22801acb9db9a79f0ccaaae30eff739cee87e15adac1ce97466cbeb3a"
+    },
+    {
+      "path": "docs/THIRD_PARTY_NOTICES.md",
+      "size": 1761,
+      "sha256": "d4f3874d6ffa6b40ba849e96618b6c61684842b7d39b3e9e3c640f4b8eaa6649"
+    },
+    {
+      "path": "EmberLights.exe",
+      "size": 4465152,
+      "sha256": "04d9959f220762d91fa73662a92b56ad2e7db2ad92bb8ede68aa1ba06e7de837"
+    },
+    {
+      "path": "Templates/EmberLights-2026-V1-Template.emberlights",
+      "size": 281476,
+      "sha256": "e3b2e940da59ad5a1d668c21d362235f6d415af3069cdcff9fefebcb96a29f76"
+    },
+    {
+      "path": "Tools/emberlights_migrate.exe",
+      "size": 3230720,
+      "sha256": "d67eca855155d30e7b2bcbf0778e98673b09331c3d271a52254a06733985ff54"
+    },
+    {
+      "path": "Tools/emberlights_qualify.exe",
+      "size": 3062784,
+      "sha256": "cfd2b240d517323791114796a5e662b9bf67813645cd53f0f841a79d57a93bee"
+    },
+    {
+      "path": "Tools/midi_capture.exe",
+      "size": 1589760,
+      "sha256": "b2a61cf5a10380dc7b34c5f889b7b2f8d2c2f1eeb3e43e46587591e8e4bb4636"
+    },
+    {
+      "path": "Tools/soundswitch_control_one_probe.exe",
+      "size": 1490432,
+      "sha256": "760ec673590e1113e83792e8565f714832b9827d3b82d6f456793169dd995e46"
+    },
+    {
+      "path": "Tools/soundswitch_micro_probe.exe",
+      "size": 3401728,
+      "sha256": "32419aeb1fa4f7c417bf6f2cfb474267a54203061904def8388b1116c37db26c"
+    }
+  ]
+}
