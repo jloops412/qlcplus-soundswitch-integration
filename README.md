@@ -47,4 +47,6 @@ The current milestone is a coherent installable Windows V1 testing build. The na
 
 Every push is compiled and tested on Windows and Linux. The Windows packaging job stages a self-contained portable build, creates an Inno Setup installer, installs it, and launches the installed GUI and hardware probe smoke tests. Linux packaging creates an installable Debian package and portable archive, installs the Debian package, runs the installed Runner/qualification/migration/MIDI smoke tests, and removes it cleanly. Tagged commits publish both platforms with checksums and release manifests.
 
+`installer/EmberLights.nsi` is the limited-beta offline packaging fallback when the hosted Windows runner is unavailable; `installer/EmberLights.iss` and the installed-smoke workflow remain the authoritative release path.
+
 Do not use this at a live event until the acceptance gates in `docs/04_V1_SCOPE_AND_ACCEPTANCE.md` are satisfied.
