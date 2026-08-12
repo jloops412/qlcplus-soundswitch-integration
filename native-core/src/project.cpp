@@ -1,7 +1,8 @@
 #include "emberlights/project.hpp"
 
 #include "emberlights/file_identity.hpp"
-#include "emberlights/hardware_qualification.hpp"
+#include "emberlights/fixture_capabilities.hpp"
+#include "emberlights/fixture_profile_upgrade.hpp"
 
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/fixture_library.hpp"
@@ -200,18 +201,8 @@ ProjectDocument make_starter_project() {
          showcore::Property::Green, showcore::Property::Blue,
          showcore::Property::White, showcore::Property::Amber,
          showcore::Property::UV}));
-    auto ir4 = make_profile(
-        std::string(kBothLightingIr4SixChannelProfileId),
-        "IR-4",
-        "6 channel",
-        {showcore::Property::Red, showcore::Property::Green,
-         showcore::Property::Blue, showcore::Property::White,
-         showcore::Property::Amber, showcore::Property::UV});
-    ir4.manufacturer = "Both Lighting";
-    ir4.model = "BO-IR4 LED Mini Spotlight";
-    ir4.name = "Both Lighting BO-IR4 LED Mini Spotlight (6 channel)";
-    ir4.source_revision = "BL_IR-4_BO-IR4-manual-2023";
-    project.fixture_profiles.push_back(std::move(ir4));
+    project.fixture_profiles.push_back(make_both_lighting_bo_ir4_6ch_profile());
+    project.fixture_profiles.push_back(make_both_lighting_bo_ir4_10ch_profile());
     return project;
 }
 
@@ -426,6 +417,10 @@ ProjectValidation validate_project(const ProjectDocument& project) {
         add_issue(result, ProjectIssueSeverity::Error, "groups.capacity", project.id,
                   "The project exceeds the compiled fixture-group capacity.");
     }
+    if (project.looks.size() > kMaximumStaticLooks) {
+        add_issue(result, ProjectIssueSeverity::Error, "looks.capacity", project.id,
+                  "The project exceeds the compiled 256 Static Look capacity.");
+    }
 
     std::unordered_map<std::string_view, const FixtureProfileDefinition*> profiles;
     std::size_t total_channels = 0;
@@ -434,6 +429,15 @@ ProjectValidation validate_project(const ProjectDocument& project) {
             add_issue(result, ProjectIssueSeverity::Error, "profile.id", profile.id,
                       "Fixture-profile IDs must be unique, non-empty, and 96 characters or fewer.");
             continue;
+        }
+        if (!valid_identifier(profile.manufacturer) ||
+            !valid_identifier(profile.model) ||
+            !valid_identifier(profile.mode) ||
+            !valid_identifier(profile.name) ||
+            !valid_identifier(profile.source_revision) ||
+            profile.source == showcore::FixtureProfileSource::Unknown) {
+            add_issue(result, ProjectIssueSeverity::Error, "profile.metadata", profile.id,
+                      "Fixture profile metadata, source, and revision must be present and 96 characters or fewer.");
         }
         total_channels += profile.channels.size();
         std::vector<showcore::ChannelMapping> channels;
@@ -530,6 +534,7 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     }
 
     std::unordered_set<std::string_view> look_ids;
+    std::unordered_set<std::string_view> look_names;
     std::size_t assignment_count = 0;
     for (const auto& look : project.looks) {
         if (!valid_identifier(look.id) || !look_ids.insert(look.id).second) {
@@ -540,10 +545,23 @@ ProjectValidation validate_project(const ProjectDocument& project) {
             add_issue(result, ProjectIssueSeverity::Error, "look.empty", look.id,
                       "A Static Look must contain at least one fixture property.");
         }
+        if (look.name.empty() || look.name.size() > kMaximumStaticLookNameLength) {
+            add_issue(result, ProjectIssueSeverity::Error, "look.name", look.id,
+                      "A Static Look needs a display name of 255 characters or fewer.");
+        } else if (!look_names.insert(look.name).second) {
+            add_issue(result, ProjectIssueSeverity::Warning, "look.nameDuplicate", look.id,
+                      "Static Look names should be unique so name-based control is unambiguous.");
+        }
+        if (look.fade_ms > kMaximumStaticLookFadeMs) {
+            add_issue(result, ProjectIssueSeverity::Error, "look.fade", look.id,
+                      "Static Look fade must be between 0 and 30000 milliseconds.");
+        }
         assignment_count += look.assignments.size();
         std::unordered_set<std::string> assigned;
+        bool owns_a_value = false;
         for (const auto& assignment : look.assignments) {
-            if (fixtures.find(assignment.fixture_id) == fixtures.end()) {
+            const auto fixture = fixtures.find(assignment.fixture_id);
+            if (fixture == fixtures.end()) {
                 add_issue(result, ProjectIssueSeverity::Error, "look.fixture", look.id,
                           "Static Look references a missing fixture.");
             }
@@ -552,7 +570,22 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                  !finite_normalized(assignment.value.value))) {
                 add_issue(result, ProjectIssueSeverity::Error, "look.value", look.id,
                           "Static Look contains an invalid property value.");
+            } else if (fixture != fixtures.end()) {
+                const auto& fixture_definition = project.fixtures[fixture->second];
+                const auto profile = profiles.find(fixture_definition.profile_id);
+                if (profile != profiles.end() &&
+                    !fixture_profile_supports_property(
+                        *profile->second, assignment.property)) {
+                    add_issue(result, ProjectIssueSeverity::Error,
+                              "look.unsupportedProperty", look.id,
+                              "Static Look assigns " +
+                                  std::string(property_name(assignment.property)) +
+                                  " to fixture " + assignment.fixture_id +
+                                  ", but its profile does not implement that property.");
+                }
             }
+            owns_a_value = owns_a_value ||
+                assignment.value.mode != showcore::ValueMode::Release;
             const auto key = assignment.fixture_id + ":" +
                 std::string(property_name(assignment.property));
             if (!assigned.insert(key).second) {
@@ -560,8 +593,51 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                           "Static Look assigns the same fixture property more than once.");
             }
         }
+        if (!look.assignments.empty() && !owns_a_value) {
+            add_issue(result, ProjectIssueSeverity::Warning, "look.noOp", look.id,
+                      "Every Static Look assignment is RELEASE, so activating it changes no output.");
+        }
+
+        // Physical master channels are independent from emitter properties in
+        // the semantic renderer. Warn when a look can therefore compile but
+        // leave a fixture closed, which is especially important for IR-4 10CH.
+        for (const auto& fixture : project.fixtures) {
+            const auto profile = profiles.find(fixture.profile_id);
+            if (profile == profiles.end() ||
+                !fixture_profile_supports_property(
+                    *profile->second, showcore::Property::Intensity)) {
+                continue;
+            }
+            const auto emitter_on = std::any_of(
+                look.assignments.begin(), look.assignments.end(),
+                [&](const auto& assignment) {
+                    return assignment.fixture_id == fixture.id &&
+                        std::find(kDirectEmitterProperties.begin(),
+                                  kDirectEmitterProperties.end(),
+                                  assignment.property) != kDirectEmitterProperties.end() &&
+                        assignment.value.mode == showcore::ValueMode::Set &&
+                        assignment.value.value > 0.0F;
+                });
+            if (!emitter_on) {
+                continue;
+            }
+            const auto intensity = std::find_if(
+                look.assignments.begin(), look.assignments.end(),
+                [&](const auto& assignment) {
+                    return assignment.fixture_id == fixture.id &&
+                        assignment.property == showcore::Property::Intensity;
+                });
+            if (intensity == look.assignments.end() ||
+                intensity->value.mode != showcore::ValueMode::Set ||
+                intensity->value.value <= 0.0F) {
+                add_issue(result, ProjectIssueSeverity::Warning,
+                          "look.masterClosed", look.id,
+                          "Fixture " + fixture.id +
+                              " has color output but no open master intensity in this Static Look.");
+            }
+        }
     }
-    if (assignment_count > 32768U) {
+    if (assignment_count > kMaximumStaticLookAssignments) {
         add_issue(result, ProjectIssueSeverity::Error, "looks.capacity", project.id,
                   "The project exceeds the V1 compiled Static Look assignment capacity.");
     }

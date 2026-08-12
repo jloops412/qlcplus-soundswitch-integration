@@ -21,6 +21,10 @@ inline constexpr std::size_t kMaximumTrackScripts = 1024;
 inline constexpr std::size_t kMaximumTrackCues = 32768;
 inline constexpr std::size_t kMaximumAudioAssets = 4096;
 inline constexpr std::size_t kMaximumFixtureGroups = showcore::kMaxFixtures;
+inline constexpr std::size_t kMaximumStaticLooks = 256;
+inline constexpr std::size_t kMaximumStaticLookAssignments = 32768;
+inline constexpr std::size_t kMaximumStaticLookNameLength = 255;
+inline constexpr std::uint32_t kMaximumStaticLookFadeMs = 30000U;
 
 struct ChannelDefinition {
     showcore::Property property{showcore::Property::Intensity};

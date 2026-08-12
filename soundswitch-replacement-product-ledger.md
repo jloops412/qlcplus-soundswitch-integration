@@ -2,7 +2,7 @@
 
 Status: native vertical slice implemented and verified; Windows hardware laboratory next
 
-Last updated: 2026-08-10
+Last updated: 2026-08-12
 
 ## Product direction
 
@@ -121,6 +121,16 @@ This matches SoundSwitch's documented Autoloop behavior while making Static Look
 - The generated project contains 71 logical fixtures, 9 groups, 18 Static Looks, and 32 semantic Autoloops. Four pixel tubes are represented as 16 RGB cells each so the existing semantic renderer can address the full 48-channel fixtures without duplicate property mappings.
 - The generated patch occupies universe 1 addresses 1–263 without overlap. Art-Net, sACN, and USB-DMX are all off; those addresses are staging defaults and must be compared with the physical rig before output is enabled.
 - Movers, GigBars, PartyBars, cold sparks, and track shows remain deferred and source-preserved. This checkpoint is a practical first-pilot color-rig V1, not SoundSwitch parity or hardware qualification.
+
+## 2026-08-12 fixture truth and Static Look checkpoint
+
+- Canonical manual-backed Both Lighting BO-IR4 6CH and 10CH profiles now preserve the exact RGBWAUV order and source SHA-256. Unknown 10CH program/color-speed functions are held at safe constant zero instead of exposed as generic sliders.
+- Static Looks now have shared fixture/group capability inspection, explicit ownership, a native RGB picker, independent RGBWAUV/Master values, pure-emitter swatches, and full-color ownership that closes unwanted emitters and modeled strobe.
+- Exact offline preview runs the production compiler/renderer without opening hardware and reports fixture/profile/mode/revision, property ownership, winning layer, rendered byte, warnings, and a deterministic frame SHA-256.
+- Validation now rejects unsupported Look properties and enforces Look capacities/name/fade; Look deletion reports Autoloop, TrackScript, and MIDI dependencies.
+- Static Look drafts have a generation-checked `StudioDocumentService` transaction with one Undo entry. The remaining Win32 editors still need the planned document-authority migration.
+- The full native suite and Windows Release cross-build pass. Physical qualification of both IR-4 fixtures, a fail-closed physical preview, virtual intensity for the dimmerless 6CH mode, rich channel functions/ranges, immutable profile revisions, the Studio-only fixture catalog, and measured color calibration remain open.
+- Binding checkpoint and ordered continuation: `docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md`; tracked in issue #52.
 
 ## Sources consulted
 

@@ -1,6 +1,6 @@
 # SoundSwitch Functional Parity Ledger
 
-Last audited: 2026-08-10 against SoundSwitch 2.10 public product/support documentation.
+Last audited: 2026-08-12 against SoundSwitch 2.10 public product/support documentation and the Both Lighting BO-IR4 manual.
 
 ## Contract
 
@@ -19,8 +19,8 @@ Statuses:
 | ID | SoundSwitch capability to match or exceed | Status | Acceptance evidence |
 | --- | --- | --- | --- |
 | FIX-01 | Venue tabs/projects with reusable fixture patches | Partial | Native project open/save, fixture-profile and patch editors, validation, and fixed-capacity compiled loading exist; reusable venue tabs/templates remain. |
-| FIX-02 | Searchable fixture library with manufacturer/model/mode selection | Partial | Fixed-capacity compiled profile store plus QLC+ QXF/OFL-export import, stable IDs, provenance, exact validation failures, and per-mode quarantine tests pass; bundled catalog/search UI and corpus qualification remain. |
-| FIX-03 | Create and edit local fixture profiles | Partial | Native Windows profile editor persists semantic channel maps and compiles them; QXF modes import as inspectable read-only profiles that can be duplicated locally. Richer function-range/discrete-value tools remain. |
+| FIX-02 | Searchable fixture library with manufacturer/model/mode selection | Partial | Fixed-capacity compiled profile store plus QLC+ QXF/OFL-export import, stable IDs, full source SHA-256, exact validation failures, and per-mode quarantine tests pass. A separate Studio-only catalog/search index, pinned OFL exporter, license manifest, immutable selected snapshots, and corpus qualification remain. |
+| FIX-03 | Create and edit local fixture profiles | Partial | Native Windows profile editor persists semantic channel maps and compiles them; QXF modes import as inspectable read-only profiles that can be duplicated locally. Canonical manual-backed BO-IR4 6CH/10CH profiles share source/behavior SHA-256, while unmodeled 10CH compound functions are quarantined at zero. Rich named functions/ranges, immutable revisions, qualification invalidation, and physical evidence remain. |
 | FIX-04 | Production/public/local fixture sources and safe sharing | Partial | QLC+ and OFL-export provenance survives QXF conversion; signed update, bundled corpus, community review, and sharing workflows remain. |
 | FIX-05 | RGB, RGBW, RGBA, RGBWAUV, CMY, color-wheel, dimmer, shutter, and strobe functions | Partial | Broad semantic lanes, defaults, constant/discrete/active-range channels, inversion, QXF emitter/preset conversion, and validation pass; representative conformance corpus remains required. |
 | FIX-06 | 8/16-bit pan/tilt and named Position Cues | Partial | 16-bit rendering exists; authoring, cue override, and transition tests pending. |
@@ -40,13 +40,13 @@ Statuses:
 | EDT-03 | Main/Master control tracks | Partial | Semantic global intent exists; timeline editor/playback pending. |
 | EDT-04 | Group and individual Fixture control tracks with precedence | Partial | Layer precedence passes; timeline authoring pending. |
 | EDT-05 | Intensity curves, fades, flashes, and chases | Partial | Normalized layers/Autoloop interpolation pass; full effect library pending. |
-| EDT-06 | Color picker, saved swatches, RGBWAUV mixing, and color transitions | Partial | Semantic color subset passes; Studio tools and calibration pending. |
+| EDT-06 | Color picker, saved swatches, RGBWAUV mixing, and color transitions | Partial | Static Looks expose a Windows RGB picker, direct independent RGBWAUV/Master controls, pure-emitter swatches, capability support counts, and deterministic RGB hex round-trips. RGB intentionally does not synthesize W/A/UV; persisted user palettes, HSV tooling, measured calibration, and broader transition authoring remain. |
 | EDT-07 | Position Cue creation, placement, and per-fixture overrides | Partial | Position properties render; cue authoring/override pending. |
 | EDT-08 | Attribute Cue creation, global updating, placement, and AutoScript use | Planned | Named arbitrary attributes and dependency-update tests. |
 | EDT-09 | Movement shapes: circle, scans, ovals, figure-eights, triple-eights, square, ramped size/speed | Planned | Deterministic effect generators and golden traces. |
 | EDT-10 | Strobe blocks with start/end rates | Partial | Safe strobe property/cap exists; ramp authoring pending. |
 | EDT-11 | Drag/drop Effects Generator with musical durations | Planned | Effect catalog, parameter editor, and deterministic traces. |
-| EDT-12 | Static Looks with sparse fixture inclusion and explicit off | Partial | Compiled SET/RELEASE/FORCE_ZERO assignments, crossfaded activation/clear, authoring UI, and live triggering exist; richer palette/cue tools and user tests remain. |
+| EDT-12 | Static Looks with sparse fixture inclusion and explicit off | Partial | Compiled SET/RELEASE/FORCE_ZERO assignments, authored-fade activation/clear, and Live triggering remain. Studio now has fixture/group capability selection, explicit ownership, full-color RGBWAUV/master/strobe-safe assignment, dependency-aware management, and exact offline DMX/profile/layer/byte preview. Toolkit-neutral drafts pass one-transaction generation/Undo tests; the broad Win32 document-authority migration, persisted palettes, bounded physical preview, installed usability, and hardware qualification remain. |
 | EDT-13 | Scripted tracks precisely tied to beatgrid/playhead | Partial | Native projects now persist optional portable audio keys and ordered beat-addressed semantic cues; fixed-capacity compilation, TrackScript-layer playback, Runner-published elapsed-beat/consumed-cue feedback, Live start/clear controls, and rewind replay pass core tests. Automatic track association, waveform/beatgrid Studio editing, loop/reverse/pitch/cue-jump replay corpus, and DJ-software qualification remain. |
 | EDT-14 | Phrase detection and phrase editing | Planned | Offline analysis worker, manual correction, and persistence tests. |
 | EDT-15 | AutoScript tracks, folders/playlists/crates, presets, styles, and custom settings | Planned | Deterministic precompiled generation and quality evaluation. |

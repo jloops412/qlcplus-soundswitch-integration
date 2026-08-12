@@ -18,6 +18,7 @@ BUILD := build
 SOURCES := \
 	src/layer_resolver.cpp \
 	src/fixture.cpp \
+	src/fixture_capabilities.cpp \
 	src/fixture_library.cpp \
 	src/fixture_profile_upgrade.cpp \
 	src/dmx_usb_pro.cpp \
@@ -46,6 +47,8 @@ SOURCES := \
 	src/soundswitch_v1.cpp \
 	src/soundswitch_migration_ir.cpp \
 	src/studio_document.cpp \
+	src/static_look_authoring.cpp \
+	src/static_look_preview.cpp \
 	src/compiler.cpp \
 	src/ui_command.cpp \
 	src/ui_state.cpp \
@@ -66,12 +69,13 @@ DEPS := \
 	$(BUILD)/tests/test_ui_command_state.d \
 	$(BUILD)/tests/test_live_ui.d \
 	$(BUILD)/tests/test_studio_foundation.d \
+	$(BUILD)/tests/test_static_look_authoring.d \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
 .PHONY: all runner_lab qualification migration test winmm-syntax dmx-usb-syntax bench smoke clean
 
-all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/core_bench $(BUILD)/performance_bench
+all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
 runner_lab: $(BUILD)/runner_lab
 
@@ -119,6 +123,9 @@ $(BUILD)/live_ui_tests: $(OBJECTS) $(BUILD)/tests/test_live_ui.o
 $(BUILD)/studio_foundation_tests: $(OBJECTS) $(BUILD)/tests/test_studio_foundation.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/static_look_authoring_tests: $(OBJECTS) $(BUILD)/tests/test_static_look_authoring.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/core_bench: $(OBJECTS) $(BUILD)/bench/bench_main.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -129,13 +136,14 @@ $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests
+test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests
 	./$(BUILD)/core_tests
 	./$(BUILD)/soundswitch_micro_session_tests
 	./$(BUILD)/soundswitch_control_one_tests
 	./$(BUILD)/ui_command_state_tests
 	./$(BUILD)/live_ui_tests
 	./$(BUILD)/studio_foundation_tests
+	./$(BUILD)/static_look_authoring_tests
 
 winmm-syntax:
 	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \

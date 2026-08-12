@@ -1,5 +1,7 @@
 #include "emberlights/live_view_model.hpp"
 
+#include "emberlights/fixture_capabilities.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -11,11 +13,6 @@ namespace {
 
 inline constexpr std::size_t kMissingIndex = std::numeric_limits<std::size_t>::max();
 
-struct FixtureCapabilities {
-    std::array<bool, showcore::kPropertyCount> properties{};
-    bool complete{false};
-};
-
 [[nodiscard]] std::size_t fixture_index(
     const ProjectDocument& project,
     std::string_view id) noexcept {
@@ -25,25 +22,6 @@ struct FixtureCapabilities {
     return found == project.fixtures.end()
         ? kMissingIndex
         : static_cast<std::size_t>(found - project.fixtures.begin());
-}
-
-[[nodiscard]] FixtureCapabilities fixture_capabilities(
-    const ProjectDocument& project,
-    const FixtureDefinition& fixture) noexcept {
-    FixtureCapabilities result;
-    const auto profile = std::find_if(
-        project.fixture_profiles.begin(), project.fixture_profiles.end(),
-        [&](const auto& candidate) { return candidate.id == fixture.profile_id; });
-    if (profile == project.fixture_profiles.end()) {
-        return result;
-    }
-    result.complete = true;
-    for (const auto& channel : profile->channels) {
-        if (channel.property < showcore::Property::Count) {
-            result.properties[static_cast<std::size_t>(channel.property)] = true;
-        }
-    }
-    return result;
 }
 
 }  // namespace
@@ -104,10 +82,10 @@ void LiveViewModel::load_project(const ProjectDocument& active_project) {
             false});
     }
 
-    std::vector<FixtureCapabilities> capabilities;
+    std::vector<FixtureCapabilityView> capabilities;
     capabilities.reserve(active_project.fixtures.size());
-    for (const auto& fixture : active_project.fixtures) {
-        capabilities.push_back(fixture_capabilities(active_project, fixture));
+    for (std::size_t index = 0U; index < active_project.fixtures.size(); ++index) {
+        capabilities.push_back(inspect_fixture_capabilities(active_project, index));
     }
 
     override_targets_.clear();

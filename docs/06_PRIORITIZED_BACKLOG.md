@@ -2,6 +2,25 @@
 
 Priority is based on replacing SoundSwitch safely, not feature novelty.
 
+## Fixture truth and Static Look builder — issue #52
+
+The current implementation checkpoint is `32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md`. It keeps the persisted/runtime entity as `Look` while delivering the first capability-aware Static Scene/Look workflow. Software-complete items below still require merge/installed-Windows and physical-hardware evidence where noted.
+
+- **FX-1 — Implemented:** Canonicalize the manual-backed Both Lighting BO-IR4 6CH/10CH identities, source revision, and behavior SHA-256; quarantine unmodeled 10CH program/color-speed channels at a safe constant zero.
+- **FX-2 — Implemented:** Share fixture/group capability inspection across Live and Studio; reject unsupported Look assignments rather than silently ignoring them.
+- **SL-1 — Implemented:** Replace editable Look CSV with target/property ownership controls, an RGB picker, direct RGBWAUV/Master values, pure-emitter swatches, deterministic group expansion, and full-color ownership.
+- **SL-2 — Implemented:** Build exact offline DMX preview through the production compiler/renderer with fixture/profile/mode/revision, winning-layer, byte trace, warnings, and frame SHA-256.
+- **SL-3 — Implemented foundation / P1 integration:** Static Look drafts commit through `StudioDocumentService` in one transaction; migrate the remaining Win32 document mirror, Undo/Redo, New/Open/Save, and legacy editors to that authority.
+- **FX-3 — Implemented:** Validate Look count/name/fade/assignment capacity, duplicate names, all-Release no-ops, closed masters, and fixture-property support; include MIDI in Look deletion dependency reports.
+- **FX-4 — P0 gate:** Physically qualify both owned IR-4 fixtures in 6CH and 10CH with pure emitter frames, verified mode/address, safe channel 8–10 behavior, blackout, reconnect, and saved evidence.
+- **SL-4 — P0:** Add a selected-fixture-only physical preview with Live-stopped interlock, reduced default scale, bounded timeout, explicit Stop, and fail-closed blackout on every exit/fault path.
+- **FX-5 — P1:** Add named channel functions/ranges plus explicit neutral/open/home/blackout/highlight values. Do not expose unknown wheel, macro, program, switching, or service functions as generic linear sliders.
+- **FX-6 — P1:** Add virtual intensity for dimmerless direct-emitter fixtures so master/safety intensity can scale IR-4 6CH without corrupting raw qualification mode.
+- **FX-7 — P1:** Persist structured profile evidence, immutable revisions, qualification state, and invalidation on behavior hash/profile/mode/universe/address changes.
+- **FX-8 — P1:** Build a separate Studio fixture catalog/index with a pinned OFL exporter adapter, provenance/license manifest, immutable embedded snapshots, and quarantine. Never load the global catalog into the fixed-capacity Runner library.
+- **FX-9 — P2:** Add revisioned, measured color calibration/gamma/white balance/emitter limits. Until then, the RGB picker controls RGB only and White/Amber/UV remain direct.
+- **FX-10 — P2:** Add multi-cell, multi-head, switching-channel, wheel, matrix, and richer 16-bit/function conformance coverage.
+
 ## Immediate core recovery and hardware qualification gate
 
 `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the binding implementation program until its core-ready acceptance definition passes on Joshua's owned Windows hardware. UI/skin expansion is subordinate to these gates.

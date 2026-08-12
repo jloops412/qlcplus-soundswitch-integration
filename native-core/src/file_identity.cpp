@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -156,6 +157,18 @@ private:
 }
 
 }  // namespace
+
+std::string sha256_bytes(std::span<const std::uint8_t> bytes) {
+    Sha256 hash;
+    hash.update(bytes.data(), bytes.size());
+    return hexadecimal(hash.finish());
+}
+
+std::string sha256_text(std::string_view text) {
+    return sha256_bytes({
+        reinterpret_cast<const std::uint8_t*>(text.data()),
+        text.size()});
+}
 
 FileIdentityResult identify_file_sha256(
     const std::filesystem::path& path,

@@ -14,8 +14,9 @@
 
 namespace emberlights {
 
-inline constexpr std::size_t kMaximumCompiledLooks = 256;
-inline constexpr std::size_t kMaximumCompiledLookAssignments = 32768;
+inline constexpr std::size_t kMaximumCompiledLooks = kMaximumStaticLooks;
+inline constexpr std::size_t kMaximumCompiledLookAssignments =
+    kMaximumStaticLookAssignments;
 inline constexpr std::size_t kMaximumCompiledGroups = kMaximumFixtureGroups;
 inline constexpr std::size_t kCompiledNameCapacity = 96;
 

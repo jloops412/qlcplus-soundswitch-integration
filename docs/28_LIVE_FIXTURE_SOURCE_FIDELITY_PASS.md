@@ -11,9 +11,11 @@ It does **not** claim that undocumented SoundSwitch payloads have been semantica
 
 ## IR-4 manufacturer truth
 
-Authoritative evidence: Both Lighting USA, *IR-4 User Manual*, model BOIR4, printed/PDF page 8:
+Authoritative evidence: Both Lighting USA, *BL IR-4 / BO-IR4 User Manual*, PDF page 5:
 
-<https://cdn.shopify.com/s/files/1/0716/8645/5572/files/IR-4_User_Manual.pdf?v=1785942928>
+<https://cdn.shopify.com/s/files/1/0716/8645/5572/files/BL_IR-4_BO-IR4.pdf?v=1679519527>
+
+Source SHA-256: `1267e289b2c0577ec749f0de5265105db5e86b6ae3b2e12414cc00777fd3c03a`
 
 | DMX channel | 6-channel mode | 10-channel mode |
 |---:|---|---|
@@ -27,6 +29,11 @@ Authoritative evidence: Both Lighting USA, *IR-4 User Manual*, model BOIR4, prin
 | 8 | — | Strobe |
 | 9 | — | Program/macro |
 | 10 | — | Color selection/speed |
+
+The 2026-08-12 follow-up in document 32 now quarantines channels 9–10 at
+constant zero rather than exposing them as generic linear controls, and adds a
+capability-aware Static Look builder plus exact offline frame preview. Physical
+qualification is still required before those compound functions can be modeled.
 
 The manual's specifications and manual-control sections call the sixth emitter UV, while its DMX table says Purple. EmberLights uses the native `UV` semantic and retains the ambiguity in the profile/evidence label until the physical emitter is observed.
 
@@ -127,4 +134,3 @@ Before using the repaired project for a show:
 - Application-data source classification, deterministic inventory, backup/personality classification, and lossless bundle tests.
 - Explicit source-match/mismatch audit tests.
 - Full core, SoundSwitch Micro session, Control One DMX protocol, UI facade/state, and Live facade/view-model test suites.
-

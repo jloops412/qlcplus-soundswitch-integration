@@ -71,7 +71,7 @@ int main() {
     if (ir4_profile != project.fixture_profiles.end()) {
         CHECK(ir4_profile->manufacturer == "Both Lighting");
         CHECK(ir4_profile->model == "BO-IR4 LED Mini Spotlight");
-        CHECK(ir4_profile->mode == "6 channel");
+        CHECK(ir4_profile->mode == "6 Channel (manual-matched; CH6 Purple/UV)");
         CHECK(ir4_profile->footprint == 6U);
         CHECK(ir4_profile->channels.size() == 6U);
         constexpr std::array properties{

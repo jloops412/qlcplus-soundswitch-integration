@@ -1,5 +1,7 @@
 #include "emberlights/fixture_profile_upgrade.hpp"
 
+#include "emberlights/file_identity.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -23,6 +25,35 @@ using showcore::Property;
         0U,
         255U,
         0U};
+}
+
+[[nodiscard]] ChannelDefinition ranged_channel(
+    Property property,
+    std::uint16_t offset,
+    std::uint8_t minimum,
+    std::uint8_t maximum,
+    std::uint8_t safe_default) {
+    return {
+        property,
+        offset,
+        -1,
+        ChannelEncoding::Ranged8,
+        minimum,
+        maximum,
+        safe_default};
+}
+
+[[nodiscard]] ChannelDefinition constant_channel(
+    std::uint16_t offset,
+    std::uint8_t safe_default) {
+    return {
+        Property::Count,
+        offset,
+        -1,
+        ChannelEncoding::Constant8,
+        0U,
+        255U,
+        safe_default};
 }
 
 [[nodiscard]] FixtureProfileDefinition make_ir4_profile(
@@ -173,21 +204,6 @@ using showcore::Property;
         [id](const auto& profile) { return profile.id == id; });
 }
 
-void fingerprint_text(std::uint64_t& hash, std::string_view text) noexcept {
-    constexpr std::uint64_t prime = 1099511628211ULL;
-    for (const auto character : text) {
-        hash ^= static_cast<std::uint8_t>(character);
-        hash *= prime;
-    }
-    hash ^= 0xFFU;
-    hash *= prime;
-}
-
-template <typename Value>
-void fingerprint_number(std::uint64_t& hash, Value value) noexcept {
-    fingerprint_text(hash, std::to_string(static_cast<std::uint64_t>(value)));
-}
-
 [[nodiscard]] std::string json_escape(std::string_view value) {
     std::ostringstream output;
     for (const auto character : value) {
@@ -232,33 +248,57 @@ FixtureProfileDefinition make_both_lighting_bo_ir4_6ch_profile() {
 }
 
 FixtureProfileDefinition make_both_lighting_bo_ir4_10ch_profile() {
-    return make_ir4_profile(
-        std::string(kBothLightingBoIr4TenChannelProfileId),
-        "10 Channel (manual-matched; CH7 Purple/UV)",
-        {Property::Intensity, Property::Red, Property::Green, Property::Blue,
-         Property::White, Property::Amber, Property::UV, Property::Strobe,
-         Property::Custom1, Property::Custom2});
+    FixtureProfileDefinition profile;
+    profile.id = std::string(kBothLightingBoIr4TenChannelProfileId);
+    profile.manufacturer = "Both Lighting";
+    profile.model = "BO-IR4 LED Mini Spotlight";
+    profile.mode = "10 Channel (manual-matched; CH7 Purple/UV; CH9-10 quarantined)";
+    profile.name = "Both Lighting BO-IR4 (10CH manual-safe)";
+    profile.source = FixtureProfileSource::BuiltIn;
+    profile.source_revision = std::string(kBothLightingBoIr4ManualRevision);
+    profile.footprint = 10U;
+    profile.channels = {
+        channel(Property::Intensity, 0U),
+        channel(Property::Red, 1U),
+        channel(Property::Green, 2U),
+        channel(Property::Blue, 3U),
+        channel(Property::White, 4U),
+        channel(Property::Amber, 5U),
+        channel(Property::UV, 6U),
+        // The manual identifies all 0-255 values as strobe but does not name
+        // a separate open range. Zero remains the safe/default byte and any
+        // positive semantic value enters 1-255.
+        ranged_channel(Property::Strobe, 7U, 1U, 255U, 0U),
+        // CH9 is a compound off/preset/program/sound selector and CH10 changes
+        // color/speed within that mode. The current one-property schema cannot
+        // represent those ranges honestly. Hold both at zero and do not expose
+        // them as generic sliders until the range model and hardware bench are
+        // qualified.
+        constant_channel(8U, 0U),
+        constant_channel(9U, 0U)};
+    return profile;
 }
 
 std::string fixture_profile_behavior_fingerprint(
     const FixtureProfileDefinition& profile) {
-    std::uint64_t hash = 1469598103934665603ULL;
-    fingerprint_text(hash, profile.manufacturer);
-    fingerprint_text(hash, profile.model);
-    fingerprint_text(hash, profile.mode);
-    fingerprint_number(hash, profile.footprint);
+    std::ostringstream canonical;
+    const auto text_field = [&canonical](std::string_view value) {
+        canonical << value.size() << ':' << value << ';';
+    };
+    text_field(profile.manufacturer);
+    text_field(profile.model);
+    text_field(profile.mode);
+    canonical << profile.footprint << ';';
     for (const auto& definition : profile.channels) {
-        fingerprint_number(hash, definition.property);
-        fingerprint_number(hash, definition.coarse_offset);
-        fingerprint_number(hash, static_cast<std::uint16_t>(definition.fine_offset + 1));
-        fingerprint_number(hash, definition.encoding);
-        fingerprint_number(hash, definition.dmx_min);
-        fingerprint_number(hash, definition.dmx_max);
-        fingerprint_number(hash, definition.default_value);
+        canonical << static_cast<unsigned int>(definition.property) << ','
+                  << definition.coarse_offset << ','
+                  << definition.fine_offset << ','
+                  << static_cast<unsigned int>(definition.encoding) << ','
+                  << static_cast<unsigned int>(definition.dmx_min) << ','
+                  << static_cast<unsigned int>(definition.dmx_max) << ','
+                  << definition.default_value << ';';
     }
-    std::ostringstream output;
-    output << "fnv1a64:" << std::hex << std::setw(16) << std::setfill('0') << hash;
-    return output.str();
+    return "sha256:" + sha256_text(canonical.str());
 }
 
 FixtureProfileUpgradePlan plan_known_fixture_profile_upgrades(
@@ -435,9 +475,9 @@ std::string serialize_fixture_profile_upgrade_report(
     }
     output << "  ],\n"
            << "  \"manualSource\": "
-           << "\"Both Lighting IR-4 User Manual, printed page 8\",\n"
+           << "\"Both Lighting IR-4 User Manual, PDF page 5, SHA-256 1267e289b2c0577ec749f0de5265105db5e86b6ae3b2e12414cc00777fd3c03a\",\n"
            << "  \"manualUrl\": "
-           << "\"https://cdn.shopify.com/s/files/1/0716/8645/5572/files/IR-4_User_Manual.pdf?v=1785942928\"\n"
+           << "\"https://cdn.shopify.com/s/files/1/0716/8645/5572/files/BL_IR-4_BO-IR4.pdf?v=1679519527\"\n"
            << "}\n";
     return output.str();
 }

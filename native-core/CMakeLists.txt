@@ -44,6 +44,7 @@ endforeach()
 add_library(showcore STATIC
     src/layer_resolver.cpp
     src/fixture.cpp
+    src/fixture_capabilities.cpp
     src/fixture_library.cpp
     src/fixture_profile_upgrade.cpp
     src/dmx_usb_pro.cpp
@@ -72,6 +73,8 @@ add_library(showcore STATIC
     src/soundswitch_v1.cpp
     src/soundswitch_migration_ir.cpp
     src/studio_document.cpp
+    src/static_look_authoring.cpp
+    src/static_look_preview.cpp
     src/compiler.cpp
     src/ui_command.cpp
     src/ui_state.cpp
@@ -144,6 +147,10 @@ target_link_libraries(live_ui_tests PRIVATE showcore)
 add_executable(studio_foundation_tests
     tests/test_studio_foundation.cpp)
 target_link_libraries(studio_foundation_tests PRIVATE showcore)
+
+add_executable(static_look_authoring_tests
+    tests/test_static_look_authoring.cpp)
+target_link_libraries(static_look_authoring_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -257,6 +264,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/20_CONTROL_ONE_DMX_QUALIFICATION.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
 else()

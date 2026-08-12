@@ -11,7 +11,7 @@
 
 namespace emberlights {
 
-inline constexpr std::string_view kQlcFixtureAdapterVersion = "qlcplus-qxf-v1";
+inline constexpr std::string_view kQlcFixtureAdapterVersion = "qlcplus-qxf-v2";
 
 enum class QlcImportIssueSeverity : std::uint8_t {
     Warning,
