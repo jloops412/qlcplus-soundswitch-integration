@@ -70,12 +70,15 @@ DEPS := \
 	$(BUILD)/tests/test_live_ui.d \
 	$(BUILD)/tests/test_studio_foundation.d \
 	$(BUILD)/tests/test_static_look_authoring.d \
+	$(BUILD)/src/ember_action_json.d \
+	$(BUILD)/src/ember_action_compiler.d \
+	$(BUILD)/tests/test_ember_action_foundation.d \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
-.PHONY: all runner_lab qualification migration test winmm-syntax dmx-usb-syntax bench smoke clean
+.PHONY: all runner_lab qualification migration test ember-action-test winmm-syntax dmx-usb-syntax bench smoke clean
 
-all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/core_bench $(BUILD)/performance_bench
+all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
 runner_lab: $(BUILD)/runner_lab
 
@@ -126,6 +129,9 @@ $(BUILD)/studio_foundation_tests: $(OBJECTS) $(BUILD)/tests/test_studio_foundati
 $(BUILD)/static_look_authoring_tests: $(OBJECTS) $(BUILD)/tests/test_static_look_authoring.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/ember_action_foundation_tests: $(BUILD)/src/file_identity.o $(BUILD)/src/ember_action_json.o $(BUILD)/src/ember_action_compiler.o $(BUILD)/tests/test_ember_action_foundation.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/core_bench: $(OBJECTS) $(BUILD)/bench/bench_main.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -136,7 +142,7 @@ $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests
+test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/ember_action_foundation_tests
 	./$(BUILD)/core_tests
 	./$(BUILD)/soundswitch_micro_session_tests
 	./$(BUILD)/soundswitch_control_one_tests
@@ -144,6 +150,10 @@ test: $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/soun
 	./$(BUILD)/live_ui_tests
 	./$(BUILD)/studio_foundation_tests
 	./$(BUILD)/static_look_authoring_tests
+	./$(BUILD)/ember_action_foundation_tests
+
+ember-action-test: $(BUILD)/ember_action_foundation_tests
+	./$(BUILD)/ember_action_foundation_tests
 
 winmm-syntax:
 	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \

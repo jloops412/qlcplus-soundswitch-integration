@@ -149,7 +149,7 @@
           "maxLength": 32768
         },
         "sourceMap": {
-          "type": "object"
+          "$ref": "#/$defs/sourceMap"
         }
       }
     },
@@ -199,6 +199,217 @@
     "longText": {
       "type": "string",
       "maxLength": 8192
+    },
+    "unitIdentifier": {
+      "enum": [
+        "normalized",
+        "percent",
+        "bpm",
+        "beats",
+        "bars",
+        "seconds",
+        "milliseconds",
+        "degrees",
+        "dmx8",
+        "dmx16"
+      ]
+    },
+    "portableSourceName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?:virtual:[A-Za-z0-9._:/-]+|(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+)$"
+    },
+    "boundedScalar": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "maxLength": 4096
+        }
+      ]
+    },
+    "boundedJsonValueLevel0": {
+      "$ref": "#/$defs/boundedScalar"
+    },
+    "boundedJsonValueLevel1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/boundedScalar"
+        },
+        {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/boundedJsonValueLevel0"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/boundedJsonValueLevel0"
+          }
+        }
+      ]
+    },
+    "boundedJsonValueLevel2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/boundedScalar"
+        },
+        {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/boundedJsonValueLevel1"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/boundedJsonValueLevel1"
+          }
+        }
+      ]
+    },
+    "boundedJsonValueLevel3": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/boundedScalar"
+        },
+        {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/boundedJsonValueLevel2"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/boundedJsonValueLevel2"
+          }
+        }
+      ]
+    },
+    "boundedJsonValue": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/boundedScalar"
+        },
+        {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/boundedJsonValueLevel3"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/boundedJsonValueLevel3"
+          }
+        }
+      ]
+    },
+    "sourceMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "sources",
+        "ranges"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "path"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/memberIdentifier"
+              },
+              "path": {
+                "$ref": "#/$defs/portableSourceName"
+              },
+              "contentHash": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "ranges": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "$ref": "#/$defs/nodeIdentifier"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourceId",
+              "start",
+              "end"
+            ],
+            "properties": {
+              "sourceId": {
+                "$ref": "#/$defs/memberIdentifier"
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
     },
     "provenance": {
       "type": "object",
@@ -404,18 +615,7 @@
           "type": "number"
         },
         "unit": {
-          "enum": [
-            "normalized",
-            "percent",
-            "bpm",
-            "beats",
-            "bars",
-            "seconds",
-            "milliseconds",
-            "degrees",
-            "dmx8",
-            "dmx16"
-          ]
+          "$ref": "#/$defs/unitIdentifier"
         },
         "values": {
           "type": "array",
@@ -448,7 +648,75 @@
           "minimum": 0,
           "maximum": 8192
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "required": [
+                  "values"
+                ]
+              },
+              {
+                "required": [
+                  "schemaRef"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "stableId"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "targetKind"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "object"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "schemaRef"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "list"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "itemType",
+              "maxItems"
+            ]
+          }
+        }
+      ]
     },
     "parameterDefinition": {
       "type": "object",
@@ -470,7 +738,9 @@
         "required": {
           "type": "boolean"
         },
-        "default": {},
+        "default": {
+          "$ref": "#/$defs/boundedJsonValue"
+        },
         "picker": {
           "$ref": "#/$defs/stableIdentifier"
         }
@@ -488,7 +758,9 @@
         "valueType": {
           "$ref": "#/$defs/valueType"
         },
-        "default": {},
+        "default": {
+          "$ref": "#/$defs/boundedJsonValue"
+        },
         "reset": {
           "enum": [
             "invocation",
@@ -538,7 +810,9 @@
         "literal"
       ],
       "properties": {
-        "literal": {}
+        "literal": {
+          "$ref": "#/$defs/boundedJsonValue"
+        }
       }
     },
     "operatorExpression": {
@@ -599,31 +873,72 @@
       ]
     },
     "transform": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/clampTransform"
+        },
+        {
+          "$ref": "#/$defs/scaleTransform"
+        },
+        {
+          "$ref": "#/$defs/invertTransform"
+        },
+        {
+          "$ref": "#/$defs/deadZoneTransform"
+        },
+        {
+          "$ref": "#/$defs/curveTransform"
+        },
+        {
+          "$ref": "#/$defs/quantizeTransform"
+        },
+        {
+          "$ref": "#/$defs/roundTransform"
+        },
+        {
+          "$ref": "#/$defs/enumMapTransform"
+        },
+        {
+          "$ref": "#/$defs/relativeEncoderTransform"
+        },
+        {
+          "$ref": "#/$defs/unitConvertTransform"
+        }
+      ]
+    },
+    "clampTransform": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "kind"
+        "kind",
+        "minimum",
+        "maximum"
       ],
       "properties": {
         "kind": {
-          "enum": [
-            "clamp",
-            "scale",
-            "invert",
-            "deadZone",
-            "curve",
-            "quantize",
-            "round",
-            "enumMap",
-            "relativeEncoder",
-            "unitConvert"
-          ]
+          "const": "clamp"
         },
         "minimum": {
           "type": "number"
         },
         "maximum": {
           "type": "number"
+        }
+      }
+    },
+    "scaleTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sourceMinimum",
+        "sourceMaximum",
+        "targetMinimum",
+        "targetMaximum"
+      ],
+      "properties": {
+        "kind": {
+          "const": "scale"
         },
         "sourceMinimum": {
           "type": "number"
@@ -636,25 +951,159 @@
         },
         "targetMaximum": {
           "type": "number"
+        }
+      }
+    },
+    "invertTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "invert"
+        }
+      }
+    },
+    "deadZoneTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "minimum",
+        "maximum"
+      ],
+      "properties": {
+        "kind": {
+          "const": "deadZone"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
+      }
+    },
+    "curveTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "curveId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "curve"
         },
         "curveId": {
           "$ref": "#/$defs/stableIdentifier"
+        }
+      }
+    },
+    "quantizeTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "step"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quantize"
         },
         "step": {
           "type": "number",
           "exclusiveMinimum": 0
+        }
+      }
+    },
+    "roundTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "round"
+        }
+      }
+    },
+    "enumMapTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "map"
+      ],
+      "properties": {
+        "kind": {
+          "const": "enumMap"
         },
         "map": {
           "type": "object",
-          "maxProperties": 256
+          "minProperties": 1,
+          "maxProperties": 256,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/boundedJsonValue"
+          }
+        },
+        "default": {
+          "$ref": "#/$defs/boundedJsonValue"
+        }
+      }
+    },
+    "relativeEncoderTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "dialect"
+      ],
+      "properties": {
+        "kind": {
+          "const": "relativeEncoder"
+        },
+        "dialect": {
+          "enum": [
+            "twosComplement",
+            "binaryOffset",
+            "signMagnitude",
+            "incrementDecrement"
+          ]
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
+      }
+    },
+    "unitConvertTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sourceUnit",
+        "targetUnit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "unitConvert"
         },
         "sourceUnit": {
-          "type": "string",
-          "maxLength": 32
+          "$ref": "#/$defs/unitIdentifier"
         },
         "targetUnit": {
-          "type": "string",
-          "maxLength": 32
+          "$ref": "#/$defs/unitIdentifier"
         }
       }
     },
@@ -708,6 +1157,10 @@
         "sourceRange": {
           "type": "object",
           "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
           "properties": {
             "start": {
               "type": "integer",
@@ -867,7 +1320,9 @@
               "node"
             ],
             "properties": {
-              "match": {},
+              "match": {
+                "$ref": "#/$defs/boundedJsonValue"
+              },
               "node": {
                 "$ref": "#/$defs/nodeReference"
               }
@@ -1118,6 +1573,41 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 32
+        },
+        "normalizedBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32768
+        },
+        "parameters": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "feedbackOutputs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "surfaceStateValues": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "parallelChildren": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "expressionOperations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "expressionStackDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
         }
       }
     }
