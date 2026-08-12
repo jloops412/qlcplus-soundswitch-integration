@@ -1,6 +1,44 @@
-# EmberLights UI Registry Seeds
+# EmberLights UI Registries
 
-Status: planning seed for issue #31. These files reduce naming ambiguity and give the facade agent a machine-readable starting point. They are **not** the accepted implementation registry until #31 reconciles them with current code, tests, core-recovery decisions, and generated/native types.
+Status: the SKIN2-001 first generated command/state spine is implemented. The
+older seed files remain reconciliation evidence and are not an accepted second
+authority.
+
+## Canonical implementation source
+
+```text
+spec/ui/registry/source/
+  -> native-core/tools/generate_ui_registry.py
+  -> native-core/include/emberlights/generated/ui_registry.generated.hpp
+  -> spec/ui/registry/generated/ui-registry.catalog.json
+  -> spec/ui/registry/generated/surface-cross-reference-report.json
+  -> docs/generated/ui-registry/REFERENCE.md
+```
+
+The source currently integrates the exact 29 native commands and 39 native Live
+state definitions. Explicit native ordinals preserve the existing ABI. General
+source JSON is never parsed by Runner or the DMX scheduler.
+
+Generate and gate:
+
+```bash
+python3 native-core/tools/generate_ui_registry.py generate
+python3 native-core/tools/generate_ui_registry.py check
+make -C native-core surface-contract-gate
+python3 native-core/tools/generate_ui_registry.py diff \
+  --baseline spec/ui/registry/baselines/ui-registry-v1.json \
+  --candidate spec/ui/registry/generated/ui-registry.catalog.json \
+  --expect unchanged
+```
+
+The source-format decision, weighted evidence, result/realtime/update policies,
+seed disposition, version/digest rules, and bounded gaps are recorded in
+`docs/adr/0007-canonical-ui-registry-source.md`.
+
+## Historical seeds
+
+These files reduce naming ambiguity and preserve issue #31 planning evidence.
+They are not generated artifacts and do not establish callable behavior:
 
 Files:
 

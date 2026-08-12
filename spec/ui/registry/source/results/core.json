@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "resultFragment",
+  "results": [
+    {"nativeName": "Accepted", "nativeOrdinal": 0, "id": "accepted", "status": "implemented", "terminal": true},
+    {"nativeName": "NoChange", "nativeOrdinal": 1, "id": "noChange", "status": "implemented", "terminal": true},
+    {"nativeName": "Unavailable", "nativeOrdinal": 2, "id": "unavailable", "status": "implemented", "terminal": true},
+    {"nativeName": "InvalidArguments", "nativeOrdinal": 3, "id": "invalidArguments", "status": "implemented", "terminal": true},
+    {"nativeName": "NotFound", "nativeOrdinal": 4, "id": "notFound", "status": "implemented", "terminal": true, "notes": "Distinct current native result; not silently aliased to missingTarget."},
+    {"nativeName": "ValidationFailed", "nativeOrdinal": 5, "id": "validationFailed", "status": "implemented", "terminal": true},
+    {"nativeName": "QueueFull", "nativeOrdinal": 6, "id": "queueFull", "status": "implemented", "terminal": true},
+    {"nativeName": "SafetyRejected", "nativeOrdinal": 7, "id": "safetyRejected", "status": "implemented", "terminal": true},
+    {"nativeName": "Unsupported", "nativeOrdinal": 8, "id": "unsupported", "status": "implemented", "terminal": true},
+    {"nativeName": "InternalError", "nativeOrdinal": 9, "id": "internalError", "status": "implemented", "terminal": true},
+    {"id": "missingTarget", "status": "reserved", "terminal": true, "ownerIssues": [31, 64]},
+    {"id": "cancelled", "status": "reserved", "terminal": true, "ownerIssues": [31, 64]},
+    {"id": "startedAsync", "status": "reserved", "terminal": false, "payloadSchema": {"operationId": "boundedString"}, "ownerIssues": [31, 64]}
+  ]
+}

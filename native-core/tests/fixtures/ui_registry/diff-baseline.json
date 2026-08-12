@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "sourceDigest": "baseline",
+  "commands": [
+    {
+      "id": "test.command",
+      "interaction": "trigger",
+      "realtimeClass": "runnerCommand",
+      "parameters": {},
+      "safetyClass": "normal",
+      "safetyGate": null,
+      "persistenceScope": "liveTransient",
+      "undoable": false,
+      "deprecated": false,
+      "label": "Test",
+      "description": "Baseline command"
+    }
+  ],
+  "states": [],
+  "components": [],
+  "capabilities": [],
+  "results": [],
+  "interactions": []
+}

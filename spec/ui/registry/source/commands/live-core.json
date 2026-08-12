@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "kind": "commandFragment",
+  "domain": "live-core",
+  "defaults": {
+    "status": "implemented",
+    "introducedGeneration": 1,
+    "scopes": ["live", "keyboard", "midi", "controller", "external"],
+    "interaction": "trigger",
+    "realtimeClass": "runnerCommand",
+    "parameters": {},
+    "availability": "runner.state == 'running'",
+    "safetyClass": "normal",
+    "safetyGate": null,
+    "feedback": [],
+    "persistenceScope": "liveTransient",
+    "undoable": false,
+    "midiBindable": true,
+    "keyboardBindable": true,
+    "deprecated": false
+  },
+  "commands": [
+    {
+      "nativeName": "ShowStart", "nativeOrdinal": 0, "id": "show.start",
+      "label": "Start show", "description": "Starts the currently prepared show through the application command host.",
+      "category": "show", "realtimeClass": "runnerPriority", "availability": "runner.state == 'stopped'",
+      "safetyClass": "priority", "feedback": ["runner.state"]
+    },
+    {
+      "nativeName": "ShowStop", "nativeOrdinal": 1, "id": "show.stop",
+      "label": "Stop show", "description": "Stops the active show through the application command host.",
+      "category": "show", "realtimeClass": "runnerPriority", "availability": true,
+      "safetyClass": "priority", "feedback": ["runner.state"]
+    },
+    {
+      "nativeName": "ShowToggleRunning", "nativeOrdinal": 2, "id": "show.toggleRunning",
+      "label": "Start or stop show", "description": "Starts a stopped show or stops a non-stopped show.",
+      "category": "show", "interaction": "toggle", "realtimeClass": "runnerPriority", "availability": true,
+      "safetyClass": "priority", "feedback": ["runner.state"]
+    },
+    {
+      "nativeName": "BlackoutSet", "nativeOrdinal": 3, "id": "output.blackout.set",
+      "label": "Set blackout", "description": "Sets the independently authoritative non-droppable blackout state.",
+      "category": "safety", "interaction": "absolute", "realtimeClass": "runnerPriority",
+      "parameters": {"active": {"type": "boolean", "required": true}}, "availability": true,
+      "safetyClass": "emergency", "safetyGate": "blackoutAuthority", "feedback": ["output.blackout"]
+    },
+    {
+      "nativeName": "BlackoutToggle", "nativeOrdinal": 4, "id": "output.blackout.toggle",
+      "label": "Toggle blackout", "description": "Toggles the independently authoritative non-droppable blackout state.",
+      "category": "safety", "interaction": "toggle", "realtimeClass": "runnerPriority", "availability": true,
+      "safetyClass": "emergency", "safetyGate": "blackoutAuthority", "feedback": ["output.blackout"]
+    },
+    {
+      "nativeName": "WorkLightSet", "nativeOrdinal": 5, "id": "output.workLight.set",
+      "label": "Set work light", "description": "Sets the Runner-owned Work Light state while Runner is available.",
+      "category": "safety", "interaction": "absolute", "realtimeClass": "runnerPriority",
+      "parameters": {"active": {"type": "boolean", "required": true}},
+      "safetyClass": "priority", "feedback": ["output.workLight"]
+    },
+    {
+      "nativeName": "WorkLightToggle", "nativeOrdinal": 6, "id": "output.workLight.toggle",
+      "label": "Toggle work light", "description": "Toggles the Runner-owned Work Light state while Runner is available.",
+      "category": "safety", "interaction": "toggle", "realtimeClass": "runnerPriority",
+      "safetyClass": "priority", "feedback": ["output.workLight"]
+    },
+    {
+      "nativeName": "ReleaseAllOverrides", "nativeOrdinal": 7, "id": "override.releaseAll",
+      "label": "Release all overrides", "description": "Releases all current manual property overrides.",
+      "category": "override", "realtimeClass": "runnerPriority", "safetyClass": "priority",
+      "feedback": ["override.activePropertyCount"]
+    },
+    {
+      "nativeName": "ManualBpmSet", "nativeOrdinal": 8, "id": "transport.manualBpm.set",
+      "label": "Set manual BPM", "description": "Sets the bounded manual transport BPM.",
+      "category": "transport", "interaction": "absolute",
+      "parameters": {"bpm": {"type": "number", "required": true, "minimum": 20, "maximum": 300, "unit": "bpm"}},
+      "feedback": ["transport.bpm", "transport.syncState"]
+    },
+    {
+      "nativeName": "TapTempo", "nativeOrdinal": 9, "id": "transport.tap",
+      "label": "Tap tempo", "description": "Submits a tap-tempo sample to Runner.",
+      "category": "transport", "feedback": ["transport.bpm", "transport.syncState"]
+    },
+    {
+      "nativeName": "HazardSetArmed", "nativeOrdinal": 10, "id": "safety.hazard.setArmed",
+      "label": "Set hazard armed", "description": "Sets fail-closed live arming for one supported hazard property.",
+      "category": "safety", "interaction": "absolute", "realtimeClass": "runnerPriority",
+      "parameters": {
+        "hazard": {"type": "enum", "required": true, "enumValues": ["fog", "haze", "laser", "spark"]},
+        "armed": {"type": "boolean", "required": true}
+      },
+      "safetyClass": "hazard", "safetyGate": "hazardArmingAuthority",
+      "feedback": ["safety.hazard.fog.armed", "safety.hazard.haze.armed", "safety.hazard.laser.armed", "safety.hazard.spark.armed"]
+    },
+    {
+      "nativeName": "HazardDisarmAll", "nativeOrdinal": 11, "id": "safety.hazard.disarmAll",
+      "label": "Disarm all hazards", "description": "Disarms every supported hazard through bounded priority commands.",
+      "category": "safety", "realtimeClass": "runnerPriority", "safetyClass": "priority",
+      "safetyGate": "hazardArmingAuthority",
+      "feedback": ["safety.hazard.fog.armed", "safety.hazard.haze.armed", "safety.hazard.laser.armed", "safety.hazard.spark.armed"]
+    },
+    {
+      "nativeName": "StaticLookActivate", "nativeOrdinal": 12, "id": "staticLook.activate",
+      "label": "Activate Static Look", "description": "Activates one compiled Static Look resolved by stable ID.",
+      "category": "staticLook",
+      "parameters": {"lookId": {"type": "id", "required": true, "targetKind": "staticLook"}},
+      "availability": "runner.state == 'running' && staticLook.exists(lookId)",
+      "feedback": ["staticLook.active.id"]
+    },
+    {
+      "nativeName": "StaticLookToggle", "nativeOrdinal": 13, "id": "staticLook.toggle",
+      "label": "Toggle Static Look", "description": "Atomically toggles one compiled Static Look resolved by stable ID.",
+      "category": "staticLook", "interaction": "toggle",
+      "parameters": {"lookId": {"type": "id", "required": true, "targetKind": "staticLook"}},
+      "availability": "runner.state == 'running' && staticLook.exists(lookId)",
+      "feedback": ["staticLook.active.id"]
+    },
+    {
+      "nativeName": "StaticLookHold", "nativeOrdinal": 14, "id": "staticLook.hold",
+      "label": "Hold Static Look", "description": "Activates or releases one Static Look through the transitional hold facade.",
+      "category": "staticLook", "status": "bridged", "interaction": "momentary",
+      "parameters": {
+        "lookId": {"type": "id", "required": true, "targetKind": "staticLook"},
+        "active": {"type": "boolean", "required": true}
+      },
+      "availability": "runner.state == 'running' && staticLook.exists(lookId)",
+      "feedback": ["staticLook.active.id"],
+      "notes": "Cross-surface qualification waits for generation-safe stale-release ownership."
+    },
+    {
+      "nativeName": "StaticLookClear", "nativeOrdinal": 15, "id": "staticLook.clear",
+      "label": "Clear Static Look", "description": "Clears the active Static Look without resetting unrelated layers.",
+      "category": "staticLook", "feedback": ["staticLook.active.id"]
+    },
+    {
+      "nativeName": "AutoloopLaunch", "nativeOrdinal": 16, "id": "autoloop.launch",
+      "label": "Launch Autoloop", "description": "Launches one compiled Autoloop by stable ID or bank and slot.",
+      "category": "autoloop",
+      "parameters": {
+        "autoloopId": {"type": "id", "required": false, "targetKind": "autoloop"},
+        "bank": {"type": "integer", "required": false, "minimum": 0, "maximum": 63},
+        "slot": {"type": "integer", "required": false, "minimum": 0, "maximum": 31}
+      },
+      "availability": "runner.state == 'running' && autoloop.targetExists",
+      "feedback": ["autoloop.active.id", "autoloop.active.bank", "autoloop.active.slot", "autoloop.active.progress"]
+    },
+    {
+      "nativeName": "AutoloopClear", "nativeOrdinal": 17, "id": "autoloop.clear",
+      "label": "Clear Autoloop", "description": "Clears the active manual Autoloop.",
+      "category": "autoloop", "feedback": ["autoloop.active.id"]
+    },
+    {
+      "nativeName": "AutoloopNext", "nativeOrdinal": 18, "id": "autoloop.next",
+      "label": "Next Autoloop", "description": "Launches the next eligible compiled Autoloop using current navigation semantics.",
+      "category": "autoloop", "feedback": ["autoloop.active.id"]
+    },
+    {
+      "nativeName": "AutoloopPrevious", "nativeOrdinal": 19, "id": "autoloop.previous",
+      "label": "Previous Autoloop", "description": "Launches the previous eligible compiled Autoloop using current navigation semantics.",
+      "category": "autoloop", "feedback": ["autoloop.active.id"]
+    },
+    {
+      "nativeName": "AutoloopBankFilterEnableAll", "nativeOrdinal": 20, "id": "autoloop.bankFilter.enableAll",
+      "label": "Enable all Autoloop banks", "description": "Enables all 64 Autoloop banks in the current filter mask.",
+      "category": "autoloop", "feedback": ["autoloop.bankFilter.mask"]
+    },
+    {
+      "nativeName": "AutoloopBankFilterSelectExclusive", "nativeOrdinal": 21, "id": "autoloop.bankFilter.selectExclusive",
+      "label": "Select exclusive Autoloop bank", "description": "Selects exactly one enabled Autoloop bank.",
+      "category": "autoloop", "interaction": "selection",
+      "parameters": {"bank": {"type": "integer", "required": true, "minimum": 0, "maximum": 63}},
+      "feedback": ["autoloop.bankFilter.mask"]
+    },
+    {
+      "nativeName": "AutoloopBankFilterSetEnabled", "nativeOrdinal": 22, "id": "autoloop.bankFilter.setEnabled",
+      "label": "Set Autoloop bank enabled", "description": "Sets one bank bit in the active Autoloop filter mask.",
+      "category": "autoloop", "interaction": "absolute",
+      "parameters": {
+        "bank": {"type": "integer", "required": true, "minimum": 0, "maximum": 63},
+        "enabled": {"type": "boolean", "required": true}
+      },
+      "feedback": ["autoloop.bankFilter.mask"]
+    },
+    {
+      "nativeName": "TrackScriptStart", "nativeOrdinal": 23, "id": "trackScript.start",
+      "label": "Start Track Script", "description": "Starts one compiled Track Script resolved by stable ID.",
+      "category": "trackScript",
+      "parameters": {"scriptId": {"type": "id", "required": true, "targetKind": "trackScript"}},
+      "availability": "runner.state == 'running' && trackScript.exists(scriptId)",
+      "feedback": ["trackScript.active.id", "trackScript.elapsedBeat", "trackScript.consumedCueCount"]
+    },
+    {
+      "nativeName": "TrackScriptClear", "nativeOrdinal": 24, "id": "trackScript.clear",
+      "label": "Clear Track Script", "description": "Clears the active Track Script.",
+      "category": "trackScript", "feedback": ["trackScript.active.id"]
+    },
+    {
+      "nativeName": "FixtureOverridePropertySet", "nativeOrdinal": 25, "id": "fixture.override.property.set",
+      "label": "Set fixture property override", "description": "Applies a normalized property override to one stable fixture.",
+      "category": "override", "interaction": "absolute",
+      "parameters": {
+        "fixtureId": {"type": "id", "required": true, "targetKind": "fixture"},
+        "property": {"type": "enum", "required": true, "schemaRef": "value.fixtureProperty"},
+        "value": {"type": "number", "required": true, "minimum": 0, "maximum": 1, "unit": "normalized"}
+      },
+      "availability": "runner.state == 'running' && fixture.supports(property)",
+      "safetyClass": "propertyDependent", "safetyGate": "fixturePropertySafety",
+      "feedback": ["override.activePropertyCount"]
+    },
+    {
+      "nativeName": "FixtureOverridePropertyRelease", "nativeOrdinal": 26, "id": "fixture.override.property.release",
+      "label": "Release fixture property override", "description": "Releases one property override from a stable fixture.",
+      "category": "override",
+      "parameters": {
+        "fixtureId": {"type": "id", "required": true, "targetKind": "fixture"},
+        "property": {"type": "enum", "required": true, "schemaRef": "value.fixtureProperty"}
+      },
+      "availability": "runner.state == 'running' && fixture.supports(property)",
+      "feedback": ["override.activePropertyCount"]
+    },
+    {
+      "nativeName": "GroupOverridePropertySet", "nativeOrdinal": 27, "id": "group.override.property.set",
+      "label": "Set group property override", "description": "Applies a normalized property override to a stable fixture group.",
+      "category": "override", "interaction": "absolute",
+      "parameters": {
+        "groupId": {"type": "id", "required": true, "targetKind": "fixtureGroup"},
+        "property": {"type": "enum", "required": true, "schemaRef": "value.fixtureProperty"},
+        "value": {"type": "number", "required": true, "minimum": 0, "maximum": 1, "unit": "normalized"}
+      },
+      "availability": "runner.state == 'running' && group.supports(property)",
+      "safetyClass": "propertyDependent", "safetyGate": "fixturePropertySafety",
+      "feedback": ["override.activePropertyCount"]
+    },
+    {
+      "nativeName": "GroupOverridePropertyRelease", "nativeOrdinal": 28, "id": "group.override.property.release",
+      "label": "Release group property override", "description": "Releases one property override from a stable fixture group.",
+      "category": "override",
+      "parameters": {
+        "groupId": {"type": "id", "required": true, "targetKind": "fixtureGroup"},
+        "property": {"type": "enum", "required": true, "schemaRef": "value.fixtureProperty"}
+      },
+      "availability": "runner.state == 'running' && group.supports(property)",
+      "feedback": ["override.activePropertyCount"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "registry-spike-binding",
+  "references": {
+    "commands": [
+      "show.start",
+      "output.blackout.set",
+      "staticLook.hold",
+      "autoloop.launch",
+      "group.override.property.set"
+    ],
+    "states": [
+      "runner.state",
+      "output.blackout",
+      "staticLook.active.id",
+      "autoloop.active.progress",
+      "output.micro.status"
+    ]
+  }
+}

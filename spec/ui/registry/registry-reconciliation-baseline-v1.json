@@ -1,0 +1,325 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "1281cb2f3ab9d5487027612bb9ef076537517c40",
+  "generatedAt": "2026-08-12",
+  "status": "evidenceBaselineNotCanonicalRegistry",
+  "sources": {
+    "nativeCommands": {
+      "path": "native-core/include/emberlights/ui_command.hpp",
+      "sha": "4fd546d4f835132eecf1df05c51f5f3b6b76a7b3"
+    },
+    "seedCommands": {
+      "path": "spec/ui/registry/command-registry-seed-v0.json",
+      "sha": "bab27c3b5bf042df3bf976d92d8bd6fd7bb8d363",
+      "declaredSourceCommit": "75c9766de9084a7d7e8841420031da6bc2568cc2"
+    },
+    "nativeStates": {
+      "path": "native-core/include/emberlights/ui_state.hpp",
+      "sha": "5adb1c8bb99afad4c2e11fd9e763f6dd0edfcd03"
+    },
+    "seedStates": {
+      "path": "spec/ui/registry/state-registry-seed-v0.json",
+      "sha": "bfc19bda7293be058e1f8c19cee6abfee6c75cfd",
+      "declaredSourceCommit": "75c9766de9084a7d7e8841420031da6bc2568cc2"
+    }
+  },
+  "commands": {
+    "counts": {
+      "native": 29,
+      "seed": 35,
+      "exactShared": 26,
+      "nativeOnly": 3,
+      "seedOnly": 9
+    },
+    "exactShared": [
+      "show.start",
+      "show.stop",
+      "show.toggleRunning",
+      "output.blackout.set",
+      "output.blackout.toggle",
+      "output.workLight.set",
+      "output.workLight.toggle",
+      "override.releaseAll",
+      "transport.manualBpm.set",
+      "transport.tap",
+      "safety.hazard.setArmed",
+      "safety.hazard.disarmAll",
+      "staticLook.activate",
+      "staticLook.toggle",
+      "staticLook.hold",
+      "staticLook.clear",
+      "autoloop.launch",
+      "autoloop.clear",
+      "autoloop.next",
+      "autoloop.previous",
+      "autoloop.bankFilter.enableAll",
+      "autoloop.bankFilter.selectExclusive",
+      "autoloop.bankFilter.setEnabled",
+      "trackScript.start",
+      "trackScript.clear",
+      "group.override.property.set"
+    ],
+    "nativeOnly": [
+      {
+        "id": "fixture.override.property.set",
+        "recommendedDisposition": "addToCanonicalSourcePreserveNativeSemantics"
+      },
+      {
+        "id": "fixture.override.property.release",
+        "recommendedDisposition": "addToCanonicalSourcePreserveNativeSemantics"
+      },
+      {
+        "id": "group.override.property.release",
+        "recommendedDisposition": "addToCanonicalSourcePreserveNativeSemantics"
+      }
+    ],
+    "seedOnly": [
+      {
+        "id": "workspace.open",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "view.panel.open",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "view.panel.toggle",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "view.skin.select",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "view.commandExplorer.open",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "project.open",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "project.save",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "project.validate",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      },
+      {
+        "id": "connection.os2l.reconnect",
+        "recommendedDisposition": "plannedUntilAuthoritativeImplementationExists"
+      }
+    ],
+    "resultVocabulary": {
+      "native": [
+        "Accepted",
+        "NoChange",
+        "Unavailable",
+        "InvalidArguments",
+        "NotFound",
+        "ValidationFailed",
+        "QueueFull",
+        "SafetyRejected",
+        "Unsupported",
+        "InternalError"
+      ],
+      "actionContractAdditionalOrDifferent": [
+        "MissingTarget",
+        "Cancelled",
+        "StartedAsync"
+      ],
+      "decisionOwner": [
+        31,
+        64
+      ],
+      "rule": "Do not silently alias NotFound to MissingTarget or add async/cancel results without an authoritative service contract."
+    },
+    "realtimeClassVocabulary": {
+      "seed": [
+        "viewLocal",
+        "blockingUtility",
+        "studioMutation",
+        "priorityLive",
+        "emergency",
+        "runnerCommand"
+      ],
+      "v2Contract": [
+        "viewLocal",
+        "studioMutation",
+        "runnerCommand",
+        "runnerPriority",
+        "utilityAsync",
+        "blockingForbiddenLive"
+      ],
+      "decisionOwner": [
+        31,
+        64
+      ]
+    }
+  },
+  "states": {
+    "counts": {
+      "native": 39,
+      "seed": 40,
+      "exactShared": 22,
+      "nativeOnly": 17,
+      "seedOnly": 18
+    },
+    "exactShared": [
+      "runner.state",
+      "runner.health",
+      "transport.bpm",
+      "transport.syncState",
+      "connection.os2l.status",
+      "output.blackout",
+      "output.workLight",
+      "safety.hazard.fog.armed",
+      "safety.hazard.haze.armed",
+      "safety.hazard.laser.armed",
+      "safety.hazard.spark.armed",
+      "staticLook.active.id",
+      "autoloop.active.id",
+      "autoloop.active.bank",
+      "autoloop.active.slot",
+      "autoloop.active.progress",
+      "autoloop.bankFilter.mask",
+      "trackScript.active.id",
+      "trackScript.elapsedBeat",
+      "override.activePropertyCount",
+      "output.controlOne.status",
+      "output.controlOne.experimental"
+    ],
+    "nativeOnly": [
+      "project.active.id",
+      "project.active.name",
+      "runner.generation",
+      "runner.frames",
+      "transport.beatPosition",
+      "transport.clockSource",
+      "connection.os2l.discoveryStatus",
+      "controller.input.status",
+      "controller.output.status",
+      "output.artnet.status",
+      "output.sacn.status",
+      "output.dmxUsbPro[0].status",
+      "output.dmxUsbPro[1].status",
+      "output.micro.status",
+      "autoloop.active.repeat",
+      "autoloop.active.completedCycles",
+      "trackScript.consumedCueCount"
+    ],
+    "seedOnly": [
+      "app.workspace",
+      "app.skin.id",
+      "app.skin.status",
+      "project.name",
+      "project.lifecycle",
+      "project.saveState",
+      "project.lastVerifiedSave",
+      "project.activeVenue.name",
+      "project.activePackage.available",
+      "project.validation.summary",
+      "runner.jitter.p99Ms",
+      "connection.dj.status",
+      "connection.os2l.configured",
+      "connection.os2l.lastError",
+      "controller.status",
+      "output.universe[0].status",
+      "output.universe[1].status",
+      "safety.summary"
+    ],
+    "nonAliasWarnings": [
+      {
+        "ids": [
+          "project.active.name",
+          "project.name"
+        ],
+        "reason": "Active Runner/package context may differ from editable project-document identity."
+      },
+      {
+        "ids": [
+          "controller.input.status",
+          "controller.output.status",
+          "controller.status"
+        ],
+        "reason": "Directional adapter health and aggregate controller status are distinct facts."
+      },
+      {
+        "ids": [
+          "output.artnet.status",
+          "output.sacn.status",
+          "output.dmxUsbPro[0].status",
+          "output.dmxUsbPro[1].status",
+          "output.micro.status",
+          "output.universe[0].status",
+          "output.universe[1].status"
+        ],
+        "reason": "Backend lifecycle health and logical universe output health are related but not interchangeable."
+      }
+    ],
+    "updateClassVocabulary": {
+      "native": [
+        "Event",
+        "Health",
+        "Realtime"
+      ],
+      "seed": [
+        "onChange",
+        "health",
+        "transport",
+        "progress"
+      ],
+      "rule": "Canonical metadata must preserve semantic rate and snapshot information; compact native classes may be generated views."
+    }
+  },
+  "autoloopsV2OwnerReservation": {
+    "issue": 59,
+    "doNotFreezeCompetingIds": true,
+    "existingAcceptedIds": [
+      "autoloop.active.id",
+      "autoloop.active.bank",
+      "autoloop.active.slot",
+      "autoloop.active.progress",
+      "autoloop.active.repeat",
+      "autoloop.active.completedCycles",
+      "autoloop.bankFilter.mask"
+    ],
+    "semanticSlotsAwaitingOwnerNames": [
+      "selectedPlacementAndContent",
+      "queuedOrPendingPlacementAndContent",
+      "queuedReason",
+      "activePlacementAndContent",
+      "activeSourceAutonomousScriptedManual",
+      "modeOverlayReplace",
+      "repeat",
+      "phaseProgressCompletedCycles",
+      "activeBankMask",
+      "pendingBankMaskAndExclusiveBank",
+      "selectionPolicyAndReason",
+      "lastTransitionResultError"
+    ]
+  },
+  "missingRegistryFamilies": [
+    "component",
+    "capability",
+    "interaction",
+    "themeToken",
+    "valueUnitTargetSchema",
+    "invocationResult",
+    "directCallbackBypassManifest",
+    "firstPartyArtifactCrossReference"
+  ],
+  "requiredDecisions": [
+    "canonicalSourceFormat",
+    "generatedFileOwnership",
+    "publicResultVocabulary",
+    "publicRealtimeClassMapping",
+    "publicUpdateClassRateSnapshotModel",
+    "implementationStatusModel",
+    "stableNativeEnumPreservation",
+    "seedMigrationStrategy",
+    "autoloopsV2CoordinationRule",
+    "registryVersionDigestAndDiffBaseline"
+  ]
+}

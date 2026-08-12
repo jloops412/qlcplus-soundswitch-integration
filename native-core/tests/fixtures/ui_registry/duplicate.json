@@ -1,0 +1,7 @@
+{
+  "kind": "commands",
+  "definitions": [
+    {"id": "test.duplicate"},
+    {"id": "test.duplicate"}
+  ]
+}
