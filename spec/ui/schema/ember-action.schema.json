@@ -1,0 +1,1125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.emberlights.local/ui/ember-action.schema.json",
+  "title": "EmberLights Ember Action",
+  "description": "Versioned, typed, bounded action graph over registered EmberLights commands and state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "label",
+    "compatibility",
+    "parameters",
+    "requires",
+    "entryPoints",
+    "nodes",
+    "feedback"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/stableIdentifier"
+    },
+    "version": {
+      "$ref": "#/$defs/semanticVersion"
+    },
+    "label": {
+      "$ref": "#/$defs/shortText"
+    },
+    "description": {
+      "$ref": "#/$defs/longText"
+    },
+    "author": {
+      "$ref": "#/$defs/shortText"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    },
+    "parameters": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "$ref": "#/$defs/memberIdentifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/parameterDefinition"
+      }
+    },
+    "requires": {
+      "$ref": "#/$defs/requirements"
+    },
+    "entryPoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "onPress": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onRelease": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onValue": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onEncoderStep": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onLongPress": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onDoublePress": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onActivate": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "onDeactivate": {
+          "$ref": "#/$defs/nodeReference"
+        }
+      }
+    },
+    "nodes": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 64,
+      "propertyNames": {
+        "$ref": "#/$defs/nodeIdentifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "$ref": "#/$defs/memberIdentifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/expression"
+      }
+    },
+    "surfaceState": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "$ref": "#/$defs/memberIdentifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/surfaceStateDefinition"
+      }
+    },
+    "limits": {
+      "$ref": "#/$defs/declaredLimits"
+    },
+    "localization": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4096
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": {
+          "enum": [
+            "visualGraph",
+            "emberActionScript",
+            "imported"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 32768
+        },
+        "sourceMap": {
+          "type": "object"
+        }
+      }
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "stableIdentifier": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "memberIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z_][A-Za-z0-9._-]*$"
+    },
+    "nodeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "nodeReference": {
+      "$ref": "#/$defs/nodeIdentifier"
+    },
+    "semanticVersion": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 64,
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "versionRange": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "shortText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "longText": {
+      "type": "string",
+      "maxLength": 8192
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "bundled",
+            "local",
+            "forked",
+            "imported",
+            "migrated"
+          ]
+        },
+        "sourceId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "sourceVersion": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "sourceHash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(sha256:[0-9a-f]{64})?$"
+        },
+        "migrationAdapter": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "migrationStatus": {
+          "enum": [
+            "native",
+            "exact",
+            "translated",
+            "approximated",
+            "opaque",
+            "unsupported",
+            "conflicted"
+          ]
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimumAppVersion",
+        "commandRegistry",
+        "stateRegistry",
+        "capabilityRegistry"
+      ],
+      "properties": {
+        "minimumAppVersion": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "maximumAppVersion": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/semanticVersion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "commandRegistry": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "stateRegistry": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "componentRegistry": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "capabilityRegistry": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "bindingSchema": {
+          "$ref": "#/$defs/versionRange"
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commands",
+        "states",
+        "capabilities"
+      ],
+      "properties": {
+        "commands": {
+          "$ref": "#/$defs/identifierArray"
+        },
+        "states": {
+          "$ref": "#/$defs/identifierArray"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/identifierArray"
+        },
+        "components": {
+          "$ref": "#/$defs/identifierArray"
+        },
+        "actions": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "versionRange"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/stableIdentifier"
+              },
+              "versionRange": {
+                "$ref": "#/$defs/versionRange"
+              }
+            }
+          }
+        },
+        "projectTargets": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "parameter",
+              "targetKind"
+            ],
+            "properties": {
+              "parameter": {
+                "$ref": "#/$defs/memberIdentifier"
+              },
+              "targetKind": {
+                "$ref": "#/$defs/stableIdentifier"
+              },
+              "optional": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "identifierArray": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/stableIdentifier"
+      }
+    },
+    "valueType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "boolean",
+            "integer",
+            "number",
+            "enum",
+            "string",
+            "stableId",
+            "semanticRole",
+            "color",
+            "duration",
+            "object",
+            "list",
+            "result",
+            "void"
+          ]
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "unit": {
+          "enum": [
+            "normalized",
+            "percent",
+            "bpm",
+            "beats",
+            "bars",
+            "seconds",
+            "milliseconds",
+            "degrees",
+            "dmx8",
+            "dmx16"
+          ]
+        },
+        "values": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          }
+        },
+        "targetKind": {
+          "$ref": "#/$defs/stableIdentifier"
+        },
+        "schemaRef": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "itemType": {
+          "$ref": "#/$defs/valueType"
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2048
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8192
+        }
+      }
+    },
+    "parameterDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valueType",
+        "required"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/shortText"
+        },
+        "description": {
+          "$ref": "#/$defs/longText"
+        },
+        "valueType": {
+          "$ref": "#/$defs/valueType"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {},
+        "picker": {
+          "$ref": "#/$defs/stableIdentifier"
+        }
+      }
+    },
+    "surfaceStateDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valueType",
+        "default",
+        "reset"
+      ],
+      "properties": {
+        "valueType": {
+          "$ref": "#/$defs/valueType"
+        },
+        "default": {},
+        "reset": {
+          "enum": [
+            "invocation",
+            "pageActivation",
+            "skinActivation",
+            "appRestart",
+            "explicit"
+          ]
+        },
+        "persistentScope": {
+          "enum": [
+            "none",
+            "appLocal"
+          ]
+        }
+      }
+    },
+    "valueReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "path"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "parameter",
+            "context",
+            "state",
+            "nodeOutput",
+            "local",
+            "surfaceState"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "literal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "literal"
+      ],
+      "properties": {
+        "literal": {}
+      }
+    },
+    "operatorExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op",
+        "args"
+      ],
+      "properties": {
+        "op": {
+          "enum": [
+            "and",
+            "or",
+            "not",
+            "equal",
+            "notEqual",
+            "less",
+            "lessOrEqual",
+            "greater",
+            "greaterOrEqual",
+            "isNull",
+            "isAvailable",
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+            "minimum",
+            "maximum",
+            "clamp",
+            "round",
+            "conditional",
+            "contains",
+            "format"
+          ]
+        },
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/expression"
+          }
+        }
+      }
+    },
+    "expression": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/literal"
+        },
+        {
+          "$ref": "#/$defs/valueReference"
+        },
+        {
+          "$ref": "#/$defs/operatorExpression"
+        }
+      ]
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "clamp",
+            "scale",
+            "invert",
+            "deadZone",
+            "curve",
+            "quantize",
+            "round",
+            "enumMap",
+            "relativeEncoder",
+            "unitConvert"
+          ]
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "sourceMinimum": {
+          "type": "number"
+        },
+        "sourceMaximum": {
+          "type": "number"
+        },
+        "targetMinimum": {
+          "type": "number"
+        },
+        "targetMaximum": {
+          "type": "number"
+        },
+        "curveId": {
+          "$ref": "#/$defs/stableIdentifier"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "map": {
+          "type": "object",
+          "maxProperties": 256
+        },
+        "sourceUnit": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "targetUnit": {
+          "type": "string",
+          "maxLength": 32
+        }
+      }
+    },
+    "node": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/invokeCommandNode"
+        },
+        {
+          "$ref": "#/$defs/sequenceNode"
+        },
+        {
+          "$ref": "#/$defs/parallelNode"
+        },
+        {
+          "$ref": "#/$defs/ifNode"
+        },
+        {
+          "$ref": "#/$defs/switchNode"
+        },
+        {
+          "$ref": "#/$defs/readStateNode"
+        },
+        {
+          "$ref": "#/$defs/letNode"
+        },
+        {
+          "$ref": "#/$defs/mapValueNode"
+        },
+        {
+          "$ref": "#/$defs/invokeActionNode"
+        },
+        {
+          "$ref": "#/$defs/onResultNode"
+        },
+        {
+          "$ref": "#/$defs/returnNode"
+        }
+      ]
+    },
+    "nodeMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/shortText"
+        },
+        "comment": {
+          "$ref": "#/$defs/longText"
+        },
+        "sourceRange": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "invokeCommandNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "commandId",
+        "arguments"
+      ],
+      "properties": {
+        "kind": {
+          "const": "InvokeCommand"
+        },
+        "commandId": {
+          "$ref": "#/$defs/stableIdentifier"
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "#/$defs/memberIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/expression"
+          }
+        },
+        "resultAs": {
+          "$ref": "#/$defs/memberIdentifier"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "sequenceNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "children"
+      ],
+      "properties": {
+        "kind": {
+          "const": "Sequence"
+        },
+        "children": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/nodeReference"
+          }
+        },
+        "policy": {
+          "enum": [
+            "continue",
+            "stopOnRejected",
+            "stopOnError",
+            "stopOnAnyNonAccepted"
+          ],
+          "default": "stopOnError"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "parallelNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "children"
+      ],
+      "properties": {
+        "kind": {
+          "const": "Parallel"
+        },
+        "children": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/nodeReference"
+          }
+        },
+        "resultAs": {
+          "$ref": "#/$defs/memberIdentifier"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "ifNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "predicate",
+        "then"
+      ],
+      "properties": {
+        "kind": {
+          "const": "If"
+        },
+        "predicate": {
+          "$ref": "#/$defs/expression"
+        },
+        "then": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "else": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "switchNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value",
+        "cases"
+      ],
+      "properties": {
+        "kind": {
+          "const": "Switch"
+        },
+        "value": {
+          "$ref": "#/$defs/expression"
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "match",
+              "node"
+            ],
+            "properties": {
+              "match": {},
+              "node": {
+                "$ref": "#/$defs/nodeReference"
+              }
+            }
+          }
+        },
+        "default": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "readStateNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "stateId",
+        "as"
+      ],
+      "properties": {
+        "kind": {
+          "const": "ReadState"
+        },
+        "stateId": {
+          "$ref": "#/$defs/stableIdentifier"
+        },
+        "as": {
+          "$ref": "#/$defs/memberIdentifier"
+        },
+        "refreshBoundary": {
+          "type": "boolean",
+          "default": false
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "letNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "valueType",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "Let"
+        },
+        "name": {
+          "$ref": "#/$defs/memberIdentifier"
+        },
+        "valueType": {
+          "$ref": "#/$defs/valueType"
+        },
+        "value": {
+          "$ref": "#/$defs/expression"
+        },
+        "next": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "mapValueNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "input",
+        "transforms",
+        "as"
+      ],
+      "properties": {
+        "kind": {
+          "const": "MapValue"
+        },
+        "input": {
+          "$ref": "#/$defs/expression"
+        },
+        "transforms": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/transform"
+          }
+        },
+        "as": {
+          "$ref": "#/$defs/memberIdentifier"
+        },
+        "next": {
+          "$ref": "#/$defs/nodeReference"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "invokeActionNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "actionId",
+        "versionRange",
+        "arguments"
+      ],
+      "properties": {
+        "kind": {
+          "const": "InvokeAction"
+        },
+        "actionId": {
+          "$ref": "#/$defs/stableIdentifier"
+        },
+        "versionRange": {
+          "$ref": "#/$defs/versionRange"
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "$ref": "#/$defs/memberIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/expression"
+          }
+        },
+        "resultAs": {
+          "$ref": "#/$defs/memberIdentifier"
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "onResultNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "result",
+        "cases"
+      ],
+      "properties": {
+        "kind": {
+          "const": "OnResult"
+        },
+        "result": {
+          "$ref": "#/$defs/expression"
+        },
+        "cases": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 13,
+          "propertyNames": {
+            "enum": [
+              "Accepted",
+              "NoChange",
+              "Unavailable",
+              "InvalidArguments",
+              "MissingTarget",
+              "ValidationFailed",
+              "QueueFull",
+              "SafetyRejected",
+              "Unsupported",
+              "Cancelled",
+              "StartedAsync",
+              "InternalError",
+              "default"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/nodeReference"
+          }
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "returnNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "result"
+      ],
+      "properties": {
+        "kind": {
+          "const": "Return"
+        },
+        "result": {
+          "$ref": "#/$defs/expression"
+        },
+        "feedback": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "$ref": "#/$defs/memberIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/expression"
+          }
+        },
+        "metadata": {
+          "$ref": "#/$defs/nodeMetadata"
+        }
+      }
+    },
+    "declaredLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "branchDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "referencedActions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "actionCallDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "stateReads": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "commandInvocations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32
+        }
+      }
+    }
+  }
+}
