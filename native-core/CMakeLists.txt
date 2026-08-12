@@ -67,6 +67,7 @@ add_library(showcore STATIC
     src/autoloop_content_pack.cpp
     src/autoloop_autoscript.cpp
     src/autoloop_autoscript_studio.cpp
+    src/autoloop_autoscript_workflow.cpp
     src/autoloop_palette_resolution.cpp
     src/autoloop_director.cpp
     src/autoloop_runtime.cpp
@@ -223,6 +224,10 @@ add_executable(autoloop_autoscript_studio_tests
     tests/test_autoloop_autoscript_studio.cpp)
 target_link_libraries(autoloop_autoscript_studio_tests PRIVATE showcore)
 
+add_executable(autoloop_autoscript_workflow_tests
+    tests/test_autoloop_autoscript_workflow.cpp)
+target_link_libraries(autoloop_autoscript_workflow_tests PRIVATE showcore)
+
 add_executable(autoloop_v2_runtime_tests
     tests/test_autoloop_v2_runtime.cpp)
 target_link_libraries(autoloop_v2_runtime_tests PRIVATE showcore)
@@ -352,6 +357,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/20_CONTROL_ONE_DMX_QUALIFICATION.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
 else()
@@ -422,6 +428,8 @@ add_test(NAME autoloop_v2_studio_tests COMMAND autoloop_v2_studio_tests)
 add_test(NAME autoloop_autoscript_tests COMMAND autoloop_autoscript_tests)
 add_test(NAME autoloop_autoscript_studio_tests
     COMMAND autoloop_autoscript_studio_tests)
+add_test(NAME autoloop_autoscript_workflow_tests
+    COMMAND autoloop_autoscript_workflow_tests)
 add_test(NAME autoloop_v2_runtime_tests COMMAND autoloop_v2_runtime_tests)
 add_test(NAME autoloop_v2_preview_tests COMMAND autoloop_v2_preview_tests)
 add_test(NAME autoloop_v2_palette_resolution_tests

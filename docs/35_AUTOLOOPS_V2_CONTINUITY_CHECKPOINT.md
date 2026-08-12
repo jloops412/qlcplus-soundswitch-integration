@@ -837,3 +837,68 @@ evidence remain separate boundaries. The decoder blocker remains
 `soundswitch.autoloop_delta_corpus_unavailable`. No registry, persisted source
 or project schema, Runner/output/device, hardware/fixture truth, migration,
 AutoScript, skin, broad UI, backlog, or parity-ledger file changed here.
+
+## 18. AutoScript Studio end-to-end Windows journey — 2026-08-12
+
+Issue #60 reservation comment `5272424627` records this stacked slice from the
+exact integration tree used by Windows preview `0.1.0-preview.84.1`. The work
+turns the accepted proposal, preview, persistence, compiler, Runner, and typed
+Live command pieces into one user-visible path without changing the V2 source
+schema, project record envelope, scheduler, output ownership, or device code.
+
+### Authoring and preview boundary
+
+- `StudioAutoloopAutoscriptWorkflow` is a toolkit-neutral orchestration layer
+  over the existing immutable proposal bridge, `StudioPreviewService`, and
+  `StudioDocumentService`. Generate and preview do not mutate the document;
+  Commit requires a successful production-compiler preview and delegates the
+  exact proposal once through the authoritative persisted-source transaction;
+- the Windows **Studio • AutoScript** page accepts bounded musical inputs,
+  stable fixture roles, catalog address, and explicit deterministic seed. Its
+  review panel exposes proposal/source/compiler/frame digests, exact output-
+  disabled state, phase, placement, and per-fixture DMX bytes before Commit;
+- project drift after preview disables/refuses Commit. A successful commit is
+  one ordinary project Undo transaction, becomes durable only after the normal
+  atomic Save, and survives the existing checksum/recovery save and reopen
+  path;
+- the temporary Win32 direct callback is recorded in the binding bypass ledger
+  with issue #60 ownership, focused regression evidence, and removal gate at
+  issue #31 G1E. It adds no second engine or UI-owned lighting semantics.
+
+### Production compile and Live path
+
+- `compile_project_with_persisted_autoloops` is the production document entry
+  point. An absent rich record preserves exact format-1 behavior; a present
+  record compiles its exact canonical V2 source; malformed, unsupported, or
+  digest-mismatched persistence fails closed. Windows Validate, Diagnostics,
+  Start Show, last-known-good recovery, and running-show atomic activation now
+  use that same entry point;
+- once a persisted V2 record exists, the Windows Live list shows its placements
+  by bank/slot and stable name. Launch still routes through registered
+  `autoloop.launch`; the typed facade resolves a persisted placement/content ID
+  or address and posts the existing Runner command. Previous, Next, Clear, and
+  64-bank filters remain unchanged;
+- V2 is authoritative when present. Format-1 records remain byte-for-byte in
+  the project for compatibility but the Runner never mixes two Autoloop
+  engines in one activation.
+
+### Evidence and remaining boundary
+
+- focused `autoloop_autoscript_workflow_tests` pass the complete
+  propose → production preview → phase seek → one-transaction commit → atomic
+  save → reopen → persisted production compile → Runner start → typed stable-ID
+  Live launch journey, plus discard/no-mutation and malformed persistence
+  refusal;
+- all 28 warning-fatal Linux CTest targets pass, the 13 packaging-contract
+  tests pass, the generation-2 registry check remains unchanged at 29 commands
+  and 39 states, and `git diff --check` passes;
+- the complete Windows GUI translation unit compiles under the pinned
+  llvm-mingw/LLVM 22.1.8 cross-toolchain used for preview 84.1. Installed native
+  Windows launch/uninstall and physical output are not claimed by this check.
+
+This page deliberately generates one musical section per gesture. Rich
+Position/Attribute/Movement/Effect authoring and resolution, bulk timeline
+editing, post-commit V2 detail editing, SoundSwitch controlled-delta decoding,
+native Windows/hardware qualification, soak, signing, and production release
+remain follow-up work. The migration blocker remains
+`soundswitch.autoloop_delta_corpus_unavailable`.

@@ -28,6 +28,7 @@ queue-full/safety/unsupported/internal result.
 | Connections | Save/apply/restart, OS2L, MIDI, output settings are Application-owned | Requires persistence/result and adapter-health commands; Control One health is now exposed | Issue #31 G1C / #35 |
 | Project lifecycle | New/open/save/validate/compile/activate and history call Application methods | Requires blocking-utility progress/cancellation and document state | Issue #31 G1D |
 | Authoring | Profiles, patch, groups, Looks, loops, scripts, mappings mutate drafts directly | Requires typed Undo-aware Studio commands | Issue #31 G1E |
+| AutoScript Studio | Generate/preview/commit controls call the toolkit-neutral `StudioAutoloopAutoscriptWorkflow` directly | The typed Studio command facade is not yet extracted; the workflow still enforces immutable proposal, production compilation, output-disabled preview, stale-document rejection, and one authoritative `StudioDocumentService` commit | Owner: issue #60. Regression: `autoloop_autoscript_workflow_tests`. Removal gate: issue #31 G1E exposes equivalent registered Studio commands and state. |
 | Navigation | Fixed Win32 page selection | Current shell remains the strangler host until skin runtime | Issue #31 G1F / #32 |
 
 Static Look Hold is facade-routed but remains **ineligible for cross-surface or

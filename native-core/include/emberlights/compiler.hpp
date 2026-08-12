@@ -119,4 +119,11 @@ struct CompilationResult {
     const AutoloopSourceDocument& source,
     const showcore::AutoloopCompileLimits& limits = {});
 
+// Production document entry point. A recognized persisted V2 record is
+// compiled and activated exactly as stored; an absent record preserves the
+// format-1 path. Malformed or unsupported records fail closed.
+[[nodiscard]] CompilationResult compile_project_with_persisted_autoloops(
+    const ProjectDocument& project,
+    const showcore::AutoloopCompileLimits& limits = {});
+
 }  // namespace emberlights

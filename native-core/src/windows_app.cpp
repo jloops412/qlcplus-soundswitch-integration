@@ -1,5 +1,7 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/autoloop_autoscript_workflow.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/connection_layout.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 #include "emberlights/project.hpp"
@@ -142,6 +144,7 @@ enum class Page : std::size_t {
     Groups,
     Looks,
     Autoloops,
+    Autoscript,
     Tracks,
     Midi,
     Connections,
@@ -173,6 +176,7 @@ enum ControlId : int {
     IdNavGroups,
     IdNavLooks,
     IdNavAutoloops,
+    IdNavAutoscript,
     IdNavTracks,
     IdNavMidi,
     IdNavConnections,
@@ -323,6 +327,27 @@ enum ControlId : int {
     IdAutoloopHelp,
     IdAutoloopMessage,
 
+    IdAutoscriptTitle = 5250,
+    IdAutoscriptIntroduction,
+    IdAutoscriptStyle,
+    IdAutoscriptComplexity,
+    IdAutoscriptTrackBars,
+    IdAutoscriptLoopBeats,
+    IdAutoscriptGrid,
+    IdAutoscriptEnergy,
+    IdAutoscriptBank,
+    IdAutoscriptSlot,
+    IdAutoscriptSeed,
+    IdAutoscriptRoles,
+    IdAutoscriptGenerate,
+    IdAutoscriptPreviewStart,
+    IdAutoscriptPreviewMiddle,
+    IdAutoscriptCommit,
+    IdAutoscriptDiscard,
+    IdAutoscriptSummary,
+    IdAutoscriptHelp,
+    IdAutoscriptMessage,
+
     IdTrackTitle = 5500,
     IdTrackList,
     IdTrackNew,
@@ -457,6 +482,7 @@ constexpr std::array<int, emberlights::kConnectionLayoutItemCount>
     case IdAutoloopDelete:
     case IdAutoloopNextEmpty:
     case IdAutoloopSwapTarget:
+    case IdAutoscriptCommit:
     case IdTrackSave:
     case IdTrackDelete:
     case IdTrackAddAudio:
@@ -807,6 +833,7 @@ private:
     void refresh_look_capabilities();
     void refresh_look_draft_view();
     void refresh_autoloops();
+    void refresh_autoscript();
     void refresh_tracks();
     void refresh_track_audio_assets(std::string_view selected_asset_id);
     void refresh_midi();
@@ -873,6 +900,11 @@ private:
     void move_autoloop_to_next_empty();
     void swap_autoloop_into_target_slot();
     [[nodiscard]] bool autoloop_editor_has_unsaved_content() const;
+    void generate_autoscript_proposal();
+    void preview_autoscript_phase(double phase);
+    void commit_autoscript_proposal();
+    void discard_autoscript_proposal();
+    void refresh_autoscript_summary(std::string_view message = {});
     void select_track(std::int32_t index);
     void new_track();
     void duplicate_track();
@@ -929,6 +961,14 @@ private:
     std::int32_t autoloop_index_{-1};
     std::int32_t track_index_{-1};
     std::uint16_t live_autoloop_bank_page_{0U};
+    struct LiveAutoloopListItem {
+        std::string id;
+        std::string name;
+        showcore::AutoloopAddress address{};
+        bool v2{false};
+    };
+    std::vector<LiveAutoloopListItem> live_autoloop_items_;
+    emberlights::StudioAutoloopAutoscriptWorkflow autoscript_workflow_;
 
     emberlights::RunnerService runner_{};
     emberlights::UiCommandFacade ui_commands_{runner_, *this};
@@ -1153,7 +1193,7 @@ bool Application::window_tree_ready() const noexcept {
             })) {
         return false;
     }
-    constexpr std::array<std::pair<Page, int>, 12> critical_controls{{
+    constexpr std::array<std::pair<Page, int>, 13> critical_controls{{
         {Page::Live, IdLiveStartStop},
         {Page::Overrides, IdOverridesApply},
         {Page::Profiles, IdProfileList},
@@ -1161,6 +1201,7 @@ bool Application::window_tree_ready() const noexcept {
         {Page::Groups, IdGroupList},
         {Page::Looks, IdLookList},
         {Page::Autoloops, IdAutoloopList},
+        {Page::Autoscript, IdAutoscriptGenerate},
         {Page::Tracks, IdTrackList},
         {Page::Midi, IdMidiList},
         {Page::Connections, IdConnectionsApply},
@@ -1495,9 +1536,9 @@ void Application::create_navigation() {
     constexpr std::array<const wchar_t*, static_cast<std::size_t>(Page::Count)> names{{
         L"LIVE • Home", L"LIVE • Overrides",
         L"STUDIO • Profiles", L"STUDIO • Patch", L"STUDIO • Groups",
-        L"STUDIO • Static Looks", L"STUDIO • Autoloops", L"STUDIO • Track Scripts",
-        L"CONTROL • MIDI", L"SYSTEM • Connections", L"SYSTEM • Safety",
-        L"SYSTEM • Diagnostics"}};
+        L"STUDIO • Static Looks", L"STUDIO • Autoloops", L"STUDIO • AutoScript",
+        L"STUDIO • Track Scripts", L"CONTROL • MIDI", L"SYSTEM • Connections",
+        L"SYSTEM • Safety", L"SYSTEM • Diagnostics"}};
     for (std::size_t index = 0; index < navigation_.size(); ++index) {
         navigation_[index] = add_button(
             window_, names[index], IdNavLive + static_cast<int>(index), BS_LEFT);
@@ -1734,6 +1775,48 @@ void Application::create_pages() {
         L"One step per line: beat, look-id, cut|linear. The first step must be beat 0.",
         IdAutoloopHelp);
     add_label(page, L"", IdAutoloopMessage);
+
+    page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+    title = add_label(page, L"AutoScript Studio", IdAutoscriptTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_label(
+        page,
+        L"Generate one deterministic V2 Autoloop from musical intent. EmberLights first "
+        L"compiles an immutable proposal through the production renderer with every output "
+        L"adapter disabled; nothing enters the project until you explicitly commit it.",
+        IdAutoscriptIntroduction);
+    add_label(page, L"Style", 0);
+    add_combo(page, IdAutoscriptStyle);
+    add_label(page, L"Complexity", 0);
+    add_combo(page, IdAutoscriptComplexity);
+    add_label(page, L"Track bars", 0);
+    add_edit(page, IdAutoscriptTrackBars);
+    add_label(page, L"Loop beats", 0);
+    add_edit(page, IdAutoscriptLoopBeats);
+    add_label(page, L"Grid", 0);
+    add_combo(page, IdAutoscriptGrid);
+    add_label(page, L"Energy %", 0);
+    add_edit(page, IdAutoscriptEnergy);
+    add_label(page, L"First bank", 0);
+    add_edit(page, IdAutoscriptBank);
+    add_label(page, L"First slot", 0);
+    add_edit(page, IdAutoscriptSlot);
+    add_label(page, L"Seed", 0);
+    add_edit(page, IdAutoscriptSeed);
+    add_label(page, L"Fixture roles (comma-separated; blank = all)", 0);
+    add_edit(page, IdAutoscriptRoles);
+    add_button(page, L"Generate + Offline Preview", IdAutoscriptGenerate, BS_DEFPUSHBUTTON);
+    add_button(page, L"Preview Start", IdAutoscriptPreviewStart);
+    add_button(page, L"Preview Middle", IdAutoscriptPreviewMiddle);
+    add_button(page, L"Commit to Project", IdAutoscriptCommit);
+    add_button(page, L"Discard", IdAutoscriptDiscard);
+    add_edit(page, IdAutoscriptSummary, true, true);
+    add_label(
+        page,
+        L"Use a stable seed to reproduce the same content. Commit is one Undo transaction. "
+        L"Save and reopen normally; Live will list persisted V2 placements by bank and slot.",
+        IdAutoscriptHelp);
+    add_label(page, L"", IdAutoscriptMessage);
 
     page = pages_[static_cast<std::size_t>(Page::Tracks)];
     title = add_label(page, L"Track Scripts", IdTrackTitle);
@@ -2131,6 +2214,42 @@ void Application::layout_page(Page page, int width, int height) {
         move(21, x, height - 72, form_width, 30);
         break;
     }
+    case Page::Autoscript: {
+        const auto field_gap = 16;
+        const auto field_width = std::max(150, (usable_width - field_gap) / 2);
+        move(1, margin, 64, usable_width, 52);
+        move(2, margin, 126, 90, 26);
+        move(3, margin + 90, 126, field_width - 90, 200);
+        move(4, margin + field_width + field_gap, 126, 100, 26);
+        move(5, margin + field_width + field_gap + 100, 126,
+             field_width - 100, 200);
+
+        const auto quarter = std::max(145, (usable_width - field_gap * 3) / 4);
+        for (std::size_t column = 0U; column < 4U; ++column) {
+            const auto x = margin + static_cast<int>(column) * (quarter + field_gap);
+            const auto base = 6U + column * 2U;
+            move(base, x, 168, quarter, 24);
+            move(base + 1U, x, 192, quarter, 200);
+        }
+        move(14, margin, 232, 90, 24);
+        move(15, margin + 90, 232, 80, 27);
+        move(16, margin + 186, 232, 80, 24);
+        move(17, margin + 266, 232, 80, 27);
+        move(18, margin + 362, 232, 60, 24);
+        move(19, margin + 422, 232, 190, 27);
+        move(20, margin + 630, 232, 280, 24);
+        move(21, margin + 910, 232, std::max(100, usable_width - 910), 27);
+
+        move(22, margin, 274, 220, 34);
+        move(23, margin + 230, 274, 120, 34);
+        move(24, margin + 360, 274, 130, 34);
+        move(25, margin + 500, 274, 150, 34);
+        move(26, margin + 660, 274, 90, 34);
+        move(27, margin, 322, usable_width, std::max(120, height - 520));
+        move(28, margin, height - 148, usable_width, 64);
+        move(29, margin, height - 76, usable_width, 34);
+        break;
+    }
     case Page::Tracks: {
         const auto left_width = std::min(330, usable_width / 3);
         move(1, margin, 70, left_width, height - 150);
@@ -2450,6 +2569,7 @@ void Application::reset_authoring_selection() {
     look_draft_.reset();
     autoloop_index_ = -1;
     track_index_ = -1;
+    static_cast<void>(autoscript_workflow_.discard());
 }
 
 void Application::capture_saved_project() {
@@ -2779,6 +2899,7 @@ void Application::refresh_all() {
     refresh_groups();
     refresh_looks();
     refresh_autoloops();
+    refresh_autoscript();
     refresh_tracks();
     refresh_midi();
     refresh_overrides();
@@ -2799,15 +2920,52 @@ void Application::refresh_live_lists() {
     static_cast<void>(::SendMessageW(looks, LB_RESETCONTENT, 0, 0));
     static_cast<void>(::SendMessageW(loops, LB_RESETCONTENT, 0, 0));
     static_cast<void>(::SendMessageW(tracks, LB_RESETCONTENT, 0, 0));
+    live_autoloop_items_.clear();
     const auto& live = live_project();
     for (std::size_t index = 0; index < live.looks.size(); ++index) {
         listbox_add(looks, widen(live.looks[index].name), index);
     }
-    for (std::size_t index = 0; index < live.autoloops.size(); ++index) {
-        const auto& loop = live.autoloops[index];
+    const auto persisted = emberlights::inspect_persisted_autoloop_source(live);
+    if (persisted && persisted.stamp.present) {
+        live_autoloop_items_.reserve(persisted.source.placements.size());
+        for (const auto& placement : persisted.source.placements) {
+            const auto asset = std::find_if(
+                persisted.source.assets.begin(),
+                persisted.source.assets.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == placement.asset_id;
+                });
+            live_autoloop_items_.push_back({
+                placement.id,
+                asset == persisted.source.assets.end()
+                    ? placement.asset_id
+                    : asset->name,
+                {placement.bank, placement.slot},
+                true});
+        }
+        std::sort(
+            live_autoloop_items_.begin(),
+            live_autoloop_items_.end(),
+            [](const auto& first, const auto& second) {
+                return std::pair(first.address.bank, first.address.slot) <
+                    std::pair(second.address.bank, second.address.slot);
+            });
+    } else if (persisted) {
+        live_autoloop_items_.reserve(live.autoloops.size());
+        for (const auto& loop : live.autoloops) {
+            live_autoloop_items_.push_back({
+                loop.id,
+                loop.name,
+                {loop.bank, loop.slot},
+                false});
+        }
+    }
+    for (std::size_t index = 0U; index < live_autoloop_items_.size(); ++index) {
+        const auto& loop = live_autoloop_items_[index];
         std::ostringstream label;
-        label << "B" << loop.bank + 1U << " / S" << static_cast<unsigned int>(loop.slot + 1U)
-              << " — " << loop.name;
+        label << "B" << loop.address.bank + 1U << " / S"
+              << static_cast<unsigned int>(loop.address.slot + 1U)
+              << (loop.v2 ? " — V2 — " : " — ") << loop.name;
         listbox_add(loops, widen(label.str()), index);
     }
     for (std::size_t index = 0; index < live.track_scripts.size(); ++index) {
@@ -3313,6 +3471,153 @@ void Application::refresh_autoloops() {
     }
 }
 
+void Application::refresh_autoscript() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+    const auto style = ::GetDlgItem(page, IdAutoscriptStyle);
+    static_cast<void>(::SendMessageW(style, CB_RESETCONTENT, 0, 0));
+    combo_add(style, L"Subtle", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptStyle::Subtle));
+    combo_add(style, L"Balanced", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptStyle::Balanced));
+    combo_add(style, L"Color Motion", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptStyle::ColorMotion));
+    combo_add(style, L"Build / Drop", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptStyle::BuildDrop));
+    combo_select_data(style, static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptStyle::Balanced));
+
+    const auto complexity = ::GetDlgItem(page, IdAutoscriptComplexity);
+    static_cast<void>(::SendMessageW(complexity, CB_RESETCONTENT, 0, 0));
+    combo_add(complexity, L"Minimal", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptComplexity::Minimal));
+    combo_add(complexity, L"Low", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptComplexity::Low));
+    combo_add(complexity, L"Medium", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptComplexity::Medium));
+    combo_add(complexity, L"High", static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptComplexity::High));
+    combo_select_data(complexity, static_cast<std::intptr_t>(
+        emberlights::AutoloopAutoscriptComplexity::Medium));
+
+    const auto grid = ::GetDlgItem(page, IdAutoscriptGrid);
+    static_cast<void>(::SendMessageW(grid, CB_RESETCONTENT, 0, 0));
+    combo_add(grid, L"1 beat", emberlights::kMusicalTicksPerQuarter);
+    combo_add(grid, L"1/2 beat", emberlights::kMusicalTicksPerQuarter / 2);
+    combo_add(grid, L"1/4 beat", emberlights::kMusicalTicksPerQuarter / 4);
+    combo_select_data(grid, emberlights::kMusicalTicksPerQuarter / 2);
+
+    set_control_text(::GetDlgItem(page, IdAutoscriptTrackBars), "16");
+    set_control_text(::GetDlgItem(page, IdAutoscriptLoopBeats), "4");
+    set_control_text(::GetDlgItem(page, IdAutoscriptEnergy), "70");
+    set_control_text(::GetDlgItem(page, IdAutoscriptSeed), "4122026");
+    set_control_text(::GetDlgItem(page, IdAutoscriptRoles), "");
+
+    auto source = emberlights::AutoloopSourceDocument{};
+    const auto persisted = emberlights::inspect_persisted_autoloop_source(project_);
+    if (persisted && persisted.stamp.present) {
+        source = persisted.source;
+    }
+    const emberlights::AutoloopAuthoringService authoring(std::move(source));
+    const auto next = authoring.next_open();
+    set_control_text(
+        ::GetDlgItem(page, IdAutoscriptBank),
+        next.found ? number_text(next.address.bank + 1U) : "");
+    set_control_text(
+        ::GetDlgItem(page, IdAutoscriptSlot),
+        next.found ? number_text(static_cast<unsigned int>(next.address.slot) + 1U)
+                   : "");
+    refresh_autoscript_summary(
+        persisted
+            ? "Set musical intent, then generate an immutable offline proposal."
+            : persisted.message);
+}
+
+void Application::refresh_autoscript_summary(std::string_view message) {
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+    const auto workflow = autoscript_workflow_.snapshot();
+    const bool same_document = emberlights::serialize_project(
+        workflow.document.document) == emberlights::serialize_project(project_);
+    const bool can_preview = workflow.preview_ready && !workflow.committed &&
+        same_document;
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdAutoscriptPreviewStart), can_preview));
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdAutoscriptPreviewMiddle), can_preview));
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdAutoscriptCommit),
+        workflow.can_commit && same_document));
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdAutoscriptDiscard), workflow.has_proposal));
+
+    std::ostringstream summary;
+    const auto persisted = emberlights::inspect_persisted_autoloop_source(project_);
+    if (!persisted) {
+        summary << "CURRENT V2 CATALOG: INVALID\r\n"
+                << persisted.message << "\r\n\r\n";
+    } else if (!persisted.stamp.present) {
+        summary << "CURRENT V2 CATALOG: not created yet (format-1 content is unchanged)\r\n\r\n";
+    } else {
+        summary << "CURRENT V2 CATALOG: " << persisted.source.assets.size()
+                << " assets, " << persisted.source.placements.size()
+                << " placements\r\nSource SHA-256: "
+                << persisted.stamp.source_digest << "\r\n\r\n";
+    }
+
+    if (!workflow.has_proposal) {
+        summary << "No pending proposal. Generate + Offline Preview does not edit the project.";
+    } else {
+        summary << "PROPOSAL: "
+                << emberlights::autoloop_autoscript_proposal_result_name(
+                       workflow.proposal_result)
+                << "\r\nProposal SHA-256: " << workflow.proposal_digest
+                << "\r\nCandidate source SHA-256: "
+                << workflow.preview_source_digest
+                << "\r\nGenerated: " << workflow.generated_asset_count
+                << " asset, " << workflow.generated_event_count << " events";
+        if (workflow.address.has_value()) {
+            summary << "\r\nPlacement: B" << workflow.address->bank + 1U
+                    << " / S"
+                    << static_cast<unsigned int>(workflow.address->slot + 1U)
+                    << "  " << workflow.placement_id;
+        }
+        summary << "\r\n\r\nPREVIEW: "
+                << emberlights::studio_preview_result_name(
+                       workflow.preview_result)
+                << "\r\nOutput adapters: "
+                << (workflow.preview.output_disabled ? "DISABLED" : "unexpectedly enabled")
+                << "\r\nCompiled SHA-256: "
+                << workflow.preview.compiled_digest
+                << "\r\nFrame SHA-256: " << workflow.preview.frame_sha256
+                << "\r\nPhase: " << workflow.preview.phase
+                << "  Beat: " << workflow.preview.beat_position;
+        for (const auto& fixture : workflow.preview.fixtures) {
+            summary << "\r\n  " << fixture.fixture_name << " — U"
+                    << static_cast<unsigned int>(fixture.universe) << " A"
+                    << fixture.address << " — DMX";
+            for (const auto value : fixture.dmx_values) {
+                summary << ' ' << static_cast<unsigned int>(value);
+            }
+        }
+        if (workflow.committed) {
+            summary << "\r\n\r\nCOMMITTED as one Undo transaction. Save the project, "
+                       "then Start Show to launch this placement from Live.";
+        } else if (!same_document) {
+            summary << "\r\n\r\nSTALE: the project changed after this proposal. "
+                       "Discard it and generate again.";
+        }
+    }
+    set_control_text(::GetDlgItem(page, IdAutoscriptSummary), summary.str());
+    if (!message.empty()) {
+        set_page_message(
+            Page::Autoscript,
+            IdAutoscriptMessage,
+            message,
+            !persisted || message.find("failed") != std::string_view::npos ||
+                message.find("invalid") != std::string_view::npos ||
+                message.find("rejected") != std::string_view::npos);
+    }
+}
+
 void Application::refresh_tracks() {
     const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
     const auto list = ::GetDlgItem(page, IdTrackList);
@@ -3565,7 +3870,9 @@ void Application::refresh_safety() {
 
 std::string Application::diagnostics_text() const {
     const auto status = runner_.status();
-    const auto validation = emberlights::validate_project(project_);
+    const auto compilation =
+        emberlights::compile_project_with_persisted_autoloops(project_);
+    const auto& validation = compilation.validation;
     std::ostringstream output;
     output << "EmberLights " << emberlights::kVersion
            << " (commit " << emberlights::kCommit << ")\r\n"
@@ -3869,11 +4176,12 @@ void Application::handle_command(int id, int notification, HWND) {
         if (selected >= 0) {
             const auto index = static_cast<std::size_t>(::SendMessageW(
                 list, LB_GETITEMDATA, selected, 0));
-            const auto& live = live_project();
-            if (index < live.autoloops.size()) {
+            if (index < live_autoloop_items_.size()) {
                 emberlights::UiCommandInvocation invocation;
                 invocation.command = emberlights::UiCommandId::AutoloopLaunch;
-                invocation.target_id = live.autoloops[index].id;
+                invocation.target_id = live_autoloop_items_[index].id;
+                invocation.autoloop_address =
+                    live_autoloop_items_[index].address;
                 static_cast<void>(ui_commands_.invoke(invocation));
             }
         }
@@ -4038,6 +4346,11 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdAutoloopDelete: delete_autoloop(); break;
     case IdAutoloopNextEmpty: move_autoloop_to_next_empty(); break;
     case IdAutoloopSwapTarget: swap_autoloop_into_target_slot(); break;
+    case IdAutoscriptGenerate: generate_autoscript_proposal(); break;
+    case IdAutoscriptPreviewStart: preview_autoscript_phase(0.0); break;
+    case IdAutoscriptPreviewMiddle: preview_autoscript_phase(0.5); break;
+    case IdAutoscriptCommit: commit_autoscript_proposal(); break;
+    case IdAutoscriptDiscard: discard_autoscript_proposal(); break;
     case IdTrackNew: new_track(); break;
     case IdTrackDuplicate: duplicate_track(); break;
     case IdTrackSave: save_track(); break;
@@ -4535,7 +4848,8 @@ bool Application::save_project(bool save_as) {
     capture_saved_project();
     const auto runner_state = runner_.status().state;
     if (runner_state == emberlights::RunnerState::Running) {
-        auto compilation = emberlights::compile_project(project_);
+        auto compilation =
+            emberlights::compile_project_with_persisted_autoloops(project_);
         if (!compilation) {
             set_status(
                 L"Project saved, but preflight failed. The last activated show remains live.");
@@ -4593,14 +4907,16 @@ bool Application::save_project(bool save_as) {
 }
 
 void Application::validate_project(bool show_success) {
-    const auto validation = emberlights::validate_project(project_);
+    const auto compilation =
+        emberlights::compile_project_with_persisted_autoloops(project_);
+    const auto& validation = compilation.validation;
     refresh_diagnostics();
     if (validation.ok()) {
         if (show_success) {
             ::MessageBoxW(
                 window_,
-                L"Project validation passed. Fixture profiles, patch, Static Looks, Autoloops, "
-                L"and current limits are internally consistent.",
+                L"Project validation passed. Fixture profiles, patch, Static Looks, persisted "
+                L"V2 Autoloops, and current limits compile through the production path.",
                 L"Preflight passed",
                 MB_OK | MB_ICONINFORMATION);
         }
@@ -4647,14 +4963,15 @@ void Application::start_or_stop_show() {
     }
 
     auto run_project = project_;
-    auto compilation = emberlights::compile_project(run_project);
+    auto compilation =
+        emberlights::compile_project_with_persisted_autoloops(run_project);
     bool recovered_activation = false;
     if (!compilation) {
         emberlights::ProjectDocument last_active;
         const auto loaded = emberlights::load_project(
             emberlights::project_active_path(current_path_), last_active, true);
         auto last_active_compilation = loaded
-            ? emberlights::compile_project(last_active)
+            ? emberlights::compile_project_with_persisted_autoloops(last_active)
             : emberlights::CompilationResult{};
         if (!loaded || !last_active_compilation) {
             validate_project(false);
@@ -6059,6 +6376,180 @@ void Application::delete_autoloop() {
     refresh_autoloops();
     refresh_tracks();
     refresh_live_lists();
+}
+
+void Application::generate_autoscript_proposal() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+    std::uint32_t track_bars = 0U;
+    double loop_beats = 0.0;
+    std::uint16_t energy_percent = 0U;
+    std::uint16_t bank = 0U;
+    std::uint16_t slot = 0U;
+    std::uint64_t seed = 0U;
+    if (!parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptTrackBars)),
+            track_bars) ||
+        track_bars == 0U || track_bars > 4096U ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptLoopBeats)),
+            loop_beats) ||
+        !std::isfinite(loop_beats) || loop_beats <= 0.0 ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptEnergy)),
+            energy_percent) ||
+        energy_percent > 100U ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptBank)), bank) ||
+        bank == 0U || bank > showcore::kMaxAutoloopBanks ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptSlot)), slot) ||
+        slot == 0U || slot > showcore::kAutoloopsPerBank ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptSeed)), seed)) {
+        refresh_autoscript_summary(
+            "Enter 1–4096 track bars, positive loop beats, energy 0–100, "
+            "bank 1–64, slot 1–32, and an unsigned whole-number seed.");
+        return;
+    }
+
+    const auto loop_ticks_floating =
+        loop_beats * static_cast<double>(emberlights::kMusicalTicksPerQuarter);
+    const auto loop_ticks = static_cast<emberlights::MusicalTick>(
+        std::llround(loop_ticks_floating));
+    if (loop_ticks <= 0 ||
+        std::fabs(loop_ticks_floating - static_cast<double>(loop_ticks)) >
+            0.000001) {
+        refresh_autoscript_summary(
+            "Loop beats must resolve exactly on the 960-PPQ musical grid.");
+        return;
+    }
+    const auto track_ticks = static_cast<emberlights::MusicalTick>(track_bars) *
+        4 * emberlights::kMusicalTicksPerQuarter;
+    const auto grid_ticks = static_cast<emberlights::MusicalTick>(
+        combo_selected_data(
+            ::GetDlgItem(page, IdAutoscriptGrid),
+            emberlights::kMusicalTicksPerQuarter));
+
+    std::vector<std::string> roles;
+    const auto role_text = control_text(::GetDlgItem(page, IdAutoscriptRoles));
+    std::size_t role_start = 0U;
+    while (role_start <= role_text.size()) {
+        const auto comma = role_text.find(',', role_start);
+        const auto role = trim(role_text.substr(
+            role_start,
+            comma == std::string::npos
+                ? std::string::npos
+                : comma - role_start));
+        if (!role.empty()) {
+            roles.push_back(role);
+        }
+        if (comma == std::string::npos) {
+            break;
+        }
+        role_start = comma + 1U;
+    }
+    std::sort(roles.begin(), roles.end());
+    roles.erase(std::unique(roles.begin(), roles.end()), roles.end());
+    if (roles.size() > emberlights::kMaximumAutoloopAutoscriptRoleSelectors) {
+        refresh_autoscript_summary(
+            "Use no more than four comma-separated fixture roles.");
+        return;
+    }
+
+    emberlights::AutoloopAutoscriptRequest request;
+    request.track_duration_ticks = track_ticks;
+    request.loop_length_ticks = loop_ticks;
+    request.grid_ticks = grid_ticks;
+    request.style = static_cast<emberlights::AutoloopAutoscriptStyle>(
+        combo_selected_data(
+            ::GetDlgItem(page, IdAutoscriptStyle),
+            static_cast<std::intptr_t>(
+                emberlights::AutoloopAutoscriptStyle::Balanced)));
+    request.complexity =
+        static_cast<emberlights::AutoloopAutoscriptComplexity>(
+            combo_selected_data(
+                ::GetDlgItem(page, IdAutoscriptComplexity),
+                static_cast<std::intptr_t>(
+                    emberlights::AutoloopAutoscriptComplexity::Medium)));
+    auto section = emberlights::AutoloopAutoscriptSectionKind::Verse;
+    if (request.style == emberlights::AutoloopAutoscriptStyle::Subtle) {
+        section = emberlights::AutoloopAutoscriptSectionKind::Intro;
+    } else if (
+        request.style == emberlights::AutoloopAutoscriptStyle::ColorMotion) {
+        section = emberlights::AutoloopAutoscriptSectionKind::Chorus;
+    } else if (
+        request.style == emberlights::AutoloopAutoscriptStyle::BuildDrop) {
+        section = emberlights::AutoloopAutoscriptSectionKind::Drop;
+    }
+    request.musical_sections.push_back({
+        0,
+        track_ticks,
+        section,
+        static_cast<std::uint16_t>(energy_percent * 10U)});
+    request.eligible_role_selectors = std::move(roles);
+    request.seed = seed;
+    request.first_placement = {
+        static_cast<std::uint16_t>(bank - 1U),
+        static_cast<std::uint8_t>(slot - 1U)};
+
+    const auto loaded = autoscript_workflow_.load_document(project_);
+    if (!loaded) {
+        refresh_autoscript_summary(
+            loaded.message.empty()
+                ? "The current project is not a valid AutoScript document."
+                : loaded.message);
+        return;
+    }
+    const auto proposed = autoscript_workflow_.propose_and_preview(
+        std::move(request));
+    refresh_autoscript_summary(
+        proposed.message.empty()
+            ? emberlights::studio_autoloop_autoscript_workflow_result_name(
+                  proposed.result)
+            : proposed.message);
+}
+
+void Application::preview_autoscript_phase(double phase) {
+    const auto previewed = autoscript_workflow_.preview_phase(phase);
+    refresh_autoscript_summary(
+        previewed.message.empty()
+            ? emberlights::studio_autoloop_autoscript_workflow_result_name(
+                  previewed.result)
+            : previewed.message);
+}
+
+void Application::commit_autoscript_proposal() {
+    const auto base = autoscript_workflow_.document_snapshot();
+    if (emberlights::serialize_project(base.document) !=
+        emberlights::serialize_project(project_)) {
+        refresh_autoscript_summary(
+            "The project changed after this proposal. Discard it and generate again.");
+        return;
+    }
+    const auto committed = autoscript_workflow_.commit();
+    if (!committed) {
+        refresh_autoscript_summary(
+            committed.message.empty()
+                ? emberlights::studio_autoloop_autoscript_workflow_result_name(
+                      committed.result)
+                : committed.message);
+        return;
+    }
+
+    project_ = autoscript_workflow_.document_snapshot().document;
+    mark_dirty();
+    refresh_live_lists();
+    refresh_diagnostics();
+    refresh_autoscript();
+    refresh_autoscript_summary(
+        "AutoScript committed as one Undo transaction. Save the project, then "
+        "Start Show to launch the V2 placement from Live.");
+}
+
+void Application::discard_autoscript_proposal() {
+    const auto discarded = autoscript_workflow_.discard();
+    refresh_autoscript();
+    refresh_autoscript_summary(discarded.message);
 }
 
 void Application::select_track(std::int32_t index) {

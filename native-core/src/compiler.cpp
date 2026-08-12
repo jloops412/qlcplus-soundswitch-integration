@@ -1,5 +1,7 @@
 #include "emberlights/compiler.hpp"
 
+#include "emberlights/autoloop_persistence.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -474,6 +476,27 @@ CompilationResult compile_project(
     }
     show.autoloop_v2_package_ = std::move(compiled_v2.package);
     return result;
+}
+
+CompilationResult compile_project_with_persisted_autoloops(
+    const ProjectDocument& project,
+    const showcore::AutoloopCompileLimits& limits) {
+    const auto persisted = inspect_persisted_autoloop_source(project);
+    if (!persisted) {
+        CompilationResult result;
+        result.validation = validate_project(project);
+        compilation_error(
+            result.validation,
+            "autoloop.persistence.invalid",
+            "autoloop-v2",
+            persisted.message.empty()
+                ? "The persisted V2 Autoloop source is invalid."
+                : persisted.message);
+        return result;
+    }
+    return persisted.stamp.present
+        ? compile_project(project, persisted.source, limits)
+        : compile_project(project);
 }
 
 }  // namespace emberlights

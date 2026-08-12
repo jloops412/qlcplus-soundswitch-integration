@@ -1,5 +1,6 @@
 #include "emberlights/ui_command.hpp"
 
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 
 #include <algorithm>
@@ -117,6 +118,43 @@ struct ResolvedGroup {
 [[nodiscard]] showcore::AutoloopAddress resolve_autoloop(
     const ProjectDocument& project,
     const UiCommandInvocation& invocation) noexcept {
+    try {
+        const auto persisted = inspect_persisted_autoloop_source(project);
+        if (!persisted) {
+            return {};
+        }
+        if (persisted.stamp.present) {
+            if (!invocation.target_id.empty()) {
+                const auto found = std::find_if(
+                    persisted.source.placements.begin(),
+                    persisted.source.placements.end(),
+                    [&](const auto& placement) {
+                        return placement.id == invocation.target_id ||
+                            placement.asset_id == invocation.target_id;
+                    });
+                return found == persisted.source.placements.end()
+                    ? showcore::AutoloopAddress{}
+                    : showcore::AutoloopAddress{found->bank, found->slot};
+            }
+            if (!invocation.autoloop_address.valid()) {
+                return {};
+            }
+            const auto found = std::find_if(
+                persisted.source.placements.begin(),
+                persisted.source.placements.end(),
+                [&](const auto& placement) {
+                    return placement.bank == invocation.autoloop_address.bank &&
+                        placement.slot == invocation.autoloop_address.slot;
+                });
+            return found == persisted.source.placements.end()
+                ? showcore::AutoloopAddress{}
+                : invocation.autoloop_address;
+        }
+    } catch (...) {
+        // UiCommandFacade::invoke is noexcept. Persistence decoding therefore
+        // converts allocation/decoder exceptions into a fail-closed miss.
+        return {};
+    }
     if (!invocation.target_id.empty()) {
         const auto found = std::find_if(
             project.autoloops.begin(), project.autoloops.end(),
