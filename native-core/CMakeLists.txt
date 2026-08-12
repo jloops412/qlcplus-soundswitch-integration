@@ -60,6 +60,7 @@ add_library(showcore STATIC
     src/winmm_midi.cpp
     src/look.cpp
     src/autoloop.cpp
+    src/autoloop_source.cpp
     src/engine.cpp
     src/project.cpp
     src/hardware_qualification.cpp
@@ -151,6 +152,10 @@ target_link_libraries(studio_foundation_tests PRIVATE showcore)
 add_executable(static_look_authoring_tests
     tests/test_static_look_authoring.cpp)
 target_link_libraries(static_look_authoring_tests PRIVATE showcore)
+
+add_executable(autoloop_v2_model_tests
+    tests/test_autoloop_v2_model.cpp)
+target_link_libraries(autoloop_v2_model_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
