@@ -1,4 +1,5 @@
 #include "emberlights/soundswitch_import.hpp"
+#include "emberlights/soundswitch_migration_ir.hpp"
 #include "emberlights/soundswitch_v1.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/version.hpp"
@@ -9,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -20,6 +22,7 @@ void print_help() {
         << "  emberlights_migrate inspect <SoundSwitch project directory> [--report <file>] [--force]\n"
         << "  emberlights_migrate compare <before export> <after export> [--report <file>] [--force]\n"
         << "  emberlights_migrate bundle <SoundSwitch project directory> <new bundle directory>\n"
+        << "  emberlights_migrate corpus-manifest <SoundSwitch project directory> --report <file> [--source-version <version>] [--scripted-tracks] [--force]\n"
         << "  emberlights_migrate convert-v1 <SoundSwitch project directory> <output.emberlights> [--report <file>] [--force]\n"
         << "  emberlights_migrate template-v1 <output.emberlights> [--force]\n\n"
         << "inspect reads and hashes the source without modifying it.\n"
@@ -28,6 +31,8 @@ void print_help() {
         << "must not exist. No undocumented payload is interpreted or discarded.\n"
         << "compare performs two read-only inspections and reports only changed paths, hashes,\n"
         << "and bounded byte ranges. It never exports payload bytes.\n"
+        << "corpus-manifest evaluates evidence availability and missing dependency classes;\n"
+        << "it does not claim semantic import completeness or scan external music libraries.\n"
         << "convert-v1 recognizes the qualified SoundSwitch 2.10.x color rig, rebuilds the\n"
         << "active 32-look bank as native semantic content, and leaves every DMX output off.\n";
 }
@@ -178,6 +183,59 @@ int run(const std::vector<std::filesystem::path>& arguments) {
                   << result.destination.string() << "\n"
                   << result.message << '\n';
         return 0;
+    }
+    if (command == "corpus-manifest") {
+        if (arguments.size() < 4U) {
+            print_help();
+            return 1;
+        }
+        std::filesystem::path report;
+        std::string source_version;
+        auto scope = emberlights::SoundSwitchMigrationScope::ProjectOnly;
+        bool force = false;
+        for (std::size_t index = 2U; index < arguments.size(); ++index) {
+            const auto option = arguments[index].string();
+            if (option == "--force") {
+                force = true;
+            } else if (option == "--scripted-tracks") {
+                scope = emberlights::SoundSwitchMigrationScope::ScriptedTracks;
+            } else if (option == "--report" && index + 1U < arguments.size()) {
+                report = arguments[++index];
+            } else if (option == "--source-version" && index + 1U < arguments.size()) {
+                source_version = arguments[++index].string();
+            } else {
+                std::cerr << "Unknown or incomplete option: " << option << '\n';
+                return 1;
+            }
+        }
+        if (report.empty()) {
+            std::cerr << "corpus-manifest requires --report <file>.\n";
+            return 1;
+        }
+        std::error_code filesystem_error;
+        if (!force && std::filesystem::exists(report, filesystem_error)) {
+            std::cerr << "Report already exists; use --force to replace it.\n";
+            return 1;
+        }
+        const auto inspection = emberlights::inspect_soundswitch_project(arguments[1]);
+        const auto manifest = emberlights::build_soundswitch_corpus_manifest(
+            inspection, std::move(source_version), scope);
+        const auto serialized = emberlights::serialize_soundswitch_corpus_manifest(manifest);
+        if (serialized.empty()) {
+            std::cerr << "The corpus manifest contract could not be validated.\n";
+            return 2;
+        }
+        std::string report_error;
+        if (!save_text_atomic(report, serialized, report_error)) {
+            std::cerr << report_error << '\n';
+            return 2;
+        }
+        std::cout << "Corpus evidence manifest saved to " << report.string() << '\n';
+        std::cerr << "Inventoried " << manifest.artifacts.size()
+                  << " verified artifact(s); "
+                  << manifest.missing_dependency_codes.size()
+                  << " dependency class(es) remain unavailable.\n";
+        return inspection.complete() ? 0 : 2;
     }
     if (command == "convert-v1") {
         if (arguments.size() < 3U) {

@@ -23,6 +23,24 @@ endif()
 
 find_package(Threads REQUIRED)
 
+# Parse the frozen migration schemas during every configure so malformed JSON
+# cannot reach a test or package build on either Linux or Windows.
+foreach(EMBERLIGHTS_MIGRATION_SCHEMA IN ITEMS
+        soundswitch-corpus-manifest-v1.schema.json
+        soundswitch-migration-report-v1.schema.json)
+    file(READ
+        "${CMAKE_CURRENT_SOURCE_DIR}/../spec/migration/${EMBERLIGHTS_MIGRATION_SCHEMA}"
+        EMBERLIGHTS_MIGRATION_SCHEMA_JSON)
+    string(JSON EMBERLIGHTS_MIGRATION_SCHEMA_DIALECT
+        ERROR_VARIABLE EMBERLIGHTS_MIGRATION_SCHEMA_ERROR
+        GET "${EMBERLIGHTS_MIGRATION_SCHEMA_JSON}" "$schema")
+    if(NOT EMBERLIGHTS_MIGRATION_SCHEMA_ERROR STREQUAL "NOTFOUND")
+        message(FATAL_ERROR
+            "Invalid migration schema ${EMBERLIGHTS_MIGRATION_SCHEMA}: "
+            "${EMBERLIGHTS_MIGRATION_SCHEMA_ERROR}")
+    endif()
+endforeach()
+
 add_library(showcore STATIC
     src/layer_resolver.cpp
     src/fixture.cpp
@@ -50,6 +68,8 @@ add_library(showcore STATIC
     src/qlc_fixture_import.cpp
     src/soundswitch_import.cpp
     src/soundswitch_v1.cpp
+    src/soundswitch_migration_ir.cpp
+    src/studio_document.cpp
     src/compiler.cpp
     src/ui_command.cpp
     src/ui_state.cpp
@@ -113,6 +133,10 @@ target_link_libraries(soundswitch_control_one_tests PRIVATE showcore)
 add_executable(ui_command_state_tests
     tests/test_ui_command_state.cpp)
 target_link_libraries(ui_command_state_tests PRIVATE showcore)
+
+add_executable(studio_foundation_tests
+    tests/test_studio_foundation.cpp)
+target_link_libraries(studio_foundation_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -273,6 +297,9 @@ add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
 add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)
 add_test(NAME ui_command_state_tests COMMAND ui_command_state_tests)
+add_test(NAME studio_foundation_tests COMMAND studio_foundation_tests)
+set_tests_properties(studio_foundation_tests PROPERTIES
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke
