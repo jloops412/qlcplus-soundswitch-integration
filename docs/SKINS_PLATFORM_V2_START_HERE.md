@@ -115,6 +115,7 @@ The lean Perform/Runner process may load only validated, compiled presentation a
 
 - `spec/ui/ember-actions-contract-v1.md`
 - `spec/ui/schema/ember-action.schema.json`
+- `spec/ui/schema/EMBER_ACTION_SCHEMA_REVIEW.md`
 - command/state schemas and accepted registries
 - issue #31 command/state ownership and any successor registry issue
 
@@ -125,9 +126,21 @@ The lean Perform/Runner process may load only validated, compiled presentation a
 - `.emberskin` package limits and layout schemas
 - native component contracts and bundled layout examples
 
+### SoundSwitch Reference and Autoloop-facing controls
+
+- `docs/20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md`
+- `docs/22_SOUNDSWITCH_UI_OBSERVATION_LEDGER.md`
+- `docs/33_AUTOLOOPS_V2_PARITY_MIGRATION_AND_AUTOMATION_PLAN.md`
+- `docs/34_AUTOLOOPS_V2_WORK_AGENT_HANDOFF.md`
+- `docs/35_AUTOLOOPS_V2_CONTINUITY_CHECKPOINT.md`
+- issues #57–#61 and the accepted command/state contracts produced by their work
+
 ### Migration adapters
 
 - `docs/27_CROSS_DJ_CONTROLLER_AND_SKIN_PORTABILITY_PLAN.md`
+- `research/ui/virtualdj/README.md`
+- `research/ui/virtualdj/official-source-ledger.json`
+- `research/ui/virtualdj/migration-corpus.template.json`
 - SoundSwitch evidence and Reference-skin documents
 - source-specific migration status/provenance contracts
 - the exact official source format documentation used by that adapter
@@ -180,7 +193,9 @@ They cannot:
 - `../spec/ui/ember-actions-contract-v1.md` — typed action model;
 - `../spec/ui/skin-designer-contract-v1.md` — visual authoring contract;
 - `../spec/ui/schema/ember-action.schema.json` — provisional machine-readable action schema;
+- `../spec/ui/schema/EMBER_ACTION_SCHEMA_REVIEW.md` — mandatory structural/semantic/runtime hardening review;
 - `../spec/ui/registry/REGISTRY_LIFECYCLE_AND_COMPATIBILITY_POLICY.md` — mandatory feature/registry drift prevention;
+- `../research/ui/virtualdj/` — official-source ledger and synthetic migration-corpus contract;
 - `adr/0006-registry-governed-skins-and-ember-actions.md` — accepted architecture decision.
 
 ## Completion standard
