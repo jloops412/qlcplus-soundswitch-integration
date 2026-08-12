@@ -22,7 +22,7 @@ Do not let broad UI work displace open raw hardware, fixture-truth, OS2L-startup
 
 ## UI/UX route selection
 
-Only agents touching UI, commands/state, mappings, persistence UX, skins, screenshots, visual qualification, or `native-core/src/windows_app.cpp` additionally read the smallest matching route.
+Only agents touching UI, commands/state, components/capabilities, mappings, persistence UX, skins, screenshots, visual qualification, user-visible behavior, or `native-core/src/windows_app.cpp` additionally read the smallest matching route.
 
 ### UI foundation — always
 
@@ -58,22 +58,41 @@ Only agents touching UI, commands/state, mappings, persistence UX, skins, screen
 7. `docs/25_EMBERLIGHTS_UI_DESIGN_SYSTEM_AND_BRAND_DIRECTION.md`
 8. `research/ui/soundswitch/README.md` and the relevant manifest/analysis/deviation template
 
+### Skins Platform V2 / custom controls / actions / designer / migration
+
+4. `docs/SKINS_PLATFORM_V2_START_HERE.md`
+5. `docs/SKINS_PLATFORM_V2_VISUAL_DESIGNER_ACTIONS_AND_CONTINUITY_PLAN.md`
+6. `spec/ui/registry/REGISTRY_LIFECYCLE_AND_COMPATIBILITY_POLICY.md`
+7. The smallest matching contract:
+   - `spec/ui/user-customization-and-action-composition-v0.md` for #39/#66 overlays/custom pages;
+   - `spec/ui/ember-actions-contract-v1.md` and `spec/ui/schema/ember-action.schema.json` for #65;
+   - `spec/ui/skin-designer-contract-v1.md` for #66/#67;
+   - SoundSwitch evidence/Reference docs for #68;
+   - `docs/27_CROSS_DJ_CONTROLLER_AND_SKIN_PORTABILITY_PLAN.md` for #70.
+8. `docs/SKINS_PLATFORM_V2_WORK_AGENT_HANDOFF.md` when assigned one of the #63 work packages.
+
+The registry lifecycle policy is mandatory for any feature that changes callable behavior, observable state, availability, components, persistence, safety, or mappings—even when the assigned work is not described as UI work.
+
 ### UI qualification
 
 4. `docs/26_UI_QUALIFICATION_MATRIX.md`
-5. The exact platform, package, component, skin, and persistence specs under test
+5. The exact platform, package, component, skin, action, persistence, compatibility, and migration specs under test
 
 Do not spend tokens re-reading or re-explaining unrelated research files.
 
 ## Binding UI rules
 
-UI work must follow the shared command/state/skin architecture. Do not implement new behavior as layout-specific callbacks when it can be represented as a stable product command and observable state. EmberLights Default, SoundSwitch Reference, MIDI/keyboard/controller mappings, and future user skins must target the same capability contracts. Skins are presentation/binding packages, never alternate lighting engines.
+UI work must follow the shared command/state/skin architecture. Do not implement new behavior as layout-specific callbacks when it can be represented as a stable product command and observable state. EmberLights Default, SoundSwitch Reference, MIDI/keyboard/controller mappings, future user skins, Ember Actions, and remotes must target the same capability contracts. Skins are presentation/binding packages, never alternate lighting engines.
 
-Before changing `native-core/src/windows_app.cpp`, inventory the affected `ControlId` callbacks, visible state, realtime class, persistence scope, command IDs, and state keys. Follow the strangler migration: route current behavior through command/state facades, preserve tests, then move presentation into the skin path. Do not begin with a visual rewrite that duplicates domain behavior.
+Before changing `native-core/src/windows_app.cpp`, inventory the affected `ControlId` callbacks, visible state, realtime class, persistence scope, command IDs, state keys, capabilities, components, and current bypass-ledger entry. Follow the strangler migration: route current behavior through command/state facades, preserve tests, then move presentation into the skin path. Do not begin with a visual rewrite that duplicates domain behavior.
 
-The production toolkit is not preselected. Issue #37 measures product-shaped Slint, WinUI control, and Direct2D Safe workloads. Do not commit #32 to a framework before that evidence is recorded and reconciled with #31.
+Every user-visible feature addition, removal, rename, or semantic change must reconcile the canonical registries, generated native/JSON artifacts, schemas, Default/Reference/Safe impact, actions/mappings/profiles, compatibility/deprecation metadata, tests/examples, and migration rules. A hard-coded control is not a complete platform feature, and deleting code is not complete while artifacts still reference it.
 
-A skin package is untrusted data. Enforce the package/safety limits, no code execution, no direct device/network/filesystem access, bounded expressions/subscriptions/assets, transactional activation, and trusted Safe fallback. Invalid reload preserves the current view; invalid first load reaches Safe; Runner/DMX stay active.
+The production toolkit is not preselected. Issue #37 measures product-shaped Slint, WinUI control, and Direct2D Safe workloads. Do not commit #32/#67 to a framework before that evidence is recorded and reconciled with #31/#64.
+
+A skin package, overlay, action, mapping, profile, designer project, or migration source is untrusted data. Enforce package/action/parser safety limits, no arbitrary code execution, no direct device/network/filesystem/state access, bounded expressions/subscriptions/assets/graphs, transactional activation, and trusted Safe fallback. Invalid reload preserves the current view; invalid first load reaches Safe; Runner/DMX stay active.
+
+Ember Actions are typed bounded graphs over registered commands/state. Do not implement JavaScript/Lua/WASM/native plugins, hidden global variables, runtime `eval`, arbitrary state-trigger loops, or UI sleeps/timers as show timing. The optional expert text form must round-trip to the same canonical Action IR and cannot add semantics unavailable to the graph.
 
 For SoundSwitch-reference work, use forensic evidence tiers and the capture matrix. Mark every claim `MEASURED`, `ESTIMATED`, `DESIGN_TARGET`, or `BEHAVIORAL`; never present compressed public screenshot measurements as exact SoundSwitch implementation values. Use original EmberLights assets and maintain the explicit Preserve/Improve/Reject ledger.
 
@@ -83,8 +102,9 @@ Start by stating:
 
 - the exact bounded deliverable;
 - dependency gate and issue number;
-- files/contracts owned;
+- files/contracts owned and exact shared files reserved;
 - explicit non-goals;
+- commands/states/components/capabilities/schema generations expected to change;
 - acceptance tests;
 - smallest relevant test commands;
 - expected completion evidence.
@@ -97,17 +117,22 @@ During implementation:
 - avoid repeated full suites for cosmetic changes;
 - reserve full DPI/golden/fuzz/soak matrices for documented gates;
 - record decisions and machine-readable evidence in the repository rather than long chat explanations;
-- do not add a direct UI callback bypass after command/state extraction begins;
+- do not add a direct UI callback bypass after command/state extraction begins without an explicit ledger entry and owner issue;
 - do not create Reference-only or Default-only domain behavior;
+- do not create a private action/macro/registry list inside one skin or controller editor;
 - do not silently update goldens or benchmark baselines to hide regressions;
-- do not add dead/fake controls for parity features the engine does not support.
+- do not add dead/fake controls for parity features the engine does not support;
+- run the registry/generated-artifact/cross-reference compatibility checks for every user-visible semantic change.
 
 At completion, update tests and affected decisions/backlog/specs/issues. Report:
 
 - deliverable and files changed;
-- commands/states/schema/components added or changed;
+- commands/states/components/capabilities/schema/generations added, changed, deprecated, or removed;
+- bundled skin/Safe/action/profile/migration impact;
+- direct callback bypasses added/removed/remaining;
 - exact tests run and results;
-- measured startup/memory/CPU/repaint/DPI/accessibility results when applicable;
+- generated-artifact cleanliness and compatibility-diff classification;
+- measured startup/memory/CPU/repaint/action-dispatch/DPI/accessibility results when applicable;
 - unresolved risks;
 - explicit legacy bridges;
 - next dependency.

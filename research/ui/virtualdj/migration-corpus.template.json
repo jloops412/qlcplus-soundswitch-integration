@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "virtualdj.synthetic.example",
+  "capturedAt": "YYYY-MM-DD",
+  "ownerAuthorization": {
+    "confirmed": false,
+    "scope": "synthetic-only",
+    "redistributionAllowed": false,
+    "notes": "Do not add private or copyrighted third-party skin assets to Git."
+  },
+  "sourceEnvironment": {
+    "product": "VirtualDJ",
+    "productVersion": "unknown",
+    "operatingSystem": "unknown",
+    "captureMethod": "synthetic-or-user-authorized-copy",
+    "absolutePathsRecorded": false,
+    "machineIdentifiersRecorded": false
+  },
+  "sourceBundle": {
+    "bundleId": "virtualdj.bundle.example",
+    "aggregateSha256": "",
+    "artifacts": [
+      {
+        "artifactId": "skin.xml",
+        "relativePath": "skin/example.xml",
+        "kind": "skinXml",
+        "sha256": "",
+        "sizeBytes": 0,
+        "sourceVersion": "unknown",
+        "required": true,
+        "license": "synthetic"
+      },
+      {
+        "artifactId": "skin.image",
+        "relativePath": "skin/example.png",
+        "kind": "skinAsset",
+        "sha256": "",
+        "sizeBytes": 0,
+        "sourceVersion": "unknown",
+        "required": false,
+        "license": "synthetic"
+      },
+      {
+        "artifactId": "controller.definition",
+        "relativePath": "devices/example.xml",
+        "kind": "controllerDefinitionXml",
+        "sha256": "",
+        "sizeBytes": 0,
+        "sourceVersion": "unknown",
+        "required": false,
+        "license": "synthetic"
+      },
+      {
+        "artifactId": "controller.mapper",
+        "relativePath": "mappers/example.xml",
+        "kind": "controllerMapperXml",
+        "sha256": "",
+        "sizeBytes": 0,
+        "sourceVersion": "unknown",
+        "required": false,
+        "license": "synthetic"
+      }
+    ]
+  },
+  "controlledCases": [
+    {
+      "caseId": "skin.minimal-primitives",
+      "purpose": "Prove bounded skin XML and asset inventory plus primitive/layout proposals.",
+      "sourceArtifacts": [
+        "skin.xml",
+        "skin.image"
+      ],
+      "sourceFeatures": [
+        "rootDimensions",
+        "nestedContainer",
+        "button",
+        "slider",
+        "text",
+        "referencedImage",
+        "unknownElement"
+      ],
+      "expected": [
+        {
+          "sourcePointer": "skin.xml#/skin",
+          "targetKind": "designerArtboard",
+          "status": "exact"
+        },
+        {
+          "sourcePointer": "skin.xml#/skin/button[1]",
+          "targetKind": "componentProposal",
+          "status": "translated"
+        },
+        {
+          "sourcePointer": "skin.xml#/skin/unknown[1]",
+          "targetKind": "opaqueAttachment",
+          "status": "opaque"
+        }
+      ]
+    },
+    {
+      "caseId": "pads.shift-parameters-feedback",
+      "purpose": "Prove pad pages, modifiers, parameters, and feedback mapping without executing source actions.",
+      "sourceArtifacts": [
+        "skin.xml"
+      ],
+      "sourceFeatures": [
+        "padPage",
+        "ordinaryPad",
+        "shiftPad",
+        "pressureOrValueAction",
+        "pageParameter",
+        "padMenu",
+        "feedbackColor",
+        "unknownAction"
+      ],
+      "expected": [
+        {
+          "sourcePointer": "pads/page[1]",
+          "targetKind": "customPageProposal",
+          "status": "translated"
+        },
+        {
+          "sourcePointer": "pads/page[1]/pad[unknownAction]",
+          "targetKind": "opaqueActionEvidence",
+          "status": "opaque"
+        }
+      ]
+    },
+    {
+      "caseId": "controller.definition-and-mapper",
+      "purpose": "Prove device definition remains separate from action mapping and portable output is redacted.",
+      "sourceArtifacts": [
+        "controller.definition",
+        "controller.mapper"
+      ],
+      "sourceFeatures": [
+        "button",
+        "absoluteFader",
+        "highResolutionControl",
+        "relativeEncoder",
+        "led",
+        "rgbOutput",
+        "textDisplay",
+        "physicalPadGeometry",
+        "knownAction",
+        "unknownAction",
+        "machineSpecificIdentifier"
+      ],
+      "expected": [
+        {
+          "sourcePointer": "controller.definition#/device",
+          "targetKind": "controllerDefinitionProposal",
+          "status": "translated"
+        },
+        {
+          "sourcePointer": "controller.mapper#/mapper/map[knownAction]",
+          "targetKind": "controllerBindingProposal",
+          "status": "translated"
+        },
+        {
+          "sourcePointer": "controller.mapper#/mapper/map[unknownAction]",
+          "targetKind": "opaqueActionEvidence",
+          "status": "opaque"
+        }
+      ]
+    },
+    {
+      "caseId": "malicious-and-invalid-input",
+      "purpose": "Prove fail-closed parser and staging behavior.",
+      "sourceArtifacts": [],
+      "sourceFeatures": [
+        "archivePathTraversal",
+        "duplicateCaseCollidingPaths",
+        "oversizedXml",
+        "oversizedImage",
+        "externalEntity",
+        "externalUrl",
+        "excessiveDepth",
+        "excessiveCount",
+        "malformedEncoding",
+        "missingAsset",
+        "unknownVersion",
+        "actionStringOverLimit"
+      ],
+      "expected": [
+        {
+          "sourcePointer": "bundle",
+          "targetKind": "none",
+          "status": "unsupported"
+        }
+      ]
+    }
+  ],
+  "adapterRun": {
+    "adapterId": "emberlights.virtualdj-ui-migration",
+    "adapterVersion": "0.0.0",
+    "registryDigest": "",
+    "ruleSetVersion": "0.0.0",
+    "runDigest": "",
+    "sourceImmutable": true,
+    "sourceOutputSeparated": true,
+    "resultCounts": {
+      "exact": 0,
+      "translated": 0,
+      "approximated": 0,
+      "opaque": 0,
+      "unsupported": 0,
+      "conflicted": 0
+    },
+    "diagnostics": []
+  },
+  "acceptance": {
+    "everySourceItemReported": false,
+    "unknownSourcePreservedOrExplicitlyOmitted": false,
+    "noSourceExecution": false,
+    "deterministicRepeatRun": false,
+    "idempotentReimport": false,
+    "portableOutputRedacted": false,
+    "failureLeavesActiveRuntimeUnchanged": false
+  }
+}
