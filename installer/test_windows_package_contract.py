@@ -208,6 +208,24 @@ class WindowsPackageContractTests(unittest.TestCase):
         self.assertIn("uninsdeletevalue", extension_line)
         self.assertIn("uninsdeletekeyifempty", extension_line)
 
+    def test_nsis_fallback_is_per_user_gated_and_cleans_exact_payload(self) -> None:
+        installer = (Path(__file__).parent / "EmberLights.nsi").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('RequestExecutionLevel user', installer)
+        self.assertIn('InstallDir "$LOCALAPPDATA\\Programs\\${AppName}"', installer)
+        self.assertIn('${RunningX64}', installer)
+        self.assertIn('${AtLeastWin10}', installer)
+        self.assertIn('FindWindow $0 "EmberLightsMainWindow"', installer)
+        self.assertIn('File /r "${BuildDir}\\*"', installer)
+        self.assertNotIn('RMDir /r "$INSTDIR"', installer)
+        for relative in contract.REQUIRED_FILES:
+            windows_path = relative.replace("/", "\\")
+            self.assertIn(f'Delete "$INSTDIR\\{windows_path}"', installer)
+        self.assertIn(
+            f'Delete "$INSTDIR\\{contract.MANIFEST_NAME}"', installer
+        )
+
     def test_windows_cmake_stages_end_user_tools_under_tools(self) -> None:
         cmake = (Path(__file__).parents[1] / "native-core/CMakeLists.txt").read_text(
             encoding="utf-8"
