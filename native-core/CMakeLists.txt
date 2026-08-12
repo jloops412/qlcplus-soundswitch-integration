@@ -317,6 +317,7 @@ add_test(NAME live_ui_tests COMMAND live_ui_tests)
 add_test(NAME studio_foundation_tests COMMAND studio_foundation_tests)
 set_tests_properties(studio_foundation_tests PROPERTIES
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME static_look_authoring_tests COMMAND static_look_authoring_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke
