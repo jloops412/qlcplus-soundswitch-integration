@@ -10,7 +10,7 @@ Build a lightweight modular interface platform in which:
 - skins, keyboard, MIDI/controller profiles, DJ commands, and future remotes invoke the same typed commands;
 - feedback comes from shared state snapshots;
 - SoundSwitch migration familiarity is preserved without copying proprietary assets or inherited rigidity;
-- VirtualDJ-style customization becomes possible later through safe typed controls/overlays;
+- VirtualDJ-style customization becomes possible through safe typed controls, overlays, a visual Skin Designer, and bounded Ember Actions;
 - changing DJ software/controller/skin/topology does not rewrite lighting content;
 - skin failure or switching never stops Runner/DMX or bypasses safety.
 
@@ -25,7 +25,7 @@ Broad Default/Reference implementation waits for:
 - deterministic OS2L startup/listener behavior;
 - shared Static Look Toggle/Hold/feedback/Autoloop-return behavior.
 
-Planning, SoundSwitch evidence, behavior-preserving command/state extraction, and bounded toolkit spikes may proceed in parallel if they do not interfere.
+Planning, SoundSwitch evidence, behavior-preserving command/state extraction, registry/code-generation contracts, and bounded toolkit/compiler spikes may proceed in parallel if they do not interfere.
 
 ## Read by work type
 
@@ -68,6 +68,18 @@ Planning, SoundSwitch evidence, behavior-preserving command/state extraction, an
 - `27_CROSS_DJ_CONTROLLER_AND_SKIN_PORTABILITY_PLAN.md`
 - `../spec/ui/user-customization-and-action-composition-v0.md`
 
+### Skins Platform V2 — visual designer, actions, import/export, compatibility
+
+1. `SKINS_PLATFORM_V2_START_HERE.md`
+2. `SKINS_PLATFORM_V2_VISUAL_DESIGNER_ACTIONS_AND_CONTINUITY_PLAN.md`
+3. `../spec/ui/registry/REGISTRY_LIFECYCLE_AND_COMPATIBILITY_POLICY.md`
+4. the smallest matching contract:
+   - `../spec/ui/ember-actions-contract-v1.md` and `../spec/ui/schema/ember-action.schema.json`;
+   - `../spec/ui/skin-designer-contract-v1.md`;
+   - `SKINS_PLATFORM_V2_WORK_AGENT_HANDOFF.md` for assigned implementation.
+
+The registry policy applies to every user-visible feature change, even when the assigned agent is not primarily a UI agent.
+
 ### Qualification
 
 - `26_UI_QUALIFICATION_MATRIX.md`
@@ -88,7 +100,15 @@ Planning, SoundSwitch evidence, behavior-preserving command/state extraction, an
                                                    |
                                                  #36 qualification
                                                    |
-                                            #39 custom controls later
+                                      #39 / #66 custom controls and overlays
+                                                   |
+                             #67 full designer / #68 Reference kit / #70 migration
+                                                   |
+                                              #72 release qualification
+
+#63 is the Skins Platform V2 epic.
+#64 registry governance/codegen begins only in coordination with #31.
+#65 Ember Actions may build schema/compiler fixtures early but cannot bypass #31/#32.
 ```
 
 ## Current planning artifacts complete
@@ -106,19 +126,24 @@ Planning, SoundSwitch evidence, behavior-preserving command/state extraction, an
 - Safe/Default/Reference Live/Studio layout examples;
 - toolkit spike/decision gate;
 - cross-DJ/controller/skin portability plan;
-- future custom controls/overlay/action-composition plan;
+- custom controls/overlay/action-composition foundation;
+- Skins Platform V2 visual designer, Ember Actions, migration, registry lifecycle, ADR, issue graph, and work-agent handoff;
 - qualification matrix and issue decomposition.
 
 ## Immediate implementation order after the core gate
 
-1. Complete #31 command/state facade without changing lighting behavior.
+1. Complete/reconcile #31 command/state facade and #64 registry authority without changing lighting behavior.
 2. Complete #37 equivalent toolkit measurements and decision.
 3. Implement #32 package/runtime/Safe surface.
 4. Build #33 Default journeys.
 5. Finish #30 Tier A evidence and build #34 Reference parity skin.
 6. Close #35 persistence/connection behavior across both skins.
-7. Execute #36 qualification.
-8. Begin #39 custom controls only after relevant platform evidence is stable.
+7. Execute #36 relevant qualification.
+8. Execute #39/#66 custom bindings, controls, overlays, and pages.
+9. Build #65 Action IR/compiler/executor against accepted registries; integrate into #66 only through the canonical contract.
+10. Build #67 full designer, #68 forkable Reference kit, #70 migration seam, and #72 lifecycle/release gates in dependency order.
+
+Registry schemas, generators, compatibility fixtures, migration IR planning, and action-schema validation may proceed earlier when they preserve behavior, reserve shared files, and avoid broad UI rollout.
 
 ## Non-negotiable rules
 
@@ -133,16 +158,23 @@ Planning, SoundSwitch evidence, behavior-preserving command/state extraction, an
 - no live transient state silently saved;
 - no toolkit selection by preference;
 - no mockup-only completion claim;
-- no broad UI work that delays the active core hardware recovery program.
+- no broad UI work that delays the active core hardware recovery program;
+- no user-visible feature added/removed/renamed/changed without registry, generated-artifact, bundled-skin, action/mapping, schema, test, deprecation, and migration reconciliation;
+- no Ember Action feature that cannot compile to the bounded canonical graph/IR;
+- no UI sleep/timer used as musical/show timing;
+- no full designer/importer dependency in lean Perform.
 
 ## Completion evidence
 
-Every UI agent reports:
+Every UI or user-visible feature agent reports:
 
 - issue/gate and bounded deliverable;
 - files/contracts owned;
-- commands/states/schema/components changed;
+- commands/states/components/capabilities/schema/generation changed;
+- bundled skin/Safe/action/profile/migration impact;
+- direct callback bypasses added/removed;
 - exact tests and results;
+- compatibility diff and generated-artifact cleanliness;
 - measured performance/DPI/accessibility evidence where relevant;
 - risks and legacy bridges;
 - docs/issues updated;
