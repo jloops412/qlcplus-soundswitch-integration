@@ -23,10 +23,29 @@ endif()
 
 find_package(Threads REQUIRED)
 
+# Parse the frozen migration schemas during every configure so malformed JSON
+# cannot reach a test or package build on either Linux or Windows.
+foreach(EMBERLIGHTS_MIGRATION_SCHEMA IN ITEMS
+        soundswitch-corpus-manifest-v1.schema.json
+        soundswitch-migration-report-v1.schema.json)
+    file(READ
+        "${CMAKE_CURRENT_SOURCE_DIR}/../spec/migration/${EMBERLIGHTS_MIGRATION_SCHEMA}"
+        EMBERLIGHTS_MIGRATION_SCHEMA_JSON)
+    string(JSON EMBERLIGHTS_MIGRATION_SCHEMA_DIALECT
+        ERROR_VARIABLE EMBERLIGHTS_MIGRATION_SCHEMA_ERROR
+        GET "${EMBERLIGHTS_MIGRATION_SCHEMA_JSON}" "$schema")
+    if(NOT EMBERLIGHTS_MIGRATION_SCHEMA_ERROR STREQUAL "NOTFOUND")
+        message(FATAL_ERROR
+            "Invalid migration schema ${EMBERLIGHTS_MIGRATION_SCHEMA}: "
+            "${EMBERLIGHTS_MIGRATION_SCHEMA_ERROR}")
+    endif()
+endforeach()
+
 add_library(showcore STATIC
     src/layer_resolver.cpp
     src/fixture.cpp
     src/fixture_library.cpp
+    src/fixture_profile_upgrade.cpp
     src/dmx_usb_pro.cpp
     src/soundswitch_micro.cpp
     src/soundswitch_control_one.cpp
@@ -49,10 +68,14 @@ add_library(showcore STATIC
     src/audio_assets.cpp
     src/qlc_fixture_import.cpp
     src/soundswitch_import.cpp
+    src/soundswitch_source_binding.cpp
     src/soundswitch_v1.cpp
+    src/soundswitch_migration_ir.cpp
+    src/studio_document.cpp
     src/compiler.cpp
     src/ui_command.cpp
     src/ui_state.cpp
+    src/live_view_model.cpp
     src/runner.cpp)
 
 target_include_directories(showcore PUBLIC include)
@@ -72,7 +95,7 @@ endif()
 if(WIN32)
     target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0A00)
     target_link_libraries(showcore PUBLIC
-        ws2_32 winmm setupapi winusb advapi32 ole32 uuid)
+        ws2_32 winmm setupapi winusb advapi32 dnsapi ole32 uuid)
 endif()
 
 add_executable(runner_demo src/demo.cpp)
@@ -113,6 +136,14 @@ target_link_libraries(soundswitch_control_one_tests PRIVATE showcore)
 add_executable(ui_command_state_tests
     tests/test_ui_command_state.cpp)
 target_link_libraries(ui_command_state_tests PRIVATE showcore)
+
+add_executable(live_ui_tests
+    tests/test_live_ui.cpp)
+target_link_libraries(live_ui_tests PRIVATE showcore)
+
+add_executable(studio_foundation_tests
+    tests/test_studio_foundation.cpp)
+target_link_libraries(studio_foundation_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -225,6 +256,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/17_PRODUCTION_RELEASE_GATE.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/18_SOUNDSWITCH_MIGRATION.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/20_CONTROL_ONE_DMX_QUALIFICATION.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         DESTINATION docs)
 else()
@@ -273,6 +305,10 @@ add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
 add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)
 add_test(NAME ui_command_state_tests COMMAND ui_command_state_tests)
+add_test(NAME live_ui_tests COMMAND live_ui_tests)
+add_test(NAME studio_foundation_tests COMMAND studio_foundation_tests)
+set_tests_properties(studio_foundation_tests PROPERTIES
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke

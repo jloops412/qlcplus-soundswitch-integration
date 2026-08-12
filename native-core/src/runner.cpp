@@ -107,6 +107,21 @@ void update_maximum(
         property == showcore::Property::Laser || property == showcore::Property::Spark;
 }
 
+[[nodiscard]] AdapterState adapter_state(
+    showcore::Os2lDiscoveryState state) noexcept {
+    switch (state) {
+    case showcore::Os2lDiscoveryState::Unavailable:
+        return AdapterState::Disabled;
+    case showcore::Os2lDiscoveryState::Starting:
+        return AdapterState::Starting;
+    case showcore::Os2lDiscoveryState::Advertised:
+        return AdapterState::Ready;
+    case showcore::Os2lDiscoveryState::Fault:
+        return AdapterState::Fault;
+    }
+    return AdapterState::Fault;
+}
+
 constexpr std::array<showcore::Property, 12> kVisualBlackoutProperties{{
     showcore::Property::Intensity,
     showcore::Property::Red,
@@ -235,6 +250,7 @@ bool RunnerService::start(
     os2l_decode_errors_.store(0, std::memory_order_relaxed);
     os2l_listen_port_.store(0, std::memory_order_relaxed);
     os2l_last_error_.store(0, std::memory_order_relaxed);
+    os2l_discovery_last_error_.store(0, std::memory_order_relaxed);
     dropped_beats_.store(0, std::memory_order_relaxed);
     dropped_os2l_actions_.store(0, std::memory_order_relaxed);
     midi_messages_.store(0, std::memory_order_relaxed);
@@ -254,6 +270,9 @@ bool RunnerService::start(
     package_activations_.store(0, std::memory_order_relaxed);
     package_activation_failures_.store(0, std::memory_order_relaxed);
     os2l_state_.store(
+        connections_.os2l_enabled ? AdapterState::Starting : AdapterState::Disabled,
+        std::memory_order_relaxed);
+    os2l_discovery_state_.store(
         connections_.os2l_enabled ? AdapterState::Starting : AdapterState::Disabled,
         std::memory_order_relaxed);
     midi_input_state_.store(
@@ -428,6 +447,8 @@ RunnerStatus RunnerService::status() const noexcept {
     RunnerStatus snapshot;
     snapshot.state = state_.load(std::memory_order_acquire);
     snapshot.os2l = os2l_state_.load(std::memory_order_relaxed);
+    snapshot.os2l_discovery =
+        os2l_discovery_state_.load(std::memory_order_relaxed);
     snapshot.midi_input = midi_input_state_.load(std::memory_order_relaxed);
     snapshot.midi_output = midi_output_state_.load(std::memory_order_relaxed);
     snapshot.artnet = artnet_state_.load(std::memory_order_relaxed);
@@ -495,6 +516,8 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
     snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
     snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
+    snapshot.os2l_discovery_last_error =
+        os2l_discovery_last_error_.load(std::memory_order_relaxed);
     snapshot.dropped_beats = dropped_beats_.load(std::memory_order_relaxed);
     snapshot.dropped_os2l_actions =
         dropped_os2l_actions_.load(std::memory_order_relaxed);
@@ -689,6 +712,12 @@ void RunnerService::os2l_callback(
             service.dropped_beats_.fetch_add(1, std::memory_order_relaxed);
         }
     } else if (event.kind == showcore::Os2lKind::Button) {
+        // Reserved no-op used only to wake VirtualDJ's direct-IP OS2L client.
+        // It must never change live output state.
+        if (event.button.name.view() == "EmberLights Keepalive" ||
+            event.button.name.view() == "emberlights.keepalive") {
+            return;
+        }
         if (event.button.name.view() == "blackout") {
             service.set_blackout(event.button.on);
         } else if (event.button.name.view() == "worklight" ||
@@ -733,6 +762,10 @@ void RunnerService::run_input() noexcept {
                 os2l_open ? os2l.bound_port() : 0U,
                 std::memory_order_relaxed);
             os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
+            os2l_discovery_state_.store(
+                adapter_state(os2l.discovery_state()), std::memory_order_relaxed);
+            os2l_discovery_last_error_.store(
+                os2l.discovery_last_error(), std::memory_order_relaxed);
             os2l_state_.store(
                 os2l_open ? AdapterState::Waiting : AdapterState::Fault,
                 std::memory_order_relaxed);
@@ -741,10 +774,17 @@ void RunnerService::run_input() noexcept {
         if (os2l_open) {
             const auto poll = os2l.poll(&RunnerService::os2l_callback, this, 2);
             if (poll == showcore::Os2lPollResult::Error) {
+                const auto discovery_state = adapter_state(os2l.discovery_state());
+                const auto discovery_error = os2l.discovery_last_error();
+                const auto socket_error = os2l.last_error();
                 os2l.close();
                 os2l_open = false;
                 os2l_listen_port_.store(0U, std::memory_order_relaxed);
-                os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
+                os2l_last_error_.store(socket_error, std::memory_order_relaxed);
+                os2l_discovery_state_.store(
+                    discovery_state, std::memory_order_relaxed);
+                os2l_discovery_last_error_.store(
+                    discovery_error, std::memory_order_relaxed);
                 os2l_state_.store(AdapterState::Fault, std::memory_order_relaxed);
                 next_os2l_retry = now + std::chrono::seconds(2);
             } else {
@@ -755,6 +795,12 @@ void RunnerService::run_input() noexcept {
                     std::memory_order_relaxed);
             }
             const auto& stats = os2l.stats();
+            if (os2l_open) {
+                os2l_discovery_state_.store(
+                    adapter_state(os2l.discovery_state()), std::memory_order_relaxed);
+                os2l_discovery_last_error_.store(
+                    os2l.discovery_last_error(), std::memory_order_relaxed);
+            }
             os2l_connections_.store(stats.connections, std::memory_order_relaxed);
             os2l_messages_.store(stats.messages, std::memory_order_relaxed);
             os2l_decode_errors_.store(stats.decode_errors, std::memory_order_relaxed);
@@ -799,6 +845,7 @@ void RunnerService::run_input() noexcept {
 
     os2l.close();
     os2l_listen_port_.store(0U, std::memory_order_relaxed);
+    os2l_discovery_state_.store(AdapterState::Disabled, std::memory_order_relaxed);
     midi_input.close_all();
     midi_output.close_all();
 }

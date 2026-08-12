@@ -37,6 +37,7 @@ SoundSwitch is the primary product reference. Wolfmix is a secondary source of u
 - [`docs/15_WINDOWS_V1_TESTING.md`](docs/15_WINDOWS_V1_TESTING.md) — installer, setup, safety, and qualification guidance for Windows testing builds.
 - [`docs/16_QLC_FIXTURE_IMPORT.md`](docs/16_QLC_FIXTURE_IMPORT.md) — safe QLC+ QXF fixture import workflow, conversion rules, and current limits.
 - [`docs/17_PRODUCTION_RELEASE_GATE.md`](docs/17_PRODUCTION_RELEASE_GATE.md) — evidence required for gig qualification, public beta, and parity-complete 1.0.
+- [`docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md`](docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md) — the owner-plus-three preview test and feedback checklist.
 - [`spec/showpack.schema.json`](spec/showpack.schema.json) — initial portable authoring/show-package schema.
 - [`native-core`](native-core) — dependency-light native reference engine and test harness.
 

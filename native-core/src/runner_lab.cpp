@@ -3,6 +3,7 @@
 #include "showcore/engine.hpp"
 #include "showcore/fixture.hpp"
 #include "showcore/os2l_server.hpp"
+#include "showcore/number_chars.hpp"
 #include "showcore/spsc_queue.hpp"
 #include "showcore/sync_manager.hpp"
 #include "showcore/types.hpp"
@@ -126,13 +127,15 @@ struct SharedState {
 
 [[nodiscard]] bool parse_unsigned(std::string_view text, std::uint32_t& value) noexcept {
     value = 0;
-    const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+    const auto result = showcore::parse_number_chars(
+        text.data(), text.data() + text.size(), value);
     return result.ec == std::errc{} && result.ptr == text.data() + text.size();
 }
 
 [[nodiscard]] bool parse_double(std::string_view text, double& value) noexcept {
     value = 0.0;
-    const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+    const auto result = showcore::parse_number_chars(
+        text.data(), text.data() + text.size(), value);
     return result.ec == std::errc{} && result.ptr == text.data() + text.size();
 }
 

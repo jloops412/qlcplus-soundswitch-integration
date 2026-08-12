@@ -1,5 +1,9 @@
 #include <windows.h>
 
+#ifndef EMBERLIGHTS_VERSION
+#define EMBERLIGHTS_VERSION "0.1.0-dev"
+#endif
+
 1 RT_MANIFEST "EmberLights.manifest"
 
 VS_VERSION_INFO VERSIONINFO
@@ -21,11 +25,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "EmberLights"
             VALUE "FileDescription", "EmberLights Lighting Workstation"
-            VALUE "FileVersion", "0.1.0"
+            VALUE "FileVersion", EMBERLIGHTS_VERSION
             VALUE "InternalName", "EmberLights"
             VALUE "OriginalFilename", "EmberLights.exe"
             VALUE "ProductName", "EmberLights"
-            VALUE "ProductVersion", "0.1.0"
+            VALUE "ProductVersion", EMBERLIGHTS_VERSION
         END
     END
     BLOCK "VarFileInfo"

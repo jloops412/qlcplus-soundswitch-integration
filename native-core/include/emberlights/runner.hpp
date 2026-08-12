@@ -92,6 +92,7 @@ struct RunnerCommand {
 struct RunnerStatus {
     RunnerState state{RunnerState::Stopped};
     AdapterState os2l{AdapterState::Disabled};
+    AdapterState os2l_discovery{AdapterState::Disabled};
     AdapterState midi_input{AdapterState::Disabled};
     AdapterState midi_output{AdapterState::Disabled};
     AdapterState artnet{AdapterState::Disabled};
@@ -136,6 +137,7 @@ struct RunnerStatus {
     std::uint64_t os2l_decode_errors{0};
     std::uint16_t os2l_listen_port{0};
     std::int32_t os2l_last_error{0};
+    std::int32_t os2l_discovery_last_error{0};
     std::uint64_t dropped_beats{0};
     std::uint64_t dropped_os2l_actions{0};
     std::uint64_t midi_messages{0};
@@ -279,6 +281,7 @@ private:
     std::atomic<bool> work_light_requested_{false};
     std::atomic<RunnerState> state_{RunnerState::Stopped};
     std::atomic<AdapterState> os2l_state_{AdapterState::Disabled};
+    std::atomic<AdapterState> os2l_discovery_state_{AdapterState::Disabled};
     std::atomic<AdapterState> midi_input_state_{AdapterState::Disabled};
     std::atomic<AdapterState> midi_output_state_{AdapterState::Disabled};
     std::atomic<AdapterState> artnet_state_{AdapterState::Disabled};
@@ -317,6 +320,7 @@ private:
     std::atomic<std::uint64_t> os2l_decode_errors_{0};
     std::atomic<std::uint16_t> os2l_listen_port_{0};
     std::atomic<std::int32_t> os2l_last_error_{0};
+    std::atomic<std::int32_t> os2l_discovery_last_error_{0};
     std::atomic<std::uint64_t> dropped_beats_{0};
     std::atomic<std::uint64_t> dropped_os2l_actions_{0};
     std::atomic<std::uint64_t> midi_messages_{0};
