@@ -2134,9 +2134,10 @@ public:
     template <typename Integer>
     void integer(Integer value) noexcept {
         using Unsigned = std::make_unsigned_t<Integer>;
-        auto bits = static_cast<Unsigned>(value);
+        static_assert(sizeof(Unsigned) <= sizeof(std::uintmax_t));
+        auto bits = static_cast<std::uintmax_t>(static_cast<Unsigned>(value));
         for (std::size_t index = 0U; index < sizeof(Unsigned); ++index) {
-            byte(static_cast<std::uint8_t>(bits & static_cast<Unsigned>(0xffU)));
+            byte(static_cast<std::uint8_t>(bits & 0xffU));
             bits >>= 8U;
         }
     }
