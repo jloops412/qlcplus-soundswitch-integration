@@ -20,6 +20,10 @@ Unicode true
 !define AppName "EmberLights"
 !define AppPublisher "EmberLights"
 !define AppId "EmberLights-5AE71134-902A-4E44-AF80-ADCC47F15DA9"
+!define LegacyNsisAppId "EmberLights"
+!define LegacyInnoAppId "{5AE71134-902A-4E44-AF80-ADCC47F15DA9}_is1"
+!define LegacyInnoAppIdNoBraces "5AE71134-902A-4E44-AF80-ADCC47F15DA9_is1"
+!define UninstallRoot "Software\Microsoft\Windows\CurrentVersion\Uninstall"
 
 Name "${AppName} ${AppVersion}"
 OutFile "${OutputDir}/EmberLights-${AppVersion}-Setup.exe"
@@ -28,6 +32,7 @@ InstallDirRegKey HKCU "Software\${AppName}" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 SetCompressorDictSize 64
+ManifestSupportedOS all
 ManifestDPIAware true
 ShowInstDetails show
 ShowUninstDetails show
@@ -72,8 +77,90 @@ Function un.onInit
   SetShellVarContext current
 FunctionEnd
 
+; The testing builds have used two NSIS registry identities. Treat them as
+; aliases for one per-user installation, run the registered uninstaller when
+; available, and tolerate only a genuinely stale registry record. Projects and
+; user settings live outside the program directory and are not touched.
+Function RemovePriorNsisInstall
+  ReadRegStr $R0 HKCU "${UninstallRoot}\${AppId}" "UninstallString"
+  ReadRegStr $R1 HKCU "${UninstallRoot}\${AppId}" "InstallLocation"
+  StrCmp $R0 "" 0 prior_nsis_found
+  ReadRegStr $R0 HKCU "${UninstallRoot}\${LegacyNsisAppId}" "UninstallString"
+  ReadRegStr $R1 HKCU "${UninstallRoot}\${LegacyNsisAppId}" "InstallLocation"
+  StrCmp $R0 "" prior_nsis_done
+
+prior_nsis_found:
+  StrCmp $R1 "" 0 prior_nsis_retry
+  StrCpy $R1 "$LOCALAPPDATA\Programs\${AppName}"
+
+prior_nsis_retry:
+  DetailPrint "Removing the earlier EmberLights installation..."
+  ClearErrors
+  ExecWait '$R0 /S _?=$R1' $R2
+  IfErrors prior_nsis_stale
+  IntCmp $R2 0 prior_nsis_removed prior_nsis_failed prior_nsis_failed
+
+prior_nsis_failed:
+  MessageBox MB_ICONSTOP|MB_RETRYCANCEL|MB_DEFBUTTON1 \
+    "The earlier EmberLights uninstaller returned error $R2. Close EmberLights and retry, or cancel Setup." \
+    IDRETRY prior_nsis_retry
+  Abort
+
+prior_nsis_stale:
+  DetailPrint "The earlier NSIS uninstall record was stale; continuing with a repair install."
+
+prior_nsis_removed:
+  DeleteRegKey HKCU "${UninstallRoot}\${AppId}"
+  DeleteRegKey HKCU "${UninstallRoot}\${LegacyNsisAppId}"
+
+prior_nsis_done:
+FunctionEnd
+
+; Hosted builds used the same stable GUID with Inno Setup. Support both the
+; canonical braced key and the defensive unbraced spelling so a new Setup can
+; replace any earlier testing build without asking the operator to hunt for it.
+Function RemovePriorInnoInstall
+  ReadRegStr $R0 HKCU "${UninstallRoot}\${LegacyInnoAppId}" "UninstallString"
+  StrCmp $R0 "" 0 prior_inno_found
+  ReadRegStr $R0 HKCU "${UninstallRoot}\${LegacyInnoAppIdNoBraces}" "UninstallString"
+  StrCmp $R0 "" prior_inno_done
+
+prior_inno_found:
+prior_inno_retry:
+  DetailPrint "Removing the earlier EmberLights Inno Setup installation..."
+  ClearErrors
+  ExecWait '$R0 /VERYSILENT /SUPPRESSMSGBOXES /NORESTART' $R2
+  IfErrors prior_inno_stale
+  IntCmp $R2 0 prior_inno_removed prior_inno_failed prior_inno_failed
+
+prior_inno_failed:
+  MessageBox MB_ICONSTOP|MB_RETRYCANCEL|MB_DEFBUTTON1 \
+    "The earlier EmberLights uninstaller returned error $R2. Close EmberLights and retry, or cancel Setup." \
+    IDRETRY prior_inno_retry
+  Abort
+
+prior_inno_stale:
+  DetailPrint "The earlier Inno Setup uninstall record was stale; continuing with a repair install."
+
+prior_inno_removed:
+  DeleteRegKey HKCU "${UninstallRoot}\${LegacyInnoAppId}"
+  DeleteRegKey HKCU "${UninstallRoot}\${LegacyInnoAppIdNoBraces}"
+
+prior_inno_done:
+FunctionEnd
+
 Section "EmberLights" MainSection
   SectionIn RO
+  Call RemovePriorNsisInstall
+  Call RemovePriorInnoInstall
+
+  ; Remove obsolete installer metadata and shortcuts after the registered
+  ; uninstallers have run. Do not recursively delete the program directory.
+  Delete "$DESKTOP\EmberLights.lnk"
+  Delete "$INSTDIR\unins???.exe"
+  Delete "$INSTDIR\unins???.dat"
+  Delete "$INSTDIR\unins???.msg"
+
   SetOverwrite on
   SetOutPath "$INSTDIR"
   File /r "${BuildDir}\*"
@@ -87,6 +174,7 @@ Section "EmberLights" MainSection
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}" "DisplayIcon" "$INSTDIR\EmberLights.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}" "NoRepair" 1
 
@@ -116,10 +204,14 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${AppName}\Control One DMX Test.lnk"
   Delete "$SMPROGRAMS\${AppName}\Uninstall ${AppName}.lnk"
   RMDir "$SMPROGRAMS\${AppName}"
+  Delete "$DESKTOP\EmberLights.lnk"
 
   DeleteRegKey HKCU "Software\Classes\EmberLights.Project"
   DeleteRegKey HKCU "Software\Classes\.emberlights"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${AppId}"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LegacyNsisAppId}"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LegacyInnoAppId}"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LegacyInnoAppIdNoBraces}"
   DeleteRegValue HKCU "Software\${AppName}" "InstallDir"
   DeleteRegKey /ifempty HKCU "Software\${AppName}"
 
@@ -145,6 +237,9 @@ Section "Uninstall"
   Delete "$INSTDIR\docs\33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
   Delete "$INSTDIR\docs\MORNING_HARDWARE_TEST.md"
   RMDir "$INSTDIR\docs"
+  Delete "$INSTDIR\unins???.exe"
+  Delete "$INSTDIR\unins???.dat"
+  Delete "$INSTDIR\unins???.msg"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 

@@ -9,6 +9,8 @@ EmberLights V1 testing builds are unsigned pre-release software. GitHub Actions 
 
 Windows 10 build 1809 or later and Windows 11 are the current implementation target. Real-machine qualification is still required before that range becomes a release guarantee.
 
+Setup recognizes the stable EmberLights identity used by earlier Inno Setup and NSIS testing builds. It closes over those per-user uninstall records, removes the older program files before replacement, and preserves projects and user settings outside `%LocalAppData%\Programs\EmberLights`. The new build remains available under **Installed apps** and through **Start → EmberLights → Uninstall EmberLights**.
+
 Every packaged build records its product version and source commit in About/Diagnostics. GitHub artifacts also contain a SHA-256 checksum file and machine-readable release manifest.
 
 The Windows package additionally carries `EmberLights-Windows-payload-manifest.json`. It binds the package version and exact checked-out commit to the SHA-256 and size of every CMake-staged file, and records the testing-preview/non-outputting/no-physical-claim safety boundary. CI rejects the package if `git rev-parse HEAD` differs from that declared commit. On pull requests the exact checkout may be GitHub's synthetic merge commit; the contributor head is recorded separately as `sourceHeadCommit` in the external release manifest rather than being mislabeled as the packaged tree. Packaging also fails if a required application, tool, template, operator document, or notice is missing; if paths collide under Windows rules; or if the staged, portable, and installed payloads differ. The external release evidence retains the same payload manifest plus the report from the installed `emberlights_qualify.exe` smoke.

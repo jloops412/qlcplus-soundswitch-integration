@@ -216,6 +216,7 @@ class WindowsPackageContractTests(unittest.TestCase):
         self.assertIn('InstallDir "$LOCALAPPDATA\\Programs\\${AppName}"', installer)
         self.assertIn('${RunningX64}', installer)
         self.assertIn('${AtLeastWin10}', installer)
+        self.assertIn('ManifestSupportedOS all', installer)
         self.assertIn('FindWindow $0 "EmberLightsMainWindow"', installer)
         self.assertIn('File /r "${BuildDir}\\*"', installer)
         self.assertNotIn('RMDir /r "$INSTDIR"', installer)
@@ -225,6 +226,29 @@ class WindowsPackageContractTests(unittest.TestCase):
         self.assertIn(
             f'Delete "$INSTDIR\\{contract.MANIFEST_NAME}"', installer
         )
+
+    def test_nsis_fallback_replaces_every_prior_installer_identity(self) -> None:
+        installer = (Path(__file__).parent / "EmberLights.nsi").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('!define LegacyNsisAppId "EmberLights"', installer)
+        self.assertIn(
+            '!define LegacyInnoAppId '
+            '"{5AE71134-902A-4E44-AF80-ADCC47F15DA9}_is1"',
+            installer,
+        )
+        self.assertIn(
+            '!define LegacyInnoAppIdNoBraces '
+            '"5AE71134-902A-4E44-AF80-ADCC47F15DA9_is1"',
+            installer,
+        )
+        self.assertIn("Call RemovePriorNsisInstall", installer)
+        self.assertIn("Call RemovePriorInnoInstall", installer)
+        self.assertIn("/S _?=$R1", installer)
+        self.assertIn("/VERYSILENT /SUPPRESSMSGBOXES /NORESTART", installer)
+        self.assertIn('"QuietUninstallString"', installer)
+        self.assertIn('Delete "$DESKTOP\\EmberLights.lnk"', installer)
+        self.assertIn('Delete "$INSTDIR\\unins???.exe"', installer)
 
     def test_windows_cmake_stages_end_user_tools_under_tools(self) -> None:
         cmake = (Path(__file__).parents[1] / "native-core/CMakeLists.txt").read_text(
