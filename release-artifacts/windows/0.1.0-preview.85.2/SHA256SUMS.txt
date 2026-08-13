@@ -1,0 +1,2 @@
+c1b0ff364b7dc7bbd84bb741d235d5ec77f7df66603854c60970ecfb09fb9e1a  EmberLights-0.1.0-preview.85.2-Setup.exe
+fd55fe90351f2d06198254895f0cc3355b5327a0233490882c5e477070871678  EmberLights-Windows-payload-manifest.json
