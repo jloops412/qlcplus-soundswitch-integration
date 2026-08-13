@@ -106,9 +106,26 @@ CompilationResult compile_project(const ProjectDocument& project) {
     auto compiled = std::make_unique<CompiledShow>();
     std::unordered_map<std::string_view, const showcore::FixtureProfile*> profile_by_id;
     for (const auto& profile : project.fixture_profiles) {
+        std::vector<std::vector<showcore::ChannelCapabilityMapping>>
+            capability_storage(profile.channels.size());
         std::vector<showcore::ChannelMapping> mappings;
         mappings.reserve(profile.channels.size());
-        for (const auto& channel : profile.channels) {
+        for (std::size_t channel_index = 0U;
+             channel_index < profile.channels.size();
+             ++channel_index) {
+            const auto& channel = profile.channels[channel_index];
+            auto& capabilities = capability_storage[channel_index];
+            capabilities.reserve(channel.capabilities.size());
+            for (const auto& capability : channel.capabilities) {
+                capabilities.push_back({
+                    capability.property,
+                    capability.dmx_min,
+                    capability.dmx_max,
+                    capability.preferred_value,
+                    capability.behavior,
+                    capability.access,
+                    capability.reversed});
+            }
             mappings.push_back({
                 channel.property,
                 channel.coarse_offset,
@@ -116,7 +133,11 @@ CompilationResult compile_project(const ProjectDocument& project) {
                 channel.encoding,
                 channel.dmx_min,
                 channel.dmx_max,
-                channel.default_value});
+                channel.default_value,
+                channel.blackout_value,
+                channel.highlight_value,
+                capabilities.empty() ? nullptr : capabilities.data(),
+                capabilities.size()});
         }
         const showcore::FixtureProfileDraft draft{
             profile.id,

@@ -217,6 +217,9 @@ Target resolution must occur through stable fixture/group IDs. A group override 
 | Save | transitional `profile.editor.commit`; target design uses field-level `profile.update` |
 | Delete | `profile.delete.request(profileId)` |
 | manufacturer/model/mode/name/footprint/channels | editor draft state, validated into `profile.update` |
+| Named DMX ranges | transitional `profile.channelCapability.open/upsert/remove`; target uses typed draft state plus `profile.update` |
+| capability name/property/from/to/preferred/behavior/access/role/reverse | structured editor draft; stable ID is generated, never typed |
+| channel owner/blackout/highlight | structured editor draft, validated into `profile.update` |
 | help | Command Explorer/context help |
 | message | validation/invocation result state |
 

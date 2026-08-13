@@ -278,6 +278,7 @@ template <typename Value>
 
 [[nodiscard]] bool is_known_secondary(std::string_view type) noexcept {
     return type == "CHANNEL" || type == "ROLE" || type == "GROUP_MEMBER" ||
+        type == "CHANNEL_META_V1" || type == "CHANNEL_CAPABILITY_V1" ||
         type == "COLOR_SWATCH_V1" || type == "LOOK_VALUE" ||
         type == "STEP" || type == "TRACK_CUE";
 }
@@ -528,6 +529,91 @@ template <typename Collection>
                 return error(ProjectIoError::InvalidValue, record.line, "Invalid CHANNEL value.");
             }
             profile->channels.push_back(channel);
+        } else if (f[0] == "CHANNEL_META_V1") {
+            if (f.size() != 6U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid CHANNEL_META_V1 record.");
+            }
+            const auto profile = find_id(project.fixture_profiles, f[1]);
+            std::uint16_t coarse_offset = 0U;
+            if (profile == project.fixture_profiles.end() ||
+                !parse_number(f[2], coarse_offset)) {
+                return error(
+                    ProjectIoError::MissingReference,
+                    record.line,
+                    "CHANNEL_META_V1 references a missing profile or channel.");
+            }
+            const auto channel = std::find_if(
+                profile->channels.begin(),
+                profile->channels.end(),
+                [coarse_offset](const auto& candidate) {
+                    return candidate.coarse_offset == coarse_offset;
+                });
+            if (channel == profile->channels.end() ||
+                !parse_number(f[3], channel->blackout_value) ||
+                !parse_number(f[4], channel->highlight_value)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid CHANNEL_META_V1 values.");
+            }
+            channel->owner = f[5];
+        } else if (f[0] == "CHANNEL_CAPABILITY_V1") {
+            if (f.size() != 13U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid CHANNEL_CAPABILITY_V1 record.");
+            }
+            const auto profile = find_id(project.fixture_profiles, f[1]);
+            std::uint16_t coarse_offset = 0U;
+            std::uint16_t behavior = 0U;
+            std::uint16_t access = 0U;
+            std::uint16_t role = 0U;
+            ChannelCapabilityDefinition capability;
+            if (profile == project.fixture_profiles.end() ||
+                !parse_number(f[2], coarse_offset) ||
+                !parse_property(f[5], capability.property) ||
+                !parse_number(f[6], capability.dmx_min) ||
+                !parse_number(f[7], capability.dmx_max) ||
+                !parse_number(f[8], capability.preferred_value) ||
+                !parse_number(f[9], behavior) ||
+                !parse_number(f[10], access) ||
+                !parse_number(f[11], role) ||
+                !parse_bool(f[12], capability.reversed) ||
+                behavior > static_cast<std::uint16_t>(
+                    showcore::ChannelCapabilityBehavior::Continuous) ||
+                access > static_cast<std::uint16_t>(
+                    showcore::ChannelCapabilityAccess::Protected) ||
+                role > static_cast<std::uint16_t>(
+                    FixtureChannelCapabilityRole::Custom)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid CHANNEL_CAPABILITY_V1 values.");
+            }
+            const auto channel = std::find_if(
+                profile->channels.begin(),
+                profile->channels.end(),
+                [coarse_offset](const auto& candidate) {
+                    return candidate.coarse_offset == coarse_offset;
+                });
+            if (channel == profile->channels.end()) {
+                return error(
+                    ProjectIoError::MissingReference,
+                    record.line,
+                    "CHANNEL_CAPABILITY_V1 references a missing channel.");
+            }
+            capability.id = f[3];
+            capability.name = f[4];
+            capability.behavior =
+                static_cast<showcore::ChannelCapabilityBehavior>(behavior);
+            capability.access =
+                static_cast<showcore::ChannelCapabilityAccess>(access);
+            capability.role = static_cast<FixtureChannelCapabilityRole>(role);
+            channel->capabilities.push_back(std::move(capability));
         } else if (f[0] == "ROLE") {
             if (f.size() != 3U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid ROLE record.");
@@ -803,6 +889,29 @@ std::string serialize_project(const ProjectDocument& project) {
                 std::string(channel_encoding_name(channel.encoding)),
                 number_text(channel.dmx_min), number_text(channel.dmx_max),
                 number_text(channel.default_value)});
+            append_record(payload, {
+                "CHANNEL_META_V1",
+                profile.id,
+                number_text(channel.coarse_offset),
+                number_text(channel.blackout_value),
+                number_text(channel.highlight_value),
+                channel.owner});
+            for (const auto& capability : channel.capabilities) {
+                append_record(payload, {
+                    "CHANNEL_CAPABILITY_V1",
+                    profile.id,
+                    number_text(channel.coarse_offset),
+                    capability.id,
+                    capability.name,
+                    std::string(property_name(capability.property)),
+                    number_text(capability.dmx_min),
+                    number_text(capability.dmx_max),
+                    number_text(capability.preferred_value),
+                    enum_number(capability.behavior),
+                    enum_number(capability.access),
+                    enum_number(capability.role),
+                    capability.reversed ? "1" : "0"});
+            }
         }
     }
     for (const auto& fixture : project.fixtures) {

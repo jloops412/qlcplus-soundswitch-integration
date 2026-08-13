@@ -479,13 +479,33 @@ void test_qlc_fixture_import() {
         CHECK(dimmer->coarse_offset == 0U && dimmer->fine_offset == 1);
         CHECK(dimmer->default_value == 0x0102U);
     }
-    const auto strobe = std::find_if(profile.channels.begin(), profile.channels.end(),
-        [](const auto& channel) { return channel.property == showcore::Property::Strobe; });
-    CHECK(strobe != profile.channels.end());
-    if (strobe != profile.channels.end()) {
-        CHECK(strobe->encoding == showcore::ChannelEncoding::Ranged8);
-        CHECK(strobe->dmx_min == 16U && strobe->dmx_max == 127U);
-        CHECK(strobe->default_value == 8U);
+    const auto shutter_strobe = std::find_if(
+        profile.channels.begin(), profile.channels.end(), [](const auto& channel) {
+            return std::any_of(
+                channel.capabilities.begin(),
+                channel.capabilities.end(),
+                [](const auto& capability) {
+                    return capability.property == showcore::Property::Strobe;
+                });
+        });
+    CHECK(shutter_strobe != profile.channels.end());
+    if (shutter_strobe != profile.channels.end()) {
+        CHECK(shutter_strobe->property == showcore::Property::Count);
+        CHECK(shutter_strobe->capabilities.size() == 4U);
+        CHECK(shutter_strobe->default_value == 8U);
+        const auto strobe_range = std::find_if(
+            shutter_strobe->capabilities.begin(),
+            shutter_strobe->capabilities.end(),
+            [](const auto& capability) {
+                return capability.property == showcore::Property::Strobe;
+            });
+        CHECK(strobe_range != shutter_strobe->capabilities.end());
+        if (strobe_range != shutter_strobe->capabilities.end()) {
+            CHECK(strobe_range->dmx_min == 16U);
+            CHECK(strobe_range->dmx_max == 127U);
+            CHECK(strobe_range->access ==
+                  showcore::ChannelCapabilityAccess::SafetyGated);
+        }
     }
     CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
         [](const auto& channel) { return channel.property == showcore::Property::Haze; }));
@@ -502,10 +522,29 @@ void test_qlc_fixture_import() {
     CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
         [](const auto& channel) { return channel.property == showcore::Property::Custom1; }));
 
+    std::vector<std::vector<showcore::ChannelCapabilityMapping>> capability_storage(
+        profile.channels.size());
     std::vector<showcore::ChannelMapping> mappings;
-    for (const auto& channel : profile.channels) {
+    for (std::size_t channel_index = 0U;
+         channel_index < profile.channels.size();
+         ++channel_index) {
+        const auto& channel = profile.channels[channel_index];
+        auto& capabilities = capability_storage[channel_index];
+        for (const auto& capability : channel.capabilities) {
+            capabilities.push_back({
+                capability.property,
+                capability.dmx_min,
+                capability.dmx_max,
+                capability.preferred_value,
+                capability.behavior,
+                capability.access,
+                capability.reversed});
+        }
         mappings.push_back({channel.property, channel.coarse_offset, channel.fine_offset,
-            channel.encoding, channel.dmx_min, channel.dmx_max, channel.default_value});
+            channel.encoding, channel.dmx_min, channel.dmx_max, channel.default_value,
+            channel.blackout_value, channel.highlight_value,
+            capabilities.empty() ? nullptr : capabilities.data(),
+            capabilities.size()});
     }
     const showcore::FixtureProfile runtime{
         profile.name.c_str(), mappings.data(), mappings.size(), profile.footprint};
@@ -531,7 +570,7 @@ void test_qlc_fixture_import() {
     CHECK(parsed.fixture_profiles.back().source == showcore::FixtureProfileSource::QlcPlus);
     CHECK(std::any_of(parsed.fixture_profiles.back().channels.begin(),
         parsed.fixture_profiles.back().channels.end(), [](const auto& channel) {
-            return channel.encoding == showcore::ChannelEncoding::Ranged8;
+            return !channel.capabilities.empty();
         }));
 
     const auto external_entity = emberlights::import_qlc_fixture(
@@ -587,6 +626,17 @@ void test_qlc_fixture_import() {
     CHECK(laser_profile.channels[0].dmx_min == 8U);
     CHECK(laser_profile.channels[0].dmx_max == 15U);
 
+    std::vector<showcore::ChannelCapabilityMapping> laser_capabilities;
+    for (const auto& capability : laser_profile.channels[0].capabilities) {
+        laser_capabilities.push_back({
+            capability.property,
+            capability.dmx_min,
+            capability.dmx_max,
+            capability.preferred_value,
+            capability.behavior,
+            capability.access,
+            capability.reversed});
+    }
     const showcore::ChannelMapping laser_mapping{
         laser_profile.channels[0].property,
         laser_profile.channels[0].coarse_offset,
@@ -594,7 +644,11 @@ void test_qlc_fixture_import() {
         laser_profile.channels[0].encoding,
         laser_profile.channels[0].dmx_min,
         laser_profile.channels[0].dmx_max,
-        laser_profile.channels[0].default_value};
+        laser_profile.channels[0].default_value,
+        laser_profile.channels[0].blackout_value,
+        laser_profile.channels[0].highlight_value,
+        laser_capabilities.data(),
+        laser_capabilities.size()};
     const showcore::FixtureProfile laser_runtime{
         laser_profile.name.c_str(), &laser_mapping, 1U, laser_profile.footprint};
     auto laser_engine = std::make_unique<showcore::Engine>();
@@ -602,10 +656,10 @@ void test_qlc_fixture_import() {
     laser_engine->layers().set(showcore::LayerId::ManualOverride, 0,
         showcore::Property::Laser, showcore::PropertyValue::set(1.0F));
     laser_engine->tick();
-    CHECK(laser_engine->frames().universes[0][0] == 0U);
+    CHECK(laser_engine->frames().universes[0][0] == 3U);
     laser_engine->safety().laser_armed = true;
     laser_engine->tick();
-    CHECK(laser_engine->frames().universes[0][0] == 15U);
+    CHECK(laser_engine->frames().universes[0][0] == 11U);
 }
 
 void test_compiled_fixture_library() {

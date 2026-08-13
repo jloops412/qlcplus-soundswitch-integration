@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
+#include <cmath>
 #include <sstream>
 #include <utility>
 
@@ -247,7 +249,31 @@ FixtureProfileEditorMutationResult upsert_fixture_profile_channel(
         });
     const auto replaced = existing != candidate.channels.end();
     if (replaced) {
+        const auto preserved_capabilities = existing->capabilities;
+        const auto preserved_owner = existing->owner;
+        const auto preserved_blackout = existing->blackout_value;
+        const auto preserved_highlight = existing->highlight_value;
         *existing = definition;
+        existing->capabilities = preserved_capabilities;
+        existing->owner = preserved_owner;
+        existing->blackout_value = preserved_blackout;
+        existing->highlight_value = preserved_highlight;
+        if (!existing->capabilities.empty()) {
+            const auto first_property = existing->capabilities.front().property;
+            const auto compound = std::any_of(
+                existing->capabilities.begin(),
+                existing->capabilities.end(),
+                [first_property](const auto& capability) {
+                    return capability.property != first_property;
+                });
+            existing->property = compound ? Property::Count : first_property;
+            if (compound) {
+                existing->encoding = ChannelEncoding::Discrete8;
+                existing->fine_offset = -1;
+                existing->dmx_min = 0U;
+                existing->dmx_max = 255U;
+            }
+        }
     } else {
         candidate.channels.push_back(definition);
     }
@@ -307,6 +333,66 @@ FixtureProfileEditorMutationResult remove_fixture_profile_channel(
     return validation;
 }
 
+FixtureProfileEditorMutationResult update_fixture_profile_channel_metadata(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel,
+    std::string owner,
+    std::uint16_t blackout_value,
+    std::uint16_t highlight_value) {
+    if (owner.empty() || owner.size() > showcore::kFixtureProfileTextLength) {
+        return {
+            FixtureProfileEditorError::InvalidDefinition,
+            false,
+            false,
+            "Channel owner must be 1–96 characters, such as fixture, head.1, or cell.4."};
+    }
+    auto candidate = draft;
+    const auto channel = std::find_if(
+        candidate.channels.begin(),
+        candidate.channels.end(),
+        [one_based_channel](const auto& value) {
+            return one_based_channel != 0U &&
+                value.coarse_offset == one_based_channel - 1U;
+        });
+    if (channel == candidate.channels.end()) {
+        return {
+            FixtureProfileEditorError::InvalidChannel,
+            false,
+            false,
+            "Choose a mapped channel first."};
+    }
+    const auto maximum = channel->encoding == ChannelEncoding::Linear16
+        ? 65535U
+        : 255U;
+    if (blackout_value > maximum || highlight_value > maximum) {
+        return {
+            FixtureProfileEditorError::InvalidDefinition,
+            false,
+            false,
+            channel->encoding == ChannelEncoding::Linear16
+                ? "16-bit channel blackout/highlight values must be 0–65535."
+                : "8-bit channel blackout/highlight values must be 0–255."};
+    }
+    const auto changed = channel->owner != owner ||
+        channel->blackout_value != blackout_value ||
+        channel->highlight_value != highlight_value;
+    channel->owner = std::move(owner);
+    channel->blackout_value = blackout_value;
+    channel->highlight_value = highlight_value;
+    const auto validation = validate_candidate(
+        candidate,
+        true,
+        changed ? "Channel ownership and safe values updated."
+                : "Channel ownership and safe values are unchanged.");
+    if (!validation) {
+        return validation;
+    }
+    draft = std::move(candidate);
+    auto result = validation;
+    result.changed = changed;
+    return result;
+}
+
 std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
     const FixtureProfileDefinition& profile) {
     std::vector<FixtureProfileEditorRow> rows;
@@ -329,10 +415,16 @@ std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
         row.fine_label = row.fine_channel == 0U
             ? "—"
             : "CH" + std::to_string(row.fine_channel);
+        row.owner_label = definition.owner;
+        row.capability_label = definition.capabilities.empty()
+            ? "—"
+            : std::to_string(definition.capabilities.size()) + " named";
         std::ostringstream accessible;
         accessible << "Channel " << row.channel << ", " << row.property_label
                    << ", " << row.encoding_label << ", DMX "
                    << row.range_label << ", default " << row.default_label;
+        accessible << ", owner " << row.owner_label << ", "
+                   << row.capability_label << " capability ranges";
         if (row.fine_channel != 0U) {
             accessible << ", fine channel " << row.fine_channel;
         }
@@ -347,6 +439,372 @@ std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
     return rows;
 }
 
+std::string make_fixture_channel_capability_id(std::string_view label) {
+    std::string id;
+    bool separator = false;
+    for (const auto character : label) {
+        const auto value = static_cast<unsigned char>(character);
+        if (std::isalnum(value) != 0) {
+            if (separator && !id.empty()) {
+                id.push_back('-');
+            }
+            separator = false;
+            id.push_back(static_cast<char>(std::tolower(value)));
+        } else {
+            separator = true;
+        }
+    }
+    if (id.empty()) {
+        id = "capability";
+    }
+    if (id.size() > showcore::kFixtureProfileTextLength) {
+        id.resize(showcore::kFixtureProfileTextLength);
+    }
+    return id;
+}
+
+std::string_view fixture_channel_capability_behavior_name(
+    showcore::ChannelCapabilityBehavior behavior) noexcept {
+    switch (behavior) {
+    case showcore::ChannelCapabilityBehavior::Slot: return "Named slot";
+    case showcore::ChannelCapabilityBehavior::Continuous: return "Continuous range";
+    }
+    return "Invalid";
+}
+
+std::string_view fixture_channel_capability_access_name(
+    showcore::ChannelCapabilityAccess access) noexcept {
+    switch (access) {
+    case showcore::ChannelCapabilityAccess::Selectable: return "Selectable";
+    case showcore::ChannelCapabilityAccess::SafetyGated: return "Safety gated";
+    case showcore::ChannelCapabilityAccess::Protected: return "Protected / unavailable";
+    }
+    return "Invalid";
+}
+
+std::string_view fixture_channel_capability_role_name(
+    FixtureChannelCapabilityRole role) noexcept {
+    switch (role) {
+    case FixtureChannelCapabilityRole::Function: return "Function";
+    case FixtureChannelCapabilityRole::Open: return "Open";
+    case FixtureChannelCapabilityRole::Closed: return "Closed";
+    case FixtureChannelCapabilityRole::Home: return "Home / neutral";
+    case FixtureChannelCapabilityRole::Blackout: return "Blackout";
+    case FixtureChannelCapabilityRole::Clockwise: return "Clockwise";
+    case FixtureChannelCapabilityRole::CounterClockwise: return "Counter-clockwise";
+    case FixtureChannelCapabilityRole::Reset: return "Reset";
+    case FixtureChannelCapabilityRole::Service: return "Service";
+    case FixtureChannelCapabilityRole::Custom: return "Custom";
+    }
+    return "Invalid";
+}
+
+FixtureChannelCapabilityMutationResult upsert_fixture_channel_capability(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel,
+    const ChannelCapabilityDefinition& definition) {
+    const auto channel = std::find_if(
+        draft.channels.begin(),
+        draft.channels.end(),
+        [one_based_channel](const auto& candidate) {
+            return one_based_channel != 0U &&
+                candidate.coarse_offset == one_based_channel - 1U;
+        });
+    if (channel == draft.channels.end() ||
+        channel->encoding == ChannelEncoding::Constant8 ||
+        channel->encoding == ChannelEncoding::Linear16) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidChannel,
+            false,
+            false,
+            "Choose one mapped 8-bit semantic channel before editing named ranges."};
+    }
+    if (definition.id.empty() || definition.name.empty() ||
+        definition.id.size() > showcore::kFixtureProfileTextLength ||
+        definition.name.size() > showcore::kFixtureProfileTextLength) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidIdentity,
+            false,
+            false,
+            "Capability name and stable ID must be non-empty and at most 96 characters."};
+    }
+    if (definition.property >= Property::Count) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidProperty,
+            false,
+            false,
+            "Choose the semantic parameter this DMX range represents."};
+    }
+    if (definition.dmx_min > definition.dmx_max) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidRange,
+            false,
+            false,
+            "Capability DMX From must not exceed DMX To; use Reverse for opposite direction."};
+    }
+    if (definition.preferred_value < definition.dmx_min ||
+        definition.preferred_value > definition.dmx_max) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidPreferredValue,
+            false,
+            false,
+            "The preferred value must sit inside this capability's DMX range."};
+    }
+    const auto* descriptor = fixture_parameter_descriptor(definition.property);
+    const auto protected_role =
+        definition.role == FixtureChannelCapabilityRole::Reset ||
+        definition.role == FixtureChannelCapabilityRole::Service;
+    if (descriptor == nullptr ||
+        (descriptor->safety_restricted() &&
+         descriptor->safety != FixtureParameterSafety::UnverifiedCustom &&
+         definition.access == showcore::ChannelCapabilityAccess::Selectable) ||
+        (descriptor->safety == FixtureParameterSafety::UnverifiedCustom &&
+         definition.access != showcore::ChannelCapabilityAccess::Protected) ||
+        (protected_role &&
+         definition.access != showcore::ChannelCapabilityAccess::Protected)) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidAccess,
+            false,
+            false,
+            "Safety-restricted ranges must be gated; custom, reset, and service ranges stay Protected until explicitly qualified."};
+    }
+
+    auto candidate = draft;
+    auto candidate_channel = std::find_if(
+        candidate.channels.begin(),
+        candidate.channels.end(),
+        [one_based_channel](const auto& value) {
+            return value.coarse_offset == one_based_channel - 1U;
+        });
+    const auto existing = std::find_if(
+        candidate_channel->capabilities.begin(),
+        candidate_channel->capabilities.end(),
+        [&](const auto& value) { return value.id == definition.id; });
+    const auto replaced = existing != candidate_channel->capabilities.end();
+    for (const auto& capability : candidate_channel->capabilities) {
+        if (capability.id == definition.id) {
+            continue;
+        }
+        if (!(definition.dmx_max < capability.dmx_min ||
+              definition.dmx_min > capability.dmx_max)) {
+            return {
+                FixtureChannelCapabilityEditorError::DuplicateRange,
+                false,
+                replaced,
+                "Named DMX capability ranges cannot overlap. Adjust From/To or edit the existing row."};
+        }
+    }
+    if (replaced) {
+        *existing = definition;
+    } else {
+        candidate_channel->capabilities.push_back(definition);
+    }
+    std::stable_sort(
+        candidate_channel->capabilities.begin(),
+        candidate_channel->capabilities.end(),
+        [](const auto& left, const auto& right) {
+            if (left.dmx_min != right.dmx_min) {
+                return left.dmx_min < right.dmx_min;
+            }
+            return left.id < right.id;
+        });
+    const auto first_property = candidate_channel->capabilities.front().property;
+    const auto compound = std::any_of(
+        candidate_channel->capabilities.begin(),
+        candidate_channel->capabilities.end(),
+        [first_property](const auto& capability) {
+            return capability.property != first_property;
+        });
+    candidate_channel->property = compound ? Property::Count : first_property;
+    if (compound) {
+        candidate_channel->encoding = ChannelEncoding::Discrete8;
+        candidate_channel->dmx_min = 0U;
+        candidate_channel->dmx_max = 255U;
+    }
+    const auto summary = summarize_fixture_profile_mapping(validation_copy(candidate));
+    if (!summary.profile_valid) {
+        return {
+            FixtureChannelCapabilityEditorError::ProfileInvalid,
+            false,
+            replaced,
+            summary.validation_message};
+    }
+    draft = std::move(candidate);
+    return {
+        FixtureChannelCapabilityEditorError::None,
+        true,
+        replaced,
+        replaced ? "Named DMX capability updated."
+                 : "Named DMX capability added."};
+}
+
+FixtureChannelCapabilityMutationResult remove_fixture_channel_capability(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel,
+    std::string_view capability_id) {
+    auto candidate = draft;
+    const auto channel = std::find_if(
+        candidate.channels.begin(),
+        candidate.channels.end(),
+        [one_based_channel](const auto& value) {
+            return one_based_channel != 0U &&
+                value.coarse_offset == one_based_channel - 1U;
+        });
+    if (channel == candidate.channels.end()) {
+        return {
+            FixtureChannelCapabilityEditorError::InvalidChannel,
+            false,
+            false,
+            "Choose a mapped channel first."};
+    }
+    const auto capability = std::find_if(
+        channel->capabilities.begin(),
+        channel->capabilities.end(),
+        [capability_id](const auto& value) { return value.id == capability_id; });
+    if (capability == channel->capabilities.end()) {
+        return {
+            FixtureChannelCapabilityEditorError::MissingCapability,
+            false,
+            false,
+            "That named capability is no longer present."};
+    }
+    channel->capabilities.erase(capability);
+    if (!channel->capabilities.empty()) {
+        const auto first_property = channel->capabilities.front().property;
+        const auto compound = std::any_of(
+            channel->capabilities.begin(),
+            channel->capabilities.end(),
+            [first_property](const auto& value) {
+                return value.property != first_property;
+            });
+        channel->property = compound ? Property::Count : first_property;
+    } else if (channel->property == Property::Count) {
+        channel->property = Property::Custom1;
+    }
+    const auto summary = summarize_fixture_profile_mapping(validation_copy(candidate));
+    if (!summary.profile_valid) {
+        return {
+            FixtureChannelCapabilityEditorError::ProfileInvalid,
+            false,
+            false,
+            summary.validation_message};
+    }
+    draft = std::move(candidate);
+    return {
+        FixtureChannelCapabilityEditorError::None,
+        true,
+        false,
+        "Named DMX capability removed."};
+}
+
+std::vector<FixtureChannelCapabilityRow> fixture_channel_capability_rows(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t one_based_channel) {
+    std::vector<FixtureChannelCapabilityRow> rows;
+    const auto channel = std::find_if(
+        profile.channels.begin(),
+        profile.channels.end(),
+        [one_based_channel](const auto& value) {
+            return one_based_channel != 0U &&
+                value.coarse_offset == one_based_channel - 1U;
+        });
+    if (channel == profile.channels.end()) {
+        return rows;
+    }
+    rows.reserve(channel->capabilities.size());
+    for (std::size_t index = 0U; index < channel->capabilities.size(); ++index) {
+        const auto& capability = channel->capabilities[index];
+        FixtureChannelCapabilityRow row;
+        row.source_index = index;
+        row.id = capability.id;
+        row.name = capability.name;
+        row.parameter_label = display_property(capability.property);
+        row.range_label = std::to_string(capability.dmx_min) + "–" +
+            std::to_string(capability.dmx_max);
+        row.preferred_label = std::to_string(capability.preferred_value);
+        row.behavior_label = std::string(
+            fixture_channel_capability_behavior_name(capability.behavior));
+        row.access_label = std::string(
+            fixture_channel_capability_access_name(capability.access));
+        row.role_label = std::string(
+            fixture_channel_capability_role_name(capability.role));
+        row.accessibility_label = "DMX " + row.range_label + ", " + row.name +
+            ", " + row.parameter_label + ", preferred " + row.preferred_label +
+            ", " + row.behavior_label + ", " + row.access_label;
+        rows.push_back(std::move(row));
+    }
+    return rows;
+}
+
+FixtureChannelCapabilitySelection resolve_fixture_channel_capability(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t one_based_channel,
+    std::string_view capability_id,
+    float position) {
+    FixtureChannelCapabilitySelection result;
+    const auto channel = std::find_if(
+        profile.channels.begin(),
+        profile.channels.end(),
+        [one_based_channel](const auto& value) {
+            return one_based_channel != 0U &&
+                value.coarse_offset == one_based_channel - 1U;
+        });
+    if (channel == profile.channels.end()) {
+        result.error = FixtureChannelCapabilityEditorError::InvalidChannel;
+        result.message = "The capability channel is missing.";
+        return result;
+    }
+    const auto selected = std::find_if(
+        channel->capabilities.begin(),
+        channel->capabilities.end(),
+        [capability_id](const auto& value) { return value.id == capability_id; });
+    if (selected == channel->capabilities.end()) {
+        result.message = "The named capability is missing.";
+        return result;
+    }
+    if (selected->access == showcore::ChannelCapabilityAccess::Protected) {
+        result.error = FixtureChannelCapabilityEditorError::ProtectedCapability;
+        result.message = "Protected reset/service/custom ranges cannot be bound or activated.";
+        return result;
+    }
+    position = std::isfinite(position) ? std::clamp(position, 0.0F, 1.0F) : 0.5F;
+    std::size_t matching_count = 0U;
+    std::size_t selected_segment = 0U;
+    for (const auto& capability : channel->capabilities) {
+        if (capability.property != selected->property ||
+            capability.access == showcore::ChannelCapabilityAccess::Protected) {
+            continue;
+        }
+        if (&capability == &*selected) {
+            selected_segment = matching_count;
+        }
+        ++matching_count;
+    }
+    if (matching_count == 0U) {
+        result.message = "The named capability has no selectable runtime range.";
+        return result;
+    }
+    const auto local = selected->behavior == showcore::ChannelCapabilityBehavior::Slot
+        ? 0.5F
+        : position;
+    result.error = FixtureChannelCapabilityEditorError::None;
+    result.found = true;
+    result.property = selected->property;
+    result.normalized_value =
+        (static_cast<float>(selected_segment) + local) /
+        static_cast<float>(matching_count);
+    result.raw_value = selected->behavior == showcore::ChannelCapabilityBehavior::Slot
+        ? selected->preferred_value
+        : static_cast<std::uint8_t>(std::lround(
+              static_cast<float>(selected->dmx_min) +
+              (selected->reversed ? 1.0F - position : position) *
+                  static_cast<float>(selected->dmx_max - selected->dmx_min)));
+    result.binding_id = profile.id + "/ch" +
+        std::to_string(one_based_channel) + "/" + selected->id;
+    result.message = "Named capability resolved through the shared semantic parameter contract.";
+    return result;
+}
+
 FixtureProfileAudit audit_fixture_profile(
     const FixtureProfileDefinition& profile) {
     FixtureProfileAudit audit;
@@ -355,6 +813,7 @@ FixtureProfileAudit audit_fixture_profile(
     std::array<bool, showcore::kUniverseSlots> occupied{};
     std::array<std::size_t, showcore::kPropertyCount> property_uses{};
     std::vector<std::string> manual_rows;
+    std::vector<std::string> missing_range_rows;
     std::vector<std::string> safety_rows;
     std::vector<std::string> repeated_rows;
 
@@ -376,12 +835,68 @@ FixtureProfileAudit audit_fixture_profile(
             static_cast<std::size_t>(channel.fine_offset) < occupied.size()) {
             occupied[static_cast<std::size_t>(channel.fine_offset)] = true;
         }
+        if (channel.owner != "fixture") {
+            ++audit.owned_cell_or_head_count;
+        }
+        std::array<bool, showcore::kPropertyCount> capability_properties{};
+        std::size_t distinct_capability_properties = 0U;
+        for (const auto& capability : channel.capabilities) {
+            ++audit.named_capability_count;
+            if (capability.access == showcore::ChannelCapabilityAccess::Protected) {
+                ++audit.protected_capability_count;
+            }
+            const auto property_index = static_cast<std::size_t>(capability.property);
+            if (property_index < capability_properties.size() &&
+                !capability_properties[property_index]) {
+                capability_properties[property_index] = true;
+                ++distinct_capability_properties;
+                ++property_uses[property_index];
+            }
+        }
+        if (distinct_capability_properties > 1U) {
+            ++audit.compound_channel_count;
+        }
         if (channel.encoding == ChannelEncoding::Constant8 ||
-            channel.property == Property::Count) {
+            (channel.property == Property::Count && channel.capabilities.empty())) {
             ++audit.safe_constant_count;
             continue;
         }
         ++audit.semantic_mapping_count;
+        if (channel.property == Property::Count) {
+            for (std::size_t property_index = 0U;
+                 property_index < capability_properties.size();
+                 ++property_index) {
+                if (!capability_properties[property_index]) {
+                    continue;
+                }
+                const auto property = static_cast<Property>(property_index);
+                const auto* descriptor = fixture_parameter_descriptor(property);
+                if (descriptor == nullptr) {
+                    audit.issues.push_back({
+                        FixtureProfileAuditSeverity::Error,
+                        "profile.parameter.unknown",
+                        one_based_channel,
+                        "CH" + std::to_string(one_based_channel) +
+                            " has an unknown named capability parameter."});
+                    continue;
+                }
+                const auto row_label = std::string(descriptor->display_name) +
+                    " CH" + std::to_string(one_based_channel);
+                if (descriptor->needs_manual_dmx_chart()) {
+                    ++audit.manual_chart_review_count;
+                    manual_rows.push_back(row_label);
+                }
+                if (descriptor->safety != FixtureParameterSafety::Normal &&
+                    descriptor->safety != FixtureParameterSafety::UnverifiedCustom) {
+                    ++audit.safety_restricted_count;
+                    safety_rows.push_back(row_label);
+                }
+                if (descriptor->category == FixtureParameterCategory::Custom) {
+                    ++audit.custom_mapping_count;
+                }
+            }
+            continue;
+        }
         const auto* descriptor = fixture_parameter_descriptor(channel.property);
         if (descriptor == nullptr) {
             audit.issues.push_back({
@@ -392,12 +907,17 @@ FixtureProfileAudit audit_fixture_profile(
                     " uses an unknown semantic parameter."});
             continue;
         }
-        ++property_uses[static_cast<std::size_t>(channel.property)];
+        if (channel.capabilities.empty()) {
+            ++property_uses[static_cast<std::size_t>(channel.property)];
+        }
         const auto row_label = std::string(descriptor->display_name) + " CH" +
             std::to_string(one_based_channel);
         if (descriptor->needs_manual_dmx_chart()) {
             ++audit.manual_chart_review_count;
             manual_rows.push_back(row_label);
+            if (channel.capabilities.empty()) {
+                missing_range_rows.push_back(row_label);
+            }
         }
         if (descriptor->safety != FixtureParameterSafety::Normal &&
             descriptor->safety != FixtureParameterSafety::UnverifiedCustom) {
@@ -443,6 +963,22 @@ FixtureProfileAudit audit_fixture_profile(
             "DMX-chart capability ranges required: " +
                 joined_parameter_rows(manual_rows) + "."});
     }
+    if (!missing_range_rows.empty()) {
+        audit.issues.push_back({
+            FixtureProfileAuditSeverity::Warning,
+            "profile.capabilities.namedRangesMissing",
+            0U,
+            "Add named DMX capability ranges from the fixture chart: " +
+                joined_parameter_rows(missing_range_rows) + "."});
+    }
+    if (audit.protected_capability_count != 0U) {
+        audit.issues.push_back({
+            FixtureProfileAuditSeverity::Info,
+            "profile.capabilities.protected",
+            0U,
+            std::to_string(audit.protected_capability_count) +
+                " reset/service/custom range(s) are preserved but unavailable to Looks, Live, MIDI, and skins."});
+    }
     if (!safety_rows.empty()) {
         audit.issues.push_back({
             FixtureProfileAuditSeverity::Warning,
@@ -478,7 +1014,11 @@ FixtureProfileAudit audit_fixture_profile(
          << audit.safe_constant_count << '\n'
          << "DMX-chart ranges: " << audit.manual_chart_review_count
          << " | Safety-restricted: " << audit.safety_restricted_count
-         << " | Custom: " << audit.custom_mapping_count << '\n';
+         << " | Custom: " << audit.custom_mapping_count << '\n'
+         << "Named ranges: " << audit.named_capability_count
+         << " | Compound channels: " << audit.compound_channel_count
+         << " | Protected: " << audit.protected_capability_count
+         << " | Cell/head-owned: " << audit.owned_cell_or_head_count << '\n';
     if (audit.issues.empty()) {
         text << "Structure is complete. Physical mode, source, and emitter behavior still require fixture verification.";
     } else {

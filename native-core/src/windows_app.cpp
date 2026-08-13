@@ -405,6 +405,40 @@ enum ControlId : int {
     IdProfileCatalogStatus,
     IdProfileTemplate,
     IdProfileApplyTemplate,
+    IdProfileCapabilitiesOpen,
+
+    IdCapabilityTitle = 2200,
+    IdCapabilityContext,
+    IdCapabilityList,
+    IdCapabilityName,
+    IdCapabilityProperty,
+    IdCapabilityFrom,
+    IdCapabilityTo,
+    IdCapabilityPreferred,
+    IdCapabilityBehavior,
+    IdCapabilityAccess,
+    IdCapabilityRole,
+    IdCapabilityReverse,
+    IdCapabilityUpsert,
+    IdCapabilityRemove,
+    IdCapabilityOwner,
+    IdCapabilityBlackout,
+    IdCapabilityHighlight,
+    IdCapabilitySaveMetadata,
+    IdCapabilityNew,
+    IdCapabilityClose,
+    IdCapabilityMessage,
+    IdCapabilityNameLabel,
+    IdCapabilityPropertyLabel,
+    IdCapabilityFromLabel,
+    IdCapabilityToLabel,
+    IdCapabilityPreferredLabel,
+    IdCapabilityBehaviorLabel,
+    IdCapabilityAccessLabel,
+    IdCapabilityRoleLabel,
+    IdCapabilityOwnerLabel,
+    IdCapabilityBlackoutLabel,
+    IdCapabilityHighlightLabel,
 
     IdPatchTitle = 3000,
     IdPatchList,
@@ -1093,6 +1127,16 @@ private:
     void refresh_profile_mapping_summary();
     void refresh_profile_channel_table();
     void select_profile_channel(std::int32_t source_index);
+    void create_profile_capability_window();
+    void layout_profile_capability_window();
+    void open_profile_capability_editor();
+    void refresh_profile_capability_editor();
+    void select_profile_capability(std::int32_t source_index);
+    void new_profile_capability();
+    void upsert_profile_capability();
+    void remove_profile_capability();
+    void save_profile_channel_metadata();
+    void close_profile_capability_editor();
     void select_fixture(std::int32_t index);
     void new_fixture();
     void save_fixture();
@@ -1207,6 +1251,9 @@ private:
     std::int32_t profile_index_{-1};
     std::vector<emberlights::ChannelDefinition> profile_draft_channels_;
     std::optional<std::string> profile_duplicate_source_id_{};
+    HWND profile_capability_window_{nullptr};
+    std::uint16_t profile_capability_channel_{0U};
+    std::string selected_profile_capability_id_;
     std::int32_t fixture_index_{-1};
     std::int32_t group_index_{-1};
     std::int32_t look_index_{-1};
@@ -1396,7 +1443,11 @@ int Application::run(
                 emberlights::ConnectionLayoutAction::SaveAndApply &&
             ::TranslateAcceleratorW(
                 window_, connections_accelerator, &message) != 0;
-        if (!connections_accelerator_handled &&
+        const auto capability_dialog_handled =
+            profile_capability_window_ != nullptr &&
+            ::IsWindowVisible(profile_capability_window_) != FALSE &&
+            ::IsDialogMessageW(profile_capability_window_, &message) != FALSE;
+        if (!connections_accelerator_handled && !capability_dialog_handled &&
             (accelerators == nullptr ||
              ::TranslateAcceleratorW(window_, accelerators, &message) == 0) &&
             !::IsDialogMessageW(window_, &message)) {
@@ -1606,6 +1657,23 @@ LRESULT CALLBACK Application::page_proc(
             return MAKELRESULT(IdConnectionsApply, DC_HASDEFID);
         }
     }
+    if (application != nullptr &&
+        window == application->profile_capability_window_) {
+        if (message == WM_SIZE) {
+            application->layout_profile_capability_window();
+            return 0;
+        }
+        if (message == WM_CLOSE) {
+            application->close_profile_capability_editor();
+            return 0;
+        }
+        if (message == WM_GETMINMAXINFO) {
+            auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+            limits->ptMinTrackSize.x = 860;
+            limits->ptMinTrackSize.y = 620;
+            return 0;
+        }
+    }
     if (application != nullptr && message == WM_ERASEBKGND) {
         return TRUE;
     }
@@ -1617,7 +1685,13 @@ LRESULT CALLBACK Application::page_proc(
         message == WM_DRAWITEM ||
         message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT ||
         message == WM_CTLCOLORLISTBOX || message == WM_CTLCOLORBTN) {
-        return ::SendMessageW(::GetParent(window), message, wparam, lparam);
+        return ::SendMessageW(
+            application != nullptr && window == application->profile_capability_window_
+                ? application->window_
+                : ::GetParent(window),
+            message,
+            wparam,
+            lparam);
     }
     return ::DefWindowProcW(window, message, wparam, lparam);
 }
@@ -2272,14 +2346,15 @@ void Application::draw_owner_button(const DRAWITEMSTRUCT& item) {
     const auto danger = id == IdOverridesReleaseAll ||
         id == IdProfileDelete || id == IdPatchDelete || id == IdGroupDelete ||
         id == IdLookDelete || id == IdAutoloopDelete || id == IdTrackDelete ||
-        id == IdMidiDelete || id == IdLookPhysicalStop;
+        id == IdMidiDelete || id == IdLookPhysicalStop ||
+        id == IdCapabilityRemove;
     const auto primary = id == IdShowStartStop || id == IdLiveStartStop ||
         id == IdLiveTriggerLook ||
         id == IdLiveTriggerAutoloop || id == IdLiveTriggerTrack ||
         id == IdOverridesApply || id == IdProfileSave || id == IdPatchSave ||
         id == IdGroupSave || id == IdLookSave || id == IdLookApplyColor ||
         id == IdLookPhysicalPreview || id == IdProfileCatalogSearch ||
-        id == IdProfileCatalogImport ||
+        id == IdProfileCatalogImport || id == IdCapabilityUpsert ||
         id == IdAutoloopSave || id == IdAutoscriptGenerate ||
         id == IdAutoscriptCommit || id == IdTrackSave ||
         id == IdConnectionsApply || id == IdSafetyApply;
@@ -2601,6 +2676,8 @@ void Application::create_pages() {
     add_listview_column(profile_channels, 3, 76, L"DMX range");
     add_listview_column(profile_channels, 4, 64, L"Default");
     add_listview_column(profile_channels, 5, 60, L"Fine");
+    add_listview_column(profile_channels, 6, 86, L"Owner");
+    add_listview_column(profile_channels, 7, 84, L"Ranges");
     add_button(page, L"Restore Verified IR-4 6CH + 10CH", IdProfileEnsureIr4);
     add_label(page, L"Channel", 0);
     add_edit(page, IdProfileMappingChannel);
@@ -2622,8 +2699,8 @@ void Application::create_pages() {
     add_label(
         page,
         L"Select a row, choose a semantic parameter, then use safe defaults or enter the exact DMX-chart range. "
-        L"White and Amber are ordinary Color parameters—map each to the channel observed on the fixture. "
-        L"Imported and built-in snapshots remain read-only until duplicated.",
+        L"For shutter/strobe, gobos, programs, resets, or multi-function channels, open Named DMX ranges—no parameter IDs to type. "
+        L"White and Amber are ordinary Color parameters; map each to the channel observed on the fixture. Imported snapshots stay read-only until duplicated.",
         IdProfileHelp);
     add_label(page, L"", IdProfileMessage);
     add_button(page, L"Remove Channel", IdProfileMappingDelete);
@@ -2642,6 +2719,7 @@ void Application::create_pages() {
     add_label(page, L"Quick template", 0);
     add_combo(page, IdProfileTemplate);
     add_button(page, L"Replace Channel Map", IdProfileApplyTemplate);
+    add_button(page, L"Named DMX ranges…", IdProfileCapabilitiesOpen);
 
     page = pages_[static_cast<std::size_t>(Page::Patch)];
     title = add_label(page, L"STUDIO • Fixture Patch", IdPatchTitle);
@@ -3213,10 +3291,12 @@ void Application::layout_page(Page page, int width, int height) {
         move(31, x + 138, 358, compact_field, 27);
         move(32, x + 206, 360, 58, 24);
         move(33, x + 264, 358, compact_field + 12, 27);
-        const auto mapping_action_width = std::max(112, (form_width - 16) / 3);
+        const auto mapping_action_width = std::max(104, (form_width - 24) / 4);
         move(34, x, 398, mapping_action_width, 32);
         move(35, x + mapping_action_width + 8, 398, mapping_action_width, 32);
-        move(39, x + (mapping_action_width + 8) * 2, 398,
+        move(49, x + (mapping_action_width + 8) * 2, 398,
+             mapping_action_width, 32);
+        move(39, x + (mapping_action_width + 8) * 3, 398,
              mapping_action_width, 32);
 
         move(17, x, 440, label_width, 24);
@@ -3661,6 +3741,9 @@ void Application::reveal_connections_focus() {
 }
 
 void Application::show_page(Page page) {
+    if (page != Page::Profiles && profile_capability_window_ != nullptr) {
+        ::ShowWindow(profile_capability_window_, SW_HIDE);
+    }
     if (active_page_ == Page::Looks && page != Page::Looks &&
         physical_preview_.status().owns_runner) {
         stop_physical_static_look_preview(false);
@@ -3952,7 +4035,23 @@ void listview_set_row(
                << (channel.fine_offset >= 0 ? channel.fine_offset + 1 : 0) << ','
                << static_cast<unsigned int>(channel.dmx_min) << ','
                << static_cast<unsigned int>(channel.dmx_max) << ','
-               << channel.default_value << '\n';
+               << channel.default_value << ','
+               << channel.blackout_value << ','
+               << channel.highlight_value << ','
+               << channel.owner.size() << ':' << channel.owner << ','
+               << channel.capabilities.size() << '\n';
+        for (const auto& capability : channel.capabilities) {
+            stream << "  " << capability.id.size() << ':' << capability.id << ','
+                   << capability.name.size() << ':' << capability.name << ','
+                   << emberlights::property_name(capability.property) << ','
+                   << static_cast<unsigned int>(capability.dmx_min) << ','
+                   << static_cast<unsigned int>(capability.dmx_max) << ','
+                   << static_cast<unsigned int>(capability.preferred_value) << ','
+                   << static_cast<unsigned int>(capability.behavior) << ','
+                   << static_cast<unsigned int>(capability.access) << ','
+                   << static_cast<unsigned int>(capability.role) << ','
+                   << (capability.reversed ? 1 : 0) << '\n';
+        }
     }
     return stream.str();
 }
@@ -4739,6 +4838,9 @@ void Application::refresh_profile_channel_table() {
     if (list == nullptr) {
         return;
     }
+    ::EnableWindow(
+        ::GetDlgItem(page, IdProfileCapabilitiesOpen),
+        profile_draft_channels_.empty() ? FALSE : TRUE);
     std::uint16_t selected_channel = 0U;
     static_cast<void>(parse_number(
         control_text(::GetDlgItem(page, IdProfileMappingChannel)),
@@ -4758,7 +4860,9 @@ void Application::refresh_profile_channel_table() {
              widen(row.encoding_label),
              widen(row.range_label),
              widen(row.default_label),
-             widen(row.fine_label)});
+             widen(row.fine_label),
+             widen(row.owner_label),
+             widen(row.capability_label)});
         if (row.channel == selected_channel) {
             ListView_SetItemState(
                 list,
@@ -4782,7 +4886,11 @@ void Application::select_profile_channel(std::int32_t source_index) {
         number_text(channel.coarse_offset + 1U));
     combo_select_data(
         ::GetDlgItem(page, IdProfileMappingProperty),
-        static_cast<std::intptr_t>(channel.property));
+        static_cast<std::intptr_t>(
+            channel.property == showcore::Property::Count &&
+                    !channel.capabilities.empty()
+                ? channel.capabilities.front().property
+                : channel.property));
     combo_select_data(
         ::GetDlgItem(page, IdProfileMappingEncoding),
         static_cast<std::intptr_t>(channel.encoding));
@@ -4798,6 +4906,699 @@ void Application::select_profile_channel(std::int32_t source_index) {
     set_control_text(
         ::GetDlgItem(page, IdProfileMappingDefault),
         number_text(channel.default_value));
+    if (profile_capability_window_ != nullptr &&
+        ::IsWindowVisible(profile_capability_window_) != FALSE) {
+        profile_capability_channel_ =
+            static_cast<std::uint16_t>(channel.coarse_offset + 1U);
+        selected_profile_capability_id_.clear();
+        refresh_profile_capability_editor();
+    }
+}
+
+void Application::create_profile_capability_window() {
+    if (profile_capability_window_ != nullptr) {
+        return;
+    }
+    profile_capability_window_ = ::CreateWindowExW(
+        WS_EX_TOOLWINDOW | WS_EX_CONTROLPARENT,
+        kPageClass,
+        L"EmberLights — Named DMX ranges",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME |
+            WS_CLIPCHILDREN,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        980,
+        700,
+        window_,
+        nullptr,
+        instance_,
+        this);
+    if (profile_capability_window_ == nullptr) {
+        return;
+    }
+    enable_modern_window_frame(profile_capability_window_);
+    auto title = add_label(
+        profile_capability_window_,
+        L"NAMED DMX CAPABILITIES",
+        IdCapabilityTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_label(profile_capability_window_, L"", IdCapabilityContext);
+    auto list = add_listview(profile_capability_window_, IdCapabilityList);
+    add_listview_column(list, 0, 82, L"DMX");
+    add_listview_column(list, 1, 190, L"Name");
+    add_listview_column(list, 2, 140, L"Parameter");
+    add_listview_column(list, 3, 126, L"Behavior");
+    add_listview_column(list, 4, 150, L"Access");
+    add_listview_column(list, 5, 120, L"Role");
+
+    add_label(profile_capability_window_, L"Name", IdCapabilityNameLabel);
+    add_edit(profile_capability_window_, IdCapabilityName);
+    add_label(profile_capability_window_, L"Parameter", IdCapabilityPropertyLabel);
+    const auto property = add_combo(profile_capability_window_, IdCapabilityProperty);
+    for (const auto& descriptor : emberlights::fixture_parameter_catalog()) {
+        combo_add(
+            property,
+            widen(std::string(descriptor.display_name) + "  •  " +
+                  std::string(emberlights::fixture_parameter_category_name(
+                      descriptor.category))),
+            static_cast<std::intptr_t>(descriptor.property));
+    }
+    add_label(profile_capability_window_, L"DMX From", IdCapabilityFromLabel);
+    add_edit(profile_capability_window_, IdCapabilityFrom);
+    add_label(profile_capability_window_, L"DMX To", IdCapabilityToLabel);
+    add_edit(profile_capability_window_, IdCapabilityTo);
+    add_label(profile_capability_window_, L"Preferred", IdCapabilityPreferredLabel);
+    add_edit(profile_capability_window_, IdCapabilityPreferred);
+    add_label(profile_capability_window_, L"Behavior", IdCapabilityBehaviorLabel);
+    const auto behavior = add_combo(profile_capability_window_, IdCapabilityBehavior);
+    for (const auto value : {
+             showcore::ChannelCapabilityBehavior::Slot,
+             showcore::ChannelCapabilityBehavior::Continuous}) {
+        combo_add(
+            behavior,
+            widen(emberlights::fixture_channel_capability_behavior_name(value)),
+            static_cast<std::intptr_t>(value));
+    }
+    add_label(profile_capability_window_, L"Access", IdCapabilityAccessLabel);
+    const auto access = add_combo(profile_capability_window_, IdCapabilityAccess);
+    for (const auto value : {
+             showcore::ChannelCapabilityAccess::Selectable,
+             showcore::ChannelCapabilityAccess::SafetyGated,
+             showcore::ChannelCapabilityAccess::Protected}) {
+        combo_add(
+            access,
+            widen(emberlights::fixture_channel_capability_access_name(value)),
+            static_cast<std::intptr_t>(value));
+    }
+    add_label(profile_capability_window_, L"Role", IdCapabilityRoleLabel);
+    const auto role = add_combo(profile_capability_window_, IdCapabilityRole);
+    for (std::size_t index = 0U;
+         index <= static_cast<std::size_t>(
+             emberlights::FixtureChannelCapabilityRole::Custom);
+         ++index) {
+        const auto value = static_cast<emberlights::FixtureChannelCapabilityRole>(index);
+        combo_add(
+            role,
+            widen(emberlights::fixture_channel_capability_role_name(value)),
+            static_cast<std::intptr_t>(value));
+    }
+    add_button(
+        profile_capability_window_,
+        L"Reverse direction",
+        IdCapabilityReverse,
+        BS_AUTOCHECKBOX);
+
+    add_label(profile_capability_window_, L"Owner", IdCapabilityOwnerLabel);
+    add_edit(profile_capability_window_, IdCapabilityOwner);
+    add_label(profile_capability_window_, L"Blackout", IdCapabilityBlackoutLabel);
+    add_edit(profile_capability_window_, IdCapabilityBlackout);
+    add_label(profile_capability_window_, L"Highlight", IdCapabilityHighlightLabel);
+    add_edit(profile_capability_window_, IdCapabilityHighlight);
+    add_button(
+        profile_capability_window_,
+        L"Save channel metadata",
+        IdCapabilitySaveMetadata);
+    add_button(profile_capability_window_, L"New range", IdCapabilityNew);
+    add_button(
+        profile_capability_window_,
+        L"Add / Update range",
+        IdCapabilityUpsert);
+    add_button(profile_capability_window_, L"Remove selected", IdCapabilityRemove);
+    add_button(profile_capability_window_, L"Done", IdCapabilityClose);
+    add_label(profile_capability_window_, L"", IdCapabilityMessage);
+    layout_profile_capability_window();
+}
+
+void Application::layout_profile_capability_window() {
+    if (profile_capability_window_ == nullptr) {
+        return;
+    }
+    RECT client{};
+    static_cast<void>(::GetClientRect(profile_capability_window_, &client));
+    const auto width = std::max(1L, client.right - client.left);
+    const auto height = std::max(1L, client.bottom - client.top);
+    constexpr int margin = 18;
+    const auto usable = static_cast<int>(width) - margin * 2;
+    const auto move = [&](int id, int x, int y, int control_width, int control_height) {
+        const auto control = ::GetDlgItem(profile_capability_window_, id);
+        if (control != nullptr) {
+            ::MoveWindow(control, x, y, control_width, control_height, TRUE);
+        }
+    };
+    move(IdCapabilityTitle, margin, 12, usable, 34);
+    move(IdCapabilityContext, margin, 48, usable, 28);
+    const auto list_height = std::max(170, static_cast<int>(height) - 424);
+    move(IdCapabilityList, margin, 78, usable, list_height);
+    const auto form_y = 88 + list_height;
+    const auto right_half = margin + usable / 2;
+
+    move(IdCapabilityNameLabel, margin, form_y, 52, 24);
+    move(IdCapabilityName, margin + 52, form_y - 2, usable / 2 - 68, 27);
+    move(IdCapabilityPropertyLabel, right_half, form_y, 76, 24);
+    move(IdCapabilityProperty, right_half + 76, form_y - 2,
+         usable - usable / 2 - 76, 200);
+
+    move(IdCapabilityFromLabel, margin, form_y + 38, 72, 24);
+    move(IdCapabilityFrom, margin + 72, form_y + 36, 68, 27);
+    move(IdCapabilityToLabel, margin + 152, form_y + 38, 58, 24);
+    move(IdCapabilityTo, margin + 210, form_y + 36, 68, 27);
+    move(IdCapabilityPreferredLabel, margin + 290, form_y + 38, 72, 24);
+    move(IdCapabilityPreferred, margin + 362, form_y + 36, 72, 27);
+    move(IdCapabilityBehaviorLabel, right_half, form_y + 38, 70, 24);
+    move(IdCapabilityBehavior, right_half + 70, form_y + 36,
+         usable - usable / 2 - 70, 200);
+
+    move(IdCapabilityAccessLabel, margin, form_y + 76, 52, 24);
+    move(IdCapabilityAccess, margin + 52, form_y + 74, 190, 200);
+    move(IdCapabilityRoleLabel, margin + 258, form_y + 76, 42, 24);
+    move(IdCapabilityRole, margin + 300, form_y + 74, 185, 200);
+    move(IdCapabilityReverse, right_half, form_y + 74, 180, 28);
+
+    move(IdCapabilityOwnerLabel, margin, form_y + 116, 52, 24);
+    move(IdCapabilityOwner, margin + 52, form_y + 114, 190, 27);
+    move(IdCapabilityBlackoutLabel, margin + 258, form_y + 116, 64, 24);
+    move(IdCapabilityBlackout, margin + 322, form_y + 114, 68, 27);
+    move(IdCapabilityHighlightLabel, margin + 404, form_y + 116, 66, 24);
+    move(IdCapabilityHighlight, margin + 470, form_y + 114, 68, 27);
+    move(IdCapabilitySaveMetadata, right_half + 96, form_y + 112,
+         std::max(160, usable - usable / 2 - 96), 32);
+
+    const auto button_width = std::max(132, (usable - 30) / 4);
+    move(IdCapabilityNew, margin, form_y + 156, button_width, 32);
+    move(IdCapabilityUpsert, margin + button_width + 10, form_y + 156,
+         button_width, 32);
+    move(IdCapabilityRemove, margin + (button_width + 10) * 2, form_y + 156,
+         button_width, 32);
+    move(IdCapabilityClose, margin + (button_width + 10) * 3, form_y + 156,
+         button_width, 32);
+    move(IdCapabilityMessage, margin, form_y + 194, usable,
+         std::max(28, static_cast<int>(height) - form_y - 204));
+}
+
+void Application::open_profile_capability_editor() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Profiles)];
+    std::uint16_t channel = 0U;
+    if (!parse_number(
+            control_text(::GetDlgItem(page, IdProfileMappingChannel)), channel) ||
+        channel == 0U ||
+        std::none_of(
+            profile_draft_channels_.begin(),
+            profile_draft_channels_.end(),
+            [channel](const auto& definition) {
+                return definition.coarse_offset == channel - 1U;
+            })) {
+        set_page_message(
+            Page::Profiles,
+            IdProfileMessage,
+            "Select a mapped channel row before opening Named DMX ranges.",
+            true);
+        return;
+    }
+    create_profile_capability_window();
+    if (profile_capability_window_ == nullptr) {
+        set_page_message(
+            Page::Profiles,
+            IdProfileMessage,
+            "The Named DMX ranges editor could not be opened.",
+            true);
+        return;
+    }
+    if (profile_capability_channel_ != channel) {
+        selected_profile_capability_id_.clear();
+    }
+    profile_capability_channel_ = channel;
+    refresh_profile_capability_editor();
+    ::ShowWindow(profile_capability_window_, SW_SHOW);
+    static_cast<void>(::SetForegroundWindow(profile_capability_window_));
+}
+
+void Application::refresh_profile_capability_editor() {
+    if (profile_capability_window_ == nullptr) {
+        return;
+    }
+    const auto channel = std::find_if(
+        profile_draft_channels_.begin(),
+        profile_draft_channels_.end(),
+        [&](const auto& definition) {
+            return profile_capability_channel_ != 0U &&
+                definition.coarse_offset == profile_capability_channel_ - 1U;
+        });
+    const auto list = ::GetDlgItem(profile_capability_window_, IdCapabilityList);
+    ListView_DeleteAllItems(list);
+    if (channel == profile_draft_channels_.end()) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityContext),
+            "Select a mapped profile channel.");
+        for (const auto id : {
+                 IdCapabilityName, IdCapabilityProperty, IdCapabilityFrom,
+                 IdCapabilityTo, IdCapabilityPreferred, IdCapabilityBehavior,
+                 IdCapabilityAccess, IdCapabilityRole, IdCapabilityReverse,
+                 IdCapabilityUpsert, IdCapabilityRemove, IdCapabilityOwner,
+                 IdCapabilityBlackout, IdCapabilityHighlight,
+                 IdCapabilitySaveMetadata, IdCapabilityNew}) {
+            ::EnableWindow(::GetDlgItem(profile_capability_window_, id), FALSE);
+        }
+        return;
+    }
+
+    emberlights::FixtureProfileDefinition draft;
+    draft.channels = profile_draft_channels_;
+    const auto rows = emberlights::fixture_channel_capability_rows(
+        draft, profile_capability_channel_);
+    std::int32_t selected_source = -1;
+    for (std::size_t index = 0U; index < rows.size(); ++index) {
+        const auto& row = rows[index];
+        listview_set_row(
+            list,
+            static_cast<int>(index),
+            static_cast<LPARAM>(row.source_index),
+            {widen(row.range_label),
+             widen(row.name),
+             widen(row.parameter_label),
+             widen(row.behavior_label),
+             widen(row.access_label),
+             widen(row.role_label)});
+        if (row.id == selected_profile_capability_id_) {
+            selected_source = static_cast<std::int32_t>(row.source_index);
+            ListView_SetItemState(
+                list,
+                static_cast<int>(index),
+                LVIS_SELECTED | LVIS_FOCUSED,
+                LVIS_SELECTED | LVIS_FOCUSED);
+        }
+    }
+    std::ostringstream context;
+    context << "CH" << profile_capability_channel_ << "  •  "
+            << channel->owner << "  •  " << rows.size()
+            << " named range" << (rows.size() == 1U ? "" : "s")
+            << "  •  controller IDs are generated automatically";
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityContext),
+        context.str());
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityOwner),
+        channel->owner);
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityBlackout),
+        number_text(channel->blackout_value));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityHighlight),
+        number_text(channel->highlight_value));
+
+    const auto editable = profile_index_ < 0 ||
+        (static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size() &&
+         project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source ==
+             showcore::FixtureProfileSource::Local);
+    const auto supports_ranges =
+        channel->encoding != showcore::ChannelEncoding::Constant8 &&
+        channel->encoding != showcore::ChannelEncoding::Linear16;
+    for (const auto id : {
+             IdCapabilityName, IdCapabilityProperty, IdCapabilityFrom,
+             IdCapabilityTo, IdCapabilityPreferred, IdCapabilityBehavior,
+             IdCapabilityAccess, IdCapabilityRole, IdCapabilityReverse,
+             IdCapabilityOwner, IdCapabilityBlackout, IdCapabilityHighlight}) {
+        ::EnableWindow(
+            ::GetDlgItem(profile_capability_window_, id),
+            editable ? TRUE : FALSE);
+    }
+    ::EnableWindow(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityNew),
+        editable && supports_ranges ? TRUE : FALSE);
+    ::EnableWindow(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityUpsert),
+        editable && supports_ranges ? TRUE : FALSE);
+    ::EnableWindow(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityRemove),
+        editable && supports_ranges && selected_source >= 0 ? TRUE : FALSE);
+    ::EnableWindow(
+        ::GetDlgItem(profile_capability_window_, IdCapabilitySaveMetadata),
+        editable ? TRUE : FALSE);
+    if (selected_source >= 0) {
+        select_profile_capability(selected_source);
+    } else {
+        new_profile_capability();
+    }
+    if (!editable) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            "Read-only snapshot. Use Duplicate to Edit in Fixture Profiles before changing ranges.");
+    } else if (!supports_ranges) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            "Named ranges apply to mapped 8-bit channels. This channel can still use owner, blackout, and highlight metadata.");
+    }
+}
+
+void Application::select_profile_capability(std::int32_t source_index) {
+    const auto channel = std::find_if(
+        profile_draft_channels_.begin(),
+        profile_draft_channels_.end(),
+        [&](const auto& definition) {
+            return profile_capability_channel_ != 0U &&
+                definition.coarse_offset == profile_capability_channel_ - 1U;
+        });
+    if (channel == profile_draft_channels_.end() || source_index < 0 ||
+        static_cast<std::size_t>(source_index) >= channel->capabilities.size()) {
+        return;
+    }
+    const auto& capability =
+        channel->capabilities[static_cast<std::size_t>(source_index)];
+    selected_profile_capability_id_ = capability.id;
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityName),
+        capability.name);
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityProperty),
+        static_cast<std::intptr_t>(capability.property));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityFrom),
+        number_text(capability.dmx_min));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityTo),
+        number_text(capability.dmx_max));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityPreferred),
+        number_text(capability.preferred_value));
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityBehavior),
+        static_cast<std::intptr_t>(capability.behavior));
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityAccess),
+        static_cast<std::intptr_t>(capability.access));
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityRole),
+        static_cast<std::intptr_t>(capability.role));
+    static_cast<void>(::SendMessageW(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityReverse),
+        BM_SETCHECK,
+        capability.reversed ? BST_CHECKED : BST_UNCHECKED,
+        0));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+        "Editing " + capability.id +
+            ". The stable controller binding path remains automatic.");
+}
+
+void Application::new_profile_capability() {
+    if (profile_capability_window_ == nullptr) {
+        return;
+    }
+    selected_profile_capability_id_.clear();
+    const auto channel = std::find_if(
+        profile_draft_channels_.begin(),
+        profile_draft_channels_.end(),
+        [&](const auto& definition) {
+            return profile_capability_channel_ != 0U &&
+                definition.coarse_offset == profile_capability_channel_ - 1U;
+        });
+    if (channel == profile_draft_channels_.end()) {
+        return;
+    }
+    std::array<bool, 256U> occupied{};
+    for (const auto& capability : channel->capabilities) {
+        for (std::size_t value = capability.dmx_min;
+             value <= capability.dmx_max;
+             ++value) {
+            occupied[value] = true;
+        }
+    }
+    std::size_t minimum = 0U;
+    while (minimum < occupied.size() && occupied[minimum]) {
+        ++minimum;
+    }
+    std::size_t maximum = minimum;
+    while (maximum + 1U < occupied.size() && !occupied[maximum + 1U]) {
+        ++maximum;
+    }
+    if (minimum >= occupied.size()) {
+        minimum = 0U;
+        maximum = 0U;
+    }
+    auto property = channel->property < showcore::Property::Count
+        ? channel->property
+        : showcore::Property::Shutter;
+    const auto* descriptor = emberlights::fixture_parameter_descriptor(property);
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityName),
+        "Function " + std::to_string(channel->capabilities.size() + 1U));
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityProperty),
+        static_cast<std::intptr_t>(property));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityFrom),
+        number_text(minimum));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityTo),
+        number_text(maximum));
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityPreferred),
+        number_text(minimum + (maximum - minimum) / 2U));
+    const auto continuous = descriptor != nullptr &&
+        (descriptor->control_kind ==
+             emberlights::FixtureParameterControlKind::Level ||
+         descriptor->control_kind ==
+             emberlights::FixtureParameterControlKind::Position ||
+         descriptor->control_kind ==
+             emberlights::FixtureParameterControlKind::Speed);
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityBehavior),
+        static_cast<std::intptr_t>(
+            continuous ? showcore::ChannelCapabilityBehavior::Continuous
+                       : showcore::ChannelCapabilityBehavior::Slot));
+    auto access = showcore::ChannelCapabilityAccess::Selectable;
+    if (descriptor != nullptr && descriptor->safety_restricted()) {
+        access = descriptor->safety ==
+                emberlights::FixtureParameterSafety::UnverifiedCustom
+            ? showcore::ChannelCapabilityAccess::Protected
+            : showcore::ChannelCapabilityAccess::SafetyGated;
+    }
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityAccess),
+        static_cast<std::intptr_t>(access));
+    combo_select_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityRole),
+        static_cast<std::intptr_t>(
+            emberlights::FixtureChannelCapabilityRole::Function));
+    static_cast<void>(::SendMessageW(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityReverse),
+        BM_SETCHECK,
+        BST_UNCHECKED,
+        0));
+    ::EnableWindow(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityRemove),
+        FALSE);
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+        minimum == 0U && maximum == 0U && !channel->capabilities.empty()
+            ? "All DMX values are already covered. Edit or remove an existing range."
+            : "A free DMX span was proposed. Set the name, semantic parameter, exact range, and preferred value from the fixture manual.");
+}
+
+void Application::upsert_profile_capability() {
+    if (profile_capability_window_ == nullptr) {
+        return;
+    }
+    const auto editable = profile_index_ < 0 ||
+        (static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size() &&
+         project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source ==
+             showcore::FixtureProfileSource::Local);
+    if (!editable) {
+        return;
+    }
+    const auto name = trim(control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityName)));
+    std::uint16_t minimum = 0U;
+    std::uint16_t maximum = 0U;
+    std::uint16_t preferred = 0U;
+    if (name.empty() ||
+        !parse_number(
+            control_text(::GetDlgItem(profile_capability_window_, IdCapabilityFrom)),
+            minimum) ||
+        !parse_number(
+            control_text(::GetDlgItem(profile_capability_window_, IdCapabilityTo)),
+            maximum) ||
+        !parse_number(
+            control_text(::GetDlgItem(profile_capability_window_, IdCapabilityPreferred)),
+            preferred) ||
+        minimum > 255U || maximum > 255U || preferred > 255U) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            "Enter a name plus DMX From, To, and Preferred values from 0 through 255.");
+        return;
+    }
+    emberlights::ChannelCapabilityDefinition definition;
+    definition.id = selected_profile_capability_id_.empty()
+        ? emberlights::make_fixture_channel_capability_id(name)
+        : selected_profile_capability_id_;
+    definition.name = name;
+    definition.property = static_cast<showcore::Property>(combo_selected_data(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityProperty),
+        static_cast<std::intptr_t>(showcore::Property::Count)));
+    definition.dmx_min = static_cast<std::uint8_t>(minimum);
+    definition.dmx_max = static_cast<std::uint8_t>(maximum);
+    definition.preferred_value = static_cast<std::uint8_t>(preferred);
+    definition.behavior = static_cast<showcore::ChannelCapabilityBehavior>(
+        combo_selected_data(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityBehavior),
+            static_cast<std::intptr_t>(
+                showcore::ChannelCapabilityBehavior::Slot)));
+    definition.access = static_cast<showcore::ChannelCapabilityAccess>(
+        combo_selected_data(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityAccess),
+            static_cast<std::intptr_t>(
+                showcore::ChannelCapabilityAccess::Selectable)));
+    definition.role = static_cast<emberlights::FixtureChannelCapabilityRole>(
+        combo_selected_data(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityRole),
+            static_cast<std::intptr_t>(
+                emberlights::FixtureChannelCapabilityRole::Function)));
+    definition.reversed = ::SendMessageW(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityReverse),
+        BM_GETCHECK,
+        0,
+        0) == BST_CHECKED;
+
+    std::uint16_t footprint = 0U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(
+            pages_[static_cast<std::size_t>(Page::Profiles)],
+            IdProfileFootprint)),
+        footprint));
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = "Unsaved local fixture profile";
+    draft.footprint = footprint;
+    draft.channels = profile_draft_channels_;
+    const auto result = emberlights::upsert_fixture_channel_capability(
+        draft, profile_capability_channel_, definition);
+    if (!result) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            result.message);
+        return;
+    }
+    profile_draft_channels_ = std::move(draft.channels);
+    selected_profile_capability_id_ = definition.id;
+    refresh_profile_channel_table();
+    refresh_profile_mapping_summary();
+    refresh_profile_capability_editor();
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+        result.message +
+            " Save Profile to persist it; controller/static-look surfaces use the generated semantic path.");
+    set_page_message(
+        Page::Profiles,
+        IdProfileMessage,
+        result.message + " Save Profile when the channel map is complete.");
+}
+
+void Application::remove_profile_capability() {
+    const auto editable = profile_index_ < 0 ||
+        (static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size() &&
+         project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source ==
+             showcore::FixtureProfileSource::Local);
+    if (!editable || selected_profile_capability_id_.empty()) {
+        return;
+    }
+    if (::MessageBoxW(
+            profile_capability_window_,
+            L"Remove this named DMX range from the draft profile?",
+            L"Remove named range",
+            MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
+        return;
+    }
+    std::uint16_t footprint = 0U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(
+            pages_[static_cast<std::size_t>(Page::Profiles)],
+            IdProfileFootprint)),
+        footprint));
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = "Unsaved local fixture profile";
+    draft.footprint = footprint;
+    draft.channels = profile_draft_channels_;
+    const auto result = emberlights::remove_fixture_channel_capability(
+        draft,
+        profile_capability_channel_,
+        selected_profile_capability_id_);
+    if (!result) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            result.message);
+        return;
+    }
+    profile_draft_channels_ = std::move(draft.channels);
+    selected_profile_capability_id_.clear();
+    refresh_profile_channel_table();
+    refresh_profile_mapping_summary();
+    refresh_profile_capability_editor();
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+        result.message + " Save Profile to persist the draft.");
+}
+
+void Application::save_profile_channel_metadata() {
+    const auto editable = profile_index_ < 0 ||
+        (static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size() &&
+         project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source ==
+             showcore::FixtureProfileSource::Local);
+    if (!editable) {
+        return;
+    }
+    const auto owner = trim(control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityOwner)));
+    std::uint16_t blackout = 0U;
+    std::uint16_t highlight = 0U;
+    if (!parse_number(
+            control_text(::GetDlgItem(
+                profile_capability_window_, IdCapabilityBlackout)),
+            blackout) ||
+        !parse_number(
+            control_text(::GetDlgItem(
+                profile_capability_window_, IdCapabilityHighlight)),
+            highlight)) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            "Enter numeric blackout and highlight values that fit the channel encoding.");
+        return;
+    }
+    std::uint16_t footprint = 0U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(
+            pages_[static_cast<std::size_t>(Page::Profiles)],
+            IdProfileFootprint)),
+        footprint));
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = "Unsaved local fixture profile";
+    draft.footprint = footprint;
+    draft.channels = profile_draft_channels_;
+    const auto result = emberlights::update_fixture_profile_channel_metadata(
+        draft,
+        profile_capability_channel_,
+        owner,
+        blackout,
+        highlight);
+    if (!result) {
+        set_control_text(
+            ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+            result.message);
+        return;
+    }
+    profile_draft_channels_ = std::move(draft.channels);
+    refresh_profile_channel_table();
+    refresh_profile_mapping_summary();
+    refresh_profile_capability_editor();
+    set_control_text(
+        ::GetDlgItem(profile_capability_window_, IdCapabilityMessage),
+        result.message + " Save Profile to persist the draft.");
+}
+
+void Application::close_profile_capability_editor() {
+    if (profile_capability_window_ != nullptr) {
+        ::ShowWindow(profile_capability_window_, SW_HIDE);
+    }
+    if (window_ != nullptr) {
+        static_cast<void>(::SetForegroundWindow(window_));
+    }
 }
 
 void Application::refresh_patch() {
@@ -5639,6 +6440,21 @@ void Application::handle_notify(const NMHDR& notification) {
         if (index >= 0) {
             select_profile_channel(index);
         }
+    } else if (notification.idFrom == IdCapabilityList &&
+               notification.code == LVN_ITEMCHANGED && !refreshing_) {
+        const auto index = listview_selected_data(notification.hwndFrom);
+        if (index >= 0) {
+            select_profile_capability(index);
+            const auto editable = profile_index_ < 0 ||
+                (static_cast<std::size_t>(profile_index_) <
+                     project_.fixture_profiles.size() &&
+                 project_.fixture_profiles[
+                     static_cast<std::size_t>(profile_index_)].source ==
+                     showcore::FixtureProfileSource::Local);
+            ::EnableWindow(
+                ::GetDlgItem(profile_capability_window_, IdCapabilityRemove),
+                editable ? TRUE : FALSE);
+        }
     }
 }
 
@@ -5856,6 +6672,12 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdProfileMappingApply: apply_profile_mapping_row(); break;
     case IdProfileMappingDefaults: apply_profile_mapping_defaults(); break;
     case IdProfileMappingDelete: delete_profile_mapping_row(); break;
+    case IdProfileCapabilitiesOpen: open_profile_capability_editor(); break;
+    case IdCapabilityNew: new_profile_capability(); break;
+    case IdCapabilityUpsert: upsert_profile_capability(); break;
+    case IdCapabilityRemove: remove_profile_capability(); break;
+    case IdCapabilitySaveMetadata: save_profile_channel_metadata(); break;
+    case IdCapabilityClose: close_profile_capability_editor(); break;
     case IdLiveBlackout:
         static_cast<void>(ui_commands_.invoke(
             {emberlights::UiCommandId::BlackoutToggle}));
@@ -7508,6 +8330,10 @@ namespace {
 }  // namespace
 
 void Application::select_profile(std::int32_t index) {
+    if (profile_capability_window_ != nullptr) {
+        ::ShowWindow(profile_capability_window_, SW_HIDE);
+    }
+    selected_profile_capability_id_.clear();
     if (index < 0 || static_cast<std::size_t>(index) >= project_.fixture_profiles.size()) {
         new_profile();
         return;
@@ -7537,6 +8363,9 @@ void Application::select_profile(std::int32_t index) {
     }
     ::EnableWindow(::GetDlgItem(page, IdProfileChannels), TRUE);
     ::EnableWindow(
+        ::GetDlgItem(page, IdProfileCapabilitiesOpen),
+        profile_draft_channels_.empty() ? FALSE : TRUE);
+    ::EnableWindow(
         ::GetDlgItem(page, IdProfileDelete),
         profile.source == showcore::FixtureProfileSource::BuiltIn ? FALSE : TRUE);
     ::EnableWindow(::GetDlgItem(page, IdProfileDuplicate), TRUE);
@@ -7551,6 +8380,10 @@ void Application::select_profile(std::int32_t index) {
 }
 
 void Application::new_profile() {
+    if (profile_capability_window_ != nullptr) {
+        ::ShowWindow(profile_capability_window_, SW_HIDE);
+    }
+    selected_profile_capability_id_.clear();
     profile_index_ = -1;
     profile_duplicate_source_id_.reset();
     const auto page = pages_[static_cast<std::size_t>(Page::Profiles)];
@@ -7591,6 +8424,9 @@ void Application::new_profile() {
         ::EnableWindow(::GetDlgItem(page, id), TRUE);
     }
     ::EnableWindow(::GetDlgItem(page, IdProfileChannels), TRUE);
+    ::EnableWindow(
+        ::GetDlgItem(page, IdProfileCapabilitiesOpen),
+        profile_draft_channels_.empty() ? FALSE : TRUE);
     ::EnableWindow(::GetDlgItem(page, IdProfileDelete), FALSE);
     set_page_message(Page::Profiles, IdProfileMessage,
                      "Create a local profile from the fixture's official DMX chart.");

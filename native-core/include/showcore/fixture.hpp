@@ -20,6 +20,32 @@ enum class ChannelEncoding : std::uint8_t {
     Constant8
 };
 
+// Named capability ranges let one physical 8-bit DMX channel expose several
+// semantic functions (for example shutter open plus a bounded strobe range, or
+// indexed gobo slots) without turning raw DMX values into UI/controller APIs.
+// Names and stable IDs remain in the Studio project; Runner needs only this
+// compact immutable realization.
+enum class ChannelCapabilityBehavior : std::uint8_t {
+    Slot,
+    Continuous
+};
+
+enum class ChannelCapabilityAccess : std::uint8_t {
+    Selectable,
+    SafetyGated,
+    Protected
+};
+
+struct ChannelCapabilityMapping {
+    Property property{Property::Intensity};
+    std::uint8_t dmx_min{0};
+    std::uint8_t dmx_max{255};
+    std::uint8_t preferred_value{0};
+    ChannelCapabilityBehavior behavior{ChannelCapabilityBehavior::Slot};
+    ChannelCapabilityAccess access{ChannelCapabilityAccess::Selectable};
+    bool reversed{false};
+};
+
 struct ChannelMapping {
     Property property{Property::Intensity};
     std::uint16_t coarse_offset{0};
@@ -28,6 +54,35 @@ struct ChannelMapping {
     std::uint8_t dmx_min{0};
     std::uint8_t dmx_max{255};
     std::uint16_t default_value{0};
+    std::uint16_t blackout_value{0};
+    std::uint16_t highlight_value{255};
+    const ChannelCapabilityMapping* capabilities{nullptr};
+    std::size_t capability_count{0};
+
+    constexpr ChannelMapping() noexcept = default;
+    constexpr ChannelMapping(
+        Property new_property,
+        std::uint16_t new_coarse_offset,
+        std::int16_t new_fine_offset,
+        ChannelEncoding new_encoding,
+        std::uint8_t new_dmx_min,
+        std::uint8_t new_dmx_max,
+        std::uint16_t new_default_value = 0U,
+        std::uint16_t new_blackout_value = 0U,
+        std::uint16_t new_highlight_value = 255U,
+        const ChannelCapabilityMapping* new_capabilities = nullptr,
+        std::size_t new_capability_count = 0U) noexcept
+        : property(new_property),
+          coarse_offset(new_coarse_offset),
+          fine_offset(new_fine_offset),
+          encoding(new_encoding),
+          dmx_min(new_dmx_min),
+          dmx_max(new_dmx_max),
+          default_value(new_default_value),
+          blackout_value(new_blackout_value),
+          highlight_value(new_highlight_value),
+          capabilities(new_capabilities),
+          capability_count(new_capability_count) {}
 };
 
 struct FixtureProfile {
@@ -55,7 +110,13 @@ enum class ProfileError : std::uint8_t {
     FineOffsetRequired,
     FineOffsetNotAllowed,
     DuplicateOffset,
-    DefaultOutOfRange
+    DefaultOutOfRange,
+    CapabilityPointerMissing,
+    CapabilityNotAllowed,
+    CapabilityInvalidProperty,
+    CapabilityInvalidRange,
+    CapabilityPreferredOutOfRange,
+    CapabilityRangeOverlap
 };
 
 struct ProfileResult {

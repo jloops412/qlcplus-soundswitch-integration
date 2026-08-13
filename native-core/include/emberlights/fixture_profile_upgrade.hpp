@@ -81,6 +81,10 @@ struct FixtureChannelMappingSummary {
     std::uint8_t dmx_min{0U};
     std::uint8_t dmx_max{255U};
     std::uint16_t default_value{0U};
+    std::uint16_t blackout_value{0U};
+    std::uint16_t highlight_value{255U};
+    std::string owner;
+    std::size_t capability_count{0U};
     std::string line;
 };
 

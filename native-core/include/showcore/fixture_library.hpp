@@ -11,6 +11,7 @@ namespace showcore {
 
 inline constexpr std::size_t kMaxCompiledFixtureProfiles = kMaxFixtures;
 inline constexpr std::size_t kMaxCompiledChannelMappings = 2048;
+inline constexpr std::size_t kMaxCompiledChannelCapabilities = 8192;
 inline constexpr std::size_t kFixtureProfileTextLength = 96;
 
 enum class FixtureProfileSource : std::uint8_t {
@@ -51,6 +52,7 @@ enum class FixtureIngestError : std::uint8_t {
     None,
     Capacity,
     ChannelCapacity,
+    CapabilityCapacity,
     MissingStableId,
     MissingManufacturer,
     MissingModel,
@@ -86,14 +88,20 @@ public:
 
     [[nodiscard]] std::size_t size() const noexcept { return profile_count_; }
     [[nodiscard]] std::size_t channel_mapping_count() const noexcept { return channel_count_; }
+    [[nodiscard]] std::size_t channel_capability_count() const noexcept {
+        return capability_count_;
+    }
     [[nodiscard]] const CompiledFixtureProfile* at(std::size_t index) const noexcept;
     [[nodiscard]] const CompiledFixtureProfile* find(std::string_view stable_id) const noexcept;
 
 private:
     std::array<CompiledFixtureProfile, kMaxCompiledFixtureProfiles> profiles_{};
     std::array<ChannelMapping, kMaxCompiledChannelMappings> channels_{};
+    std::array<ChannelCapabilityMapping, kMaxCompiledChannelCapabilities>
+        capabilities_{};
     std::size_t profile_count_{0};
     std::size_t channel_count_{0};
+    std::size_t capability_count_{0};
 };
 
 }  // namespace showcore

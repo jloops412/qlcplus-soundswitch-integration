@@ -426,6 +426,7 @@ ProjectValidation validate_project(const ProjectDocument& project) {
 
     std::unordered_map<std::string_view, const FixtureProfileDefinition*> profiles;
     std::size_t total_channels = 0;
+    std::size_t total_capabilities = 0;
     for (const auto& profile : project.fixture_profiles) {
         if (!valid_identifier(profile.id) || !profiles.emplace(profile.id, &profile).second) {
             add_issue(result, ProjectIssueSeverity::Error, "profile.id", profile.id,
@@ -442,9 +443,46 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                       "Fixture profile metadata, source, and revision must be present and 96 characters or fewer.");
         }
         total_channels += profile.channels.size();
+        std::vector<std::vector<showcore::ChannelCapabilityMapping>>
+            capability_storage(profile.channels.size());
         std::vector<showcore::ChannelMapping> channels;
         channels.reserve(profile.channels.size());
-        for (const auto& channel : profile.channels) {
+        for (std::size_t channel_index = 0U;
+             channel_index < profile.channels.size();
+             ++channel_index) {
+            const auto& channel = profile.channels[channel_index];
+            total_capabilities += channel.capabilities.size();
+            auto& capabilities = capability_storage[channel_index];
+            capabilities.reserve(channel.capabilities.size());
+            std::unordered_set<std::string_view> capability_ids;
+            for (const auto& capability : channel.capabilities) {
+                if (!valid_identifier(capability.id) ||
+                    !valid_identifier(capability.name) ||
+                    !capability_ids.insert(capability.id).second) {
+                    add_issue(
+                        result,
+                        ProjectIssueSeverity::Error,
+                        "profile.capabilityIdentity",
+                        profile.id,
+                        "Named channel capabilities need unique non-empty IDs and names no longer than 96 characters.");
+                }
+                capabilities.push_back({
+                    capability.property,
+                    capability.dmx_min,
+                    capability.dmx_max,
+                    capability.preferred_value,
+                    capability.behavior,
+                    capability.access,
+                    capability.reversed});
+            }
+            if (!valid_identifier(channel.owner)) {
+                add_issue(
+                    result,
+                    ProjectIssueSeverity::Error,
+                    "profile.channelOwner",
+                    profile.id,
+                    "Every channel owner must be a non-empty fixture, head, or cell identity no longer than 96 characters.");
+            }
             channels.push_back({
                 channel.property,
                 channel.coarse_offset,
@@ -452,7 +490,11 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                 channel.encoding,
                 channel.dmx_min,
                 channel.dmx_max,
-                channel.default_value});
+                channel.default_value,
+                channel.blackout_value,
+                channel.highlight_value,
+                capabilities.empty() ? nullptr : capabilities.data(),
+                capabilities.size()});
         }
         const showcore::FixtureProfile runtime{
             profile.name.c_str(), channels.data(), channels.size(), profile.footprint};
@@ -465,6 +507,14 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     if (total_channels > showcore::kMaxCompiledChannelMappings) {
         add_issue(result, ProjectIssueSeverity::Error, "profiles.channelCapacity", project.id,
                   "The project exceeds the compiled channel-mapping capacity.");
+    }
+    if (total_capabilities > showcore::kMaxCompiledChannelCapabilities) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "profiles.capabilityCapacity",
+            project.id,
+            "The project exceeds the compiled named channel-capability capacity.");
     }
 
     std::unordered_map<std::string_view, std::uint16_t> fixtures;

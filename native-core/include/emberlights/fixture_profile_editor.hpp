@@ -64,7 +64,63 @@ struct FixtureProfileEditorRow {
     std::string range_label;
     std::string default_label;
     std::string fine_label;
+    std::string owner_label;
+    std::string capability_label;
     std::string accessibility_label;
+};
+
+enum class FixtureChannelCapabilityEditorError : std::uint8_t {
+    None,
+    InvalidChannel,
+    InvalidIdentity,
+    InvalidProperty,
+    InvalidRange,
+    InvalidPreferredValue,
+    InvalidAccess,
+    DuplicateRange,
+    MissingCapability,
+    ProtectedCapability,
+    ProfileInvalid
+};
+
+struct FixtureChannelCapabilityMutationResult {
+    FixtureChannelCapabilityEditorError error{
+        FixtureChannelCapabilityEditorError::None};
+    bool changed{false};
+    bool replaced{false};
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureChannelCapabilityEditorError::None;
+    }
+};
+
+struct FixtureChannelCapabilityRow {
+    std::size_t source_index{0U};
+    std::string id;
+    std::string name;
+    std::string parameter_label;
+    std::string range_label;
+    std::string preferred_label;
+    std::string behavior_label;
+    std::string access_label;
+    std::string role_label;
+    std::string accessibility_label;
+};
+
+struct FixtureChannelCapabilitySelection {
+    FixtureChannelCapabilityEditorError error{
+        FixtureChannelCapabilityEditorError::MissingCapability};
+    bool found{false};
+    showcore::Property property{showcore::Property::Count};
+    float normalized_value{0.0F};
+    std::uint8_t raw_value{0U};
+    std::string binding_id;
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureChannelCapabilityEditorError::None && found;
+    }
 };
 
 enum class FixtureProfileAuditSeverity : std::uint8_t {
@@ -91,6 +147,10 @@ struct FixtureProfileAudit {
     std::size_t safety_restricted_count{0U};
     std::size_t custom_mapping_count{0U};
     std::size_t repeated_semantic_count{0U};
+    std::size_t named_capability_count{0U};
+    std::size_t protected_capability_count{0U};
+    std::size_t compound_channel_count{0U};
+    std::size_t owned_cell_or_head_count{0U};
     std::vector<FixtureProfileAuditIssue> issues;
     std::string text;
 };
@@ -138,8 +198,53 @@ make_safe_fixture_profile_channel(
     FixtureProfileDefinition& draft,
     std::uint16_t one_based_channel);
 
+[[nodiscard]] FixtureProfileEditorMutationResult
+update_fixture_profile_channel_metadata(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel,
+    std::string owner,
+    std::uint16_t blackout_value,
+    std::uint16_t highlight_value);
+
 [[nodiscard]] std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
     const FixtureProfileDefinition& profile);
+
+[[nodiscard]] std::string make_fixture_channel_capability_id(
+    std::string_view label);
+
+[[nodiscard]] FixtureChannelCapabilityMutationResult
+upsert_fixture_channel_capability(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel,
+    const ChannelCapabilityDefinition& definition);
+
+[[nodiscard]] FixtureChannelCapabilityMutationResult
+remove_fixture_channel_capability(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel,
+    std::string_view capability_id);
+
+[[nodiscard]] std::vector<FixtureChannelCapabilityRow>
+fixture_channel_capability_rows(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t one_based_channel);
+
+// Resolves a stable named capability into the ordinary property/value contract
+// already used by Static Looks, Live overrides, MIDI, and future skins. Slot
+// ranges resolve to their preferred raw value; continuous ranges use position.
+[[nodiscard]] FixtureChannelCapabilitySelection
+resolve_fixture_channel_capability(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t one_based_channel,
+    std::string_view capability_id,
+    float position = 0.5F);
+
+[[nodiscard]] std::string_view fixture_channel_capability_behavior_name(
+    showcore::ChannelCapabilityBehavior behavior) noexcept;
+[[nodiscard]] std::string_view fixture_channel_capability_access_name(
+    showcore::ChannelCapabilityAccess access) noexcept;
+[[nodiscard]] std::string_view fixture_channel_capability_role_name(
+    FixtureChannelCapabilityRole role) noexcept;
 
 // Reports profile structure and the exact rows that still need a fixture DMX
 // chart. This does not claim physical qualification or source trust.

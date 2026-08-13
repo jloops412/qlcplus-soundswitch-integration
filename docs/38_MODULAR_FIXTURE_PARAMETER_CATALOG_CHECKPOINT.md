@@ -2,6 +2,8 @@
 
 Status: source-complete checkpoint for Windows preview 90. This removes the permanent White/Amber repair surface and establishes the shared semantic vocabulary required by fixture profiles, Static Looks, Autoloops, Live overrides, MIDI/controllers, and future skins. It does not claim physical fixture qualification, complete multi-capability channel persistence, or completion of the production skins renderer.
 
+Successor: `39_MULTI_CAPABILITY_FIXTURE_CHANNEL_CHECKPOINT.md` implements the multi-capability persistence/compiler/editor package named as this checkpoint's next boundary. Preview 90 remains the historical baseline.
+
 ## Operator outcome
 
 Studio → Fixture Profiles now supports a generic correction workflow:

@@ -28,8 +28,17 @@ ProfileResult validate_fixture_profile(const FixtureProfile& profile) noexcept {
             if (mapping.property != Property::Count) {
                 return {ProfileError::ConstantHasProperty, index, index};
             }
-        } else if (mapping.property == Property::Count) {
+        } else if (mapping.property == Property::Count &&
+                   mapping.capability_count == 0U) {
             return {ProfileError::InvalidProperty, index, index};
+        }
+
+        if (mapping.capability_count != 0U && mapping.capabilities == nullptr) {
+            return {ProfileError::CapabilityPointerMissing, index, index};
+        }
+        if (mapping.capability_count != 0U &&
+            (is_constant || mapping.encoding == ChannelEncoding::Linear16)) {
+            return {ProfileError::CapabilityNotAllowed, index, index};
         }
 
         if (mapping.coarse_offset >= profile.footprint) {
@@ -50,8 +59,50 @@ ProfileResult validate_fixture_profile(const FixtureProfile& profile) noexcept {
             if (mapping.fine_offset >= 0) {
                 return {ProfileError::FineOffsetNotAllowed, index, index};
             }
-            if (mapping.default_value > 255U) {
+            if (mapping.default_value > 255U || mapping.blackout_value > 255U ||
+                mapping.highlight_value > 255U) {
                 return {ProfileError::DefaultOutOfRange, index, index};
+            }
+        }
+
+        std::array<std::int16_t, 256U> capability_occupancy{};
+        capability_occupancy.fill(-1);
+        for (std::size_t capability_index = 0U;
+             capability_index < mapping.capability_count;
+             ++capability_index) {
+            const auto& capability = mapping.capabilities[capability_index];
+            if (capability.property >= Property::Count) {
+                return {
+                    ProfileError::CapabilityInvalidProperty,
+                    index,
+                    capability_index};
+            }
+            if (capability.dmx_min > capability.dmx_max ||
+                capability.behavior > ChannelCapabilityBehavior::Continuous ||
+                capability.access > ChannelCapabilityAccess::Protected) {
+                return {
+                    ProfileError::CapabilityInvalidRange,
+                    index,
+                    capability_index};
+            }
+            if (capability.preferred_value < capability.dmx_min ||
+                capability.preferred_value > capability.dmx_max) {
+                return {
+                    ProfileError::CapabilityPreferredOutOfRange,
+                    index,
+                    capability_index};
+            }
+            for (std::size_t value = capability.dmx_min;
+                 value <= capability.dmx_max;
+                 ++value) {
+                if (capability_occupancy[value] >= 0) {
+                    return {
+                        ProfileError::CapabilityRangeOverlap,
+                        index,
+                        static_cast<std::size_t>(capability_occupancy[value])};
+                }
+                capability_occupancy[value] =
+                    static_cast<std::int16_t>(capability_index);
             }
         }
 
@@ -178,14 +229,138 @@ void FixtureRenderer::render(
                 continue;
             }
 
+            if (mapping.capability_count != 0U && mapping.capabilities != nullptr) {
+                std::array<bool, kPropertyCount> inspected{};
+                bool selected = false;
+                bool conflict = false;
+                Property selected_property{Property::Count};
+                ResolvedProperty selected_value{};
+
+                for (std::size_t capability_index = 0U;
+                     capability_index < mapping.capability_count;
+                     ++capability_index) {
+                    const auto& capability = mapping.capabilities[capability_index];
+                    if (capability.access == ChannelCapabilityAccess::Protected ||
+                        capability.property >= Property::Count) {
+                        continue;
+                    }
+                    const auto property_index =
+                        static_cast<std::size_t>(capability.property);
+                    if (inspected[property_index]) {
+                        continue;
+                    }
+                    inspected[property_index] = true;
+                    const auto raw = layers.resolve(fixture.id, capability.property);
+                    if (!raw.owned) {
+                        continue;
+                    }
+                    const auto resolved =
+                        layers.resolve_safe(fixture.id, capability.property, safety);
+                    const auto source = static_cast<std::size_t>(resolved.source);
+                    const auto selected_source =
+                        static_cast<std::size_t>(selected_value.source);
+                    if (!selected || source > selected_source) {
+                        selected = true;
+                        conflict = false;
+                        selected_property = capability.property;
+                        selected_value = resolved;
+                    } else if (source == selected_source &&
+                               capability.property != selected_property) {
+                        // Two semantic owners are trying to drive one physical
+                        // channel at the same layer. Fail closed instead of
+                        // depending on capability order.
+                        conflict = true;
+                    }
+                }
+
+                if (conflict ||
+                    (selected && selected_value.mode == ValueMode::ForceZero)) {
+                    frames.universes[fixture.universe][coarse_slot] =
+                        static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
+                    continue;
+                }
+                if (!selected) {
+                    frames.universes[fixture.universe][coarse_slot] =
+                        static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    continue;
+                }
+                if (selected_property == Property::Strobe &&
+                    selected_value.value <= 0.0F) {
+                    // Preserve EmberLights' existing semantic contract: zero
+                    // strobe means the channel's documented open/inactive
+                    // value, while any positive value enters a strobe range.
+                    frames.universes[fixture.universe][coarse_slot] =
+                        static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    continue;
+                }
+
+                std::size_t matching_count = 0U;
+                for (std::size_t capability_index = 0U;
+                     capability_index < mapping.capability_count;
+                     ++capability_index) {
+                    const auto& capability = mapping.capabilities[capability_index];
+                    if (capability.property == selected_property &&
+                        capability.access != ChannelCapabilityAccess::Protected) {
+                        ++matching_count;
+                    }
+                }
+                if (matching_count == 0U) {
+                    frames.universes[fixture.universe][coarse_slot] =
+                        static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    continue;
+                }
+
+                const auto scaled = std::clamp(selected_value.value, 0.0F, 1.0F) *
+                    static_cast<float>(matching_count);
+                const auto selected_segment = std::min<std::size_t>(
+                    static_cast<std::size_t>(scaled), matching_count - 1U);
+                const auto local_value = std::clamp(
+                    scaled - static_cast<float>(selected_segment), 0.0F, 1.0F);
+                const ChannelCapabilityMapping* selected_capability = nullptr;
+                std::size_t current_segment = 0U;
+                for (std::size_t capability_index = 0U;
+                     capability_index < mapping.capability_count;
+                     ++capability_index) {
+                    const auto& capability = mapping.capabilities[capability_index];
+                    if (capability.property != selected_property ||
+                        capability.access == ChannelCapabilityAccess::Protected) {
+                        continue;
+                    }
+                    if (current_segment++ == selected_segment) {
+                        selected_capability = &capability;
+                        break;
+                    }
+                }
+                if (selected_capability == nullptr) {
+                    frames.universes[fixture.universe][coarse_slot] =
+                        static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    continue;
+                }
+                if (selected_capability->behavior ==
+                    ChannelCapabilityBehavior::Slot) {
+                    frames.universes[fixture.universe][coarse_slot] =
+                        selected_capability->preferred_value;
+                } else {
+                    frames.universes[fixture.universe][coarse_slot] = encode_8bit(
+                        selected_capability->reversed ? 1.0F - local_value : local_value,
+                        selected_capability->dmx_min,
+                        selected_capability->dmx_max);
+                }
+                continue;
+            }
+
             const auto resolved = layers.resolve_safe(fixture.id, mapping.property, safety);
 
             if (resolved.mode == ValueMode::ForceZero) {
-                frames.universes[fixture.universe][coarse_slot] = 0U;
+                frames.universes[fixture.universe][coarse_slot] =
+                    mapping.encoding == ChannelEncoding::Linear16
+                    ? static_cast<std::uint8_t>((mapping.blackout_value >> 8U) & 0xFFU)
+                    : static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
                 if (mapping.encoding == ChannelEncoding::Linear16 && mapping.fine_offset >= 0) {
                     const auto fine_slot = base_slot + static_cast<std::size_t>(mapping.fine_offset);
                     if (fine_slot < kUniverseSlots) {
-                        frames.universes[fixture.universe][fine_slot] = 0U;
+                        frames.universes[fixture.universe][fine_slot] =
+                            static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
                     }
                 }
                 continue;

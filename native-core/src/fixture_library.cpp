@@ -28,6 +28,7 @@ void copy_text(std::array<char, Size>& destination, std::string_view source) noe
 void CompiledFixtureLibrary::clear() noexcept {
     profile_count_ = 0;
     channel_count_ = 0;
+    capability_count_ = 0;
 }
 
 FixtureIngestResult CompiledFixtureLibrary::ingest(
@@ -67,6 +68,13 @@ FixtureIngestResult CompiledFixtureLibrary::ingest(
     if (draft.channel_count > channels_.size() - channel_count_) {
         return {FixtureIngestError::ChannelCapacity, profile_count_, {}};
     }
+    std::size_t requested_capabilities = 0U;
+    for (std::size_t index = 0U; index < draft.channel_count; ++index) {
+        requested_capabilities += draft.channels[index].capability_count;
+    }
+    if (requested_capabilities > capabilities_.size() - capability_count_) {
+        return {FixtureIngestError::CapabilityCapacity, profile_count_, {}};
+    }
 
     const FixtureProfile candidate{
         draft.display_name.data(),
@@ -90,9 +98,28 @@ FixtureIngestResult CompiledFixtureLibrary::ingest(
 
     const auto first_channel = channel_count_;
     for (std::size_t index = 0; index < draft.channel_count; ++index) {
-        channels_[channel_count_++] = draft.channels[index];
+        auto copied = draft.channels[index];
+        if (copied.capability_count == 0U) {
+            copied.capabilities = nullptr;
+        } else {
+            const auto first_capability = capability_count_;
+            for (std::size_t capability_index = 0U;
+                 capability_index < copied.capability_count;
+                 ++capability_index) {
+                capabilities_[capability_count_++] =
+                    copied.capabilities[capability_index];
+            }
+            copied.capabilities = capabilities_.data() + first_capability;
+        }
+        channels_[channel_count_++] = copied;
         profile.has_hazardous_channels =
             profile.has_hazardous_channels || is_hazardous(draft.channels[index].property);
+        for (std::size_t capability_index = 0U;
+             capability_index < draft.channels[index].capability_count;
+             ++capability_index) {
+            profile.has_hazardous_channels = profile.has_hazardous_channels ||
+                is_hazardous(draft.channels[index].capabilities[capability_index].property);
+        }
     }
     profile.runtime = {
         profile.display_name.data(),

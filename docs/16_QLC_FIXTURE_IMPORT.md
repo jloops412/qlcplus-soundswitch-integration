@@ -35,14 +35,16 @@ Official contracts used by this adapter:
 - QXF `<Colour>` emitter metadata;
 - coarse/fine channel pairs as native 16-bit mappings;
 - channel defaults and constant/no-function slots;
-- regular strobe or hazardous activation ranges whose safe inactive value sits outside the active DMX range;
+- non-overlapping QLC+ capability rows as named native slots or continuous ranges, including shared shutter/strobe and wheel-style channels;
+- regular strobe or hazardous activation ranges whose safe inactive value sits outside the active DMX range; hazardous rows retain their semantic arming gate;
 - up to sixteen otherwise unknown functions as preserved custom semantic lanes.
 
 ## What is reported or quarantined
 
 - QLC+ switching-channel aliases and `ActsOn` modes are quarantined instead of guessed.
-- Multi-head/cell topology is flattened and reported for manual verification; cell-aware effects are not represented yet.
-- Shared shutter channels expose the ordinary strobe range and safe open/inactive value. Pulse, random, and other ranges require manual profile review.
+- Multi-head/cell topology is still flattened and reported for manual verification. Channel owner metadata exists, but cell-aware grouped effects and matrix realization are not complete.
+- Shared shutter, strobe, wheel, and effect ranges are retained when they do not overlap. Every imported row remains unreviewed; reset/service/reserved/custom rows are Protected and unavailable until an operator creates and qualifies an intentional Local model.
+- Overlapping or switching/alias-dependent capabilities remain source evidence only and are reported for manual reconstruction.
 - Heuristic name matches and custom lanes are reported as approximations.
 - A malformed channel, invalid footprint, ambiguous duplicate channel name, or failed native validation prevents that affected fixture/mode from entering the project.
 - XML external entities, DTD subsets, oversized documents, and excessive nesting/nodes are rejected.

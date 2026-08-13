@@ -131,13 +131,32 @@ using showcore::Property;
 [[nodiscard]] bool same_channel_definition(
     const ChannelDefinition& first,
     const ChannelDefinition& second) noexcept {
+    const auto same_capability = [](
+        const ChannelCapabilityDefinition& left,
+        const ChannelCapabilityDefinition& right) noexcept {
+        return left.id == right.id && left.name == right.name &&
+            left.property == right.property && left.dmx_min == right.dmx_min &&
+            left.dmx_max == right.dmx_max &&
+            left.preferred_value == right.preferred_value &&
+            left.behavior == right.behavior && left.access == right.access &&
+            left.role == right.role && left.reversed == right.reversed;
+    };
     return first.property == second.property &&
         first.coarse_offset == second.coarse_offset &&
         first.fine_offset == second.fine_offset &&
         first.encoding == second.encoding &&
         first.dmx_min == second.dmx_min &&
         first.dmx_max == second.dmx_max &&
-        first.default_value == second.default_value;
+        first.default_value == second.default_value &&
+        first.blackout_value == second.blackout_value &&
+        first.highlight_value == second.highlight_value &&
+        first.owner == second.owner &&
+        first.capabilities.size() == second.capabilities.size() &&
+        std::equal(
+            first.capabilities.begin(),
+            first.capabilities.end(),
+            second.capabilities.begin(),
+            same_capability);
 }
 
 [[nodiscard]] bool same_profile_definition(
@@ -161,9 +180,26 @@ using showcore::Property;
 
 [[nodiscard]] showcore::ProfileResult validate_profile_definition(
     const FixtureProfileDefinition& profile) {
+    std::vector<std::vector<showcore::ChannelCapabilityMapping>>
+        capability_storage(profile.channels.size());
     std::vector<showcore::ChannelMapping> channels;
     channels.reserve(profile.channels.size());
-    for (const auto& definition : profile.channels) {
+    for (std::size_t channel_index = 0U;
+         channel_index < profile.channels.size();
+         ++channel_index) {
+        const auto& definition = profile.channels[channel_index];
+        auto& capabilities = capability_storage[channel_index];
+        capabilities.reserve(definition.capabilities.size());
+        for (const auto& capability : definition.capabilities) {
+            capabilities.push_back({
+                capability.property,
+                capability.dmx_min,
+                capability.dmx_max,
+                capability.preferred_value,
+                capability.behavior,
+                capability.access,
+                capability.reversed});
+        }
         channels.push_back({
             definition.property,
             definition.coarse_offset,
@@ -171,7 +207,11 @@ using showcore::Property;
             definition.encoding,
             definition.dmx_min,
             definition.dmx_max,
-            definition.default_value});
+            definition.default_value,
+            definition.blackout_value,
+            definition.highlight_value,
+            capabilities.empty() ? nullptr : capabilities.data(),
+            capabilities.size()});
     }
     const showcore::FixtureProfile runtime{
         profile.name.c_str(),
@@ -195,6 +235,12 @@ using showcore::Property;
     case ProfileError::FineOffsetNotAllowed: return "8-bit channel unexpectedly has a fine channel";
     case ProfileError::DuplicateOffset: return "two mappings claim the same channel";
     case ProfileError::DefaultOutOfRange: return "default DMX value is outside the supported range";
+    case ProfileError::CapabilityPointerMissing: return "named capability storage is missing";
+    case ProfileError::CapabilityNotAllowed: return "named capabilities require one 8-bit channel";
+    case ProfileError::CapabilityInvalidProperty: return "named capability has an invalid semantic parameter";
+    case ProfileError::CapabilityInvalidRange: return "named capability has an invalid DMX range";
+    case ProfileError::CapabilityPreferredOutOfRange: return "named capability preferred value is outside its DMX range";
+    case ProfileError::CapabilityRangeOverlap: return "named capability DMX ranges overlap";
     }
     return "unknown profile error";
 }
@@ -404,7 +450,22 @@ using showcore::Property;
                   << static_cast<unsigned int>(definition.encoding) << ','
                   << static_cast<unsigned int>(definition.dmx_min) << ','
                   << static_cast<unsigned int>(definition.dmx_max) << ','
-                  << definition.default_value << ';';
+                  << definition.default_value << ','
+                  << definition.blackout_value << ','
+                  << definition.highlight_value << ';';
+        text_field(definition.owner);
+        for (const auto& capability : definition.capabilities) {
+            text_field(capability.id);
+            text_field(capability.name);
+            canonical << static_cast<unsigned int>(capability.property) << ','
+                      << static_cast<unsigned int>(capability.dmx_min) << ','
+                      << static_cast<unsigned int>(capability.dmx_max) << ','
+                      << static_cast<unsigned int>(capability.preferred_value) << ','
+                      << static_cast<unsigned int>(capability.behavior) << ','
+                      << static_cast<unsigned int>(capability.access) << ','
+                      << static_cast<unsigned int>(capability.role) << ','
+                      << (capability.reversed ? 1 : 0) << ';';
+        }
     }
     return "sha256:" + sha256_text(canonical.str());
 }
@@ -691,6 +752,10 @@ FixtureProfileMappingSummary summarize_fixture_profile_mapping(
         channel.dmx_min = definition.dmx_min;
         channel.dmx_max = definition.dmx_max;
         channel.default_value = definition.default_value;
+        channel.blackout_value = definition.blackout_value;
+        channel.highlight_value = definition.highlight_value;
+        channel.owner = definition.owner;
+        channel.capability_count = definition.capabilities.size();
 
         std::ostringstream line;
         line << "CH" << channel.coarse_channel;
@@ -704,7 +769,14 @@ FixtureProfileMappingSummary summarize_fixture_profile_mapping(
              << " | " << encoding_display_name(channel.encoding)
              << " | DMX " << static_cast<unsigned int>(channel.dmx_min)
              << '-' << static_cast<unsigned int>(channel.dmx_max)
-             << " | default " << channel.default_value;
+             << " | home " << channel.default_value
+             << " | blackout " << channel.blackout_value
+             << " | highlight " << channel.highlight_value
+             << " | " << channel.owner;
+        if (channel.capability_count != 0U) {
+            line << " | " << channel.capability_count << " named range"
+                 << (channel.capability_count == 1U ? "" : "s");
+        }
         channel.line = line.str();
         summary.channels.push_back(std::move(channel));
 
@@ -1121,7 +1193,22 @@ std::string fixture_profile_behavior_fingerprint(
                   << static_cast<unsigned int>(definition.encoding) << ','
                   << static_cast<unsigned int>(definition.dmx_min) << ','
                   << static_cast<unsigned int>(definition.dmx_max) << ','
-                  << definition.default_value << ';';
+                  << definition.default_value << ','
+                  << definition.blackout_value << ','
+                  << definition.highlight_value << ';';
+        text_field(definition.owner);
+        for (const auto& capability : definition.capabilities) {
+            text_field(capability.id);
+            text_field(capability.name);
+            canonical << static_cast<unsigned int>(capability.property) << ','
+                      << static_cast<unsigned int>(capability.dmx_min) << ','
+                      << static_cast<unsigned int>(capability.dmx_max) << ','
+                      << static_cast<unsigned int>(capability.preferred_value) << ','
+                      << static_cast<unsigned int>(capability.behavior) << ','
+                      << static_cast<unsigned int>(capability.access) << ','
+                      << static_cast<unsigned int>(capability.role) << ','
+                      << (capability.reversed ? 1 : 0) << ';';
+        }
     }
     return "sha256:" + sha256_text(canonical.str());
 }

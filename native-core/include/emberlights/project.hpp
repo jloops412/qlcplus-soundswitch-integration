@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace emberlights {
@@ -28,6 +29,34 @@ inline constexpr std::size_t kMaximumStaticLookAssignments = 32768;
 inline constexpr std::size_t kMaximumStaticLookNameLength = 255;
 inline constexpr std::uint32_t kMaximumStaticLookFadeMs = 30000U;
 
+enum class FixtureChannelCapabilityRole : std::uint8_t {
+    Function,
+    Open,
+    Closed,
+    Home,
+    Blackout,
+    Clockwise,
+    CounterClockwise,
+    Reset,
+    Service,
+    Custom
+};
+
+struct ChannelCapabilityDefinition {
+    std::string id;
+    std::string name;
+    showcore::Property property{showcore::Property::Intensity};
+    std::uint8_t dmx_min{0};
+    std::uint8_t dmx_max{255};
+    std::uint8_t preferred_value{0};
+    showcore::ChannelCapabilityBehavior behavior{
+        showcore::ChannelCapabilityBehavior::Slot};
+    showcore::ChannelCapabilityAccess access{
+        showcore::ChannelCapabilityAccess::Selectable};
+    FixtureChannelCapabilityRole role{FixtureChannelCapabilityRole::Function};
+    bool reversed{false};
+};
+
 struct ChannelDefinition {
     showcore::Property property{showcore::Property::Intensity};
     std::uint16_t coarse_offset{0};
@@ -36,6 +65,36 @@ struct ChannelDefinition {
     std::uint8_t dmx_min{0};
     std::uint8_t dmx_max{255};
     std::uint16_t default_value{0};
+    std::uint16_t blackout_value{0};
+    std::uint16_t highlight_value{255};
+    std::string owner{"fixture"};
+    std::vector<ChannelCapabilityDefinition> capabilities;
+
+    ChannelDefinition() = default;
+    ChannelDefinition(
+        showcore::Property new_property,
+        std::uint16_t new_coarse_offset,
+        std::int16_t new_fine_offset = -1,
+        showcore::ChannelEncoding new_encoding =
+            showcore::ChannelEncoding::Linear8,
+        std::uint8_t new_dmx_min = 0U,
+        std::uint8_t new_dmx_max = 255U,
+        std::uint16_t new_default_value = 0U,
+        std::uint16_t new_blackout_value = 0U,
+        std::uint16_t new_highlight_value = 255U,
+        std::string new_owner = "fixture",
+        std::vector<ChannelCapabilityDefinition> new_capabilities = {})
+        : property(new_property),
+          coarse_offset(new_coarse_offset),
+          fine_offset(new_fine_offset),
+          encoding(new_encoding),
+          dmx_min(new_dmx_min),
+          dmx_max(new_dmx_max),
+          default_value(new_default_value),
+          blackout_value(new_blackout_value),
+          highlight_value(new_highlight_value),
+          owner(std::move(new_owner)),
+          capabilities(std::move(new_capabilities)) {}
 };
 
 struct FixtureProfileDefinition {

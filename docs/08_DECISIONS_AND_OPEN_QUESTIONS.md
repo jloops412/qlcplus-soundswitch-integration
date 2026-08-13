@@ -1,6 +1,6 @@
 # Decisions and Open Questions
 
-Last updated: 2026-08-12.
+Last updated: 2026-08-13.
 
 ## Accepted decisions
 
@@ -87,6 +87,7 @@ Last updated: 2026-08-12.
 | D-079 | White/Amber physical correction is one reviewed project transaction, not an editor-draft label swap. | Compiler and renderer tests prove semantic White and Amber follow the active profile offsets; there is no global application inversion. A correction plan shows exact before/after channels and every affected fixture, preserves immutable imported/built-in sources by creating a Local copy, rebinds all affected fixtures, validates and compiles a project copy, rejects stale plans, and then applies once for one Undo. Physical mode/profile truth still requires isolated observation. |
 | D-080 | Studio may search and download exact fixtures from the official Open Fixture Library API, but every selected mode enters as an immutable unreviewed snapshot. | Search/download use a bounded Windows HTTPS worker outside Runner and the scheduler, convert the official QLC+ export through the existing quarantine boundary, and preserve the OFL key, source/download URLs, MIT attribution, exact QXF SHA-256, and adapter version. The live endpoint does not expose a deployment commit, so snapshots never auto-update or gain physical qualification. No near-match substitutes an absent exact fixture; in particular OFL currently has no exact BO-IR4/IR-4 result. |
 | D-081 | Fixture semantics use one stable, renderer-neutral parameter catalog across Profiles, Static Looks, Autoloops, Live overrides, MIDI/controllers, and future skins. | A permanent White/Amber repair control would encode one fixture accident into product UI and would not scale to movers, wheels, effects, or custom controllers. Every supported semantic therefore has a stable ID, category, control kind, profile-preset policy, safety class, fine-channel capability, and surface support. Direct controls may receive conservative defaults; wheel/macro/rotation/strobe/hazard/custom lanes require the exact fixture DMX chart. The existing White/Amber transaction remains a tested backend compatibility tool, not an operator-facing special case. |
+| D-082 | One physical 8-bit fixture channel may expose multiple non-overlapping named semantic capabilities, but protected reset/service/custom ranges never become callable controls. | Real fixture charts commonly combine shutter, strobe, wheel slots, rotation, macros, and service functions on one byte. The project persists stable capability IDs, names, semantic properties, exact DMX ranges, preferred values, slot/continuous behavior, access class, role, direction, owner, blackout, and highlight. Compiler/Runner consume a bounded immutable realization; same-layer attempts to drive two different functions on one byte fail closed to blackout. Old single-mapping profiles remain valid, imports remain unreviewed, and physical qualification stays separate. |
 
 ## Superseded recommendations
 

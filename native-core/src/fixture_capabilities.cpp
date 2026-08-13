@@ -72,8 +72,20 @@ bool fixture_profile_supports_property(
         profile.channels.begin(),
         profile.channels.end(),
         [property](const auto& channel) {
-            return channel.encoding != showcore::ChannelEncoding::Constant8 &&
-                channel.property == property;
+            if (channel.encoding == showcore::ChannelEncoding::Constant8) {
+                return false;
+            }
+            if (channel.property == property) {
+                return true;
+            }
+            return std::any_of(
+                channel.capabilities.begin(),
+                channel.capabilities.end(),
+                [property](const auto& capability) {
+                    return capability.property == property &&
+                        capability.access !=
+                            showcore::ChannelCapabilityAccess::Protected;
+                });
         });
 }
 
@@ -100,14 +112,24 @@ FixtureCapabilityView inspect_fixture_capabilities(
     result.mode = profile->mode;
     result.source_revision = profile->source_revision;
     for (const auto& channel : profile->channels) {
-        if (channel.encoding == showcore::ChannelEncoding::Constant8 ||
-            channel.property >= showcore::Property::Count) {
+        if (channel.encoding == showcore::ChannelEncoding::Constant8) {
             continue;
         }
-        const auto property = static_cast<std::size_t>(channel.property);
-        result.properties[property] = true;
-        result.has_direct_emitters =
-            result.has_direct_emitters || is_direct_emitter(channel.property);
+        if (channel.property < showcore::Property::Count) {
+            const auto property = static_cast<std::size_t>(channel.property);
+            result.properties[property] = true;
+            result.has_direct_emitters =
+                result.has_direct_emitters || is_direct_emitter(channel.property);
+        }
+        for (const auto& capability : channel.capabilities) {
+            if (capability.property >= showcore::Property::Count ||
+                capability.access == showcore::ChannelCapabilityAccess::Protected) {
+                continue;
+            }
+            result.properties[static_cast<std::size_t>(capability.property)] = true;
+            result.has_direct_emitters = result.has_direct_emitters ||
+                is_direct_emitter(capability.property);
+        }
     }
     result.has_master_intensity =
         result.properties[static_cast<std::size_t>(showcore::Property::Intensity)];

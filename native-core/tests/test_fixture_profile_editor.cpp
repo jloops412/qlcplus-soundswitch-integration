@@ -1,6 +1,9 @@
 #include "emberlights/fixture_profile_editor.hpp"
+#include "emberlights/project_io.hpp"
+#include "showcore/engine.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <set>
@@ -166,6 +169,228 @@ void test_profile_parameter_audit() {
     CHECK(audit.text.find("Strobe CH5") != std::string::npos);
 }
 
+void test_named_channel_capabilities_and_bindings() {
+    emberlights::FixtureProfileDefinition draft;
+    draft.id = "local.shutter.test";
+    draft.name = "Structured shutter";
+    draft.footprint = 1U;
+    draft.channels.push_back({
+        showcore::Property::Shutter,
+        0U,
+        -1,
+        showcore::ChannelEncoding::Discrete8,
+        0U,
+        255U,
+        5U});
+
+    emberlights::ChannelCapabilityDefinition open;
+    open.id = "open";
+    open.name = "Open";
+    open.property = showcore::Property::Shutter;
+    open.dmx_min = 0U;
+    open.dmx_max = 9U;
+    open.preferred_value = 5U;
+    open.role = emberlights::FixtureChannelCapabilityRole::Open;
+    CHECK(static_cast<bool>(emberlights::upsert_fixture_channel_capability(
+        draft, 1U, open)));
+
+    emberlights::ChannelCapabilityDefinition strobe;
+    strobe.id = "strobe-slow-fast";
+    strobe.name = "Strobe slow to fast";
+    strobe.property = showcore::Property::Strobe;
+    strobe.dmx_min = 10U;
+    strobe.dmx_max = 199U;
+    strobe.preferred_value = 64U;
+    strobe.behavior = showcore::ChannelCapabilityBehavior::Continuous;
+    strobe.access = showcore::ChannelCapabilityAccess::SafetyGated;
+    CHECK(static_cast<bool>(emberlights::upsert_fixture_channel_capability(
+        draft, 1U, strobe)));
+
+    CHECK(draft.channels[0].property == showcore::Property::Count);
+    CHECK(draft.channels[0].capabilities.size() == 2U);
+    CHECK(static_cast<bool>(emberlights::update_fixture_profile_channel_metadata(
+        draft, 1U, "head.1", 5U, 199U)));
+    CHECK(draft.channels[0].owner == "head.1");
+    CHECK(draft.channels[0].blackout_value == 5U);
+    CHECK(draft.channels[0].highlight_value == 199U);
+    CHECK(emberlights::make_fixture_channel_capability_id(
+              "Strobe slow → fast") == "strobe-slow-fast");
+
+    auto overlap = strobe;
+    overlap.id = "overlap";
+    overlap.name = "Overlap";
+    overlap.dmx_min = 190U;
+    overlap.dmx_max = 220U;
+    CHECK(!static_cast<bool>(emberlights::upsert_fixture_channel_capability(
+        draft, 1U, overlap)));
+
+    emberlights::ChannelCapabilityDefinition reset;
+    reset.id = "factory-reset";
+    reset.name = "Factory reset";
+    reset.property = showcore::Property::Custom1;
+    reset.dmx_min = 200U;
+    reset.dmx_max = 209U;
+    reset.preferred_value = 205U;
+    reset.access = showcore::ChannelCapabilityAccess::Protected;
+    reset.role = emberlights::FixtureChannelCapabilityRole::Reset;
+    CHECK(static_cast<bool>(emberlights::upsert_fixture_channel_capability(
+        draft, 1U, reset)));
+
+    const auto rows = emberlights::fixture_channel_capability_rows(draft, 1U);
+    CHECK(rows.size() == 3U);
+    CHECK(rows[1].range_label == "10–199");
+    CHECK(rows[2].access_label == "Protected / unavailable");
+
+    const auto open_binding = emberlights::resolve_fixture_channel_capability(
+        draft, 1U, "open");
+    CHECK(static_cast<bool>(open_binding));
+    CHECK(open_binding.property == showcore::Property::Shutter);
+    CHECK(open_binding.raw_value == 5U);
+    CHECK(open_binding.binding_id == "local.shutter.test/ch1/open");
+
+    const auto strobe_binding = emberlights::resolve_fixture_channel_capability(
+        draft, 1U, "strobe-slow-fast", 1.0F);
+    CHECK(static_cast<bool>(strobe_binding));
+    CHECK(strobe_binding.property == showcore::Property::Strobe);
+    CHECK(strobe_binding.raw_value == 199U);
+
+    const auto protected_binding =
+        emberlights::resolve_fixture_channel_capability(
+            draft, 1U, "factory-reset");
+    CHECK(!static_cast<bool>(protected_binding));
+    CHECK(protected_binding.error ==
+          emberlights::FixtureChannelCapabilityEditorError::ProtectedCapability);
+
+    const auto audit = emberlights::audit_fixture_profile(draft);
+    CHECK(audit.structurally_valid);
+    CHECK(audit.named_capability_count == 3U);
+    CHECK(audit.protected_capability_count == 1U);
+    CHECK(audit.compound_channel_count == 1U);
+}
+
+void test_named_channel_capability_rendering() {
+    constexpr std::array<showcore::ChannelCapabilityMapping, 3U> capabilities{{
+        {showcore::Property::Shutter, 0U, 9U, 5U,
+         showcore::ChannelCapabilityBehavior::Slot,
+         showcore::ChannelCapabilityAccess::Selectable, false},
+        {showcore::Property::Strobe, 10U, 199U, 64U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::SafetyGated, false},
+        {showcore::Property::Custom1, 200U, 209U, 205U,
+         showcore::ChannelCapabilityBehavior::Slot,
+         showcore::ChannelCapabilityAccess::Protected, false},
+    }};
+    const std::array<showcore::ChannelMapping, 1U> mappings{{
+        {showcore::Property::Count,
+         0U,
+         -1,
+         showcore::ChannelEncoding::Discrete8,
+         0U,
+         255U,
+         5U,
+         0U,
+         255U,
+         capabilities.data(),
+         capabilities.size()},
+    }};
+    const showcore::FixtureProfile profile{
+        "Compound shutter", mappings.data(), mappings.size(), 1U};
+    CHECK(static_cast<bool>(showcore::validate_fixture_profile(profile)));
+
+    showcore::Engine engine;
+    CHECK(static_cast<bool>(engine.patch().add({0U, 0U, 1U, &profile})));
+    engine.tick();
+    CHECK(engine.frames().universes[0][0] == 5U);
+
+    engine.layers().set(
+        showcore::LayerId::ManualOverride,
+        0U,
+        showcore::Property::Shutter,
+        showcore::PropertyValue::set(1.0F));
+    engine.tick();
+    CHECK(engine.frames().universes[0][0] == 5U);
+
+    engine.layers().clear_layer(showcore::LayerId::ManualOverride);
+    engine.layers().set(
+        showcore::LayerId::ManualOverride,
+        0U,
+        showcore::Property::Strobe,
+        showcore::PropertyValue::set(1.0F));
+    engine.tick();
+    CHECK(engine.frames().universes[0][0] == 199U);
+
+    engine.safety().strobe_allowed = false;
+    engine.tick();
+    CHECK(engine.frames().universes[0][0] == 0U);
+
+    engine.safety().strobe_allowed = true;
+    engine.layers().set(
+        showcore::LayerId::ManualOverride,
+        0U,
+        showcore::Property::Shutter,
+        showcore::PropertyValue::set(1.0F));
+    engine.tick();
+    CHECK(engine.frames().universes[0][0] == 0U);
+}
+
+void test_named_channel_capability_project_round_trip() {
+    auto project = emberlights::make_starter_project();
+    emberlights::FixtureProfileDefinition profile;
+    profile.id = "local.compound.roundtrip";
+    profile.manufacturer = "Test";
+    profile.model = "Compound";
+    profile.mode = "1CH";
+    profile.name = "Compound 1CH";
+    profile.footprint = 1U;
+    emberlights::ChannelDefinition channel{
+        showcore::Property::Shutter,
+        0U,
+        -1,
+        showcore::ChannelEncoding::Discrete8,
+        0U,
+        255U,
+        7U,
+        3U,
+        200U,
+        "head.1"};
+    emberlights::ChannelCapabilityDefinition capability;
+    capability.id = "open";
+    capability.name = "Open";
+    capability.property = showcore::Property::Shutter;
+    capability.dmx_min = 4U;
+    capability.dmx_max = 9U;
+    capability.preferred_value = 7U;
+    capability.role = emberlights::FixtureChannelCapabilityRole::Open;
+    channel.capabilities.push_back(capability);
+    profile.channels.push_back(channel);
+    project.fixture_profiles.push_back(profile);
+
+    const auto serialized = emberlights::serialize_project(project);
+    CHECK(serialized.find("CHANNEL_META_V1") != std::string::npos);
+    CHECK(serialized.find("CHANNEL_CAPABILITY_V1") != std::string::npos);
+    emberlights::ProjectDocument parsed;
+    CHECK(static_cast<bool>(emberlights::parse_project(serialized, parsed)));
+    const auto found = std::find_if(
+        parsed.fixture_profiles.begin(),
+        parsed.fixture_profiles.end(),
+        [](const auto& candidate) {
+            return candidate.id == "local.compound.roundtrip";
+        });
+    CHECK(found != parsed.fixture_profiles.end());
+    if (found == parsed.fixture_profiles.end()) {
+        return;
+    }
+    CHECK(found->channels.size() == 1U);
+    const auto& parsed_channel = found->channels[0];
+    CHECK(parsed_channel.blackout_value == 3U);
+    CHECK(parsed_channel.highlight_value == 200U);
+    CHECK(parsed_channel.owner == "head.1");
+    CHECK(parsed_channel.capabilities.size() == 1U);
+    CHECK(parsed_channel.capabilities[0].id == "open");
+    CHECK(parsed_channel.capabilities[0].role ==
+          emberlights::FixtureChannelCapabilityRole::Open);
+}
+
 void test_generic_profile_rebind_transaction() {
     auto project = project_with_ir4();
     const auto source_id = project.fixtures.front().profile_id;
@@ -242,6 +467,9 @@ int main() {
     test_parameter_catalog_contract();
     test_structured_channel_mutations();
     test_profile_parameter_audit();
+    test_named_channel_capabilities_and_bindings();
+    test_named_channel_capability_rendering();
+    test_named_channel_capability_project_round_trip();
     test_generic_profile_rebind_transaction();
     test_absolute_white_amber_assignment();
     if (failures != 0) {
