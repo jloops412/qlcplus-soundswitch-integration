@@ -19,7 +19,22 @@
     "baselineDigest": {"type": ["string", "null"]},
     "candidateDigest": {"type": ["string", "null"]},
     "classification": {"enum": ["unchanged", "compatibleAdditive", "compatibleWithDeprecations", "breaking"]},
-    "registries": {"type": "object"},
+    "registries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commands", "states", "components", "capabilities", "values", "results", "interactions"
+      ],
+      "properties": {
+        "commands": {"$ref": "#/$defs/registryDetail"},
+        "states": {"$ref": "#/$defs/registryDetail"},
+        "components": {"$ref": "#/$defs/registryDetail"},
+        "capabilities": {"$ref": "#/$defs/registryDetail"},
+        "values": {"$ref": "#/$defs/registryDetail"},
+        "results": {"$ref": "#/$defs/registryDetail"},
+        "interactions": {"$ref": "#/$defs/registryDetail"}
+      }
+    },
     "summary": {
       "type": "object",
       "additionalProperties": false,
@@ -36,5 +51,29 @@
     },
     "migrationAvailable": {"type": "boolean"},
     "manualActionRequired": {"type": "boolean"}
+  },
+  "$defs": {
+    "idList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "registryDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added", "changedCompatible", "deprecated", "replacementAvailable",
+        "changedBreaking", "removed", "unchanged"
+      ],
+      "properties": {
+        "added": {"$ref": "#/$defs/idList"},
+        "changedCompatible": {"$ref": "#/$defs/idList"},
+        "deprecated": {"$ref": "#/$defs/idList"},
+        "replacementAvailable": {"$ref": "#/$defs/idList"},
+        "changedBreaking": {"$ref": "#/$defs/idList"},
+        "removed": {"$ref": "#/$defs/idList"},
+        "unchanged": {"$ref": "#/$defs/idList"}
+      }
+    }
   }
 }

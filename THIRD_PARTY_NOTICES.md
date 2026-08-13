@@ -14,11 +14,15 @@ A distributing product also requires an OEM Code from Artistic Licence. See [the
 
 ## Open Fixture Library
 
-Open Fixture Library is the preferred upstream fixture source and is MIT licensed. No OFL fixture dataset is bundled in this checkpoint. Studio recognizes QXF files produced by OFL's QLC+ export plugin and retains OFL provenance in the converted native profile. Preserve per-fixture source metadata and required notices when a fixture corpus is added.
+Open Fixture Library is the preferred upstream fixture source and is MIT licensed. No OFL fixture dataset is bundled in this checkpoint. Studio can search OFL's official API and download one selected QLC+ export; the project retains the OFL key/source URLs, MIT attribution, exact downloaded QXF SHA-256, adapter version, and unreviewed status with the converted immutable native snapshot. Studio also recognizes local QXF files produced by OFL's QLC+ export plugin. Preserve per-fixture source metadata and required notices when a fixture corpus is added.
 
 ## QLC+
 
 QLC+ is Apache 2.0 licensed. This checkpoint does not copy or link QLC+ or Qt source. It includes an independently implemented, Studio-only compatibility adapter for the documented QLC+ Fixture Definition (`.qxf`) XML contract and an optional standards-based Art-Net bridge to a separately installed QLC+ application. QLC+ remains neither a runtime dependency nor the EmberLights show model. If QLC+ code is later copied or adapted, preserve its license, copyright/attribution notices, NOTICE content if present, and prominent modified-file notices.
+
+## Microsoft Fluent iconography
+
+The Windows preview draws documented Segoe Fluent Icons glyphs from the operating system and falls back to the Windows-supplied Segoe MDL2 Assets font when Fluent is unavailable. EmberLights does not redistribute either font. The separate [Microsoft Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) repository is MIT licensed and is a candidate for a future curated vector asset pack; no repository SVG or font asset is bundled in this checkpoint.
 
 ## SoundSwitch
 

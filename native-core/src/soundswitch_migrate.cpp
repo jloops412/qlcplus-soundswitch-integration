@@ -37,7 +37,9 @@ void print_help() {
         << "compare performs two read-only inspections and reports only changed paths, hashes,\n"
         << "and bounded byte ranges. It never exports payload bytes.\n"
         << "verify-source-binding compares a project's recorded Venue/Autoloop hashes with a\n"
-        << "complete read-only source inventory. A match establishes identity, not semantic coverage.\n"
+        << "complete read-only source inventory. Its review summary separates approximated,\n"
+        << "source-only, unqualified project, missing, and not-imported areas. A hash match\n"
+        << "establishes identity only; it never qualifies semantic coverage.\n"
         << "corpus-manifest evaluates evidence availability and missing dependency classes;\n"
         << "it does not claim semantic import completeness or scan external music libraries.\n"
         << "convert-v1 recognizes the qualified SoundSwitch 2.10.x color rig, rebuilds the\n"
@@ -283,7 +285,12 @@ int run(const std::vector<std::filesystem::path>& arguments) {
             }
             std::cout << "Source-binding audit saved to " << report.string() << '\n';
         }
-        std::cerr << audit.message << '\n';
+        std::cerr << audit.message << "\nMigration review: "
+                  << emberlights::soundswitch_migration_review_state_name(
+                         audit.review_state)
+                  << "; " << audit.review_areas.size()
+                  << " area(s), " << audit.review_action_codes.size()
+                  << " next action(s).\n";
         return audit.status ==
                 emberlights::SoundSwitchSourceBindingStatus::ExactArtifactHashMatch
             ? 0

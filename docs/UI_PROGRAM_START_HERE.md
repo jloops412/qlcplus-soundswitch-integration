@@ -130,6 +130,12 @@ The registry policy applies to every user-visible feature change, even when the 
 - Skins Platform V2 visual designer, Ember Actions, migration, registry lifecycle, ADR, issue graph, and work-agent handoff;
 - qualification matrix and issue decomposition.
 
+## Current implementation checkpoint
+
+`36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` records preview 88's bounded bridge: toolkit-neutral semantic visual tokens/navigation/layout metadata, a persistent gig-health strip, Windows Fluent/MDL2 icon fallback, modern list/active-state rendering, and card hierarchy. It also records the resource audit that keeps Slint first for issue #37, QLC+ as an Apache-2.0 workflow/selective-reuse reference, Fluent UI System Icons as the future MIT vector source, and Qt/WinUI as measured fallbacks rather than assumed dependencies.
+
+This checkpoint adds no domain behavior or callbacks and does not accept a production toolkit, `.emberskin` runtime, Safe surface, or Reference skin.
+
 ## Immediate implementation order after the core gate
 
 1. Complete/reconcile #31 command/state facade and #64 registry authority without changing lighting behavior.

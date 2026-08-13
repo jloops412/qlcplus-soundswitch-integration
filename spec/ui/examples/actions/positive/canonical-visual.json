@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "id": "com.test.action.canonical",
+  "version": "1.0.0",
+  "label": "Café control",
+  "compatibility": {
+    "minimumAppVersion": "0.1.0",
+    "commandRegistry": ">=1 <2",
+    "stateRegistry": ">=1 <2",
+    "capabilityRegistry": ">=1 <2"
+  },
+  "parameters": {
+    "level": {
+      "valueType": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "unit": "normalized"
+      },
+      "required": true,
+      "default": 0.5
+    }
+  },
+  "requires": {
+    "commands": ["com.test.command.set"],
+    "states": ["com.test.state.ready"],
+    "capabilities": ["com.test.capability.basic"]
+  },
+  "entryPoints": {
+    "onPress": "node.sequence"
+  },
+  "nodes": {
+    "node.sequence": {
+      "kind": "Sequence",
+      "children": ["node.read", "node.invoke", "node.return"]
+    },
+    "node.read": {
+      "kind": "ReadState",
+      "stateId": "com.test.state.ready",
+      "as": "ready"
+    },
+    "node.invoke": {
+      "kind": "InvokeCommand",
+      "commandId": "com.test.command.set",
+      "arguments": {
+        "value": {"source": "parameter", "path": "level"}
+      },
+      "resultAs": "result",
+      "metadata": {
+        "label": "Visual node",
+        "comment": "Authoring-only metadata is excluded from the digest."
+      }
+    },
+    "node.return": {
+      "kind": "Return",
+      "result": {"source": "nodeOutput", "path": "result"}
+    }
+  },
+  "feedback": {
+    "available": {"source": "state", "path": "com.test.state.ready"}
+  },
+  "source": {
+    "language": "visualGraph"
+  }
+}

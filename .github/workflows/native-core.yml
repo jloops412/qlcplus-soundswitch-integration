@@ -9,7 +9,11 @@ permissions:
   contents: read
 
 env:
-  EMBERLIGHTS_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  # actions/checkout's default PR ref is GitHub's synthetic merge commit. The
+  # product/payload identity must name that exact checked-out tree, while the
+  # contributor head remains separate provenance rather than being mislabeled.
+  EMBERLIGHTS_SOURCE_COMMIT: ${{ github.sha }}
+  EMBERLIGHTS_SOURCE_HEAD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 concurrency:
   group: native-core-${{ github.workflow }}-${{ github.ref }}
@@ -25,6 +29,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Test Windows package contract
+        run: python -m unittest installer/test_windows_package_contract.py
 
       - name: Configure
         run: cmake -S native-core -B native-core/build-ci -DCMAKE_BUILD_TYPE=Release "-DEMBERLIGHTS_VERSION=0.1.0-ci.${{ github.run_number }}" "-DEMBERLIGHTS_COMMIT=${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
@@ -54,6 +61,15 @@ jobs:
           }
           "value=$version" >> $env:GITHUB_OUTPUT
 
+      - name: Verify package checkout identity
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          $declared = "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}".ToLowerInvariant()
+          if ($actual -ne $declared) {
+            throw "Checked-out commit $actual does not match declared package commit $declared."
+          }
+
       - name: Configure
         run: cmake -S native-core -B native-core/build-package -DCMAKE_BUILD_TYPE=Release "-DEMBERLIGHTS_VERSION=${{ steps.version.outputs.value }}" "-DEMBERLIGHTS_COMMIT=${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
 
@@ -63,11 +79,43 @@ jobs:
       - name: Test packaged build
         run: ctest --test-dir native-core/build-package --build-config Release --output-on-failure
 
-      - name: Stage portable application
+      - name: Stage and attest Windows payload
         shell: pwsh
         run: |
           cmake --install native-core/build-package --config Release --prefix "$PWD/stage"
+          python installer/windows_package_contract.py create `
+            --root "$PWD/stage" `
+            --version "${{ steps.version.outputs.value }}" `
+            --commit "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python installer/windows_package_contract.py verify `
+            --root "$PWD/stage" `
+            --expected-version "${{ steps.version.outputs.value }}" `
+            --expected-commit "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path "$PWD/stage/*" -DestinationPath "$PWD/EmberLights-${{ steps.version.outputs.value }}-Portable.zip"
+
+      - name: Verify portable application
+        shell: pwsh
+        run: |
+          $portableDir = Join-Path $PWD "portable-smoke"
+          Expand-Archive `
+            -LiteralPath "$PWD/EmberLights-${{ steps.version.outputs.value }}-Portable.zip" `
+            -DestinationPath $portableDir
+          python installer/windows_package_contract.py verify `
+            --root $portableDir `
+            --expected-version "${{ steps.version.outputs.value }}" `
+            --expected-commit "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $application = Join-Path $portableDir "EmberLights.exe"
+          $launch = Start-Process `
+            -FilePath $application `
+            -ArgumentList "--startup-smoke" `
+            -PassThru `
+            -Wait
+          if ($launch.ExitCode -ne 0) {
+            throw "Portable GUI startup smoke test failed with exit code $($launch.ExitCode)."
+          }
 
       - name: Install Inno Setup
         shell: pwsh
@@ -80,7 +128,7 @@ jobs:
           & $iscc "/DBuildDir=$PWD/stage" "/DAppVersion=${{ steps.version.outputs.value }}" "installer/EmberLights.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Install and launch Windows application
+      - name: Install, verify, smoke, and uninstall Windows application
         shell: pwsh
         run: |
           $installer = Resolve-Path "installer/output/EmberLights-${{ steps.version.outputs.value }}-Setup.exe"
@@ -94,9 +142,24 @@ jobs:
           if ($setup.ExitCode -ne 0) {
             throw "Installer smoke test failed with exit code $($setup.ExitCode)."
           }
+          python installer/windows_package_contract.py verify `
+            --root $installDir `
+            --expected-version "${{ steps.version.outputs.value }}" `
+            --expected-commit "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}" `
+            --layout inno-installed
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $application = Join-Path $installDir "EmberLights.exe"
           if (-not (Test-Path -LiteralPath $application -PathType Leaf)) {
             throw "The installer did not produce EmberLights.exe."
+          }
+          $associationPath = "Registry::HKEY_CURRENT_USER\Software\Classes\EmberLights.Project\shell\open\command"
+          if (-not (Test-Path -LiteralPath $associationPath)) {
+            throw "The installer did not register the .emberlights open command."
+          }
+          $association = (Get-Item -LiteralPath $associationPath).GetValue("")
+          $expectedAssociation = '"' + $application + '" "%1"'
+          if ($association -ne $expectedAssociation) {
+            throw "Unexpected .emberlights open command: $association"
           }
           $launch = Start-Process -FilePath $application -ArgumentList "--startup-smoke" -PassThru -Wait
           if ($launch.ExitCode -ne 0) {
@@ -118,6 +181,50 @@ jobs:
           if ($controlOneTest.ExitCode -ne 0) {
             throw "Installed Control One DMX probe self-test failed with exit code $($controlOneTest.ExitCode)."
           }
+          $qualificationReport = Join-Path $PWD "installed-smoke-qualification.json"
+          $qualification = Join-Path $installDir "Tools/emberlights_qualify.exe"
+          $qualificationTest = Start-Process -FilePath $qualification -ArgumentList @(
+            "--duration",
+            "2",
+            "--report",
+            $qualificationReport
+          ) -PassThru -Wait
+          if ($qualificationTest.ExitCode -ne 0) {
+            throw "Installed non-outputting qualification smoke failed with exit code $($qualificationTest.ExitCode)."
+          }
+          $report = Get-Content -LiteralPath $qualificationReport -Raw | ConvertFrom-Json
+          if ($report.verdict -ne "pass" -or
+              $report.platform -ne "windows" -or
+              $report.networkLoopback -ne $false -or
+              $report.productVersion -ne "${{ steps.version.outputs.value }}" -or
+              $report.commit -ne "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}") {
+            throw "Installed qualification report identity, platform, output policy, or verdict is invalid."
+          }
+          $uninstaller = Get-ChildItem -LiteralPath $installDir -Filter "unins*.exe" |
+            Select-Object -First 1
+          if ($null -eq $uninstaller) {
+            throw "The installer did not produce an Inno Setup uninstaller."
+          }
+          $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART"
+          ) -PassThru -Wait
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Uninstall smoke test failed with exit code $($uninstall.ExitCode)."
+          }
+          $uninstallDeadline = (Get-Date).AddSeconds(10)
+          while ((Test-Path -LiteralPath $installDir) -and
+                 (Get-Date) -lt $uninstallDeadline) {
+            Start-Sleep -Milliseconds 100
+          }
+          if (Test-Path -LiteralPath $installDir) {
+            throw "Uninstall left the isolated application directory behind."
+          }
+          if ((Test-Path -LiteralPath $associationPath) -or
+              (Test-Path -LiteralPath "Registry::HKEY_CURRENT_USER\Software\Classes\.emberlights")) {
+            throw "Uninstall left the EmberLights file association behind."
+          }
 
       - name: Generate release evidence
         shell: pwsh
@@ -126,34 +233,70 @@ jobs:
           New-Item -ItemType Directory -Force $releaseDir | Out-Null
           $setupName = "EmberLights-${{ steps.version.outputs.value }}-Setup.exe"
           $portableName = "EmberLights-${{ steps.version.outputs.value }}-Portable.zip"
+          $payloadName = "EmberLights-${{ steps.version.outputs.value }}-Windows-payload-manifest.json"
+          $qualificationName = "EmberLights-${{ steps.version.outputs.value }}-Windows-qualification-smoke.json"
           $setup = Join-Path $releaseDir $setupName
           $portable = Join-Path $releaseDir $portableName
+          $payload = Join-Path $releaseDir $payloadName
+          $qualification = Join-Path $releaseDir $qualificationName
           $checksums = Join-Path $releaseDir "EmberLights-${{ steps.version.outputs.value }}-SHA256SUMS.txt"
           $manifest = Join-Path $releaseDir "EmberLights-${{ steps.version.outputs.value }}-release-manifest.json"
           Copy-Item "installer/output/$setupName" $setup
           Copy-Item $portableName $portable
+          Copy-Item "stage/EmberLights-Windows-payload-manifest.json" $payload
+          Copy-Item "installed-smoke-qualification.json" $qualification
           $setupHash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
           $portableHash = (Get-FileHash -Algorithm SHA256 $portable).Hash.ToLowerInvariant()
+          $payloadHash = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
+          $qualificationHash = (Get-FileHash -Algorithm SHA256 $qualification).Hash.ToLowerInvariant()
           @(
             "$setupHash  $setupName"
             "$portableHash  $portableName"
+            "$payloadHash  $payloadName"
+            "$qualificationHash  $qualificationName"
           ) | Set-Content -Encoding ascii $checksums
           [ordered]@{
             format = "emberlights-release-manifest"
-            formatVersion = 1
+            formatVersion = 2
             product = "EmberLights"
+            platform = "windows-x64"
             version = "${{ steps.version.outputs.value }}"
             commit = "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}"
+            sourceHeadCommit = "${{ env.EMBERLIGHTS_SOURCE_HEAD_COMMIT }}"
             buildCommit = "${{ github.sha }}"
             workflowRun = "${{ github.run_id }}"
             projectFormatVersion = 1
             showPackageSchemaVersion = 4
             qualificationSmoke = "passed"
+            packageContract = [ordered]@{
+              formatVersion = 1
+              staged = "passed"
+              portable = "passed"
+              installed = "passed"
+              manifest = $payloadName
+              sha256 = $payloadHash
+            }
+            installedQualification = [ordered]@{
+              output = "disabled"
+              report = $qualificationName
+              sha256 = $qualificationHash
+            }
+            installerLifecycle = [ordered]@{
+              cleanInstall = "passed"
+              guiStartup = "passed"
+              probeSelfTests = "passed"
+              fileAssociation = "passed"
+              uninstall = "passed"
+              upgrade = "not-run"
+              rollback = "not-run"
+            }
             artifacts = @(
               [ordered]@{ file = $setupName; sha256 = $setupHash }
               [ordered]@{ file = $portableName; sha256 = $portableHash }
+              [ordered]@{ file = $payloadName; sha256 = $payloadHash }
+              [ordered]@{ file = $qualificationName; sha256 = $qualificationHash }
             )
-          } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8NoBOM $manifest
+          } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8NoBOM $manifest
 
       - name: Verify release evidence
         shell: pwsh
@@ -176,6 +319,17 @@ jobs:
               }
             }
             $manifest = Get-Content (Get-Item "EmberLights-*-release-manifest.json") -Raw | ConvertFrom-Json
+            if ($manifest.formatVersion -ne 2 -or
+                $manifest.platform -ne "windows-x64" -or
+                $manifest.version -ne "${{ steps.version.outputs.value }}" -or
+                $manifest.commit -ne "${{ env.EMBERLIGHTS_SOURCE_COMMIT }}" -or
+                $manifest.sourceHeadCommit -ne "${{ env.EMBERLIGHTS_SOURCE_HEAD_COMMIT }}" -or
+                $manifest.qualificationSmoke -ne "passed" -or
+                $manifest.packageContract.installed -ne "passed" -or
+                $manifest.installerLifecycle.upgrade -ne "not-run" -or
+                $manifest.installerLifecycle.rollback -ne "not-run") {
+              throw "Release manifest identity, evidence, or honest lifecycle boundary is invalid."
+            }
             foreach ($artifact in $manifest.artifacts) {
               if (-not (Test-Path -LiteralPath $artifact.file -PathType Leaf)) {
                 throw "Manifest target is missing from release root: $($artifact.file)"
@@ -184,6 +338,24 @@ jobs:
               if ($actual -ne $artifact.sha256) {
                 throw "Manifest checksum mismatch for $($artifact.file)"
               }
+            }
+            $payload = Get-Content -LiteralPath $manifest.packageContract.manifest -Raw | ConvertFrom-Json
+            if ($payload.format -ne "emberlights-windows-payload-manifest" -or
+                $payload.formatVersion -ne 1 -or
+                $payload.version -ne $manifest.version -or
+                $payload.commit -ne $manifest.commit -or
+                $payload.safetyBoundary.defaultOutput -ne "disabled" -or
+                $payload.safetyBoundary.selfTests -ne "non-outputting" -or
+                $payload.safetyBoundary.physicalQualification -ne "not-claimed") {
+              throw "Windows payload manifest identity or safety boundary is invalid."
+            }
+            $qualification = Get-Content -LiteralPath $manifest.installedQualification.report -Raw | ConvertFrom-Json
+            if ($qualification.verdict -ne "pass" -or
+                $qualification.platform -ne "windows" -or
+                $qualification.networkLoopback -ne $false -or
+                $qualification.productVersion -ne $manifest.version -or
+                $qualification.commit -ne $manifest.commit) {
+              throw "Installed qualification evidence is invalid or does not match the release."
             }
           } finally {
             Pop-Location
@@ -313,4 +485,6 @@ jobs:
             EmberLights-*-Linux-*.deb
             EmberLights-*-Linux-*.tar.gz
             EmberLights-*-SHA256SUMS.txt
+            EmberLights-*-Windows-payload-manifest.json
+            EmberLights-*-Windows-qualification-smoke.json
             EmberLights-*-release-manifest.json

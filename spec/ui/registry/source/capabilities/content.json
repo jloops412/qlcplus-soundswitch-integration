@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "kind": "capabilityFragment",
+  "family": "content",
+  "defaults": {
+    "status": "implemented",
+    "introducedGeneration": 2,
+    "callable": false,
+    "dependencies": [],
+    "conflicts": [],
+    "relevantCommands": [],
+    "relevantStates": [],
+    "relevantComponents": [],
+    "experimental": false,
+    "deprecated": false
+  },
+  "capabilities": [
+    {
+      "id": "content.staticLooks",
+      "label": "Static Looks",
+      "description": "The active compiled package supports stable-ID Static Look activation and authoritative active-state feedback.",
+      "category": "content",
+      "origin": "project",
+      "absenceBehavior": "reject",
+      "relevantCommands": [
+        "staticLook.activate",
+        "staticLook.clear",
+        "staticLook.hold",
+        "staticLook.toggle"
+      ],
+      "relevantStates": ["staticLook.active.id"],
+      "relevantComponents": ["ember.staticLookMatrix"],
+      "version": "1.0.0",
+      "qualificationStatus": "softwareVerified"
+    }
+  ]
+}

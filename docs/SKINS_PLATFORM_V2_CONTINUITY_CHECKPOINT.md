@@ -1,11 +1,19 @@
 # Skins Platform V2 — Continuity Checkpoint
 
 - **Checkpoint date:** 2026-08-12
-- **Planning status:** Complete; ready for bounded work-agent implementation after review/merge.
+- **Planning status:** Complete; registry and bounded Action foundations are published for review, while broad product rollout remains dependency-gated.
 - **Planning branch:** `planning/skins-platform-v2-2026-08-12`
 - **Parent epic:** #63
-- **Primary first implementation issue:** #64 / SKIN2-001
-- **Safe isolated parallel issue:** #65 / SKIN2-002 schema, canonicalization, and fixture work only until #64/#31 contracts stabilize
+- **Registry implementation issue:** #64 / SKIN2-001; PR #81 merged the canonical spine and local generation 2 extends it compatibly.
+- **Action implementation issue:** #65 / SKIN2-002; bounded foundation/executor/control-flow/result-flow slices are published in integration draft PR #84.
+
+## Local implementation checkpoint — 2026-08-12
+
+- Registry 1.1.0/generation 2 preserves the exact 29 accepted commands, 39 accepted states, native IDs/ordinals and behavior while adding five planned non-callable components, one accepted non-callable capability, eleven reusable values and explicit results. The deterministic digest is `d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945`; compatibility diff is additive with zero breaking changes or removals.
+- Ember Action source validation, registry adaptation, resolved-reference/cache identity and immutable executable IR are implemented for the bounded schema-shaped `Sequence`, `InvokeCommand`, `If`, `Switch`, `OnResult` and `Return` subset. Control-flow inputs are literals or declared parameters, while `OnResult` consumes only a prior native command-result slot; skipped branches never dispatch and QueueFull/SafetyRejected/InternalError remain hard stops. Worst-case graph/expression budgets, deterministic trace, cancellation, copied-IR integrity checks and zero-allocation repeat execution are covered.
+- Dispatch remains exclusively behind injected `EmberActionCommandControl`. There is no direct Runner, state-writer, device, file, network, MIDI/USB/DMX, scheduler, timer, plugin or transaction-host path.
+- Still open under #65: `ReadState`, `Let`, `MapValue`, `Parallel`, nested Actions, state/capability/action dependencies, activation/deactivation, Studio transaction hosting, async work, production UI/editor integration, and deterministic expert text round-trip.
+- The cumulative integration is published byte-for-byte as tree `a7d3496b...` in squashed remote commit `b58f036` / draft PR #84. Hosted CI is blocked before runner assignment by the repository owner's GitHub Actions billing/spending gate, so no Windows artifact or installed-build claim exists yet.
 
 ## Owner directive preserved
 
@@ -194,4 +202,4 @@ Rebase before runtime integration.
 
 The product model, action model, visual authoring contract, safety/runtime boundary, registry lifecycle, compatibility policy, migration seam, accessibility/performance requirements, issue decomposition, dependency graph, file ownership, test strategy, and implementation handoff are sufficiently specified for work agents.
 
-No production feature implementation is claimed by this planning checkpoint.
+The original planning checkpoint made no production claim. The bounded local-green implementation status is now recorded separately above and must not be generalized to a complete Action platform, skin runtime, Designer, installed-Windows release, or physical/gig qualification.

@@ -16,6 +16,11 @@ struct UiCommandInvocation {
     std::string_view target_id{};
     showcore::AutoloopAddress autoloop_address{};
     std::uint16_t bank{static_cast<std::uint16_t>(showcore::kMaxAutoloopBanks)};
+    // Trusted invocation metadata, intentionally outside the generated/public
+    // command argument registry. Hold controls must supply a stable nonzero
+    // feedback token and echo both observed generations on release.
+    StaticLookOwnerContext static_look_owner{
+        StaticLookOwnerKind::Ui, 0U, 0U, 0U};
 };
 
 class UiAppCommandHost {

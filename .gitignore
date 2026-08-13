@@ -1,5 +1,7 @@
 native-core/build/
 native-core/build-*/
+build-*/
+__pycache__/
 .vs/
 .vscode/
 .idea/

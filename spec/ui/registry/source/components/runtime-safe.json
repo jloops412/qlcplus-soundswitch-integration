@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "kind": "componentFragment",
+  "family": "runtime-safe",
+  "defaults": {
+    "status": "planned",
+    "introducedGeneration": 2,
+    "contractVersion": "0.1.0",
+    "classification": "nativeComplex",
+    "callable": false,
+    "supportedVariants": ["default"],
+    "inputModes": ["keyboard", "pointer", "touch"],
+    "properties": {},
+    "events": [],
+    "slots": [],
+    "requiredCommands": [],
+    "requiredStates": [],
+    "requiredCapabilities": [],
+    "optionalCapabilities": [],
+    "performanceClass": "bounded",
+    "failureBehavior": "placeholder",
+    "deprecated": false
+  },
+  "components": [
+    {
+      "id": "ember.activeLayers",
+      "label": "Active Layers",
+      "description": "Presents Runner-owned active content, safety, and override summaries without resolving lighting layers.",
+      "supportedWorkspaces": ["live", "safe"],
+      "requiredCommands": [
+        "autoloop.clear",
+        "override.releaseAll",
+        "staticLook.clear",
+        "trackScript.clear"
+      ],
+      "requiredStates": [
+        "autoloop.active.completedCycles",
+        "autoloop.active.id",
+        "autoloop.active.progress",
+        "output.blackout",
+        "output.workLight",
+        "override.activePropertyCount",
+        "staticLook.active.id",
+        "trackScript.active.id",
+        "trackScript.elapsedBeat"
+      ],
+      "accessibilityRole": "status",
+      "performanceClass": "snapshotBounded"
+    },
+    {
+      "id": "ember.autoloopMatrix",
+      "label": "Autoloop Matrix",
+      "description": "Presents a bounded, virtualized bank and slot window over registered Autoloop commands and state.",
+      "supportedWorkspaces": ["live", "studio"],
+      "supportedVariants": ["compact", "default"],
+      "properties": {
+        "bankWindowSize": {"type": "integer", "minimum": 1, "maximum": 64},
+        "showEmptySlots": {"type": "boolean"},
+        "showProgress": {"type": "boolean"},
+        "slotsPerBank": {"type": "integer", "minimum": 1, "maximum": 32}
+      },
+      "requiredCommands": [
+        "autoloop.bankFilter.enableAll",
+        "autoloop.bankFilter.selectExclusive",
+        "autoloop.bankFilter.setEnabled",
+        "autoloop.clear",
+        "autoloop.launch",
+        "autoloop.next",
+        "autoloop.previous"
+      ],
+      "requiredStates": [
+        "autoloop.active.bank",
+        "autoloop.active.completedCycles",
+        "autoloop.active.id",
+        "autoloop.active.progress",
+        "autoloop.active.repeat",
+        "autoloop.active.slot",
+        "autoloop.bankFilter.mask"
+      ],
+      "accessibilityRole": "grid",
+      "performanceClass": "virtualized"
+    },
+    {
+      "id": "ember.connectionPanel",
+      "label": "Connection Panel",
+      "description": "Presents adapter-owned configured and actual connection status through bounded snapshots.",
+      "supportedWorkspaces": ["live", "safe", "studio"],
+      "supportedVariants": ["controller", "dj", "full", "outputs", "summary"],
+      "requiredStates": [
+        "connection.os2l.discoveryStatus",
+        "connection.os2l.status",
+        "controller.input.status",
+        "controller.output.status",
+        "output.artnet.status",
+        "output.controlOne.status",
+        "output.dmxUsbPro[0].status",
+        "output.dmxUsbPro[1].status",
+        "output.micro.status",
+        "output.sacn.status"
+      ],
+      "accessibilityRole": "region",
+      "performanceClass": "healthBounded"
+    },
+    {
+      "id": "ember.diagnostics",
+      "label": "Diagnostics",
+      "description": "Presents bounded health, timing, adapter, validation, and active-content diagnostics without performing adapter work.",
+      "supportedWorkspaces": ["live", "safe", "studio"],
+      "requiredStates": [
+        "connection.os2l.status",
+        "controller.input.status",
+        "output.artnet.status",
+        "output.controlOne.status",
+        "output.micro.status",
+        "output.sacn.status",
+        "runner.frames",
+        "runner.generation",
+        "runner.health",
+        "runner.state"
+      ],
+      "accessibilityRole": "log",
+      "performanceClass": "virtualized"
+    },
+    {
+      "id": "ember.staticLookMatrix",
+      "label": "Static Look Matrix",
+      "description": "Presents registered Static Look activation, hold, toggle, clear, and active-state feedback by stable ID.",
+      "supportedWorkspaces": ["live", "studio"],
+      "supportedVariants": ["compact", "default"],
+      "properties": {
+        "showBindingHints": {"type": "boolean"},
+        "showProgress": {"type": "boolean"}
+      },
+      "requiredCommands": [
+        "staticLook.activate",
+        "staticLook.clear",
+        "staticLook.hold",
+        "staticLook.toggle"
+      ],
+      "requiredStates": ["staticLook.active.id"],
+      "requiredCapabilities": ["content.staticLooks"],
+      "accessibilityRole": "grid",
+      "performanceClass": "virtualized"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <conio.h>
 #include <cfgmgr32.h>
 #include <knownfolders.h>
 #include <setupapi.h>
@@ -10,12 +11,14 @@
 #include <usbiodef.h>
 #include <winusb.h>
 
-#include "emberlights/hardware_qualification.hpp"
+#include "emberlights/raw_hardware_test_operator.hpp"
 #include "showcore/soundswitch_micro.hpp"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cwctype>
 #include <cstdint>
 #include <filesystem>
@@ -385,61 +388,6 @@ void enumerate_interface_guid(const GUID& guid, std::wostringstream& report) {
     }
 }
 
-[[nodiscard]] std::optional<std::wstring> find_target_interface_path(
-    const std::vector<GUID>& guids) {
-    for (const auto& guid : guids) {
-        DeviceInfoSet set(::SetupDiGetClassDevsW(
-            &guid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
-        if (!set.valid()) {
-            continue;
-        }
-        for (DWORD index = 0U;; ++index) {
-            SP_DEVICE_INTERFACE_DATA interface_data{};
-            interface_data.cbSize = sizeof(interface_data);
-            if (::SetupDiEnumDeviceInterfaces(
-                    set.get(), nullptr, &guid, index, &interface_data) == FALSE) {
-                break;
-            }
-            DWORD required = 0U;
-            static_cast<void>(::SetupDiGetDeviceInterfaceDetailW(
-                set.get(), &interface_data, nullptr, 0U, &required, nullptr));
-            if (required < sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W)) {
-                continue;
-            }
-            std::vector<BYTE> bytes(required, 0U);
-            auto* detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(bytes.data());
-            detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
-            if (::SetupDiGetDeviceInterfaceDetailW(
-                    set.get(), &interface_data, detail, required, nullptr, nullptr) != FALSE &&
-                is_target_text(detail->DevicePath)) {
-                return std::wstring(detail->DevicePath);
-            }
-        }
-    }
-    return std::nullopt;
-}
-
-[[nodiscard]] std::vector<GUID> target_interface_guids(const TargetDevice& device) {
-    std::vector<GUID> guids;
-    for (const auto& value : device.interface_guids) {
-        static_cast<void>(add_guid_text(value, guids));
-    }
-    if (std::none_of(guids.begin(), guids.end(), [](const GUID& value) {
-            return ::IsEqualGUID(value, GUID_DEVINTERFACE_USB_DEVICE) != FALSE;
-        })) {
-        guids.push_back(GUID_DEVINTERFACE_USB_DEVICE);
-    }
-    return guids;
-}
-
-[[nodiscard]] const wchar_t* framing_name(showcore::SoundSwitchMicroFraming framing) noexcept {
-    switch (framing) {
-    case showcore::SoundSwitchMicroFraming::NativeJls1:
-        return L"SoundSwitch native JLS1";
-    }
-    return L"Unknown";
-}
-
 [[nodiscard]] bool parse_dmx_address(std::wstring_view text, std::uint16_t& address) noexcept {
     if (text.empty()) {
         address = 1U;
@@ -462,338 +410,400 @@ void enumerate_interface_guid(const GUID& guid, std::wostringstream& report) {
     return true;
 }
 
-[[nodiscard]] bool affirmative(std::wstring_view text) noexcept {
-    return !text.empty() && (text.front() == L'y' || text.front() == L'Y');
+std::atomic_bool cancellation_requested{false};
+std::atomic_bool operator_session_active{false};
+std::atomic_bool operator_terminal_complete{true};
+
+BOOL WINAPI console_control_handler(DWORD control) noexcept {
+    switch (control) {
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+    case CTRL_CLOSE_EVENT:
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+        cancellation_requested.store(true, std::memory_order_relaxed);
+        if ((control == CTRL_CLOSE_EVENT || control == CTRL_LOGOFF_EVENT ||
+             control == CTRL_SHUTDOWN_EVENT) &&
+            operator_session_active.load(std::memory_order_acquire)) {
+            // Windows invokes this handler on a helper thread. Give the main
+            // coordinator a bounded window to perform terminal blackout,
+            // close, and audit append before the console is torn down.
+            for (unsigned attempt = 0U;
+                 attempt < 200U &&
+                 !operator_terminal_complete.load(std::memory_order_acquire);
+                 ++attempt) {
+                ::Sleep(20U);
+            }
+        }
+        return TRUE;
+    default:
+        return FALSE;
+    }
 }
 
-struct ActiveTestResult {
-    bool opened{false};
-    bool software_frame_match{false};
-    bool raw_writes_succeeded{false};
-    bool raw_visible_red{false};
-    bool repeat_open_succeeded{false};
-    bool runner_writes_succeeded{false};
-    bool runner_visible_match{false};
-    bool blackout_succeeded{false};
-    bool writes_succeeded{false};
-    bool visible_match{false};
-    bool disconnect_observed{false};
-    bool reconnect_detected{false};
-    bool reconnect_open_succeeded{false};
-    bool reconnect_writes_succeeded{false};
-    bool reconnect_visible_red{false};
-    bool reconnect_blackout_succeeded{false};
-    showcore::SoundSwitchMicroFraming framing{
-        showcore::SoundSwitchMicroFraming::NativeJls1};
-    DWORD error{ERROR_SUCCESS};
-    std::uint16_t address{1U};
-    emberlights::FrameComparison frame_comparison{};
-    emberlights::PacketComparison packet_comparison{};
-    std::array<std::uint8_t, 6U> raw_channels{};
-    std::array<std::uint8_t, 6U> runner_channels{};
-    showcore::SoundSwitchMicroSessionStatus session{};
-
-    [[nodiscard]] emberlights::MicroPhysicalQualificationEvidence evidence() const noexcept {
-        return {
-            software_frame_match,
-            opened,
-            raw_writes_succeeded,
-            raw_visible_red,
-            repeat_open_succeeded,
-            runner_writes_succeeded,
-            runner_visible_match,
-            blackout_succeeded,
-            disconnect_observed,
-            reconnect_detected,
-            reconnect_open_succeeded,
-            reconnect_writes_succeeded,
-            reconnect_visible_red,
-            reconnect_blackout_succeeded};
+class ConsoleControlRegistration {
+public:
+    ConsoleControlRegistration() noexcept
+        : installed_(::SetConsoleCtrlHandler(console_control_handler, TRUE) != FALSE) {}
+    ~ConsoleControlRegistration() noexcept {
+        if (installed_) {
+            static_cast<void>(::SetConsoleCtrlHandler(
+                console_control_handler, FALSE));
+        }
     }
+    ConsoleControlRegistration(const ConsoleControlRegistration&) = delete;
+    ConsoleControlRegistration& operator=(const ConsoleControlRegistration&) = delete;
+
+private:
+    bool installed_{false};
 };
 
-[[nodiscard]] bool wait_for_target_absence(std::chrono::seconds timeout) {
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-    do {
-        if (!find_target_device().has_value()) {
-            return true;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    } while (std::chrono::steady_clock::now() < deadline);
-    return false;
+[[nodiscard]] std::optional<std::string> utf8(std::wstring_view value) {
+    if (value.empty()) {
+        return std::string{};
+    }
+    const auto size = ::WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+        static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (size <= 0) {
+        return std::nullopt;
+    }
+    std::string result(static_cast<std::size_t>(size), '\0');
+    if (::WideCharToMultiByte(
+            CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+            static_cast<int>(value.size()), result.data(), size,
+            nullptr, nullptr) != size) {
+        return std::nullopt;
+    }
+    return result;
 }
 
-[[nodiscard]] std::optional<TargetDevice> wait_for_target_presence(
-    std::chrono::seconds timeout) {
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-    do {
-        if (auto device = find_target_device(); device.has_value()) {
-            return device;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    } while (std::chrono::steady_clock::now() < deadline);
-    return std::nullopt;
+[[nodiscard]] std::optional<std::wstring> wide(std::string_view value) {
+    if (value.empty()) {
+        return std::wstring{};
+    }
+    const auto size = ::MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
+        static_cast<int>(value.size()), nullptr, 0);
+    if (size <= 0) {
+        return std::nullopt;
+    }
+    std::wstring result(static_cast<std::size_t>(size), L'\0');
+    if (::MultiByteToWideChar(
+            CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
+            static_cast<int>(value.size()), result.data(), size) != size) {
+        return std::nullopt;
+    }
+    return result;
 }
 
-[[nodiscard]] bool stream_universe(
-    showcore::SoundSwitchMicroSession& session,
-    const showcore::DmxUniverse& universe,
-    unsigned frames) {
-    for (unsigned frame = 0U; frame < frames; ++frame) {
-        if (!session.send(universe)) {
-            return false;
+[[nodiscard]] std::string utc_now() {
+    SYSTEMTIME now{};
+    ::GetSystemTime(&now);
+    std::array<char, 21U> value{};
+    const auto length = std::snprintf(
+        value.data(), value.size(), "%04u-%02u-%02uT%02u:%02u:%02uZ",
+        static_cast<unsigned int>(now.wYear),
+        static_cast<unsigned int>(now.wMonth),
+        static_cast<unsigned int>(now.wDay),
+        static_cast<unsigned int>(now.wHour),
+        static_cast<unsigned int>(now.wMinute),
+        static_cast<unsigned int>(now.wSecond));
+    return length == 20 ? std::string(value.data(), 20U) : std::string{};
+}
+
+enum class ObservationCommandKind : std::uint8_t {
+    Invalid,
+    Pass,
+    Fail,
+    Spill,
+    Cancel
+};
+
+struct ObservationCommand {
+    ObservationCommandKind kind{ObservationCommandKind::Invalid};
+    std::string text;
+};
+
+[[nodiscard]] ObservationCommand parse_observation_command(
+    std::wstring_view line) {
+    const auto separator = line.find(L' ');
+    const auto command = upper(std::wstring(line.substr(0U, separator)));
+    if (separator == std::wstring_view::npos || separator + 1U >= line.size()) {
+        return {};
+    }
+    const auto converted = utf8(line.substr(separator + 1U));
+    if (!converted.has_value() || converted->empty() || converted->size() > 2048U) {
+        return {};
+    }
+    ObservationCommand result;
+    result.text = *converted;
+    if (command == L"PASS") {
+        result.kind = ObservationCommandKind::Pass;
+    } else if (command == L"FAIL") {
+        result.kind = ObservationCommandKind::Fail;
+    } else if (command == L"SPILL") {
+        result.kind = ObservationCommandKind::Spill;
+    } else if (command == L"CANCEL") {
+        result.kind = ObservationCommandKind::Cancel;
+    }
+    return result;
+}
+
+[[nodiscard]] bool read_console_character(std::wstring& line, bool& complete) {
+    complete = false;
+    if (_kbhit() == 0) {
+        return false;
+    }
+    const auto character = _getwch();
+    if (character == 0 || character == 0xE0) {
+        static_cast<void>(_getwch());
+        return true;
+    }
+    if (character == L'\r' || character == L'\n') {
+        std::wcout << L"\n";
+        complete = true;
+        return true;
+    }
+    if (character == 27) {
+        line = L"CANCEL operator pressed Escape";
+        std::wcout << L"\n";
+        complete = true;
+        return true;
+    }
+    if (character == L'\b') {
+        if (!line.empty()) {
+            line.pop_back();
+            std::wcout << L"\b \b";
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        return true;
+    }
+    if (character >= L' ' && line.size() < 2200U) {
+        line.push_back(static_cast<wchar_t>(character));
+        std::wcout << static_cast<wchar_t>(character);
     }
     return true;
 }
 
-[[nodiscard]] ActiveTestResult run_active_test(const std::wstring& path) {
-    ActiveTestResult result;
-    if (path.empty()) {
-        result.error = ERROR_DEVICE_NOT_CONNECTED;
-        return result;
+void print_operator_check(
+    std::wstring_view context,
+    const emberlights::RawHardwareTestOperatorCheck& result) {
+    const auto message = wide(result.message).value_or(L"Invalid UTF-8 diagnostic");
+    std::wcerr << context << L" ["
+               << wide(emberlights::raw_hardware_test_operator_error_name(
+                           result.error)).value_or(L"unknown")
+               << L"]";
+    if (result.line != 0U) {
+        std::wcerr << L" line " << result.line;
     }
+    std::wcerr << L": " << message << L"\n";
+}
 
-    const auto qualification = emberlights::build_ir4_6ch_red_qualification();
-    result.frame_comparison = qualification.frame_comparison;
-    result.packet_comparison = qualification.packet_comparison;
-    for (std::size_t index = 0U; index < result.raw_channels.size(); ++index) {
-        result.raw_channels[index] = qualification.raw_reference[index];
-        result.runner_channels[index] = qualification.runner_rendered[index];
-    }
-    result.software_frame_match = qualification.exact();
-    if (!result.software_frame_match) {
-        result.error = ERROR_INVALID_DATA;
-        return result;
-    }
-
-    showcore::SoundSwitchMicroSession session;
-    showcore::SoundSwitchMicroSessionConfig config;
-    config.framing = showcore::SoundSwitchMicroFraming::NativeJls1;
-    if (!session.open(config)) {
-        result.error = session.last_error();
-        result.session = session.status();
-        return result;
-    }
-    result.opened = true;
-    result.framing = config.framing;
-
+void print_plan(const emberlights::PreparedRawHardwareTestOperatorRun& prepared) {
+    const auto& binding = prepared.plan.binding;
     std::wcout
-        << L"\nSoftware frame inspector: PASS\n"
-        << L"Raw reference and compiled Runner frame are byte-identical.\n"
-        << L"IR-4 channels 1-6: 255, 0, 0, 0, 0, 0 (red only).\n\n"
-        << L"Stage 1: raw reference through " << framing_name(config.framing) << L".\n"
-        << L"The isolated IR-4 should show red for about three seconds.\n";
-    const auto raw_pre_blackout = session.send_blackout(8U);
-    const auto raw_stream = raw_pre_blackout &&
-        stream_universe(session, qualification.raw_reference, 120U);
-    const auto raw_post_blackout = session.send_blackout(8U);
-    result.raw_writes_succeeded =
-        raw_pre_blackout && raw_stream && raw_post_blackout;
-    result.blackout_succeeded = raw_pre_blackout && raw_post_blackout;
-    result.error = session.last_error();
-    result.session = session.status();
-    if (!result.raw_writes_succeeded) {
-        std::wcout << L"USB write failed (" << result.error << L": "
-                   << win32_message(result.error) << L").\n";
-    } else {
-        std::wcout << L"Did the isolated IR-4 visibly show red, then black out? [y/N]: ";
-        std::wstring answer;
-        std::getline(std::wcin, answer);
-        result.raw_visible_red = affirmative(answer);
-    }
-    session.close();
-    result.session = session.status();
-
-    if (result.raw_writes_succeeded && result.raw_visible_red) {
-        std::wcout
-            << L"\nStage 2: reopening the Micro and sending the compiled Runner frame.\n";
-        result.repeat_open_succeeded = session.open(config);
-        if (!result.repeat_open_succeeded) {
-            result.error = session.last_error();
-            result.session = session.status();
-            std::wcout << L"Micro reopen failed (" << result.error << L": "
-                       << win32_message(result.error) << L").\n";
-        } else {
-            const auto runner_pre_blackout = session.send_blackout(8U);
-            const auto runner_stream = runner_pre_blackout &&
-                stream_universe(session, qualification.runner_rendered, 120U);
-            const auto runner_post_blackout = session.send_blackout(8U);
-            result.runner_writes_succeeded =
-                runner_pre_blackout && runner_stream && runner_post_blackout;
-            result.blackout_succeeded = result.blackout_succeeded &&
-                runner_pre_blackout && runner_post_blackout;
-            result.error = session.last_error();
-            result.session = session.status();
-            if (!result.runner_writes_succeeded) {
-                std::wcout << L"Runner-frame write failed (" << result.error << L": "
-                           << win32_message(result.error) << L").\n";
-            } else {
-                std::wcout
-                    << L"Did Stage 2 show the same red, then black out? [y/N]: ";
-                std::wstring answer;
-                std::getline(std::wcin, answer);
-                result.runner_visible_match = affirmative(answer);
-            }
+        << L"\nEVIDENCE-BOUND RAW HARDWARE TEST v1\n"
+        << L"Candidate: " << prepared.manifest.project_path.wstring() << L"\n"
+        << L"Candidate file SHA-256: "
+        << wide(prepared.candidate_file_sha256).value_or(L"invalid") << L"\n"
+        << L"Candidate basis SHA-256: "
+        << wide(prepared.plan.candidate_project_sha256).value_or(L"invalid") << L"\n"
+        << L"Fixture/unit: " << wide(binding.fixture_id).value_or(L"invalid")
+        << L" / " << wide(binding.unit_label).value_or(L"invalid") << L"\n"
+        << L"Profile/mode: " << wide(binding.profile_id).value_or(L"invalid")
+        << L" / " << wide(binding.mode).value_or(L"invalid") << L"\n"
+        << L"Binding: universe " << static_cast<unsigned int>(binding.universe)
+        << L", address " << binding.address << L", footprint "
+        << prepared.plan.footprint << L", "
+        << wide(binding.output_backend).value_or(L"invalid") << L"\n"
+        << L"Audit v1: " << prepared.manifest.audit_path.wstring() << L"\n"
+        << L"Graduated candidate (success only): "
+        << prepared.manifest.graduated_project_path.wstring() << L"\n\n"
+        << L"The session will emit only blackout or one-hot frames inside this exact\n"
+        << L"fixture footprint. It does not compile or activate Runner, Looks, Autoloops,\n"
+        << L"or the rest of the project patch. Required observations:\n";
+    for (std::size_t index = 0U; index < prepared.plan.requirements.size(); ++index) {
+        const auto& requirement = prepared.plan.requirements[index];
+        std::wcout << L"  " << index + 1U << L". "
+                   << wide(requirement.id).value_or(L"invalid") << L": "
+                   << wide(requirement.expected_behavior).value_or(L"invalid");
+        if (requirement.kind ==
+            emberlights::FixtureQualificationRequirementKind::OneHot) {
+            std::wcout << L" [DMX " << requirement.absolute_channel << L" = "
+                       << static_cast<unsigned int>(requirement.value) << L"]";
         }
-        if (result.repeat_open_succeeded && result.runner_writes_succeeded &&
-            result.runner_visible_match && result.blackout_succeeded) {
+        std::wcout << L"\n";
+    }
+}
+
+void drive_operator_session(
+    emberlights::RawHardwareTestSession& session,
+    emberlights::SoundSwitchMicroRawHardwareTestTransport& transport) {
+    std::size_t announced_requirement = static_cast<std::size_t>(-1);
+    std::wstring input;
+    auto next_device_check =
+        emberlights::RawHardwareTestSession::TimePoint::clock::now();
+    while (session.snapshot().phase ==
+           emberlights::RawHardwareTestPhase::AwaitingObservation) {
+        const auto snapshot = session.snapshot();
+        if (snapshot.current_requirement != announced_requirement) {
+            announced_requirement = snapshot.current_requirement;
+            input.clear();
+            const auto* plan = session.plan();
+            if (plan == nullptr ||
+                announced_requirement >= plan->requirements.size()) {
+                static_cast<void>(session.cancel(
+                    "Operator coordinator lost its bounded plan.",
+                    emberlights::RawHardwareTestSession::TimePoint::clock::now()));
+                break;
+            }
+            const auto& requirement = plan->requirements[announced_requirement];
             std::wcout
-                << L"\nStage 3: unplug/replug recovery through the same production session lifecycle.\n"
-                << L"Unplug the SoundSwitch Micro from USB now, then press Enter.\n";
-            std::wstring ignored;
-            std::getline(std::wcin, ignored);
-            result.disconnect_observed = wait_for_target_absence(std::chrono::seconds(10));
-            if (!result.disconnect_observed) {
-                std::wcout
-                    << L"Windows still reports the Micro present. Recovery output was not attempted.\n";
-            }
-            session.close();
-
-            if (result.disconnect_observed) {
-                std::wcout
-                    << L"Disconnect observed. Reconnect the same Micro now.\n"
-                    << L"Waiting up to 60 seconds; no project reload is needed...\n";
-                const auto reconnected = wait_for_target_presence(std::chrono::seconds(60));
-                result.reconnect_detected = reconnected.has_value();
-                if (!result.reconnect_detected) {
-                    result.error = ERROR_DEVICE_NOT_CONNECTED;
-                    std::wcout << L"The Micro did not reappear within 60 seconds.\n";
-                } else {
-                    const auto reopen_deadline = std::chrono::steady_clock::now() +
-                        std::chrono::seconds(10);
-                    do {
-                        result.reconnect_open_succeeded = session.open(config);
-                        if (!result.reconnect_open_succeeded) {
-                            result.error = session.last_error();
-                            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                        }
-                    } while (!result.reconnect_open_succeeded &&
-                             std::chrono::steady_clock::now() < reopen_deadline);
-                    if (!result.reconnect_open_succeeded) {
-                        result.error = session.last_error();
-                        result.session = session.status();
-                        std::wcout << L"Micro recovery open failed (" << result.error << L": "
-                                   << win32_message(result.error) << L").\n";
-                    } else {
-                        std::wcout
-                            << L"Recovery open succeeded. The IR-4 should show red again for "
-                            << L"about three seconds, then black out.\n";
-                        const auto reconnect_pre_blackout = session.send_blackout(8U);
-                        const auto reconnect_stream = reconnect_pre_blackout &&
-                            stream_universe(session, qualification.runner_rendered, 120U);
-                        const auto reconnect_post_blackout = session.send_blackout(8U);
-                        result.reconnect_writes_succeeded = reconnect_pre_blackout &&
-                            reconnect_stream && reconnect_post_blackout;
-                        result.reconnect_blackout_succeeded = reconnect_pre_blackout &&
-                            reconnect_post_blackout;
-                        result.error = session.last_error();
-                        result.session = session.status();
-                        if (!result.reconnect_writes_succeeded) {
-                            std::wcout << L"Recovery-frame write failed (" << result.error << L": "
-                                       << win32_message(result.error) << L").\n";
-                        } else {
-                            std::wcout
-                                << L"After replug, did the IR-4 show red and then black out? [y/N]: ";
-                            std::wstring answer;
-                            std::getline(std::wcin, answer);
-                            result.reconnect_visible_red = affirmative(answer);
-                        }
-                    }
-                }
+                << L"\nObservation " << announced_requirement + 1U << L"/"
+                << plan->requirements.size() << L" after blackout-before and stimulus:\n"
+                << L"Expected: "
+                << wide(requirement.expected_behavior).value_or(L"invalid") << L"\n"
+                << L"Enter PASS <what you observed>, FAIL <what failed>,\n"
+                << L"SPILL <what else responded>, or CANCEL <reason>. Escape/Ctrl+C cancels.\n> ";
+        }
+        const auto now = emberlights::RawHardwareTestSession::TimePoint::clock::now();
+        if (cancellation_requested.load(std::memory_order_relaxed)) {
+            static_cast<void>(session.cancel(
+                "Operator or console requested cancellation.", now));
+            break;
+        }
+        if (now >= next_device_check) {
+            next_device_check = now + std::chrono::milliseconds(250);
+            if (!find_target_device().has_value()) {
+                // Make the production adapter report disconnected to the raw
+                // session; that state machine records device loss and owns the
+                // terminal blackout/close attempt.
+                transport.close();
             }
         }
-        session.close();
-        result.session = session.status();
+        const auto polled = session.poll(now);
+        if (!polled.ok()) {
+            break;
+        }
+        bool complete = false;
+        if (read_console_character(input, complete) && complete) {
+            const auto command = parse_observation_command(input);
+            input.clear();
+            if (command.kind == ObservationCommandKind::Cancel) {
+                static_cast<void>(session.cancel(command.text, now));
+            } else if (command.kind == ObservationCommandKind::Pass ||
+                       command.kind == ObservationCommandKind::Fail ||
+                       command.kind == ObservationCommandKind::Spill) {
+                const bool passed = command.kind == ObservationCommandKind::Pass;
+                const bool no_spill = command.kind != ObservationCommandKind::Spill;
+                static_cast<void>(session.submit_observation(
+                    {command.text, passed, no_spill}, now));
+            } else {
+                std::wcout << L"Invalid bounded observation command; try again.\n> ";
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
-    result.writes_succeeded = result.raw_writes_succeeded &&
-        result.repeat_open_succeeded && result.runner_writes_succeeded;
-    result.visible_match = result.raw_visible_red && result.runner_visible_match;
-    return result;
 }
 
-[[nodiscard]] std::filesystem::path report_path();
+[[nodiscard]] int run_evidence_bound_active_test(
+    const std::filesystem::path& manifest_path) {
+    emberlights::RawHardwareTestOperatorManifest manifest;
+    const auto loaded = emberlights::load_raw_hardware_test_operator_manifest(
+        manifest_path, manifest);
+    if (!loaded.ok()) {
+        print_operator_check(L"Manifest rejected", loaded);
+        return 4;
+    }
+    emberlights::PreparedRawHardwareTestOperatorRun prepared;
+    const auto prepared_result =
+        emberlights::prepare_raw_hardware_test_operator_run(manifest, prepared);
+    if (!prepared_result.ok()) {
+        print_operator_check(L"Qualification plan rejected", prepared_result);
+        return 4;
+    }
+    print_plan(prepared);
+    const auto acknowledgement =
+        emberlights::raw_hardware_test_operator_acknowledgement(prepared);
+    std::wcout
+        << L"\nType this exact line to acknowledge active output to only the binding above:\n"
+        << wide(acknowledgement).value_or(L"invalid") << L"\n> ";
+    std::wstring response;
+    std::getline(std::wcin, response);
+    const auto response_utf8 = utf8(response);
+    if (!response_utf8.has_value() ||
+        !emberlights::raw_hardware_test_operator_acknowledged(
+            prepared, *response_utf8)) {
+        std::wcout << L"Acknowledgement did not match; no output device was opened.\n";
+        return 0;
+    }
 
-[[nodiscard]] std::filesystem::path active_report_path() {
-    auto path = report_path();
-    path.replace_filename(L"SoundSwitch-Micro-active-test.txt");
-    return path;
-}
+    emberlights::PreparedRawHardwareTestOperatorRun refreshed;
+    const auto refreshed_result =
+        emberlights::prepare_raw_hardware_test_operator_run(manifest, refreshed);
+    if (!refreshed_result.ok() ||
+        emberlights::raw_hardware_test_operator_acknowledgement(refreshed) !=
+            acknowledgement) {
+        if (!refreshed_result.ok()) {
+            print_operator_check(
+                L"Pre-output revalidation rejected", refreshed_result);
+        } else {
+            std::wcerr
+                << L"The candidate binding changed after acknowledgement; no output device was opened.\n";
+        }
+        return 4;
+    }
+    prepared = std::move(refreshed);
 
-void save_active_report(const ActiveTestResult& result) {
-    const auto path = active_report_path();
-    std::wofstream output(path, std::ios::binary | std::ios::trunc);
-    if (!output) {
-        return;
+    cancellation_requested.store(false, std::memory_order_relaxed);
+    operator_terminal_complete.store(false, std::memory_order_release);
+    operator_session_active.store(true, std::memory_order_release);
+    [[maybe_unused]] ConsoleControlRegistration control_registration;
+    emberlights::SoundSwitchMicroRawHardwareTestTransport transport;
+    emberlights::RawHardwareTestSession session;
+    const auto started_at = utc_now();
+    const auto begun = session.begin(
+        prepared.plan,
+        {prepared.manifest.operator_id, started_at},
+        transport,
+        emberlights::RawHardwareTestSession::TimePoint::clock::now());
+    if (begun.ok()) {
+        drive_operator_session(session, transport);
     }
-    output << L"EmberLights SoundSwitch Micro active test\n"
-           << L"Version: " << EMBERLIGHTS_VERSION << L"\n"
-           << L"Source commit: " << EMBERLIGHTS_COMMIT << L"\n"
-           << L"Fixture: Both Lighting BO-IR4 LED Mini Spotlight\n"
-           << L"Fixture mode: 6 channel (R,G,B,W,A,UV)\n"
-           << L"DMX address: " << result.address << L"\n"
-           << L"Software raw/Runner frame match: "
-           << (result.software_frame_match ? L"yes" : L"no") << L"\n"
-           << L"Differing DMX slots: " << result.frame_comparison.differing_slots << L"\n"
-           << L"Differing native packet bytes: "
-           << result.packet_comparison.differing_bytes << L"\n"
-           << L"Raw CH1-CH6: ";
-    for (const auto value : result.raw_channels) {
-        output << static_cast<unsigned int>(value) << L" ";
+
+    emberlights::RawHardwareTestOperatorCompletion completion;
+    const auto finalized = emberlights::finalize_raw_hardware_test_operator_run(
+        prepared, session, utc_now(), completion);
+    operator_terminal_complete.store(true, std::memory_order_release);
+    operator_session_active.store(false, std::memory_order_release);
+    if (!finalized.ok()) {
+        print_operator_check(L"Terminal evidence handling failed", finalized);
+        if (completion.audit_appended) {
+            std::wcerr << L"The sealed attempt remains in the append-only audit, but no project was authorized.\n";
+        }
+        return 7;
     }
-    output << L"\nRunner CH1-CH6: ";
-    for (const auto value : result.runner_channels) {
-        output << static_cast<unsigned int>(value) << L" ";
+    const auto snapshot = session.snapshot();
+    std::wcout
+        << L"\nTerminal phase: "
+        << wide(emberlights::raw_hardware_test_phase_name(snapshot.phase)).value_or(L"unknown")
+        << L"; error: "
+        << wide(emberlights::raw_hardware_test_error_name(snapshot.error)).value_or(L"unknown")
+        << L"\nAttempt SHA-256: "
+        << wide(completion.attempt.content_sha256).value_or(L"invalid")
+        << L"\nAppend-only audit v1: "
+        << prepared.manifest.audit_path.wstring() << L"\n";
+    if (completion.graduated) {
+        std::wcout
+            << L"SUCCESS: every planned observation passed and the sealed current attempt\n"
+            << L"was transactionally embedded in: "
+            << prepared.manifest.graduated_project_path.wstring() << L"\n"
+            << L"Other fixtures or markers may still keep physical output blocked.\n";
+        return 0;
     }
-    output << L"\n"
-           << L"Device opened: " << (result.opened ? L"yes" : L"no") << L"\n"
-           << L"Raw writes completed: "
-           << (result.raw_writes_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Raw visible red/blackout: "
-           << (result.raw_visible_red ? L"yes" : L"no") << L"\n"
-           << L"Repeat open completed: "
-           << (result.repeat_open_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Runner writes completed: "
-           << (result.runner_writes_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Runner visible match/blackout: "
-           << (result.runner_visible_match ? L"yes" : L"no") << L"\n"
-           << L"All bounded blackouts completed: "
-           << (result.blackout_succeeded ? L"yes" : L"no") << L"\n"
-           << L"USB writes completed: "
-           << (result.writes_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Visible raw/Runner match: "
-           << (result.visible_match ? L"yes" : L"no") << L"\n"
-           << L"Disconnect observed: "
-           << (result.disconnect_observed ? L"yes" : L"no") << L"\n"
-           << L"Reconnect detected: "
-           << (result.reconnect_detected ? L"yes" : L"no") << L"\n"
-           << L"Reconnect open completed: "
-           << (result.reconnect_open_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Reconnect writes completed: "
-           << (result.reconnect_writes_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Reconnect visible red/blackout: "
-           << (result.reconnect_visible_red ? L"yes" : L"no") << L"\n"
-           << L"Reconnect bounded blackouts completed: "
-           << (result.reconnect_blackout_succeeded ? L"yes" : L"no") << L"\n"
-           << L"Overall physical qualification: "
-           << emberlights::micro_physical_qualification_result_name(
-                  emberlights::evaluate_micro_physical_qualification(result.evidence()))
-           << L"\n"
-           << L"Selected framing: " << framing_name(result.framing) << L"\n"
-           << L"Lifecycle at test end: "
-           << showcore::soundswitch_micro_lifecycle_name(result.session.state) << L"\n"
-           << L"Configuration: " << static_cast<unsigned int>(result.session.configuration_value)
-           << L"  alternate setting: "
-           << static_cast<unsigned int>(result.session.alternate_setting) << L"\n"
-           << L"Bulk OUT pipe: " << static_cast<unsigned int>(result.session.bulk_out_pipe)
-           << L"  max packet: " << result.session.maximum_packet_size << L"\n"
-           << L"Warm-up frames: " << result.session.warmup_frames_completed
-           << L"  complete: " << (result.session.warmup_complete ? L"yes" : L"no") << L"\n"
-           << L"Frames attempted/accepted/failed: " << result.session.frames_attempted
-           << L"/" << result.session.frames_accepted
-           << L"/" << result.session.frames_failed << L"\n"
-           << L"Last Windows error: " << result.error << L"\n";
+    std::wcerr
+        << L"The attempt was audited but did not graduate or authorize a project.\n";
+    return 6;
 }
 
 [[nodiscard]] std::filesystem::path report_path() {
@@ -881,6 +891,17 @@ void save_active_report(const ActiveTestResult& result) {
         packet.bytes[10] != 0xAAU) {
         return false;
     }
+    const auto pass = parse_observation_command(L"PASS red only, no spill");
+    const auto cancel = parse_observation_command(L"CANCEL operator stop");
+    if (pass.kind != ObservationCommandKind::Pass ||
+        pass.text != "red only, no spill" ||
+        cancel.kind != ObservationCommandKind::Cancel ||
+        parse_observation_command(L"PASS").kind !=
+            ObservationCommandKind::Invalid ||
+        parse_observation_command(L"YES red").kind !=
+            ObservationCommandKind::Invalid) {
+        return false;
+    }
     return true;
 }
 
@@ -890,9 +911,25 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 2 && std::wstring_view(argv[1]) == L"--self-test") {
         return self_test() ? 0 : 1;
     }
+    if (argc == 2 && (std::wstring_view(argv[1]) == L"--help" ||
+                      std::wstring_view(argv[1]) == L"-h")) {
+        std::wcout
+            << L"Usage:\n"
+            << L"  soundswitch_micro_probe                 passive descriptor report\n"
+            << L"  soundswitch_micro_probe --self-test     non-outputting software check\n"
+            << L"  soundswitch_micro_probe --active-test [operator-manifest-v1]\n\n"
+            << L"--active-test retains the installed shortcut entrypoint but now runs only\n"
+            << L"the evidence-bound one-fixture Raw Hardware Test. It never invokes Runner.\n";
+        return 0;
+    }
 
     const bool active_test =
-        argc == 2 && std::wstring_view(argv[1]) == L"--active-test";
+        (argc == 2 || argc == 3) &&
+        std::wstring_view(argv[1]) == L"--active-test";
+    if ((argc != 1 && !active_test) || argc > 3) {
+        std::wcerr << L"Unknown arguments. Use --help. No output was sent.\n";
+        return 1;
+    }
 
     std::wcout
         << L"EmberLights Hardware Test\n"
@@ -900,7 +937,8 @@ int wmain(int argc, wchar_t** argv) {
         << L"This tool only opens the SoundSwitch Micro device (VID 15E4, PID 0053).\n"
         << L"Descriptor collection is passive. EmberLights itself now owns the normal\n"
         << L"full-universe output path; this tool does not transmit unless launched\n"
-        << L"through the Hardware Test shortcut or with --active-test.\n\n"
+        << L"with --active-test, a valid one-fixture manifest, and an exact typed\n"
+        << L"acknowledgement. Default and --self-test never transmit.\n\n"
         << L"Plug the SoundSwitch Micro dongle into this PC now.\n"
         << L"Waiting up to 60 seconds...\n";
 
@@ -940,56 +978,28 @@ int wmain(int argc, wchar_t** argv) {
         return 0;
     }
 
-    std::wcout
-        << L"\nACTIVE TEST SETUP\n"
-        << L"1. Fully close SoundSwitch and EmberLights.\n"
-        << L"2. Connect Micro XLR -> Donner transmitter.\n"
-        << L"3. Connect one Both Lighting IR-4 only. Set 6-channel mode and address 001.\n"
-        << L"4. Confirm the IR-4 Master setting is Off.\n"
-        << L"5. Keep movers, fog, lasers, and all other effects disconnected.\n\n"
-        << L"Type TEST to authorize the fixed U1/address-001 red test: ";
-    std::wstring confirmation;
-    std::getline(std::wcin, confirmation);
-    if (upper(confirmation) != L"TEST") {
-        std::wcout << L"Active test cancelled; no USB output was sent.\n";
-        return 0;
-    }
-
-    const auto interface_path = find_target_interface_path(target_interface_guids(*device));
-    if (!interface_path.has_value()) {
-        std::wcerr << L"The target WinUSB interface path disappeared. Reconnect the Micro and retry.\n";
-        return 5;
-    }
-    const auto active = run_active_test(*interface_path);
-    save_active_report(active);
-    const auto qualification_result =
-        emberlights::evaluate_micro_physical_qualification(active.evidence());
-    if (qualification_result == emberlights::MicroPhysicalQualificationResult::Passed) {
-        std::wcout << L"\nSUCCESS: " << framing_name(active.framing)
-                   << L" produced matching raw and Runner red output, blackout, and "
-                   << L"unplug/replug recovery.\n"
-                   << L"The result is saved on your Desktop as:\n"
-                   << active_report_path().wstring() << L"\n"
-                   << L"Upload that small text file here so the Micro can be marked physically verified.\n";
-    } else if (!active.software_frame_match) {
-        std::wcerr
-            << L"\nThe raw and compiled Runner frames did not match. No USB output was sent.\n";
-    } else if (!active.opened) {
-        std::wcerr << L"\nThe Micro could not be opened (" << active.error << L": "
-                   << win32_message(active.error) << L"). Close SoundSwitch/EmberLights and retry.\n";
+    std::filesystem::path manifest_path;
+    if (argc == 3) {
+        manifest_path = argv[2];
     } else {
-        std::wcerr
-            << L"\nThe full native JLS1 raw/Runner qualification did not pass. "
-            << L"Exact failing gate: "
-            << emberlights::micro_physical_qualification_result_name(qualification_result)
-            << L". "
-            << L"The result report is on your Desktop;\n"
-            << L"upload it here with the receiver state and which stage failed.\n";
+        std::wcout
+            << L"\nACTIVE TEST SETUP\n"
+            << L"1. Fully close SoundSwitch and EmberLights.\n"
+            << L"2. Isolate exactly the physical fixture/unit named by a reviewed v1 manifest.\n"
+            << L"3. Disconnect hazardous and unrelated fixtures/effects.\n"
+            << L"4. Confirm mode, address, universe, backend, and every slot criterion.\n\n"
+            << L"Operator manifest v1 path (blank cancels without output): ";
+        std::wstring entered;
+        std::getline(std::wcin, entered);
+        if (entered.empty()) {
+            std::wcout << L"Active test cancelled; no output device was opened.\n";
+            return 0;
+        }
+        manifest_path = entered;
     }
+    const auto result = run_evidence_bound_active_test(manifest_path);
     std::wcout << L"Press Enter to close.";
     std::wstring ignored;
     std::getline(std::wcin, ignored);
-    return qualification_result == emberlights::MicroPhysicalQualificationResult::Passed
-        ? 0
-        : 6;
+    return result;
 }

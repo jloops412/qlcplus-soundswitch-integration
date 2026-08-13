@@ -1,5 +1,6 @@
 #pragma once
 
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
 
@@ -35,6 +36,7 @@ struct StudioDocumentSnapshot {
     bool can_redo{false};
     std::size_t undo_count{0U};
     std::size_t redo_count{0U};
+    PersistedAutoloopSourceResult autoloop_source;
 };
 
 struct StudioMutationOutcome {
@@ -42,6 +44,8 @@ struct StudioMutationOutcome {
     StudioDocumentGeneration generation{0U};
     ProjectValidation validation;
     std::string message;
+    AutoloopPersistenceError persistence_error{
+        AutoloopPersistenceError::None};
 
     [[nodiscard]] explicit operator bool() const noexcept {
         return result == StudioMutationResult::Applied ||
@@ -68,6 +72,15 @@ public:
         StudioDocumentGeneration expected_generation,
         ProjectDocument candidate);
 
+    // Commits the accepted rich source through this authoritative project
+    // document as one Undo transaction. The full persistence stamp is checked
+    // with the document generation so a reused numeric generation cannot
+    // overwrite a different source digest or version.
+    [[nodiscard]] StudioMutationOutcome apply_autoloop_source(
+        StudioDocumentGeneration expected_generation,
+        const PersistedAutoloopSourceStamp& expected_source,
+        AutoloopSourceDocument candidate);
+
     // New/Open/Restore are explicit document boundaries. They validate and
     // replace the document, clear in-session history, and establish the
     // correct durable baseline without treating navigation as an edit.
@@ -88,10 +101,16 @@ public:
         StudioDocumentGeneration expected_generation);
 
 private:
+    [[nodiscard]] StudioMutationOutcome apply_candidate_impl(
+        StudioDocumentGeneration expected_generation,
+        ProjectDocument candidate,
+        bool allow_autoloop_source_change);
     [[nodiscard]] StudioMutationOutcome make_outcome(
         StudioMutationResult result,
         ProjectValidation validation,
-        std::string message) const;
+        std::string message,
+        AutoloopPersistenceError persistence_error =
+            AutoloopPersistenceError::None) const;
     [[nodiscard]] bool can_advance_generation() const noexcept;
     void advance_generation() noexcept;
     void refresh_serialized_state();
@@ -110,4 +129,3 @@ private:
     StudioMutationResult result) noexcept;
 
 }  // namespace emberlights
-

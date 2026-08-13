@@ -52,6 +52,13 @@ public:
         std::uint16_t fixture_id,
         Property property,
         const SafetyPolicy& policy) const noexcept;
+    // Read-only access is used by bounded pre-composition adapters. Callers
+    // cannot mutate a layer behind the stack's ownership rules.
+    [[nodiscard]] const LayerBuffer* layer(LayerId layer) const noexcept {
+        return layer == LayerId::Count
+            ? nullptr
+            : &layers_[static_cast<std::size_t>(layer)];
+    }
 
 private:
     std::array<LayerBuffer, kLayerCount> layers_{};

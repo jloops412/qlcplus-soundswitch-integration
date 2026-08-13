@@ -1,11 +1,28 @@
-# QLC+ Fixture Import
+# Fixture Catalog and QLC+ Import
 
-EmberLights can import a QLC+ Fixture Definition (`.qxf`) into the current project. This is a Studio convenience for using the broad QLC+/Open Fixture Library ecosystem without making QLC+, Qt, or upstream fixture formats part of Runner.
+EmberLights can search the official Open Fixture Library (OFL), download its QLC+ export for one exact fixture, or import a local QLC+ Fixture Definition (`.qxf`) into the current project. These are Studio conveniences for using the broad QLC+/OFL ecosystem without making QLC+, Qt, upstream fixture formats, or a network API part of Runner.
 
-## Recommended workflow
+## Official catalog workflow
+
+1. Open **Profiles** and enter the manufacturer/model printed on the fixture or official manual under **Search Official Open Fixture Library**.
+2. Choose **Search**. EmberLights calls the official OFL search API on a bounded authoring worker; Live and the DMX scheduler do not wait on the network.
+3. Select only the exact fixture identity. A similar name is not a substitute. OFL currently returns no exact Both Lighting BO-IR4/IR-4 entry, and the Chauvet DJ WashFX result is not Wash FX Hex.
+4. Choose **Download + Import Selected**. EmberLights downloads the official QLC+ 4.12.2 export over HTTPS and passes it through the same bounded quarantine-aware QXF adapter used for local files.
+5. Review every imported mode and warning against the manufacturer DMX chart, then patch and test the exact physical mode.
+
+Each accepted mode embeds an immutable native snapshot and a source-evidence record containing the OFL key, fixture page, exact download URL, MIT attribution, exact QXF SHA-256, and EmberLights adapter version. The live OFL endpoint does not expose its deployment commit, so the UI reports that limitation and never auto-updates the project snapshot. Catalog availability or conversion success does not qualify a fixture.
+
+Official contracts used by this adapter:
+
+- <https://github.com/OpenLightingProject/open-fixture-library/blob/master/ui/api/openapi.json>
+- <https://github.com/OpenLightingProject/open-fixture-library/blob/master/ui/api/routes/get-search-results.json>
+- <https://open-fixture-library.org/about/plugins/qlcplus_4.12.2>
+- <https://github.com/OpenLightingProject/open-fixture-library/blob/master/LICENSE>
+
+## Local QXF workflow
 
 1. Obtain a `.qxf` from a trusted QLC+ fixture collection or export a fixture through Open Fixture Library's QLC+ plugin.
-2. Open **Profiles** and choose **Import QLC+ Fixture (.qxf)...**.
+2. Open **Profiles** and choose **Import Fixture File (.qxf)...**.
 3. Read the conversion summary. Each safely representable QLC+ mode becomes a separate EmberLights profile; an unsupported mode can be quarantined without blocking the others.
 4. Select the imported mode and compare every offset, default, and function with the fixture manufacturer's official DMX chart.
 5. Duplicate the imported profile if corrections are needed. Imported snapshots stay read-only so provenance remains meaningful; the duplicate is an editable local profile.
@@ -32,6 +49,6 @@ EmberLights can import a QLC+ Fixture Definition (`.qxf`) into the current proje
 
 ## Runtime boundary
 
-The QXF parser runs only during Studio import. The project stores the resulting stable native fixture profile, and the normal compiler validates it before show activation. Runner does not parse XML, load QLC+, access the network, or scan a fixture library during a performance.
+OFL HTTPS/search and the QXF parser run only during Studio authoring. The project stores the resulting stable native fixture profile, and the normal compiler validates it before show activation. Runner does not parse XML, load QLC+, access the network, or scan a fixture library during a performance.
 
 Import success means the document was converted consistently; it is not proof that an upstream fixture definition or approximation matches the physical fixture. The manufacturer's DMX chart and an isolated hardware test remain authoritative.

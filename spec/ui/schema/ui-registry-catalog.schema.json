@@ -15,25 +15,57 @@
     "commands",
     "states",
     "results",
-    "interactions"
+    "interactions",
+    "components",
+    "capabilities",
+    "values"
   ],
   "properties": {
     "schemaVersion": {"const": 1},
     "registrySetVersion": {"type": "string"},
     "registryGeneration": {"type": "integer", "minimum": 1},
-    "generator": {"const": "emberlights-ui-registry-generator/1.0.0"},
+    "generator": {"const": "emberlights-ui-registry-generator/1.1.0"},
     "sourceDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "status": {"enum": ["implementationDraft", "accepted", "deprecated"]},
     "ownerReservations": {"type": "array"},
     "commands": {"type": "array", "minItems": 1, "maxItems": 4096, "items": {"$ref": "#/$defs/command"}},
     "states": {"type": "array", "minItems": 1, "maxItems": 8192, "items": {"$ref": "#/$defs/state"}},
-    "results": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"type": "object"}},
+    "results": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/result"}},
     "interactions": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"type": "object"}},
-    "components": {"type": "array", "maxItems": 2048, "items": {"type": "object"}},
-    "capabilities": {"type": "array", "maxItems": 2048, "items": {"type": "object"}},
-    "values": {"type": "array", "maxItems": 2048, "items": {"type": "object"}}
+    "components": {"type": "array", "minItems": 1, "maxItems": 2048, "items": {"$ref": "#/$defs/component"}},
+    "capabilities": {"type": "array", "minItems": 1, "maxItems": 2048, "items": {"$ref": "#/$defs/capability"}},
+    "values": {"type": "array", "minItems": 1, "maxItems": 2048, "items": {"$ref": "#/$defs/reusableValue"}}
   },
   "$defs": {
+    "canonicalId": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_\\[\\]-]+)+$"
+    },
+    "lifecycleStatus": {
+      "enum": ["implemented", "bridged", "planned", "deprecated"]
+    },
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "valueContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["boolean", "enum", "id", "integer", "number", "string"]},
+        "required": {"type": "boolean"},
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "maxLength": {"type": "integer", "minimum": 1},
+        "format": {"type": "string", "minLength": 1},
+        "enumValues": {"$ref": "#/$defs/stringSet"},
+        "schemaRef": {"$ref": "#/$defs/canonicalId"},
+        "targetKind": {"type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$"},
+        "unit": {"type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$"}
+      }
+    },
     "command": {
       "type": "object",
       "required": [
@@ -53,7 +85,7 @@
         "interaction": {"type": "string"},
         "realtimeClass": {"type": "string"},
         "parameters": {"type": "object"},
-        "availability": {"type": ["boolean", "string"]},
+        "availability": {"oneOf": [{"type": "boolean"}, {"type": "string"}]},
         "safetyClass": {"type": "string"},
         "feedback": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "persistenceScope": {"type": "string"},
@@ -87,6 +119,153 @@
         "persisted": {"type": "boolean"},
         "deprecated": {"type": "boolean"}
       }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "status", "introducedGeneration", "label", "description", "terminal"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$"},
+        "status": {"enum": ["implemented", "reserved", "deprecated"]},
+        "introducedGeneration": {"type": "integer", "minimum": 1},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "terminal": {"type": "boolean"},
+        "nativeName": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$"},
+        "nativeOrdinal": {"type": "integer", "minimum": 0, "maximum": 255},
+        "payloadSchema": {"type": "object"},
+        "ownerIssues": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        },
+        "notes": {"type": "string"},
+        "deprecated": {"type": "boolean"},
+        "replacement": {"type": "string"},
+        "replacementCompatibility": {"enum": ["exact", "lossless", "manual"]}
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "status", "introducedGeneration", "contractVersion", "classification",
+        "callable", "label", "description", "supportedWorkspaces", "supportedVariants",
+        "inputModes", "properties", "events", "slots", "requiredCommands",
+        "requiredStates", "requiredCapabilities", "optionalCapabilities",
+        "accessibilityRole", "performanceClass", "failureBehavior", "deprecated"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/canonicalId"},
+        "status": {"$ref": "#/$defs/lifecycleStatus"},
+        "introducedGeneration": {"type": "integer", "minimum": 1},
+        "contractVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "classification": {"enum": ["primitive", "nativeComplex"]},
+        "callable": {"const": false},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "supportedWorkspaces": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["live", "safe", "studio"]}
+        },
+        "supportedVariants": {"allOf": [{"$ref": "#/$defs/stringSet"}, {"type": "array", "minItems": 1}]},
+        "inputModes": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["keyboard", "pointer", "touch"]}
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/valueContract"}
+        },
+        "events": {"$ref": "#/$defs/stringSet"},
+        "slots": {"$ref": "#/$defs/stringSet"},
+        "requiredCommands": {"$ref": "#/$defs/stringSet"},
+        "requiredStates": {"$ref": "#/$defs/stringSet"},
+        "requiredCapabilities": {"$ref": "#/$defs/stringSet"},
+        "optionalCapabilities": {"$ref": "#/$defs/stringSet"},
+        "accessibilityRole": {"type": "string", "minLength": 1},
+        "performanceClass": {"enum": ["bounded", "healthBounded", "snapshotBounded", "virtualized"]},
+        "failureBehavior": {"enum": ["placeholder", "safeFallback"]},
+        "deprecated": {"type": "boolean"},
+        "replacement": {"$ref": "#/$defs/canonicalId"},
+        "replacementCompatibility": {"enum": ["exact", "lossless", "manual"]}
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "status", "introducedGeneration", "callable", "label", "description",
+        "category", "origin", "dependencies", "conflicts", "absenceBehavior",
+        "relevantCommands", "relevantStates", "relevantComponents", "version",
+        "qualificationStatus", "experimental", "deprecated"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/canonicalId"},
+        "status": {"$ref": "#/$defs/lifecycleStatus"},
+        "introducedGeneration": {"type": "integer", "minimum": 1},
+        "callable": {"const": false},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "minLength": 1},
+        "origin": {"enum": ["adapter", "application", "engine", "platform", "project"]},
+        "dependencies": {"$ref": "#/$defs/stringSet"},
+        "conflicts": {"$ref": "#/$defs/stringSet"},
+        "absenceBehavior": {"enum": ["degrade", "disable", "hide", "reject"]},
+        "relevantCommands": {"$ref": "#/$defs/stringSet"},
+        "relevantStates": {"$ref": "#/$defs/stringSet"},
+        "relevantComponents": {"$ref": "#/$defs/stringSet"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "qualificationStatus": {"enum": ["experimental", "softwareVerified", "unverified"]},
+        "experimental": {"type": "boolean"},
+        "deprecated": {"type": "boolean"},
+        "replacement": {"$ref": "#/$defs/canonicalId"},
+        "replacementCompatibility": {"enum": ["exact", "lossless", "manual"]}
+      }
+    },
+    "reusableValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "status", "introducedGeneration", "callable", "label", "description",
+        "kind", "valueType", "deprecated"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/canonicalId"},
+        "status": {"$ref": "#/$defs/lifecycleStatus"},
+        "introducedGeneration": {"type": "integer", "minimum": 1},
+        "callable": {"const": false},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["enum", "target", "unit"]},
+        "valueType": {"enum": ["enum", "id", "number"]},
+        "token": {"type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$"},
+        "enumValues": {"allOf": [{"$ref": "#/$defs/stringSet"}, {"type": "array", "minItems": 1}]},
+        "unknownValueBehavior": {"enum": ["preserve", "reject"]},
+        "missingBehavior": {"enum": ["conflicted", "unavailable"]},
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "deprecated": {"type": "boolean"},
+        "replacement": {"$ref": "#/$defs/canonicalId"},
+        "replacementCompatibility": {"enum": ["exact", "lossless", "manual"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "enum"}}},
+          "then": {"required": ["enumValues", "unknownValueBehavior"]}
+        },
+        {
+          "if": {"properties": {"kind": {"enum": ["target", "unit"]}}},
+          "then": {"required": ["token"]}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "target"}}},
+          "then": {"required": ["missingBehavior"]}
+        }
+      ]
     }
   }
 }

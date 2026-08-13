@@ -29,7 +29,31 @@ The installed command-line tool supports the same workflow:
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" compare "D:\Export-before" "D:\Export-after" --report "$env:USERPROFILE\Desktop\soundswitch-comparison.json"
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" bundle "D:\ExportedProject.ssproj" "$env:USERPROFILE\Desktop\MyShow-EmberLights-migration"
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" convert-v1 "D:\2026.ssproj" "$env:USERPROFILE\Desktop\EmberLights-2026-V1.emberlights"
+& "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" verify-source-binding "$env:USERPROFILE\Desktop\EmberLights-2026-V1.emberlights" "D:\2026.ssproj" --report "$env:USERPROFILE\Desktop\EmberLights-migration-review.json"
 ```
+
+`verify-source-binding` now produces an operator-facing review summary as well
+as the byte-identity audit. It reports project validation and output-disable
+state, then separates Fixture Profiles, Patch, Static Looks, Autoloops,
+Scripted Tracks, scripted audio, and MIDI mappings into one of these explicit
+states:
+
+- `approximated` — the narrow pilot converter created useful replacement data,
+  but the source semantics were not decoded;
+- `sourceEvidenceOnly` — source artifacts were inventoried by hash but have no
+  qualified project representation;
+- `projectDataUnqualified` — project objects exist without per-object evidence
+  that they came from SoundSwitch;
+- `missingDependency` — the evidence needed to recover that area is absent;
+- `notImported` — neither a supported source artifact nor a project object was
+  found.
+
+The review can say `readyForManualReview` only when the project validates, all
+DMX output paths are disabled, and the Venue/Autoloop hashes match the source
+claim. This means it is safe to inspect the candidate; it does **not** mean the
+content was imported exactly or that output is ready to enable. Stable action
+codes let the Studio UI present the same repair checklist without inventing a
+second migration policy.
 
 ## Qualified 2026 color-rig V1 conversion
 

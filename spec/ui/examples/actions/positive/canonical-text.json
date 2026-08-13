@@ -1,0 +1,60 @@
+{
+  "source": {
+    "language": "emberActionScript",
+    "text": "synthetic expert source retained for authoring only\r\n"
+  },
+  "feedback": {
+    "available": {"path": "com.test.state.ready", "source": "state"}
+  },
+  "nodes": {
+    "node.return": {
+      "result": {"path": "result", "source": "nodeOutput"},
+      "kind": "Return"
+    },
+    "node.invoke": {
+      "resultAs": "result",
+      "arguments": {
+        "value": {"path": "level", "source": "parameter"}
+      },
+      "commandId": "com.test.command.set",
+      "kind": "InvokeCommand"
+    },
+    "node.read": {
+      "as": "ready",
+      "stateId": "com.test.state.ready",
+      "kind": "ReadState"
+    },
+    "node.sequence": {
+      "children": ["node.read", "node.invoke", "node.return"],
+      "kind": "Sequence"
+    }
+  },
+  "entryPoints": {"onPress": "node.sequence"},
+  "requires": {
+    "capabilities": ["com.test.capability.basic"],
+    "states": ["com.test.state.ready"],
+    "commands": ["com.test.command.set"]
+  },
+  "parameters": {
+    "level": {
+      "default": 5e-1,
+      "required": true,
+      "valueType": {
+        "unit": "normalized",
+        "maximum": 1.0,
+        "minimum": -0,
+        "type": "number"
+      }
+    }
+  },
+  "compatibility": {
+    "capabilityRegistry": ">=1 <2",
+    "stateRegistry": ">=1 <2",
+    "commandRegistry": ">=1 <2",
+    "minimumAppVersion": "0.1.0"
+  },
+  "label": "Caf\u00e9 control",
+  "version": "1.0.0",
+  "id": "com.test.action.canonical",
+  "schemaVersion": 1
+}

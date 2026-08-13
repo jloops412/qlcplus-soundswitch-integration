@@ -1,4 +1,5 @@
 #include "emberlights/project_io.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "showcore/number_chars.hpp"
 
 #include <algorithm>
@@ -270,13 +271,15 @@ template <typename Value>
 [[nodiscard]] bool is_known_primary(std::string_view type) noexcept {
     return type == "PROJECT" || type == "CONNECTIONS" || type == "SAFETY" ||
         type == "PROFILE" || type == "FIXTURE" || type == "GROUP" ||
-        type == "LOOK" || type == "AUTOLOOP" || type == "AUDIO" ||
-        type == "TRACK" || type == "MIDI";
+        type == "COLOR_PALETTE_V1" || type == "LOOK" ||
+        type == "AUTOLOOP" || type == "AUDIO" || type == "TRACK" ||
+        type == "MIDI";
 }
 
 [[nodiscard]] bool is_known_secondary(std::string_view type) noexcept {
     return type == "CHANNEL" || type == "ROLE" || type == "GROUP_MEMBER" ||
-        type == "LOOK_VALUE" || type == "STEP" || type == "TRACK_CUE";
+        type == "COLOR_SWATCH_V1" || type == "LOOK_VALUE" ||
+        type == "STEP" || type == "TRACK_CUE";
 }
 
 template <typename Collection>
@@ -400,6 +403,15 @@ template <typename Collection>
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid GROUP record.");
             }
             project.groups.push_back({f[1], f[2], {}});
+        } else if (f[0] == "COLOR_PALETTE_V1") {
+            if (f.size() != 3U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid COLOR_PALETTE_V1 record.");
+            }
+            project.color_palettes.push_back({
+                kStudioColorPaletteAssetVersion, f[1], f[2], {}});
         } else if (f[0] == "LOOK") {
             if (f.size() != 4U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid LOOK record.");
@@ -534,6 +546,38 @@ template <typename Collection>
                 return error(ProjectIoError::MissingReference, record.line, "GROUP_MEMBER references a missing group.");
             }
             group->fixture_ids.push_back(f[2]);
+        } else if (f[0] == "COLOR_SWATCH_V1") {
+            if (f.size() != 13U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid COLOR_SWATCH_V1 record.");
+            }
+            const auto palette = find_id(project.color_palettes, f[1]);
+            if (palette == project.color_palettes.end()) {
+                return error(
+                    ProjectIoError::MissingReference,
+                    record.line,
+                    "COLOR_SWATCH_V1 references a missing palette.");
+            }
+            StudioColorSwatch swatch;
+            swatch.id = f[2];
+            swatch.name = f[3];
+            if (!parse_number(f[4], swatch.color.rgb.red) ||
+                !parse_number(f[5], swatch.color.rgb.green) ||
+                !parse_number(f[6], swatch.color.rgb.blue) ||
+                !parse_number(f[7], swatch.color.white) ||
+                !parse_number(f[8], swatch.color.amber) ||
+                !parse_number(f[9], swatch.color.uv) ||
+                !parse_number(f[10], swatch.color.lime) ||
+                !parse_number(f[11], swatch.color.indigo) ||
+                !parse_number(f[12], swatch.color.intensity)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid COLOR_SWATCH_V1 color value.");
+            }
+            palette->swatches.push_back(std::move(swatch));
         } else if (f[0] == "LOOK_VALUE") {
             if (f.size() != 6U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid LOOK_VALUE record.");
@@ -590,6 +634,13 @@ template <typename Collection>
     }
     if (project.id.empty()) {
         return error(ProjectIoError::InvalidRecord, 0, "Project metadata record is missing.");
+    }
+    const auto persisted_source = inspect_persisted_autoloop_source(project);
+    if (!persisted_source) {
+        return error(
+            ProjectIoError::InvalidRecord,
+            0,
+            "Invalid persisted Autoloop source: " + persisted_source.message);
     }
     return {};
 }
@@ -766,6 +817,22 @@ std::string serialize_project(const ProjectDocument& project) {
         append_record(payload, {"GROUP", group.id, group.name});
         for (const auto& fixture_id : group.fixture_ids) {
             append_record(payload, {"GROUP_MEMBER", group.id, fixture_id});
+        }
+    }
+    for (const auto& palette : project.color_palettes) {
+        append_record(payload, {"COLOR_PALETTE_V1", palette.id, palette.name});
+        for (const auto& swatch : palette.swatches) {
+            append_record(payload, {
+                "COLOR_SWATCH_V1", palette.id, swatch.id, swatch.name,
+                number_text(swatch.color.rgb.red),
+                number_text(swatch.color.rgb.green),
+                number_text(swatch.color.rgb.blue),
+                number_text(swatch.color.white),
+                number_text(swatch.color.amber),
+                number_text(swatch.color.uv),
+                number_text(swatch.color.lime),
+                number_text(swatch.color.indigo),
+                number_text(swatch.color.intensity)});
         }
     }
     for (const auto& look : project.looks) {
@@ -1023,6 +1090,13 @@ ProjectIoResult save_project_atomic(
     bool capture_history) {
     if (path.empty()) {
         return error(ProjectIoError::WriteFailed, 0, "Project path is empty.");
+    }
+    const auto persisted_source = inspect_persisted_autoloop_source(project);
+    if (!persisted_source) {
+        return error(
+            ProjectIoError::InvalidRecord,
+            0,
+            "Invalid persisted Autoloop source: " + persisted_source.message);
     }
     std::error_code filesystem_error;
     const auto parent = path.parent_path();

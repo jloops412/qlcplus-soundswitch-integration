@@ -250,6 +250,7 @@ void test_live_commands(emberlights::ProjectDocument project) {
         emberlights::UiCommandId::StaticLookActivate, "look.blue");
     CHECK(facade.invoke(invocation) == emberlights::UiInvocationResult::Accepted);
     CHECK(wait_until([&]() { return runner.status().active_look == 0; }));
+    CHECK(runner.status().static_look.owner_feedback_token != 0U);
 
     invocation.command = emberlights::UiCommandId::StaticLookToggle;
     CHECK(facade.invoke(invocation) == emberlights::UiInvocationResult::Accepted);
@@ -257,6 +258,81 @@ void test_live_commands(emberlights::ProjectDocument project) {
     invocation.command = emberlights::UiCommandId::StaticLookActivate;
     CHECK(facade.invoke(invocation) == emberlights::UiInvocationResult::Accepted);
     CHECK(wait_until([&]() { return runner.status().active_look == 0; }));
+
+    auto hold_a = target_command(
+        emberlights::UiCommandId::StaticLookHold, "look.blue");
+    hold_a.bool_value = true;
+    CHECK(facade.invoke(hold_a) ==
+          emberlights::UiInvocationResult::InvalidArguments);
+    hold_a.static_look_owner = {
+        emberlights::StaticLookOwnerKind::Ui, 0x101U, 0U, 0U};
+    CHECK(facade.invoke(hold_a) == emberlights::UiInvocationResult::Accepted);
+    CHECK(wait_until([&]() {
+        const auto current = runner.status().static_look;
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0x101U;
+    }));
+    const auto held_a = runner.status().static_look;
+    CHECK(facade.invoke(hold_a) == emberlights::UiInvocationResult::NoChange);
+    CHECK(runner.status().static_look.activation_generation ==
+          held_a.activation_generation);
+
+    auto hold_b = hold_a;
+    hold_b.static_look_owner.feedback_token = 0x202U;
+    CHECK(facade.invoke(hold_b) == emberlights::UiInvocationResult::Accepted);
+    CHECK(wait_until([&]() {
+        return runner.status().static_look.owner_feedback_token == 0x202U;
+    }));
+    const auto held_b = runner.status().static_look;
+    CHECK(held_b.activation_generation > held_a.activation_generation);
+
+    hold_a.bool_value = false;
+    hold_a.static_look_owner.expected_package_generation =
+        held_a.package_generation;
+    hold_a.static_look_owner.expected_activation_generation =
+        held_a.activation_generation;
+    CHECK(facade.invoke(hold_a) == emberlights::UiInvocationResult::NoChange);
+    CHECK(runner.status().static_look.activation_generation ==
+          held_b.activation_generation);
+
+    hold_b.bool_value = false;
+    hold_b.static_look_owner.expected_package_generation =
+        held_b.package_generation;
+    hold_b.static_look_owner.expected_activation_generation =
+        held_b.activation_generation;
+    CHECK(facade.invoke(hold_b) == emberlights::UiInvocationResult::Accepted);
+    CHECK(wait_until([&]() { return runner.status().active_look < 0; }));
+
+    hold_a.bool_value = true;
+    hold_a.static_look_owner.expected_package_generation = 0U;
+    hold_a.static_look_owner.expected_activation_generation = 0U;
+    CHECK(facade.invoke(hold_a) == emberlights::UiInvocationResult::Accepted);
+    CHECK(wait_until([&]() {
+        return runner.status().static_look.owner_feedback_token == 0x101U;
+    }));
+    const auto held_before_toggle = runner.status().static_look;
+    auto toggle_b = target_command(
+        emberlights::UiCommandId::StaticLookToggle, "look.blue");
+    toggle_b.static_look_owner = {
+        emberlights::StaticLookOwnerKind::Ui, 0x202U, 0U, 0U};
+    CHECK(facade.invoke(toggle_b) == emberlights::UiInvocationResult::Accepted);
+    CHECK(wait_until([&]() {
+        const auto current = runner.status().static_look;
+        return current.behavior == emberlights::StaticLookBehavior::Latch &&
+            current.owner_feedback_token == 0x202U;
+    }));
+    const auto toggled = runner.status().static_look;
+    CHECK(toggled.activation_generation >
+          held_before_toggle.activation_generation);
+    hold_a.bool_value = false;
+    hold_a.static_look_owner.expected_package_generation =
+        held_before_toggle.package_generation;
+    hold_a.static_look_owner.expected_activation_generation =
+        held_before_toggle.activation_generation;
+    CHECK(facade.invoke(hold_a) == emberlights::UiInvocationResult::NoChange);
+    CHECK(runner.status().static_look.activation_generation ==
+          toggled.activation_generation);
 
     invocation = target_command(
         emberlights::UiCommandId::StaticLookActivate, "look.missing");

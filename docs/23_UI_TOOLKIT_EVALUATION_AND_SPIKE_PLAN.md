@@ -317,6 +317,14 @@ No candidate wins solely on total score if it fails a pass/fail gate.
 
 **Custom Direct2D/DirectWrite remains the Safe fallback baseline** and the escape hatch if every framework violates Live requirements.
 
+### 2026-08-13 resource refresh
+
+- Slint 1.17.1 is the current upstream release reviewed for the next spike. Official C++ documentation provides Windows/Linux x86-64 binary packages that require no Rust development environment; source builds currently require Rust 1.92 or newer. The first Windows measurement should use the supported MSVC package, then separately qualify the repository's cross-build route.
+- Slint's `native` style resolves to Fluent on Windows and explicit `fluent-dark` is available. EmberLights semantic tokens remain authoritative; a toolkit style may supply ordinary-control behavior but may not replace status/safety/content meanings.
+- Microsoft Segoe Fluent Icons is the immediate Windows-supplied glyph bridge, with the Windows 10 MDL2 fallback. The MIT [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) repository is the candidate vector source once assets are packaged for the accepted renderer.
+- QLC+ now identifies its source as Apache 2.0. That supports audited selective adaptation with notices, but it does not make a full Qt UI fork automatically small, portable, or license-governance-free. Preview 88 copied no QLC+ source or visual asset.
+- `36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` implements the reusable token/navigation/layout bridge and a visible Win32 strangler improvement. It is input to the equivalent toolkit spike, not evidence that raw Win32 won.
+
 ## Decision output
 
 Issue #37 must commit:

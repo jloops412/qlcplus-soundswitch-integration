@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -56,6 +57,19 @@ EXPECTED_STATE_IDS = [
     "output.controlOne.status", "output.controlOne.experimental",
 ]
 
+EXPECTED_COMPONENT_IDS = [
+    "ember.activeLayers", "ember.autoloopMatrix", "ember.connectionPanel",
+    "ember.diagnostics", "ember.staticLookMatrix",
+]
+
+EXPECTED_CAPABILITY_IDS = ["content.staticLooks"]
+
+EXPECTED_VALUE_IDS = [
+    "target.autoloop", "target.fixture", "target.fixtureGroup", "target.project",
+    "target.staticLook", "target.trackScript", "unit.beats", "unit.bpm",
+    "unit.normalized", "value.adapterState", "value.fixtureProperty",
+]
+
 
 def load_fixture(name: str):
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
@@ -65,6 +79,8 @@ class UiRegistryTests(unittest.TestCase):
     def test_current_native_ordinals_and_ids_are_exact(self):
         manifest, collections, digest = registry.load_registry()
         self.assertEqual(manifest["nativeMode"], "integrated")
+        self.assertEqual(manifest["registrySetVersion"], "1.1.0")
+        self.assertEqual(manifest["registryGeneration"], 2)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         commands = sorted(collections["commands"], key=lambda item: item["nativeOrdinal"])
         states = sorted(collections["states"], key=lambda item: item["nativeOrdinal"])
@@ -72,6 +88,11 @@ class UiRegistryTests(unittest.TestCase):
         self.assertEqual([item["nativeOrdinal"] for item in commands], list(range(29)))
         self.assertEqual([item["id"] for item in states], EXPECTED_STATE_IDS)
         self.assertEqual([item["nativeOrdinal"] for item in states], list(range(39)))
+        self.assertEqual([item["id"] for item in collections["components"]], EXPECTED_COMPONENT_IDS)
+        self.assertEqual([item["id"] for item in collections["capabilities"]], EXPECTED_CAPABILITY_IDS)
+        self.assertEqual([item["id"] for item in collections["values"]], EXPECTED_VALUE_IDS)
+        for kind in ("components", "capabilities", "values"):
+            self.assertTrue(all(item["callable"] is False for item in collections[kind]))
 
     def test_committed_outputs_are_clean_and_repeatable(self):
         first = registry.output_map()
@@ -91,9 +112,17 @@ class UiRegistryTests(unittest.TestCase):
         catalog = json.loads((ROOT / "spec/ui/registry/generated/ui-registry.catalog.json").read_text(encoding="utf-8"))
         for required in catalog_schema["required"]:
             self.assertIn(required, catalog)
-        for kind in ("command", "state"):
+        definition_collections = {
+            "command": "commands",
+            "state": "states",
+            "result": "results",
+            "component": "components",
+            "capability": "capabilities",
+            "reusableValue": "values",
+        }
+        for kind, collection_name in definition_collections.items():
             required = catalog_schema["$defs"][kind]["required"]
-            collection = catalog[kind + "s"]
+            collection = catalog[collection_name]
             for definition in collection:
                 for field in required:
                     self.assertIn(field, definition, f"{definition.get('id')} missing {field}")
@@ -122,8 +151,21 @@ class UiRegistryTests(unittest.TestCase):
             registry.unique_by_id(duplicate["kind"], duplicate["definitions"])
         _, collections, _ = registry.load_registry()
         unknown = load_fixture("unknown-reference.json")
+        for kind in (
+            "commands", "states", "components", "capabilities", "values", "results", "interactions"
+        ):
+            isolated = copy.deepcopy(unknown)
+            for other_kind in isolated["references"]:
+                if other_kind != kind:
+                    isolated["references"][other_kind] = []
+            with self.subTest(kind=kind), self.assertRaises(registry.RegistryError):
+                registry.validate_cross_reference_artifact(
+                    isolated, collections, f"unknown-reference-{kind}"
+                )
+
+        duplicate_tokens = load_fixture("duplicate-value-token.json")
         with self.assertRaises(registry.RegistryError):
-            registry.validate_cross_reference_artifact(unknown, collections, "unknown-reference")
+            registry.validate_value_definitions(duplicate_tokens["definitions"], 2)
 
     def test_compatibility_fixtures_classify_exactly(self):
         baseline = load_fixture("diff-baseline.json")
@@ -138,6 +180,89 @@ class UiRegistryTests(unittest.TestCase):
                 self.assertEqual(report["classification"], expected)
         deprecated = load_fixture("deprecated-replacement.json")
         registry.validate_replacement_graph("commands", deprecated["commands"])
+
+        contract_baseline = load_fixture("contract-baseline.json")
+        for name in ("contract-breaking.json", "lifecycle-regression.json"):
+            with self.subTest(name=name):
+                report = registry.registry_diff(contract_baseline, load_fixture(name))
+                self.assertEqual(report["classification"], "breaking")
+                self.assertTrue(report["manualActionRequired"])
+
+        mismatch = load_fixture("replacement-type-mismatch.json")
+        with self.assertRaises(registry.RegistryError):
+            registry.validate_replacement_graph(mismatch["kind"], mismatch["definitions"])
+
+    def test_generation_two_is_compatible_additive_against_v1(self):
+        manifest, collections, digest = registry.load_registry()
+        baseline = json.loads(
+            (ROOT / "spec/ui/registry/baselines/ui-registry-v1.json").read_text(encoding="utf-8")
+        )
+        report = registry.registry_diff(
+            baseline, registry.generate_catalog(manifest, collections, digest)
+        )
+        self.assertEqual(report["classification"], "compatibleAdditive")
+        self.assertEqual(report["summary"]["added"], 17)
+        self.assertEqual(report["summary"]["changedCompatible"], 13)
+        self.assertEqual(report["summary"]["changedBreaking"], 0)
+        self.assertEqual(report["summary"]["removed"], 0)
+        self.assertFalse(report["manualActionRequired"])
+
+    def test_value_component_capability_and_result_validation_fails_closed(self):
+        manifest, collections, _ = registry.load_registry()
+
+        mutations = []
+
+        def definition(candidate, kind, identifier):
+            return next(item for item in candidate[kind] if item["id"] == identifier)
+
+        unknown_schema = copy.deepcopy(collections)
+        definition(unknown_schema, "states", "connection.os2l.status")["value"]["schemaRef"] = "value.missing"
+        mutations.append(unknown_schema)
+
+        unknown_unit = copy.deepcopy(collections)
+        definition(unknown_unit, "commands", "transport.manualBpm.set")["parameters"]["bpm"]["unit"] = "missingUnit"
+        mutations.append(unknown_unit)
+
+        unknown_target = copy.deepcopy(collections)
+        definition(unknown_target, "commands", "staticLook.activate")["parameters"]["lookId"]["targetKind"] = "missingTarget"
+        mutations.append(unknown_target)
+
+        unknown_component_command = copy.deepcopy(collections)
+        unknown_component_command["components"][0]["requiredCommands"].append("missing.command")
+        mutations.append(unknown_component_command)
+
+        capability_cycle = copy.deepcopy(collections)
+        capability_cycle["capabilities"][0]["dependencies"].append("content.staticLooks")
+        mutations.append(capability_cycle)
+
+        invalid_result = copy.deepcopy(collections)
+        invalid_result["results"][0]["terminal"] = "yes"
+        mutations.append(invalid_result)
+
+        lifecycle_mismatch = copy.deepcopy(collections)
+        lifecycle_mismatch["components"][0]["status"] = "deprecated"
+        mutations.append(lifecycle_mismatch)
+
+        for index, candidate in enumerate(mutations):
+            with self.subTest(index=index), self.assertRaises(registry.RegistryError):
+                registry.validate_registry(manifest, candidate)
+
+    def test_invocation_results_are_explicit_without_native_abi_expansion(self):
+        _, collections, _ = registry.load_registry()
+        results = collections["results"]
+        native = sorted(
+            (item for item in results if "nativeOrdinal" in item),
+            key=lambda item: item["nativeOrdinal"],
+        )
+        self.assertEqual([item["nativeOrdinal"] for item in native], list(range(10)))
+        self.assertEqual(
+            {item["id"] for item in results if item["status"] == "reserved"},
+            {"cancelled", "missingTarget", "startedAsync"},
+        )
+        for result in results:
+            self.assertIsInstance(result["terminal"], bool)
+            self.assertTrue(result["label"])
+            self.assertTrue(result["description"])
 
     def test_reserved_autoloop_v2_names_are_not_published(self):
         manifest, collections, _ = registry.load_registry()

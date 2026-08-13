@@ -20,12 +20,21 @@ StudioDocumentSnapshot StudioDocumentService::snapshot() const {
         history_.can_undo(),
         history_.can_redo(),
         history_.undo_count(),
-        history_.redo_count()};
+        history_.redo_count(),
+        inspect_persisted_autoloop_source(project_)};
 }
 
 StudioMutationOutcome StudioDocumentService::apply_candidate(
     StudioDocumentGeneration expected_generation,
     ProjectDocument candidate) {
+    return apply_candidate_impl(
+        expected_generation, std::move(candidate), false);
+}
+
+StudioMutationOutcome StudioDocumentService::apply_candidate_impl(
+    StudioDocumentGeneration expected_generation,
+    ProjectDocument candidate,
+    bool allow_autoloop_source_change) {
     if (expected_generation != generation_) {
         return make_outcome(
             StudioMutationResult::StaleGeneration,
@@ -39,6 +48,32 @@ StudioMutationOutcome StudioDocumentService::apply_candidate(
             StudioMutationResult::ValidationFailed,
             std::move(validation),
             "The candidate project failed validation and was not applied.");
+    }
+    const auto persisted = inspect_persisted_autoloop_source(candidate);
+    if (!persisted) {
+        return make_outcome(
+            StudioMutationResult::InvalidCandidate,
+            std::move(validation),
+            "The candidate project contains an invalid persisted Autoloop source: " +
+                persisted.message,
+            persisted.error);
+    }
+    if (!allow_autoloop_source_change) {
+        const auto active_source = inspect_persisted_autoloop_source(project_);
+        if (!active_source) {
+            return make_outcome(
+                StudioMutationResult::InvalidCandidate,
+                std::move(validation),
+                "The active project contains an invalid persisted Autoloop source: " +
+                    active_source.message,
+                active_source.error);
+        }
+        if (active_source.stamp != persisted.stamp) {
+            return make_outcome(
+                StudioMutationResult::InvalidCandidate,
+                std::move(validation),
+                "Rich Autoloop source changes require the generation-and-digest checked transaction.");
+        }
     }
 
     const auto candidate_serialized = serialize_project(candidate);
@@ -66,6 +101,49 @@ StudioMutationOutcome StudioDocumentService::apply_candidate(
         "The Studio edit was applied as one Undo transaction.");
 }
 
+StudioMutationOutcome StudioDocumentService::apply_autoloop_source(
+    StudioDocumentGeneration expected_generation,
+    const PersistedAutoloopSourceStamp& expected_source,
+    AutoloopSourceDocument candidate) {
+    if (expected_generation != generation_) {
+        return make_outcome(
+            StudioMutationResult::StaleGeneration,
+            validate_project(project_),
+            "The Studio document changed before the Autoloop source could be committed.");
+    }
+
+    const auto active_source = inspect_persisted_autoloop_source(project_);
+    if (!active_source) {
+        return make_outcome(
+            StudioMutationResult::InvalidCandidate,
+            validate_project(project_),
+            "The active project contains an invalid persisted Autoloop source: " +
+                active_source.message,
+            active_source.error);
+    }
+    if (active_source.stamp != expected_source) {
+        return make_outcome(
+            StudioMutationResult::StaleGeneration,
+            validate_project(project_),
+            "The persisted Autoloop source digest or version changed before commit.");
+    }
+
+    auto candidate_project = project_;
+    const auto persisted = upsert_persisted_autoloop_source(
+        candidate_project, candidate);
+    if (!persisted) {
+        return make_outcome(
+            persisted.error == AutoloopPersistenceError::SourceTooLarge
+                ? StudioMutationResult::LimitExceeded
+                : StudioMutationResult::InvalidCandidate,
+            validate_project(project_),
+            "The Autoloop source was not persisted: " + persisted.message,
+            persisted.error);
+    }
+    return apply_candidate_impl(
+        expected_generation, std::move(candidate_project), true);
+}
+
 StudioMutationOutcome StudioDocumentService::replace_document(
     StudioDocumentGeneration expected_generation,
     ProjectDocument candidate,
@@ -83,6 +161,15 @@ StudioMutationOutcome StudioDocumentService::replace_document(
             StudioMutationResult::ValidationFailed,
             std::move(validation),
             "The replacement project failed validation and was not opened.");
+    }
+    const auto persisted = inspect_persisted_autoloop_source(candidate);
+    if (!persisted) {
+        return make_outcome(
+            StudioMutationResult::InvalidCandidate,
+            std::move(validation),
+            "The replacement project contains an invalid persisted Autoloop source: " +
+                persisted.message,
+            persisted.error);
     }
     if (!can_advance_generation()) {
         return make_outcome(
@@ -215,8 +302,14 @@ StudioMutationOutcome StudioDocumentService::acknowledge_saved(
 StudioMutationOutcome StudioDocumentService::make_outcome(
     StudioMutationResult result,
     ProjectValidation validation,
-    std::string message) const {
-    return {result, generation_, std::move(validation), std::move(message)};
+    std::string message,
+    AutoloopPersistenceError persistence_error) const {
+    return {
+        result,
+        generation_,
+        std::move(validation),
+        std::move(message),
+        persistence_error};
 }
 
 bool StudioDocumentService::can_advance_generation() const noexcept {
@@ -249,4 +342,3 @@ const char* studio_mutation_result_name(StudioMutationResult result) noexcept {
 }
 
 }  // namespace emberlights
-

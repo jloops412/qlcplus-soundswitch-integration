@@ -1,0 +1,189 @@
+#pragma once
+
+#include "emberlights/fixture_parameter_catalog.hpp"
+#include "emberlights/fixture_profile_upgrade.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <vector>
+
+namespace emberlights {
+
+// Toolkit-neutral profile-authoring primitives. Windows, a future renderer,
+// and the skins builder can all consume the same rows and mutations without
+// inheriting Win32 control state or the legacy comma-separated editor format.
+enum class FixtureProfileTemplateId : std::uint8_t {
+    Dimmer1,
+    Rgb3,
+    Rgbw4,
+    Rgba4,
+    Rgbwauv6,
+    MasterRgbwauv7
+};
+
+struct FixtureProfileTemplateDescriptor {
+    FixtureProfileTemplateId id{FixtureProfileTemplateId::Dimmer1};
+    std::string stable_id;
+    std::string display_name;
+    std::string description;
+    std::uint16_t footprint{0U};
+};
+
+enum class FixtureProfileEditorError : std::uint8_t {
+    None,
+    InvalidTemplate,
+    InvalidFootprint,
+    InvalidChannel,
+    InvalidDefinition,
+    UnsafePreset,
+    LastChannel,
+    ProfileInvalid
+};
+
+struct FixtureProfileEditorMutationResult {
+    FixtureProfileEditorError error{FixtureProfileEditorError::None};
+    bool changed{false};
+    bool replaced{false};
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureProfileEditorError::None;
+    }
+};
+
+struct FixtureProfileEditorRow {
+    std::size_t source_index{0U};
+    std::uint16_t channel{0U};
+    std::uint16_t fine_channel{0U};
+    showcore::Property property{showcore::Property::Count};
+    showcore::ChannelEncoding encoding{showcore::ChannelEncoding::Linear8};
+    std::string property_label;
+    std::string encoding_label;
+    std::string range_label;
+    std::string default_label;
+    std::string fine_label;
+    std::string accessibility_label;
+};
+
+enum class FixtureProfileAuditSeverity : std::uint8_t {
+    Info,
+    Warning,
+    Error
+};
+
+struct FixtureProfileAuditIssue {
+    FixtureProfileAuditSeverity severity{FixtureProfileAuditSeverity::Info};
+    std::string stable_code;
+    std::uint16_t channel{0U};
+    std::string message;
+};
+
+struct FixtureProfileAudit {
+    bool structurally_valid{false};
+    bool structurally_complete{false};
+    std::size_t mapped_slot_count{0U};
+    std::size_t unmapped_slot_count{0U};
+    std::size_t semantic_mapping_count{0U};
+    std::size_t safe_constant_count{0U};
+    std::size_t manual_chart_review_count{0U};
+    std::size_t safety_restricted_count{0U};
+    std::size_t custom_mapping_count{0U};
+    std::size_t repeated_semantic_count{0U};
+    std::vector<FixtureProfileAuditIssue> issues;
+    std::string text;
+};
+
+enum class FixtureProfileRebindError : std::uint8_t {
+    None,
+    InvalidSource,
+    InvalidReplacement,
+    SameProfile,
+    InvalidCandidate,
+    CompilationFailed
+};
+
+struct FixtureProfileRebindResult {
+    FixtureProfileRebindError error{FixtureProfileRebindError::None};
+    bool changed{false};
+    std::vector<std::string> fixture_ids;
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureProfileRebindError::None;
+    }
+};
+
+[[nodiscard]] std::span<const FixtureProfileTemplateDescriptor>
+fixture_profile_templates() noexcept;
+
+[[nodiscard]] FixtureProfileEditorMutationResult apply_fixture_profile_template(
+    FixtureProfileDefinition& draft,
+    FixtureProfileTemplateId template_id);
+
+// Produces safe defaults for direct emitters and movement channels. Channels
+// whose safe range depends on the physical DMX chart are deliberately refused.
+[[nodiscard]] FixtureProfileEditorMutationResult
+make_safe_fixture_profile_channel(
+    showcore::Property property,
+    std::uint16_t one_based_channel,
+    ChannelDefinition& definition);
+
+[[nodiscard]] FixtureProfileEditorMutationResult upsert_fixture_profile_channel(
+    FixtureProfileDefinition& draft,
+    const ChannelDefinition& definition);
+
+[[nodiscard]] FixtureProfileEditorMutationResult remove_fixture_profile_channel(
+    FixtureProfileDefinition& draft,
+    std::uint16_t one_based_channel);
+
+[[nodiscard]] std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
+    const FixtureProfileDefinition& profile);
+
+// Reports profile structure and the exact rows that still need a fixture DMX
+// chart. This does not claim physical qualification or source trust.
+[[nodiscard]] FixtureProfileAudit audit_fixture_profile(
+    const FixtureProfileDefinition& profile);
+
+// Atomically moves every current fixture from one saved profile snapshot to
+// another, then validates and compiles the candidate before replacing the
+// document. Future Studio renderers can use this without inheriting Win32 UI.
+[[nodiscard]] FixtureProfileRebindResult rebind_fixture_profile_instances(
+    ProjectDocument& project,
+    std::string_view source_profile_id,
+    std::string_view replacement_profile_id);
+
+enum class FixtureProfileWhiteAmberAssignmentError : std::uint8_t {
+    None,
+    InvalidSelection,
+    InvalidProfile,
+    MappingUnavailable,
+    SelectionIsNotWhiteAmberPair,
+    CorrectionUnavailable
+};
+
+struct FixtureProfileWhiteAmberAssignmentPlanResult {
+    FixtureProfileWhiteAmberAssignmentError error{
+        FixtureProfileWhiteAmberAssignmentError::InvalidProfile};
+    bool already_assigned{false};
+    FixtureProfileMappingSummary current_mapping;
+    FixtureProfileWhiteAmberCorrectionPlan plan;
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureProfileWhiteAmberAssignmentError::None;
+    }
+};
+
+// Unlike the old toggle, this plans an absolute assignment: the requested
+// channel numbers describe the desired final state. Asking for the current
+// state is a successful no-op and can never reverse a previous correction.
+[[nodiscard]] FixtureProfileWhiteAmberAssignmentPlanResult
+plan_fixture_profile_white_amber_assignment(
+    const ProjectDocument& project,
+    std::string_view profile_id,
+    std::uint16_t desired_white_channel,
+    std::uint16_t desired_amber_channel);
+
+}  // namespace emberlights
