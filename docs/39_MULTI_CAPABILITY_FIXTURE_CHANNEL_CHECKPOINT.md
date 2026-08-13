@@ -1,6 +1,6 @@
 # Multi-capability fixture-channel checkpoint
 
-Status: **implemented Preview 91 candidate; portable and Windows-source tests green**  
+Status: **implemented and packaged in Preview 91; portable, Windows-source, and package-contract tests green**  
 Date: 2026-08-13  
 Owners: fixture issue #52, UI facade issue #31, controller/binding issue #66
 
