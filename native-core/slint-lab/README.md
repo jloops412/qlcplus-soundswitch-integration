@@ -32,10 +32,11 @@ smoke, and creates
 `build/slint-fixtures-looks-lab/EmberLights-Fixtures-Looks-Slint-Lab-win-x64.zip`.
 That ZIP is a lab artifact, not an installer and not the product preview line.
 
-The manual GitHub workflow `slint-fixtures-looks-lab.yml` performs the same
-route on Windows 2022. It downloads the official 1.17.1 MSVC x64 package,
-requires its pinned SHA-256, and retains the lab ZIP for 14 days. It does not
-publish a Release or change the product's latest-installer pointer.
+The path-scoped pull-request/manual GitHub workflow
+`slint-fixtures-looks-lab.yml` performs the same route on Windows 2022. It
+downloads the official 1.17.1 MSVC x64 package, requires its pinned SHA-256,
+and retains the lab ZIP for 14 days. It does not publish a Release or change
+the product's latest-installer pointer.
 
 ## Source and compiler checks
 

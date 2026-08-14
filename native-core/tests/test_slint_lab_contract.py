@@ -84,9 +84,10 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertNotIn("OutputBackend", self.adapter)
         self.assertNotIn("start_output", self.adapter)
 
-    def test_windows_artifact_route_is_manual_pinned_and_non_product(self):
+    def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)
-        self.assertNotIn("pull_request:", self.workflow)
+        self.assertIn("pull_request:", self.workflow)
+        self.assertIn('"native-core/slint-lab/**"', self.workflow)
         self.assertNotIn("push:", self.workflow)
         self.assertIn("Slint-cpp-1.17.1-win64-MSVC-AMD64.exe", self.workflow)
         self.assertIn(

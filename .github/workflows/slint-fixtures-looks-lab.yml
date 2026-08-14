@@ -1,6 +1,15 @@
 name: Slint Fixtures + Static Looks lab (non-product)
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/slint-fixtures-looks-lab.yml"
+      - "native-core/CMakeLists.txt"
+      - "native-core/include/emberlights/fixtures_looks_shell.hpp"
+      - "native-core/slint-lab/**"
+      - "native-core/src/fixtures_looks_shell.cpp"
+      - "native-core/tests/test_fixtures_looks_shell.cpp"
+      - "native-core/tests/test_slint_lab_contract.py"
   workflow_dispatch:
 
 permissions:

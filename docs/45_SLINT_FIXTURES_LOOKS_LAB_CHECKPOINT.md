@@ -68,9 +68,10 @@ Linux window/model-smoke executable was not claimed. That does not substitute
 for the required Windows/MSVC evidence. The checked-in PowerShell route builds
 the separate Windows x64 lab, runs `--model-smoke`, copies its runtime/license
 files, and creates an explicitly labeled ZIP once run on the target host. A
-manual Windows 2022 GitHub workflow downloads the official package only after
-checking its pinned SHA-256, then performs that same route without publishing a
-Release or moving the product installer pointer.
+path-scoped pull-request/manual Windows 2022 GitHub workflow downloads the
+official package only after checking its pinned SHA-256, then performs that
+same route without publishing a Release or moving the product installer
+pointer.
 
 ## Dependency and license record
 
