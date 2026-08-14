@@ -86,6 +86,11 @@ The shell model's second source pass applies D-095: category/search/control
 projection comes from the complete selected-target profile catalog, so the
 renderer cannot quietly regress to an Intensity/RGB/position allowlist as new
 fixture parameters, named ranges, skins, or controller surfaces are added.
+The third pass applies D-096: the shared surface groups every semantic
+property before rendering, so its value controls, named ranges, exact choices,
+ownership, coverage, mixed state, availability, and safety remain one task
+instead of separate technical inventories. Color and Pan/Tilt may remain
+intentional complete composite controls.
 
 ## Replacement-shell gate
 

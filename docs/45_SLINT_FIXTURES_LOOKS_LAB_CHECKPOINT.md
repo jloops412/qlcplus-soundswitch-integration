@@ -13,7 +13,11 @@ controls, explicit ownership, validation, and Advanced diagnostics in one
 product-shaped Slint surface. The second source pass removes the lab's original
 Intensity/RGBWA/Pan/Tilt/Focus allowlist: category navigation, bounded search,
 and every ordinary control now project from the selected target's complete
-profile-backed catalog under D-095.
+profile-backed catalog under D-095. The third source pass applies D-096: all
+direct values, continuous named ranges, exact selector choices, ownership,
+coverage, mixed state, availability, and safety for one semantic property now
+render in one stable parameter-family card instead of disconnected value,
+ownership, and choice sections.
 
 The legacy Win32 presentation remains frozen under D-091. The lab is opt-in,
 is not installed by CMake, does not replace `EmberLights.exe`, opens no output
@@ -28,7 +32,7 @@ the project must still configure an output and Live must remain stopped.
 
 | Layer | New artifact | Authority |
 | --- | --- | --- |
-| Renderer-neutral composition | `FixturesLooksShellModel` v2 | Joins existing profile, patch, Static Look, validation, fixture-function, and control-surface snapshots; projects stable category navigation, bounded parameter search, counts, control kinds, coverage, safety, values, and ownership without a renderer allowlist |
+| Renderer-neutral composition | `FixturesLooksShellModel` v3 | Joins existing profile, patch, Static Look, validation, fixture-function, and control-surface snapshots; projects stable category navigation, bounded parameter search, semantic parameter-family cards, exact bindings, counts, control kinds, coverage, safety, values, and ownership without a renderer allowlist |
 | Domain mutation | Existing Static Look authoring functions and `StudioDocumentService` | Applies/removes properties and exact profile choices, then commits one generation-checked Undo transaction; Slint owns no lighting semantics or document state |
 | Lab presentation | `fixtures_looks_lab.slint` | Layout, styling, accessibility declarations, task controls, responsive center workspace, and Advanced drawer |
 | Renderer adapter | `fixtures_looks_lab.cpp` | Projects immutable model snapshots, forwards typed user intent, and refreshes the lab |
@@ -51,7 +55,10 @@ The lab currently supports:
 4. profile-derived Intensity, Color, Position, Beam, Image, Effect,
    Atmosphere, and Advanced-only Custom category navigation with stable IDs and
    bounded cross-field search;
-5. dynamic faders for every direct or continuous profile parameter, a
+5. one property-family card per stable semantic parameter, keeping its direct
+   value, continuous ranges, exact choices, ownership, coverage, mixed state,
+   availability, and safety together; dynamic faders remain available for every
+   direct or continuous profile parameter, alongside a
    horizontally scalable emitter mixer for RGBWAUV/CMY/Lime/Indigo, and a
    Pan/Tilt XY pad when both axes are present;
 6. exact profile function/range choices plus explicit `Release`, `Set`, and
@@ -84,20 +91,21 @@ workflow without adding a file dialog to the toolkit evaluation.
 Passed on the source host:
 
 - warning-fatal native compile and `fixtures_looks_shell_tests`;
-- shell-model v2 tests for stable category IDs, profile-parameter search,
-  category projection, complete control reachability, and named-choice/direct
-  attribute distinction;
+- control-surface v2 and shell-model v3 tests for stable property-family IDs,
+  multi-choice grouping, mixed continuous/selector families, category IDs,
+  profile-parameter search, complete control reachability, and named-choice/
+  direct-attribute distinction;
 - warning-fatal `static_look_preview_coordinator_tests` covering asynchronous
   simulation/update/stop, latest-wins edits, explicit physical arming,
   cap/countdown, timeout/restart isolation, and stop-to-black Runner release;
 - registry `1.9.0` generation/check, V1 compatible-additive diff, facade tests,
   and Ember Action exclusion tests;
 - `test_ui_direction.py`;
-- all seven `test_slint_lab_contract.py` checks;
-- warning-free Slint markup compilation with official
+- all eight `test_slint_lab_contract.py` checks;
+- warning-free Slint markup compilation with the SHA-256-verified official
   `slint-compiler 1.17.1` and embedded Fluent resources;
-- warning-fatal C++20 compilation of the adapter against the generated 1.17.1
-  header and official C++ headers;
+- warning-fatal C++20 compilation of the nested-family adapter against the
+  generated 1.17.1 header and SHA-256-verified official C++ headers;
 - preview telemetry polling no longer rebuilds the profile/library/control
   projection at 10 Hz when its coherent status token has not changed.
 

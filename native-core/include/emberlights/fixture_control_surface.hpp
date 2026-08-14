@@ -17,7 +17,7 @@ namespace emberlights {
 // IDs, availability, safety, and per-surface decisions from the catalog.
 inline constexpr std::string_view kFixtureControlSurfaceComponentType =
     "ember.fixtureControlSurface";
-inline constexpr std::uint16_t kFixtureControlSurfaceComponentVersion = 1U;
+inline constexpr std::uint16_t kFixtureControlSurfaceComponentVersion = 2U;
 
 enum class FixtureControlWidgetKind : std::uint8_t {
     LevelFader,
@@ -45,6 +45,11 @@ struct FixtureControlWidgetBinding {
 
 struct FixtureControlWidget {
     std::string stable_id;
+    // Stable semantic parameter family ID. Multiple named profile functions
+    // for one fixture property belong to the same widget; renderers must not
+    // split their value, choices, ownership, coverage, and safety state into
+    // unrelated UI regions.
+    std::string parameter_id;
     std::string label;
     FixtureControlWidgetKind kind{FixtureControlWidgetKind::CustomControl};
     FixtureParameterCategory category{FixtureParameterCategory::Custom};
@@ -52,6 +57,8 @@ struct FixtureControlWidget {
     bool enabled{false};
     bool degraded{false};
     bool safety_restricted{false};
+    std::size_t value_binding_count{0U};
+    std::size_t choice_binding_count{0U};
     std::string accessibility_label;
 };
 

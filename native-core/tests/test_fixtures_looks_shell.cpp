@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <numeric>
 #include <string_view>
 #include <utility>
 
@@ -87,6 +88,23 @@ int failures = 0;
     strobe.coarse_offset = 11U;
     strobe.encoding = showcore::ChannelEncoding::Discrete8;
     strobe.owner = "shutter";
+    emberlights::ChannelCapabilityDefinition closed;
+    closed.id = "closed";
+    closed.name = "Closed";
+    closed.property = showcore::Property::Strobe;
+    closed.dmx_min = 0U;
+    closed.dmx_max = 15U;
+    closed.preferred_value = 0U;
+    closed.behavior = showcore::ChannelCapabilityBehavior::Slot;
+    closed.access = showcore::ChannelCapabilityAccess::Selectable;
+    strobe.capabilities.push_back(closed);
+    auto open_shutter = closed;
+    open_shutter.id = "open";
+    open_shutter.name = "Open";
+    open_shutter.dmx_min = 16U;
+    open_shutter.dmx_max = 31U;
+    open_shutter.preferred_value = 16U;
+    strobe.capabilities.push_back(std::move(open_shutter));
     emberlights::ChannelCapabilityDefinition slow_fast;
     slow_fast.id = "slow-fast";
     slow_fast.name = "Slow to fast";
@@ -150,6 +168,17 @@ int failures = 0;
     return found == model.controls.end() ? nullptr : &*found;
 }
 
+[[nodiscard]] const emberlights::FixturesLooksControlGroup* control_group(
+    const emberlights::FixturesLooksShellModel& model,
+    std::string_view stable_id) {
+    const auto found = std::find_if(
+        model.control_groups.begin(), model.control_groups.end(),
+        [stable_id](const auto& candidate) {
+            return candidate.stable_id == stable_id;
+        });
+    return found == model.control_groups.end() ? nullptr : &*found;
+}
+
 void test_ready_slice_joins_profiles_targets_looks_and_visual_controls() {
     const auto project = make_project();
     emberlights::FixturesLooksShellQuery query;
@@ -161,7 +190,7 @@ void test_ready_slice_joins_profiles_targets_looks_and_visual_controls() {
     const auto model = emberlights::build_fixtures_looks_shell_model(
         project, query);
 
-    CHECK(emberlights::kFixturesLooksShellModelVersion == 2U);
+    CHECK(emberlights::kFixturesLooksShellModelVersion == 3U);
     CHECK(emberlights::kFixturesLooksShellSliceId ==
           "studio.fixtures-static-looks");
     CHECK(model.state == emberlights::FixturesLooksShellState::Ready);
@@ -175,6 +204,13 @@ void test_ready_slice_joins_profiles_targets_looks_and_visual_controls() {
     CHECK(!model.controls.empty());
     CHECK(model.advanced_available);
     CHECK(model.control_surface.hidden_advanced_count == 0U);
+    CHECK(!model.control_groups.empty());
+    CHECK(model.control_group_count == model.control_groups.size());
+    CHECK(std::accumulate(
+              model.control_groups.begin(), model.control_groups.end(),
+              std::size_t{0U}, [](std::size_t total, const auto& group) {
+                  return total + group.binding_count;
+              }) == model.controls.size());
     CHECK(model.validation_error_count == 0U);
 
     const auto profile = std::find_if(
@@ -193,13 +229,46 @@ void test_ready_slice_joins_profiles_targets_looks_and_visual_controls() {
     const auto green = control(model, showcore::Property::Green);
     const auto pan = control(model, showcore::Property::Pan);
     const auto gobo = control(model, showcore::Property::Gobo);
-    const auto strobe = control(model, showcore::Property::Strobe);
+    const auto strobe = std::find_if(
+        model.controls.begin(), model.controls.end(), [](const auto& item) {
+            return item.property == showcore::Property::Strobe &&
+                item.accepts_value;
+        });
+    const auto* gobo_group = control_group(model, "parameter.gobo");
+    const auto* strobe_group = control_group(model, "parameter.strobe");
     CHECK(intensity != nullptr);
     CHECK(red != nullptr);
     CHECK(green != nullptr);
     CHECK(pan != nullptr);
     CHECK(gobo != nullptr);
-    CHECK(strobe != nullptr);
+    CHECK(strobe != model.controls.end());
+    CHECK(gobo_group != nullptr);
+    if (gobo_group != nullptr) {
+        CHECK(gobo_group->parameter_id == "gobo");
+        CHECK(gobo_group->label == "Gobo");
+        CHECK(gobo_group->binding_count == 2U);
+        CHECK(gobo_group->profile_function_count == 2U);
+        CHECK(gobo_group->selector_binding_count == 2U);
+        CHECK(gobo_group->value_binding_count == 0U);
+        CHECK(!gobo_group->composite);
+        CHECK(std::count_if(
+                  model.controls.begin(), model.controls.end(),
+                  [gobo_group](const auto& item) {
+                      return item.widget_id == gobo_group->stable_id;
+                  }) == 2);
+    }
+    CHECK(strobe_group != nullptr);
+    if (strobe_group != nullptr) {
+        CHECK(strobe_group->binding_count == 3U);
+        CHECK(strobe_group->profile_function_count == 3U);
+        CHECK(strobe_group->value_binding_count == 1U);
+        CHECK(strobe_group->selector_binding_count == 2U);
+        CHECK(std::count_if(
+                  model.controls.begin(), model.controls.end(),
+                  [strobe_group](const auto& item) {
+                      return item.widget_id == strobe_group->stable_id;
+                  }) == 3);
+    }
     if (intensity != nullptr) {
         CHECK(intensity->parameter_id == "intensity");
         CHECK(intensity->category ==
@@ -229,18 +298,18 @@ void test_ready_slice_joins_profiles_targets_looks_and_visual_controls() {
         CHECK(gobo->profile_function);
         CHECK(!gobo->accepts_value);
     }
-    if (strobe != nullptr) {
+    if (strobe != model.controls.end()) {
         CHECK(strobe->profile_function);
         CHECK(strobe->accepts_value);
         CHECK(strobe->value_matches_choice);
-        CHECK(std::fabs(strobe->normalized_value - 0.75F) < 0.0001F);
+        CHECK(std::fabs(strobe->normalized_value - 0.25F) < 0.0001F);
         query.selected_choice_id = strobe->choice_id;
         const auto diagnostic_model =
             emberlights::build_fixtures_looks_shell_model(project, query);
         CHECK(diagnostic_model.control_diagnostics.size() == 2U);
         if (!diagnostic_model.control_diagnostics.empty()) {
             CHECK(diagnostic_model.control_diagnostics.front().detail.find(
-                      "DMX 103") != std::string::npos);
+                      "DMX 56") != std::string::npos);
             CHECK(diagnostic_model.control_diagnostics.front().provenance.find(
                       "shell-v1") != std::string::npos);
         }
@@ -270,7 +339,7 @@ void test_profile_parameter_category_and_search_projection() {
     const auto beam = emberlights::build_fixtures_looks_shell_model(
         project, query);
     CHECK(beam.selected_control_category_id == "beam");
-    CHECK(beam.control_visible_count == 3U);
+    CHECK(beam.control_visible_count == 5U);
     CHECK(std::all_of(
         beam.controls.begin(), beam.controls.end(), [](const auto& item) {
             return item.category ==
@@ -282,7 +351,7 @@ void test_profile_parameter_category_and_search_projection() {
     CHECK(selected != beam.control_categories.end());
     if (selected != beam.control_categories.end()) {
         CHECK(selected->stable_id == "beam");
-        CHECK(selected->total_count == 3U);
+        CHECK(selected->total_count == 5U);
     }
 
     CHECK(emberlights::fixture_parameter_category_stable_id(

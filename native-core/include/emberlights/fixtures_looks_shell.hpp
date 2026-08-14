@@ -19,7 +19,7 @@ namespace emberlights {
 // project this detached snapshot differently while retaining stable IDs.
 inline constexpr std::string_view kFixturesLooksShellSliceId =
     "studio.fixtures-static-looks";
-inline constexpr std::uint16_t kFixturesLooksShellModelVersion = 2U;
+inline constexpr std::uint16_t kFixturesLooksShellModelVersion = 3U;
 inline constexpr std::int32_t kFixturesLooksMinimumWidth = 1366;
 inline constexpr std::int32_t kFixturesLooksMinimumHeight = 768;
 
@@ -105,6 +105,31 @@ struct FixturesLooksControlBinding {
     std::string accessibility_label;
 };
 
+// One coherent parameter-family card in the ordinary authoring deck. The
+// stable widget ID joins the flattened bindings below without copying domain
+// state into a renderer. A card may contain a direct value control, multiple
+// named continuous ranges, multiple exact selector choices, or a bounded
+// combination of those, while ownership remains property-scoped.
+struct FixturesLooksControlGroup {
+    std::string stable_id;
+    std::string parameter_id;
+    std::string section_label;
+    std::string label;
+    std::string control_kind;
+    FixtureParameterCategory category{FixtureParameterCategory::Custom};
+    showcore::Property property{showcore::Property::Count};
+    std::size_t binding_count{0U};
+    std::size_t direct_binding_count{0U};
+    std::size_t profile_function_count{0U};
+    std::size_t value_binding_count{0U};
+    std::size_t selector_binding_count{0U};
+    bool composite{false};
+    bool enabled{false};
+    bool degraded{false};
+    bool safety_restricted{false};
+    std::string accessibility_label;
+};
+
 // Category navigation is derived from the same profile-backed control
 // catalog as the bindings below. The pseudo-category "all" is always first;
 // renderer adapters return stable_id rather than a localized label or index.
@@ -163,6 +188,7 @@ struct FixturesLooksShellModel {
     std::vector<FixturesLooksTargetItem> targets;
     std::vector<FixturesLooksStaticLookItem> static_looks;
     std::vector<FixturesLooksControlCategoryItem> control_categories;
+    std::vector<FixturesLooksControlGroup> control_groups;
     std::vector<FixturesLooksControlBinding> controls;
     std::vector<FixturesLooksControlDiagnosticItem> control_diagnostics;
     FixtureControlSurfaceModel control_surface;
@@ -173,6 +199,7 @@ struct FixturesLooksShellModel {
     std::size_t control_total_count{0U};
     std::size_t control_search_match_count{0U};
     std::size_t control_visible_count{0U};
+    std::size_t control_group_count{0U};
     bool minimum_viewport_supported{false};
     bool read_only{false};
     bool can_edit{false};

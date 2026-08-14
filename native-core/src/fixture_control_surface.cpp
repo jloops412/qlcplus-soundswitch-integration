@@ -45,7 +45,9 @@ namespace {
     const FixtureFunctionRow& row) {
     return {
         row.choice_id,
-        row.property_label.empty() ? row.name : row.property_label,
+        row.kind == FixtureControlChoiceKind::NamedCapability
+            ? row.name
+            : (row.property_label.empty() ? row.name : row.property_label),
         row.property,
         row.normalized_value,
         row.accepts_position,
@@ -65,6 +67,11 @@ void finish_widget(FixtureControlWidget& widget) {
     widget.safety_restricted = std::any_of(
         widget.bindings.begin(), widget.bindings.end(),
         [](const auto& binding) { return binding.safety_restricted; });
+    widget.value_binding_count = static_cast<std::size_t>(std::count_if(
+        widget.bindings.begin(), widget.bindings.end(),
+        [](const auto& binding) { return binding.accepts_value; }));
+    widget.choice_binding_count =
+        widget.bindings.size() - widget.value_binding_count;
     std::ostringstream label;
     label << widget.label << ", " << fixture_control_widget_kind_name(widget.kind)
           << ", " << enabled_count << " of " << widget.bindings.size()
@@ -94,8 +101,12 @@ void finish_widget(FixtureControlWidget& widget) {
 [[nodiscard]] FixtureControlWidget single_widget(
     const FixtureFunctionRow& row) {
     FixtureControlWidget widget;
-    widget.stable_id = "control." + row.choice_id;
-    widget.label = row.name.empty() ? row.property_label : row.name;
+    const auto* descriptor = fixture_parameter_descriptor(row.property);
+    widget.parameter_id = descriptor == nullptr
+        ? std::string(property_name(row.property))
+        : std::string(descriptor->stable_id);
+    widget.stable_id = "parameter." + widget.parameter_id;
+    widget.label = row.property_label.empty() ? row.name : row.property_label;
     widget.kind = widget_kind(row);
     widget.category = row.category;
     widget.bindings.push_back(make_binding(row));
@@ -133,6 +144,11 @@ void append_grouped_widget(
     }
     FixtureControlWidget widget;
     widget.stable_id = std::move(stable_id);
+    widget.parameter_id = kind == FixtureControlWidgetKind::ColorMixer
+        ? "color"
+        : (kind == FixtureControlWidgetKind::XYPad
+              ? "position"
+              : widget.stable_id);
     widget.label = std::move(label);
     widget.kind = kind;
     widget.category = category;
@@ -142,6 +158,24 @@ void append_grouped_widget(
     }
     finish_widget(widget);
     find_or_add_section(model, category)->widgets.push_back(std::move(widget));
+}
+
+void append_parameter_binding(
+    FixtureControlSurfaceModel& model,
+    const FixtureFunctionRow& row) {
+    auto* section = find_or_add_section(model, row.category);
+    const auto candidate = single_widget(row);
+    const auto found = std::find_if(
+        section->widgets.begin(), section->widgets.end(),
+        [&](const auto& widget) {
+            return widget.stable_id == candidate.stable_id;
+        });
+    if (found == section->widgets.end()) {
+        section->widgets.push_back(candidate);
+        return;
+    }
+    found->bindings.push_back(make_binding(row));
+    finish_widget(*found);
 }
 
 }  // namespace
@@ -177,12 +211,7 @@ FixtureControlSurfaceModel build_fixture_control_surface(
             pan_tilt_rows.push_back(&row);
             continue;
         }
-        auto widget = single_widget(row);
-        model.visible_binding_count += widget.bindings.size();
-        model.has_degraded_controls = model.has_degraded_controls ||
-            widget.degraded;
-        find_or_add_section(model, row.category)
-            ->widgets.push_back(std::move(widget));
+        append_parameter_binding(model, row);
     }
 
     append_grouped_widget(
@@ -223,12 +252,18 @@ FixtureControlSurfaceModel build_fixture_control_surface(
             widget.degraded;
     } else {
         for (const auto* row : pan_tilt_rows) {
-            auto widget = single_widget(*row);
-            ++model.visible_binding_count;
+            append_parameter_binding(model, *row);
+        }
+    }
+
+    model.visible_binding_count = 0U;
+    model.has_degraded_controls = false;
+    for (auto& section : model.sections) {
+        for (auto& widget : section.widgets) {
+            finish_widget(widget);
+            model.visible_binding_count += widget.bindings.size();
             model.has_degraded_controls = model.has_degraded_controls ||
                 widget.degraded;
-            find_or_add_section(model, row->category)
-                ->widgets.push_back(std::move(widget));
         }
     }
 

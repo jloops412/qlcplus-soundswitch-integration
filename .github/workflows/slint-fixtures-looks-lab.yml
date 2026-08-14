@@ -5,9 +5,12 @@ on:
     paths:
       - ".github/workflows/slint-fixtures-looks-lab.yml"
       - "native-core/CMakeLists.txt"
+      - "native-core/include/emberlights/fixture_control_surface.hpp"
       - "native-core/include/emberlights/fixtures_looks_shell.hpp"
       - "native-core/slint-lab/**"
+      - "native-core/src/fixture_control_surface.cpp"
       - "native-core/src/fixtures_looks_shell.cpp"
+      - "native-core/tests/test_fixture_control_surface.cpp"
       - "native-core/tests/test_fixtures_looks_shell.cpp"
       - "native-core/tests/test_slint_lab_contract.py"
   workflow_dispatch:

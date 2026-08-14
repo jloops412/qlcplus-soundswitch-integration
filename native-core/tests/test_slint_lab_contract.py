@@ -45,9 +45,10 @@ class SlintLabContractTests(unittest.TestCase):
             "Duplicate",
             "FIXTURE PARAMETERS",
             "COLOR EMITTERS",
-            "CONTINUOUS PARAMETERS",
-            "SELECTOR OWNERSHIP",
-            "PROFILE FUNCTIONS & RANGES",
+            "PARAMETER CARDS",
+            "ParameterFamilyCard",
+            "value-controls",
+            "choices",
             'label: "Release"',
             'label: "Set"',
             'label: "Force zero"',
@@ -67,8 +68,28 @@ class SlintLabContractTests(unittest.TestCase):
             "intensity-choice-id",
             "red-choice-id",
             "focus-choice-id",
+            "SELECTOR OWNERSHIP",
+            "PROFILE FUNCTIONS & RANGES",
         ):
             self.assertNotIn(obsolete, self.surface, obsolete)
+
+    def test_parameter_families_keep_controls_choices_and_ownership_together(self):
+        for text in (
+            "export struct ParameterFamilyItem",
+            "for item in root.parameter-family-items: ParameterFamilyCard",
+            "for control in item.value-controls: ParameterValueRow",
+            "for choice in item.choices: ChoiceTile",
+            "item.ownership-choice-id",
+        ):
+            self.assertIn(text, self.surface, text)
+        for text in (
+            "model.control_groups",
+            "control.widget_id != group.stable_id",
+            "family.value_controls",
+            "family.choices",
+            "set_parameter_family_items",
+        ):
+            self.assertIn(text, self.adapter, text)
 
     def test_raw_dmx_is_advanced_evidence_not_ordinary_authoring(self):
         advanced = self.surface.index("if root.advanced-open")
@@ -121,6 +142,9 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertIn("workflow_dispatch", self.workflow)
         self.assertIn("pull_request:", self.workflow)
         self.assertIn('"native-core/slint-lab/**"', self.workflow)
+        self.assertIn(
+            '"native-core/src/fixture_control_surface.cpp"', self.workflow
+        )
         self.assertNotIn("push:", self.workflow)
         self.assertIn("Slint-cpp-1.17.1-win64-MSVC-AMD64.exe", self.workflow)
         self.assertIn(
@@ -148,7 +172,7 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertEqual(version, "slint-compiler 1.17.1")
         with tempfile.TemporaryDirectory() as directory:
             generated = Path(directory) / "fixtures_looks_lab.h"
-            subprocess.run(
+            compiled = subprocess.run(
                 [
                     compiler,
                     str(SLINT),
@@ -162,7 +186,10 @@ class SlintLabContractTests(unittest.TestCase):
                 ],
                 check=True,
                 cwd=ROOT,
+                capture_output=True,
+                text=True,
             )
+            self.assertNotIn("warning", compiled.stderr.lower())
             self.assertTrue(generated.is_file())
             self.assertIn(
                 "Slint compiler version 1.17.1",

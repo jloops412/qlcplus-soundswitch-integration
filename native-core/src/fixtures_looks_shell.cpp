@@ -348,6 +348,45 @@ void append_control_bindings(
     std::string_view selected_choice_id) {
     for (const auto& section : model.control_surface.sections) {
         for (const auto& widget : section.widgets) {
+            std::size_t direct_binding_count = 0U;
+            std::size_t profile_function_count = 0U;
+            std::optional<showcore::Property> common_property;
+            bool composite = false;
+            for (const auto& binding : widget.bindings) {
+                const auto* row = find_catalog_row(catalog, binding.choice_id);
+                if (row != nullptr &&
+                    row->kind == FixtureControlChoiceKind::NamedCapability) {
+                    ++profile_function_count;
+                } else {
+                    ++direct_binding_count;
+                }
+                if (!common_property.has_value()) {
+                    common_property = binding.property;
+                } else if (*common_property != binding.property) {
+                    composite = true;
+                }
+            }
+            const auto group_property = composite || !common_property.has_value()
+                ? showcore::Property::Count
+                : *common_property;
+            model.control_groups.push_back({
+                widget.stable_id,
+                widget.parameter_id,
+                section.label,
+                widget.label,
+                std::string(fixture_control_widget_kind_name(widget.kind)),
+                section.category,
+                group_property,
+                widget.bindings.size(),
+                direct_binding_count,
+                profile_function_count,
+                widget.value_binding_count,
+                widget.choice_binding_count,
+                composite,
+                widget.enabled && !model.read_only,
+                widget.degraded,
+                widget.safety_restricted,
+                widget.accessibility_label});
             for (const auto& binding : widget.bindings) {
                 const auto summary = summarize_ownership(
                     look, target, binding.property, binding.normalized_value);
@@ -761,8 +800,10 @@ FixturesLooksShellModel build_fixtures_looks_shell_model(
             }
         }
         model.control_visible_count = model.controls.size();
+        model.control_group_count = model.control_groups.size();
         std::ostringstream control_summary;
-        control_summary << model.control_visible_count << " shown • "
+        control_summary << model.control_group_count << " parameter cards • "
+                        << model.control_visible_count << " controls shown • "
                         << model.control_search_match_count << " matching • "
                         << model.control_total_count << " profile parameters";
         if (model.controls_truncated) {

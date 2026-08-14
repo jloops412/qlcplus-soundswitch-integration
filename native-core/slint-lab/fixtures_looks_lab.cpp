@@ -496,9 +496,11 @@ void select_available_look(LabState& state) {
     ChoiceTileItem item;
     item.choice_id = shared_string(control.choice_id);
     item.parameter_id = shared_string(control.parameter_id);
-    item.title = shared_string(control.widget_label.empty()
+    item.title = shared_string(control.profile_function
         ? std::string_view(control.property_label)
-        : std::string_view(control.widget_label));
+        : (control.widget_label.empty()
+              ? std::string_view(control.property_label)
+              : std::string_view(control.widget_label)));
     item.detail = shared_string(
         control.property_label + " • " + control.ownership_text + " • " +
         control.availability_text);
@@ -533,9 +535,11 @@ void select_available_look(LabState& state) {
     item.choice_id = shared_string(control.choice_id);
     item.parameter_id = shared_string(control.parameter_id);
     item.section_label = shared_string(control.section_label);
-    item.title = shared_string(control.widget_label.empty()
+    item.title = shared_string(control.profile_function
         ? std::string_view(control.property_label)
-        : std::string_view(control.widget_label));
+        : (control.widget_label.empty()
+              ? std::string_view(control.property_label)
+              : std::string_view(control.widget_label)));
     const auto coverage = std::to_string(control.assigned_fixture_count) +
         " of " + std::to_string(control.target_fixture_count) + " owned";
     item.detail = shared_string(
@@ -549,6 +553,8 @@ void select_available_look(LabState& state) {
     item.enabled = control.enabled;
     item.safety_restricted = control.safety_restricted;
     item.mixed = control.value_mixed;
+    item.active = control.value_matches_choice;
+    item.profile_function = control.profile_function;
     return item;
 }
 
@@ -821,53 +827,88 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
             ? ownership_name(pan)
             : std::string("mixed")));
 
-    std::vector<ParameterControlItem> parameter_items;
     std::vector<ParameterControlItem> color_items;
-    std::vector<ParameterControlItem> ownership_items;
-    std::vector<ChoiceTileItem> choice_items;
-    std::vector<showcore::Property> ownership_properties;
     for (const auto& control : model.controls) {
         if (control.control_kind == "color mixer") {
             color_items.push_back(parameter_control_item(control));
-            continue;
-        }
-        if (control.control_kind == "XY position pad") {
-            continue;
-        }
-        if (control.accepts_value) {
-            parameter_items.push_back(parameter_control_item(control));
-            continue;
-        }
-        choice_items.push_back(choice_tile_item(control));
-        if (std::find(
-                ownership_properties.begin(), ownership_properties.end(),
-                control.property) == ownership_properties.end()) {
-            ownership_properties.push_back(control.property);
-            auto ownership_item = parameter_control_item(control);
-            ownership_item.title = shared_string(
-                control.property_label + " ownership");
-            ownership_item.detail = shared_string(
-                "Choose a profile function below • Set defaults to " +
-                control.widget_label + " • " + control.availability_text);
-            ownership_items.push_back(std::move(ownership_item));
         }
     }
-    ui.set_parameter_item_count(static_cast<int>(parameter_items.size()));
+
+    std::vector<ParameterFamilyItem> parameter_families;
+    parameter_families.reserve(model.control_groups.size());
+    for (const auto& group : model.control_groups) {
+        if (group.control_kind == "color mixer" ||
+            group.control_kind == "XY position pad") {
+            continue;
+        }
+        std::vector<ParameterControlItem> value_controls;
+        std::vector<ChoiceTileItem> choices;
+        const emberlights::FixturesLooksControlBinding* ownership_control = nullptr;
+        for (const auto& control : model.controls) {
+            if (control.widget_id != group.stable_id) {
+                continue;
+            }
+            if (ownership_control == nullptr || control.selected ||
+                control.value_matches_choice) {
+                ownership_control = &control;
+            }
+            if (control.accepts_value) {
+                value_controls.push_back(parameter_control_item(control));
+            } else {
+                choices.push_back(choice_tile_item(control));
+            }
+        }
+        if (ownership_control == nullptr) {
+            continue;
+        }
+
+        ParameterFamilyItem family;
+        family.stable_id = shared_string(group.stable_id);
+        family.parameter_id = shared_string(group.parameter_id);
+        family.section_label = shared_string(group.section_label);
+        family.title = shared_string(group.label);
+        family.kind = shared_string(group.control_kind);
+        family.ownership = shared_string(
+            emberlights::static_look_ownership_state_name(
+                ownership_control->ownership));
+        family.ownership_choice_id = shared_string(
+            ownership_control->choice_id);
+        family.value_count = static_cast<int>(value_controls.size());
+        family.choice_count = static_cast<int>(choices.size());
+        family.enabled = group.enabled;
+        family.safety_restricted = group.safety_restricted;
+        family.mixed = ownership_control->value_mixed;
+        const auto profile_functions = std::to_string(
+            group.profile_function_count) +
+            (group.profile_function_count == 1U
+                 ? " profile function"
+                 : " profile functions");
+        const auto coverage = std::to_string(
+            ownership_control->assigned_fixture_count) + " of " +
+            std::to_string(ownership_control->target_fixture_count) + " owned";
+        family.detail = shared_string(
+            profile_functions + " • " + coverage + " • " +
+            ownership_control->availability_text +
+            (group.degraded ? " • partial availability" : "") +
+            (group.safety_restricted ? " • safety-limited" : ""));
+        family.value_controls =
+            std::make_shared<slint::VectorModel<ParameterControlItem>>(
+                std::move(value_controls));
+        family.choices =
+            std::make_shared<slint::VectorModel<ChoiceTileItem>>(
+                std::move(choices));
+        parameter_families.push_back(std::move(family));
+    }
+
     ui.set_color_item_count(static_cast<int>(color_items.size()));
-    ui.set_ownership_item_count(static_cast<int>(ownership_items.size()));
-    ui.set_choice_item_count(static_cast<int>(choice_items.size()));
-    ui.set_parameter_items(
-        std::make_shared<slint::VectorModel<ParameterControlItem>>(
-            std::move(parameter_items)));
+    ui.set_parameter_family_count(static_cast<int>(
+        parameter_families.size()));
     ui.set_color_items(
         std::make_shared<slint::VectorModel<ParameterControlItem>>(
             std::move(color_items)));
-    ui.set_ownership_items(
-        std::make_shared<slint::VectorModel<ParameterControlItem>>(
-            std::move(ownership_items)));
-    ui.set_choice_items(
-        std::make_shared<slint::VectorModel<ChoiceTileItem>>(
-            std::move(choice_items)));
+    ui.set_parameter_family_items(
+        std::make_shared<slint::VectorModel<ParameterFamilyItem>>(
+            std::move(parameter_families)));
 }
 
 template<typename Mutation>

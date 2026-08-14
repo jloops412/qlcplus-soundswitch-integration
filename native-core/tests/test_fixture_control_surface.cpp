@@ -66,6 +66,13 @@ int failures = 0;
     open.behavior = showcore::ChannelCapabilityBehavior::Slot;
     open.access = showcore::ChannelCapabilityAccess::Selectable;
     gobo.capabilities.push_back(open);
+    auto dots = open;
+    dots.id = "dots";
+    dots.name = "Dots";
+    dots.dmx_min = 32U;
+    dots.dmx_max = 63U;
+    dots.preferred_value = 48U;
+    gobo.capabilities.push_back(std::move(dots));
     profile.channels.push_back(gobo);
 
     emberlights::ChannelDefinition custom;
@@ -116,12 +123,12 @@ void test_task_facing_groups_hide_raw_diagnostics() {
         project, query);
     const auto model = emberlights::build_fixture_control_surface(catalog);
 
-    CHECK(emberlights::kFixtureControlSurfaceComponentVersion == 1U);
+    CHECK(emberlights::kFixtureControlSurfaceComponentVersion == 2U);
     CHECK(model.state == emberlights::FixtureFunctionComponentState::Ready);
     CHECK(model.target_id == "fixture.visual");
     CHECK(model.diagnostics_available);
     CHECK(model.hidden_advanced_count == 1U);
-    CHECK(model.visible_binding_count == 9U);
+    CHECK(model.visible_binding_count == 10U);
 
     const auto* color = widget(
         section(model, emberlights::FixtureParameterCategory::Color),
@@ -129,6 +136,7 @@ void test_task_facing_groups_hide_raw_diagnostics() {
     CHECK(color != nullptr);
     if (color != nullptr) {
         CHECK(color->stable_id == "group.color.mixer");
+        CHECK(color->parameter_id == "color");
         CHECK(color->bindings.size() == 5U);
         CHECK(color->enabled);
         CHECK(!color->degraded);
@@ -140,6 +148,7 @@ void test_task_facing_groups_hide_raw_diagnostics() {
         emberlights::FixtureControlWidgetKind::XYPad);
     CHECK(position != nullptr);
     if (position != nullptr) {
+        CHECK(position->parameter_id == "position");
         CHECK(position->bindings.size() == 2U);
         CHECK(position->bindings[0].choice_id != position->bindings[1].choice_id);
     }
@@ -153,8 +162,18 @@ void test_task_facing_groups_hide_raw_diagnostics() {
     CHECK(intensity != nullptr);
     CHECK(gobo != nullptr);
     if (gobo != nullptr) {
-        CHECK(gobo->bindings.size() == 1U);
-        CHECK(gobo->bindings.front().label == "Gobo");
+        CHECK(gobo->stable_id == "parameter.gobo");
+        CHECK(gobo->parameter_id == "gobo");
+        CHECK(gobo->label == "Gobo");
+        CHECK(gobo->bindings.size() == 2U);
+        CHECK(std::any_of(
+            gobo->bindings.begin(), gobo->bindings.end(),
+            [](const auto& binding) { return binding.label == "Open"; }));
+        CHECK(std::any_of(
+            gobo->bindings.begin(), gobo->bindings.end(),
+            [](const auto& binding) { return binding.label == "Dots"; }));
+        CHECK(gobo->value_binding_count == 0U);
+        CHECK(gobo->choice_binding_count == 2U);
     }
 
     // The ordinary surface keeps stable semantic values and availability but

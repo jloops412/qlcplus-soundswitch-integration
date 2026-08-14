@@ -220,6 +220,14 @@ Renderers may specialize Color and Pan/Tilt visually, but specialization must
 not make any other surfaced binding unreachable. Closing Advanced removes
 Custom controls from the ordinary projection.
 
+Before rendering, bindings are grouped by stable semantic parameter ID. One
+property family keeps its direct value controls, continuous named ranges,
+exact selector choices, ownership, coverage, availability, mixed state, and
+safety together. A skin may restyle or reorder whole families but may not
+scatter one property's controls into unrelated page regions or replace the
+shared grouping rule. Color-emitter mixers and Pan/Tilt XY are the intentional
+multi-property composite families.
+
 ## 3. Venue and Patch View
 
 Component type:

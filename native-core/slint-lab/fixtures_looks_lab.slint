@@ -43,6 +43,26 @@ export struct ParameterControlItem {
     enabled: bool,
     safety-restricted: bool,
     mixed: bool,
+    active: bool,
+    profile-function: bool,
+}
+
+export struct ParameterFamilyItem {
+    stable-id: string,
+    parameter-id: string,
+    section-label: string,
+    title: string,
+    detail: string,
+    kind: string,
+    ownership: string,
+    ownership-choice-id: string,
+    value-controls: [ParameterControlItem],
+    choices: [ChoiceTileItem],
+    value-count: int,
+    choice-count: int,
+    enabled: bool,
+    safety-restricted: bool,
+    mixed: bool,
 }
 
 global Theme {
@@ -342,96 +362,6 @@ component OwnershipStrip inherits Rectangle {
     }
 }
 
-component FaderCard inherits Rectangle {
-    in property <string> choice-id;
-    in property <string> title;
-    in property <string> detail;
-    in-out property <float> value: 0;
-    in property <string> ownership: "release";
-    in property <bool> enabled: true;
-    callback value-changed(string, float);
-    callback ownership-changed(string, string);
-    min-height: 126px;
-    border-radius: 7px;
-    border-width: 1px;
-    border-color: Theme.border-subtle;
-    background: Theme.panel;
-
-    VerticalLayout {
-        padding: 12px;
-        spacing: 8px;
-        HorizontalLayout {
-            Text {
-                text: root.title;
-                color: Theme.text;
-                font-size: 13px;
-                font-weight: 600;
-            }
-            Text {
-                text: round(root.value * 100) + "%";
-                color: Theme.text;
-                font-size: 13px;
-                font-weight: 600;
-                horizontal-alignment: right;
-            }
-        }
-        Text {
-            text: root.detail;
-            color: Theme.text-muted;
-            font-size: 10px;
-            overflow: elide;
-        }
-        Slider {
-            value: root.value;
-            minimum: 0;
-            maximum: 1;
-            enabled: root.enabled && root.ownership == "set";
-            changed(value) => {
-                root.value = value;
-                root.value-changed(root.choice-id, value);
-            }
-        }
-        OwnershipStrip {
-            value: root.ownership;
-            enabled: root.enabled;
-            selected(value) => { root.ownership-changed(root.choice-id, value); }
-        }
-    }
-}
-
-component OwnershipCard inherits Rectangle {
-    in property <ParameterControlItem> item;
-    callback ownership-changed(string, string);
-    min-height: 104px;
-    border-radius: 7px;
-    border-width: 1px;
-    border-color: item.safety-restricted ? Theme.warn : Theme.border-subtle;
-    background: Theme.panel;
-    accessible-role: AccessibleRole.groupbox;
-    accessible-label: item.title + ". " + item.detail;
-
-    VerticalLayout {
-        padding: 12px;
-        spacing: 7px;
-        HorizontalLayout {
-            Text { text: item.title; color: Theme.text; font-size: 13px; font-weight: 600; }
-            Text {
-                text: item.mixed ? "MIXED" : item.ownership == "forceZero" ? "OFF" : item.ownership == "set" ? "SET" : "RELEASED";
-                color: item.mixed ? Theme.warn : item.ownership == "set" ? Theme.good : Theme.text-muted;
-                font-size: 10px;
-                font-weight: 650;
-                horizontal-alignment: right;
-            }
-        }
-        Text { text: item.detail; color: item.safety-restricted ? Theme.warn : Theme.text-muted; font-size: 10px; overflow: elide; }
-        OwnershipStrip {
-            value: item.ownership;
-            enabled: item.enabled;
-            selected(value) => { root.ownership-changed(item.choice-id, value); }
-        }
-    }
-}
-
 component ColorChannel inherits Rectangle {
     in property <string> choice-id;
     in property <string> label;
@@ -605,6 +535,115 @@ component ChoiceTile inherits Rectangle {
     }
 }
 
+// Compact value row used inside one semantic parameter family. Dragging a
+// value asserts SET through the existing typed domain path, so operators do
+// not have to arm ownership in a separate part of the page first.
+component ParameterValueRow inherits Rectangle {
+    in property <ParameterControlItem> item;
+    in property <bool> enabled: true;
+    callback value-changed(string, float);
+    min-height: 78px;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: item.active ? Theme.good : Theme.border-subtle;
+    background: Theme.control;
+    accessible-role: slider;
+    accessible-label: item.title + ". " + item.detail;
+    accessible-enabled: root.enabled && item.enabled;
+
+    VerticalLayout {
+        padding: 9px;
+        spacing: 6px;
+        HorizontalLayout {
+            Text {
+                text: item.title;
+                color: Theme.text;
+                font-size: 11px;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: item.mixed ? "MIXED" : round(item.value * 100) + "%";
+                color: item.mixed ? Theme.warn : item.active ? Theme.good : Theme.text-secondary;
+                font-size: 10px;
+                font-weight: 650;
+                horizontal-alignment: right;
+            }
+        }
+        Slider {
+            value: item.value;
+            minimum: 0;
+            maximum: 1;
+            enabled: root.enabled && item.enabled;
+            changed(value) => { root.value-changed(item.choice-id, value); }
+        }
+    }
+}
+
+// One property-scoped card keeps continuous values, exact profile choices,
+// availability and RELEASE/SET/FORCE_ZERO ownership in one operator task.
+component ParameterFamilyCard inherits Rectangle {
+    in property <ParameterFamilyItem> item;
+    in property <bool> enabled: true;
+    callback select-choice(string);
+    callback value-changed(string, float);
+    callback ownership-changed(string, string);
+    min-height: 132px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: item.safety-restricted ? Theme.warn : item.mixed ? Theme.warn : Theme.border-subtle;
+    background: Theme.panel;
+    accessible-role: AccessibleRole.groupbox;
+    accessible-label: item.title + ". " + item.detail;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 9px;
+        HorizontalLayout {
+            VerticalLayout {
+                spacing: 2px;
+                Text { text: item.title; color: Theme.text; font-size: 13px; font-weight: 650; }
+                Text { text: item.section-label + " • " + item.kind; color: Theme.text-muted; font-size: 9px; }
+            }
+            Text {
+                text: item.mixed ? "MIXED" : item.ownership == "forceZero" ? "OFF" : item.ownership == "set" ? "SET" : "RELEASED";
+                color: item.mixed ? Theme.warn : item.ownership == "set" ? Theme.good : Theme.text-muted;
+                font-size: 10px;
+                font-weight: 700;
+                horizontal-alignment: right;
+            }
+        }
+        Text {
+            text: item.detail;
+            color: item.safety-restricted ? Theme.warn : Theme.text-secondary;
+            font-size: 10px;
+            wrap: word-wrap;
+        }
+        for control in item.value-controls: ParameterValueRow {
+            item: control;
+            enabled: root.enabled;
+            value-changed(id, value) => { root.value-changed(id, value); }
+        }
+        if item.choice-count > 0: ScrollView {
+            height: 84px;
+            HorizontalLayout {
+                spacing: 8px;
+                for choice in item.choices: ChoiceTile {
+                    item: choice;
+                    selected(id) => { root.select-choice(id); }
+                }
+            }
+        }
+        OwnershipStrip {
+            value: item.ownership;
+            enabled: root.enabled && item.enabled;
+            selected(value) => {
+                root.ownership-changed(item.ownership-choice-id, value);
+            }
+        }
+    }
+}
+
 export component FixturesLooksLab inherits Window {
     title: "EmberLights • Fixtures + Static Looks • Slint Lab";
     preferred-width: 1366px;
@@ -652,20 +691,16 @@ export component FixturesLooksLab inherits Window {
     in property <[ShellListItem]> look-items;
     in property <[ShellListItem]> diagnostic-items;
     in property <[ControlGroupItem]> control-group-items;
-    in property <[ParameterControlItem]> parameter-items;
     in property <[ParameterControlItem]> color-items;
-    in property <[ParameterControlItem]> ownership-items;
-    in property <[ChoiceTileItem]> choice-items;
+    in property <[ParameterFamilyItem]> parameter-family-items;
     in property <string> control-summary;
     in property <string> advanced-profile-title;
     in property <string> advanced-profile-detail;
     in property <string> advanced-patch-detail;
     in property <string> selected-control-group: "all";
     in property <int> visible-control-count: 0;
-    in property <int> parameter-item-count: 0;
     in property <int> color-item-count: 0;
-    in property <int> ownership-item-count: 0;
-    in property <int> choice-item-count: 0;
+    in property <int> parameter-family-count: 0;
     in property <int> diagnostic-item-count: 0;
     in property <bool> xy-visible: false;
     in property <string> pan-choice-id;
@@ -982,32 +1017,13 @@ export component FixturesLooksLab inherits Window {
                                 value-changed(id, value) => { root.control-value-changed(id, value); }
                                 ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
                             }
-                            if root.parameter-item-count > 0: Text { text: "CONTINUOUS PARAMETERS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            for item in root.parameter-items: FaderCard {
-                                choice-id: item.choice-id;
-                                title: item.title;
-                                detail: item.detail;
-                                value: item.value;
-                                ownership: item.ownership;
-                                enabled: root.can-edit && item.enabled;
+                            if root.parameter-family-count > 0: Text { text: "PARAMETER CARDS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            for item in root.parameter-family-items: ParameterFamilyCard {
+                                item: item;
+                                enabled: root.can-edit;
+                                select-choice(id) => { root.select-choice(id); }
                                 value-changed(id, value) => { root.control-value-changed(id, value); }
                                 ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
-                            }
-                            if root.ownership-item-count > 0: Text { text: "SELECTOR OWNERSHIP"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            for item in root.ownership-items: OwnershipCard {
-                                item: item;
-                                ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
-                            }
-                            if root.choice-item-count > 0: Text { text: "PROFILE FUNCTIONS & RANGES"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            if root.choice-item-count > 0: ScrollView {
-                                height: 84px;
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    for item in root.choice-items: ChoiceTile {
-                                        item: item;
-                                        selected(id) => { root.select-choice(id); }
-                                    }
-                                }
                             }
                             Rectangle { height: 16px; background: #00000000; }
                         }
