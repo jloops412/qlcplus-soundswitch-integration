@@ -57,6 +57,9 @@ public:
     [[nodiscard]] bool close(std::uint32_t logical_device_id) noexcept;
     void close_all() noexcept;
     [[nodiscard]] bool poll(MidiMessage& message) noexcept;
+    // Performs a bounded driver-handle probe. This is lifecycle evidence for
+    // owner cleanup/retry, not proof that the physical controller is usable.
+    [[nodiscard]] bool connected(std::uint32_t logical_device_id) noexcept;
     [[nodiscard]] std::size_t open_port_count() const noexcept;
     [[nodiscard]] std::uint64_t dropped_messages() const noexcept;
     [[nodiscard]] std::uint32_t last_error() const noexcept;

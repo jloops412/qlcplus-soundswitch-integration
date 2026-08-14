@@ -115,6 +115,10 @@ struct StaticLookOwnerContext {
     std::uint64_t feedback_token{0U};
     std::uint64_t expected_package_generation{0U};
     std::uint64_t expected_activation_generation{0U};
+    // Adapter/controller connection epoch. This is trusted control-plane
+    // identity, not a public registry argument or presentation-facing state.
+    // A zero value denotes a local/non-session owner.
+    std::uint64_t owner_session_token{0U};
 };
 
 // Bounded transport adapters use one lease per binding/target. Repeated begin
@@ -122,6 +126,7 @@ struct StaticLookOwnerContext {
 // consumes it, after which a later clean begin may activate again.
 struct StaticLookBindingLease {
     std::uint64_t owner_feedback_token{0U};
+    std::uint64_t owner_session_token{0U};
     std::uint64_t package_generation{0U};
     std::uint64_t activation_generation{0U};
 
@@ -132,12 +137,14 @@ struct StaticLookBindingLease {
     [[nodiscard]] constexpr bool record_begin(
         std::uint64_t owner_token,
         std::uint64_t package,
-        std::uint64_t activation) noexcept {
+        std::uint64_t activation,
+        std::uint64_t owner_session = 0U) noexcept {
         if (outstanding() || owner_token == 0U || package == 0U ||
             activation == 0U) {
             return false;
         }
         owner_feedback_token = owner_token;
+        owner_session_token = owner_session;
         package_generation = package;
         activation_generation = activation;
         return true;
@@ -145,9 +152,12 @@ struct StaticLookBindingLease {
 
     [[nodiscard]] constexpr StaticLookOwnerContext consume_release(
         StaticLookOwnerKind kind,
-        std::uint64_t owner_token) noexcept {
-        StaticLookOwnerContext context{kind, owner_token, 0U, 0U};
-        if (outstanding() && owner_feedback_token == owner_token) {
+        std::uint64_t owner_token,
+        std::uint64_t owner_session = 0U) noexcept {
+        StaticLookOwnerContext context{
+            kind, owner_token, 0U, 0U, owner_session};
+        if (outstanding() && owner_feedback_token == owner_token &&
+            owner_session_token == owner_session) {
             context.expected_package_generation = package_generation;
             context.expected_activation_generation = activation_generation;
             clear();
@@ -157,8 +167,17 @@ struct StaticLookBindingLease {
 
     constexpr void clear() noexcept {
         owner_feedback_token = 0U;
+        owner_session_token = 0U;
         package_generation = 0U;
         activation_generation = 0U;
+    }
+
+    [[nodiscard]] constexpr bool belongs_to(
+        std::uint64_t owner_session,
+        std::uint64_t owner_token = 0U) const noexcept {
+        return outstanding() && owner_session != 0U &&
+            owner_session_token == owner_session &&
+            (owner_token == 0U || owner_feedback_token == owner_token);
     }
 };
 
@@ -172,6 +191,9 @@ struct RunnerStaticLookActivation {
     StaticLookActivationStatus status{StaticLookActivationStatus::None};
     std::uint64_t activated_at_ms{0U};
     float transition_progress{0.0F};
+    // Internal adapter/controller epoch used only to reject stale disconnect
+    // and release events after a source reconnects.
+    std::uint64_t owner_session_token{0U};
 };
 
 enum class RunnerCommandType : std::uint8_t {
@@ -194,7 +216,8 @@ enum class RunnerCommandType : std::uint8_t {
     ArmHazard,
     SetTrackPlaying,
     ClearManualOverrides,
-    SetGroupProperty
+    SetGroupProperty,
+    StaticLookOwnerLost
 };
 
 struct RunnerCommand {
@@ -287,6 +310,7 @@ struct RunnerMidiMonitorEvent {
 struct RunnerMidiActionEvent {
     showcore::MidiActionEvent event{};
     std::uint64_t generation{0};
+    std::uint64_t owner_session_token{0U};
 };
 
 struct RunnerBeatEvent {
@@ -299,6 +323,14 @@ struct RunnerOs2lButtonEvent {
     showcore::FixedText<96> name{};
     bool on{false};
     std::uint64_t generation{0};
+    std::uint64_t owner_session_token{0U};
+};
+
+struct RunnerStaticLookOwnerLossEvent {
+    StaticLookOwnerKind kind{StaticLookOwnerKind::None};
+    std::uint64_t owner_session_token{0U};
+    std::uint64_t owner_feedback_token{0U};
+    std::uint64_t generation{0U};
 };
 
 struct RunnerOutputFrame {
@@ -376,6 +408,10 @@ public:
         std::uint16_t index,
         bool active,
         StaticLookOwnerContext owner) noexcept;
+    [[nodiscard]] bool notify_static_look_owner_lost(
+        StaticLookOwnerKind kind,
+        std::uint64_t owner_session_token,
+        std::uint64_t owner_feedback_token = 0U) noexcept;
     [[nodiscard]] bool clear_look() noexcept;
     [[nodiscard]] bool trigger_autoloop(showcore::AutoloopAddress address) noexcept;
     [[nodiscard]] bool clear_autoloop() noexcept;
@@ -417,6 +453,8 @@ private:
     using Os2lButtonQueue = showcore::SpscQueue<RunnerOs2lButtonEvent, 257>;
     using MidiActionQueue = showcore::SpscQueue<RunnerMidiActionEvent, 1025>;
     using MidiMonitorQueue = showcore::SpscQueue<RunnerMidiMonitorEvent, 257>;
+    using OwnerLossQueue =
+        showcore::SpscQueue<RunnerStaticLookOwnerLossEvent, 65>;
     using OutputQueue = showcore::SpscQueue<OutputFrame, 9>;
 
     static void os2l_callback(
@@ -442,6 +480,7 @@ private:
     Os2lButtonQueue os2l_buttons_{};
     MidiActionQueue midi_actions_{};
     MidiMonitorQueue midi_monitor_{};
+    OwnerLossQueue owner_losses_{};
     OutputQueue output_queue_{};
     mutable std::mutex output_snapshot_mutex_{};
     RunnerOutputSnapshot latest_output_snapshot_{};
@@ -533,6 +572,8 @@ private:
     std::atomic<std::uint64_t> dropped_os2l_actions_{0};
     std::atomic<std::uint64_t> midi_messages_{0};
     std::atomic<std::uint64_t> dropped_midi_actions_{0};
+    std::atomic<std::uint64_t> input_owner_session_sequence_{0U};
+    std::atomic<std::uint64_t> os2l_owner_session_token_{0U};
     std::atomic<std::uint64_t> started_at_ms_{0};
     std::atomic<std::uint64_t> last_frame_ms_{0};
     std::atomic<std::uint64_t> jitter_samples_{0};

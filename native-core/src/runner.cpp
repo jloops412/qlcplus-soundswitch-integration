@@ -363,6 +363,7 @@ bool RunnerService::start(
     os2l_buttons_.reset();
     midi_actions_.reset();
     midi_monitor_.reset();
+    owner_losses_.reset();
     output_queue_.reset();
     {
         const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
@@ -372,6 +373,7 @@ bool RunnerService::start(
     stop_requested_.store(false, std::memory_order_release);
     blackout_requested_.store(false, std::memory_order_release);
     work_light_requested_.store(false, std::memory_order_release);
+    os2l_owner_session_token_.store(0U, std::memory_order_release);
     sync_state_.store(showcore::SyncState::Waiting, std::memory_order_relaxed);
     clock_source_.store(showcore::ClockSource::None, std::memory_order_relaxed);
     bpm_milli_.store(0, std::memory_order_relaxed);
@@ -868,6 +870,21 @@ bool RunnerService::hold_look(
     return post(command);
 }
 
+bool RunnerService::notify_static_look_owner_lost(
+    StaticLookOwnerKind kind,
+    std::uint64_t owner_session_token,
+    std::uint64_t owner_feedback_token) noexcept {
+    if (kind == StaticLookOwnerKind::None || owner_session_token == 0U) {
+        return false;
+    }
+    RunnerCommand command;
+    command.type = RunnerCommandType::StaticLookOwnerLost;
+    command.static_look_owner.kind = kind;
+    command.static_look_owner.feedback_token = owner_feedback_token;
+    command.static_look_owner.owner_session_token = owner_session_token;
+    return post(command);
+}
+
 bool RunnerService::clear_look() noexcept {
     return post({RunnerCommandType::ClearLook});
 }
@@ -1022,7 +1039,9 @@ void RunnerService::os2l_callback(
             const RunnerOs2lButtonEvent button{
                 event.button.name,
                 event.button.on,
-                activation->generation};
+                activation->generation,
+                service.os2l_owner_session_token_.load(
+                    std::memory_order_acquire)};
             if (!service.os2l_buttons_.try_push(button)) {
                 service.dropped_os2l_actions_.fetch_add(1, std::memory_order_relaxed);
             }
@@ -1037,8 +1056,39 @@ void RunnerService::run_input() noexcept {
     bool os2l_open = false;
     bool midi_input_open = false;
     bool midi_output_open = false;
+    std::uint64_t os2l_owner_session = 0U;
+    std::uint64_t midi_owner_session = 0U;
     auto next_os2l_retry = SteadyClock::now();
     auto next_midi_retry = SteadyClock::now();
+    auto next_midi_health_probe = SteadyClock::now();
+
+    auto next_owner_session = [&]() noexcept {
+        auto next = input_owner_session_sequence_.fetch_add(
+                        1U, std::memory_order_relaxed) +
+            1U;
+        if (next == 0U) {
+            input_owner_session_sequence_.store(1U, std::memory_order_relaxed);
+            next = 1U;
+        }
+        return next;
+    };
+    auto queue_owner_loss = [&](StaticLookOwnerKind kind,
+                                std::uint64_t owner_session,
+                                std::uint64_t generation) noexcept {
+        if (owner_session == 0U) {
+            return;
+        }
+        if (!owner_losses_.try_push(
+                {kind, owner_session, 0U, generation})) {
+            if (kind == StaticLookOwnerKind::Midi) {
+                dropped_midi_actions_.fetch_add(1U, std::memory_order_relaxed);
+            } else {
+                dropped_os2l_actions_.fetch_add(1U, std::memory_order_relaxed);
+            }
+        }
+    };
+
+    os2l_owner_session_token_.store(0U, std::memory_order_release);
 
     while (!stop_requested_.load(std::memory_order_acquire)) {
         auto* activation = published_activation_.load(std::memory_order_acquire);
@@ -1066,10 +1116,28 @@ void RunnerService::run_input() noexcept {
         }
         if (os2l_open) {
             const auto poll = os2l.poll(&RunnerService::os2l_callback, this, 2);
+            if (poll == showcore::Os2lPollResult::ClientConnected) {
+                os2l_owner_session = next_owner_session();
+                os2l_owner_session_token_.store(
+                    os2l_owner_session, std::memory_order_release);
+            } else if (poll == showcore::Os2lPollResult::ClientDisconnected) {
+                queue_owner_loss(
+                    StaticLookOwnerKind::External,
+                    os2l_owner_session,
+                    activation->generation);
+                os2l_owner_session = 0U;
+                os2l_owner_session_token_.store(0U, std::memory_order_release);
+            }
             if (poll == showcore::Os2lPollResult::Error) {
                 const auto discovery_state = adapter_state(os2l.discovery_state());
                 const auto discovery_error = os2l.discovery_last_error();
                 const auto socket_error = os2l.last_error();
+                queue_owner_loss(
+                    StaticLookOwnerKind::External,
+                    os2l_owner_session,
+                    activation->generation);
+                os2l_owner_session = 0U;
+                os2l_owner_session_token_.store(0U, std::memory_order_release);
                 os2l.close();
                 os2l_open = false;
                 os2l_listen_port_.store(0U, std::memory_order_relaxed);
@@ -1104,6 +1172,10 @@ void RunnerService::run_input() noexcept {
                 midi_input_state_.store(AdapterState::Starting, std::memory_order_relaxed);
                 midi_input_open = midi_input.open(
                     static_cast<std::uint32_t>(connections_.midi_input_index), 1U);
+                if (midi_input_open) {
+                    midi_owner_session = next_owner_session();
+                    next_midi_health_probe = now + std::chrono::milliseconds(250);
+                }
                 midi_input_state_.store(
                     midi_input_open ? AdapterState::Ready : AdapterState::Fault,
                     std::memory_order_relaxed);
@@ -1119,6 +1191,22 @@ void RunnerService::run_input() noexcept {
             next_midi_retry = now + std::chrono::seconds(2);
         }
 
+        if (midi_input_open && now >= next_midi_health_probe) {
+            if (!midi_input.connected(1U)) {
+                queue_owner_loss(
+                    StaticLookOwnerKind::Midi,
+                    midi_owner_session,
+                    activation->generation);
+                static_cast<void>(midi_input.close(1U));
+                midi_input_open = false;
+                midi_owner_session = 0U;
+                midi_input_state_.store(
+                    AdapterState::Fault, std::memory_order_relaxed);
+                next_midi_retry = now + std::chrono::seconds(2);
+            }
+            next_midi_health_probe = now + std::chrono::milliseconds(250);
+        }
+
         if (midi_input_open) {
             showcore::MidiMessage message;
             while (midi_input.poll(message)) {
@@ -1127,7 +1215,10 @@ void RunnerService::run_input() noexcept {
                 std::array<showcore::MidiActionEvent, showcore::kMaxMidiActionsPerMessage> actions{};
                 const auto count = activation->show->midi_mappings().process(message, actions);
                 for (std::size_t index = 0; index < count; ++index) {
-                    if (!midi_actions_.try_push({actions[index], activation->generation})) {
+                    if (!midi_actions_.try_push({
+                            actions[index],
+                            activation->generation,
+                            midi_owner_session})) {
                         dropped_midi_actions_.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
@@ -1137,6 +1228,7 @@ void RunnerService::run_input() noexcept {
     }
 
     os2l.close();
+    os2l_owner_session_token_.store(0U, std::memory_order_release);
     os2l_listen_port_.store(0U, std::memory_order_relaxed);
     os2l_discovery_state_.store(AdapterState::Disabled, std::memory_order_relaxed);
     midi_input.close_all();
@@ -1617,7 +1709,8 @@ void RunnerService::run_scheduler() noexcept {
             const RunnerStaticLookActivation& current,
             const StaticLookOwnerContext& owner) noexcept {
             return current.owner_kind == owner.kind &&
-                current.owner_feedback_token == owner.feedback_token;
+                current.owner_feedback_token == owner.feedback_token &&
+                current.owner_session_token == owner.owner_session_token;
         };
 
         auto next_static_look_generation = [&]() noexcept {
@@ -1667,6 +1760,7 @@ void RunnerService::run_scheduler() noexcept {
             current.activation_generation = generation;
             current.owner_kind = owner.kind;
             current.owner_feedback_token = owner.feedback_token;
+            current.owner_session_token = owner.owner_session_token;
             current.behavior = behavior == StaticLookBehavior::None
                 ? StaticLookBehavior::Explicit
                 : behavior;
@@ -1778,14 +1872,16 @@ void RunnerService::run_scheduler() noexcept {
         };
 
         auto apply_action = [&](const showcore::MidiActionEvent& event,
-                                double beat_position) noexcept {
+                                double beat_position,
+                                std::uint64_t owner_session_token) noexcept {
             const auto& action = event.action;
             if (action.type == showcore::ActionType::TriggerLook) {
                 const StaticLookOwnerContext owner{
                     StaticLookOwnerKind::Midi,
                     static_cast<std::uint64_t>(event.mapping_index) + 1U,
                     0U,
-                    0U};
+                    0U,
+                    owner_session_token};
                 switch (event.behavior) {
                 case showcore::MappingBehavior::Toggle:
                     if (event.active) {
@@ -1810,7 +1906,11 @@ void RunnerService::run_scheduler() noexcept {
                         auto& lease = runtime.midi_static_look_leases
                             [event.mapping_index];
                         if (lease.outstanding()) {
-                            break;
+                            if (lease.owner_session_token ==
+                                owner.owner_session_token) {
+                                break;
+                            }
+                            lease.clear();
                         }
                         if (activate_static_look(
                                 action.target_id,
@@ -1821,13 +1921,16 @@ void RunnerService::run_scheduler() noexcept {
                                 runtime.static_look_activation
                                     .package_generation,
                                 runtime.static_look_activation
-                                    .activation_generation));
+                                    .activation_generation,
+                                owner.owner_session_token));
                         }
                     } else {
                         auto release_owner =
                             runtime.midi_static_look_leases[event.mapping_index]
                                 .consume_release(
-                                    owner.kind, owner.feedback_token);
+                                    owner.kind,
+                                    owner.feedback_token,
+                                    owner.owner_session_token);
                         static_cast<void>(release_static_look(
                             action.target_id, release_owner));
                     }
@@ -1988,6 +2091,36 @@ void RunnerService::run_scheduler() noexcept {
             }
         };
 
+        auto handle_static_look_owner_loss = [&]
+            (const RunnerStaticLookOwnerLossEvent& loss) noexcept {
+            if (loss.kind == StaticLookOwnerKind::None ||
+                loss.owner_session_token == 0U) {
+                return;
+            }
+            auto clear_matching_leases = [&](auto& leases) noexcept {
+                for (auto& lease : leases) {
+                    if (lease.belongs_to(
+                            loss.owner_session_token,
+                            loss.owner_feedback_token)) {
+                        lease.clear();
+                    }
+                }
+            };
+            if (loss.kind == StaticLookOwnerKind::Midi) {
+                clear_matching_leases(runtime.midi_static_look_leases);
+            } else if (loss.kind == StaticLookOwnerKind::External) {
+                clear_matching_leases(runtime.os2l_static_look_leases);
+            }
+
+            const auto& current = runtime.static_look_activation;
+            if (current.owner_kind == loss.kind &&
+                current.owner_session_token == loss.owner_session_token &&
+                (loss.owner_feedback_token == 0U ||
+                 current.owner_feedback_token == loss.owner_feedback_token)) {
+                static_cast<void>(clear_static_look());
+            }
+        };
+
         RunnerOs2lButtonEvent os2l_button;
         while (os2l_buttons_.try_pop(os2l_button)) {
             if (os2l_button.generation != activation->generation) {
@@ -2017,12 +2150,20 @@ void RunnerService::run_scheduler() noexcept {
                         StaticLookOwnerKind::External,
                         static_look_feedback_token(target_name),
                         0U,
-                        0U};
+                        0U,
+                        os2l_button.owner_session_token};
+                    if (owner.owner_session_token == 0U) {
+                        continue;
+                    }
                     if (os2l_button.on) {
                         auto& lease =
                             runtime.os2l_static_look_leases[target];
                         if (lease.outstanding()) {
-                            continue;
+                            if (lease.owner_session_token ==
+                                owner.owner_session_token) {
+                                continue;
+                            }
+                            lease.clear();
                         }
                         if (activate_static_look(
                                 target, StaticLookBehavior::Hold, owner)) {
@@ -2031,13 +2172,16 @@ void RunnerService::run_scheduler() noexcept {
                                 runtime.static_look_activation
                                     .package_generation,
                                 runtime.static_look_activation
-                                    .activation_generation));
+                                    .activation_generation,
+                                owner.owner_session_token));
                         }
                     } else {
                         auto release_owner =
                             runtime.os2l_static_look_leases[target]
                                 .consume_release(
-                                    owner.kind, owner.feedback_token);
+                                    owner.kind,
+                                    owner.feedback_token,
+                                    owner.owner_session_token);
                         static_cast<void>(release_static_look(
                             target, release_owner));
                     }
@@ -2162,13 +2306,34 @@ void RunnerService::run_scheduler() noexcept {
                 }
                 break;
             }
+            case RunnerCommandType::StaticLookOwnerLost:
+                handle_static_look_owner_loss({
+                    command.static_look_owner.kind,
+                    command.static_look_owner.owner_session_token,
+                    command.static_look_owner.feedback_token,
+                    command.generation});
+                break;
             }
         }
 
         RunnerMidiActionEvent midi_action;
         while (midi_actions_.try_pop(midi_action)) {
             if (midi_action.generation == activation->generation) {
-                apply_action(midi_action.event, clock.beat_position);
+                apply_action(
+                    midi_action.event,
+                    clock.beat_position,
+                    midi_action.owner_session_token);
+            }
+        }
+
+        // Transport actions and lifecycle notices use independent SPSC queues.
+        // Drain owner loss last so a button/message already queued by the old
+        // connection cannot reactivate its Look after the disconnect cleanup.
+        // A reconnected source has a new session token and is not affected.
+        RunnerStaticLookOwnerLossEvent owner_loss;
+        while (owner_losses_.try_pop(owner_loss)) {
+            if (owner_loss.generation == activation->generation) {
+                handle_static_look_owner_loss(owner_loss);
             }
         }
 

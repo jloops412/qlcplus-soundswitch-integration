@@ -341,6 +341,14 @@ Required behavior:
 - release reveals the Autoloop at its current phase, not from the beginning;
 - blackout and safety layers retain their proper higher priority.
 
+Source checkpoint 2026-08-14: transport-owned activation and binding leases now
+carry an opaque connection-session epoch. OS2L disconnect/error and bounded
+WinMM input-handle failure clear only the matching session; stale queued actions,
+release, or owner-loss notices cannot cross a reconnect. Native lifecycle,
+allocation, advancing-Autoloop return, and OS2L loopback disconnect/reconnect
+regressions pass. Installed MIDI/Control One hotplug and authoritative physical
+feedback remain required evidence.
+
 Test UI, keyboard, MIDI, future Control One binding, duplicate release, rapid replacement, project activation, stop, and connection restart boundaries.
 
 ### Slice H — Scheduler timing and hardening (P1 after raw physical proof)

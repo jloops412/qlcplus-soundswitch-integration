@@ -651,6 +651,14 @@ Toggle/Hold is an interaction/binding behavior over the same Static Look engine,
 
 Use a monotonically increasing activation/ownership token or equivalent stable source token. Do not infer ownership from only the Look index. This prevents stale release events from UI, MIDI, or Control One from clearing a newer activation.
 
+Implementation checkpoint 2026-08-14: each transport connection receives an
+opaque internal session epoch in addition to the published owner feedback and
+activation generation. OS2L socket loss and a bounded WinMM input-handle probe
+produce owner-loss events that clear only matching leases/activation after any
+already-queued transport actions are drained. This preserves reconnect safety
+without expanding the public registry or introducing a claim stack. Installed
+Windows/controller hotplug and physical feedback remain acceptance evidence.
+
 ### 11.4 Feedback
 
 UI/controller LEDs must follow authoritative active state. Feedback is cleared only after the Runner accepts the release/toggle and publishes the new snapshot.

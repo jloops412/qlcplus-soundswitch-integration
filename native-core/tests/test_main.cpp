@@ -1441,6 +1441,7 @@ void test_winmm_midi_platform_boundary() {
     CHECK(!output.open(0, 1));
     showcore::MidiMessage message;
     CHECK(!input.poll(message));
+    CHECK(!input.connected(1U));
     CHECK(!output.send(1, message));
 #endif
 }
@@ -2391,8 +2392,52 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(send_all(client, blackout_off));
         CHECK(wait_for_live_state(-1, {7U, 3U}, 13U));
         CHECK(!runner.status().blackout);
-        CHECK(status.dropped_os2l_actions == 0U);
+        CHECK(send_all(client, red_on));
+        CHECK(wait_for_live_state(0, {7U, 3U}, 14U));
         close_test_socket(client);
+        const auto disconnect_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.active_look != -1 ||
+                status.os2l != emberlights::AdapterState::Waiting) &&
+               std::chrono::steady_clock::now() < disconnect_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.active_look == -1);
+        CHECK(status.os2l == emberlights::AdapterState::Waiting);
+        CHECK(status.dropped_os2l_actions == 0U);
+
+        const auto reconnect = connect_loopback(project.connections.os2l_port);
+        CHECK(reconnect != kInvalidTestSocket);
+        if (reconnect != kInvalidTestSocket) {
+            const auto reconnect_deadline = std::chrono::steady_clock::now() +
+                std::chrono::seconds(2);
+            status = runner.status();
+            while (status.os2l_connections < 2U &&
+                   std::chrono::steady_clock::now() < reconnect_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.os2l_connections == 2U);
+            CHECK(send_all(reconnect, red_on));
+            close_test_socket(reconnect);
+            const auto queued_disconnect_deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            status = runner.status();
+            while ((status.os2l_messages < 15U ||
+                    status.active_look != -1 ||
+                    status.os2l != emberlights::AdapterState::Waiting) &&
+                   std::chrono::steady_clock::now() <
+                       queued_disconnect_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.os2l_messages >= 15U);
+            CHECK(status.active_look == -1);
+            CHECK(status.os2l == emberlights::AdapterState::Waiting);
+            CHECK(status.dropped_os2l_actions == 0U);
+        }
     }
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
@@ -2415,6 +2460,24 @@ void test_runner_service_lifecycle() {
     CHECK(adapter_lease.consume_release(
               emberlights::StaticLookOwnerKind::Midi, 0x77U)
               .expected_activation_generation == 0U);
+    CHECK(adapter_lease.record_begin(0x77U, 4U, 14U, 0x901U));
+    CHECK(adapter_lease.belongs_to(0x901U));
+    CHECK(adapter_lease.belongs_to(0x901U, 0x77U));
+    CHECK(!adapter_lease.belongs_to(0x902U));
+    CHECK(adapter_lease.consume_release(
+              emberlights::StaticLookOwnerKind::Midi,
+              0x77U,
+              0x902U)
+              .expected_activation_generation == 0U);
+    CHECK(adapter_lease.outstanding());
+    const auto session_release = adapter_lease.consume_release(
+        emberlights::StaticLookOwnerKind::Midi,
+        0x77U,
+        0x901U);
+    CHECK(session_release.owner_session_token == 0x901U);
+    CHECK(session_release.expected_package_generation == 4U);
+    CHECK(session_release.expected_activation_generation == 14U);
+    CHECK(!adapter_lease.outstanding());
 
     auto project = make_test_project();
     project.connections.os2l_enabled = false;
@@ -2630,6 +2693,65 @@ void test_runner_service_lifecycle() {
     CHECK(runner.clear_look());
     CHECK(wait_for_active_look(-1));
 
+    const emberlights::StaticLookOwnerContext controller_session_a{
+        emberlights::StaticLookOwnerKind::Controller,
+        0xC1U,
+        0U,
+        0U,
+        0x1001U};
+    const emberlights::StaticLookOwnerContext controller_session_b{
+        emberlights::StaticLookOwnerKind::Controller,
+        0xC2U,
+        0U,
+        0U,
+        0x1002U};
+    CHECK(!runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::None, 0x1001U));
+    CHECK(!runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0U));
+    CHECK(runner.hold_look(0U, true, controller_session_a));
+    const auto session_a_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.owner_kind == emberlights::StaticLookOwnerKind::Controller &&
+            current.owner_feedback_token == 0xC1U;
+    }).static_look;
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1002U));
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U, 0xC2U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(75));
+    CHECK(runner.status().static_look.activation_generation ==
+          session_a_hold.activation_generation);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    CHECK(wait_for_active_look(-1));
+
+    CHECK(runner.hold_look(1U, true, controller_session_b));
+    const auto session_b_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.owner_feedback_token == 0xC2U;
+    }).static_look;
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(75));
+    CHECK(runner.status().static_look.activation_generation ==
+          session_b_hold.activation_generation);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1002U, 0xC2U));
+    CHECK(wait_for_active_look(-1));
+
+    CHECK(runner.toggle_look(0U, controller_session_a));
+    const auto session_latch = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Latch &&
+            current.owner_feedback_token == 0xC1U;
+    }).static_look;
+    CHECK(session_latch.activation_generation >
+          session_b_hold.activation_generation);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    CHECK(wait_for_active_look(-1));
+
     const auto command_allocations_before =
         g_allocations.load(std::memory_order_relaxed);
     CHECK(runner.hold_look(0U, true, owner_a));
@@ -2643,6 +2765,14 @@ void test_runner_service_lifecycle() {
     allocation_release.expected_activation_generation =
         allocation_hold.activation_generation;
     CHECK(runner.hold_look(0U, false, allocation_release));
+    CHECK(wait_for_active_look(-1));
+    CHECK(runner.hold_look(0U, true, controller_session_b));
+    static_cast<void>(wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.owner_feedback_token == 0xC2U;
+    }));
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1002U));
     CHECK(wait_for_active_look(-1));
     CHECK(g_allocations.load(std::memory_order_relaxed) ==
           command_allocations_before);
@@ -2660,10 +2790,11 @@ void test_runner_service_lifecycle() {
     }
     CHECK((before_cover.active_autoloop ==
            showcore::AutoloopAddress{7U, 3U}));
-    CHECK(runner.hold_look(0U, true, owner_a));
+    CHECK(runner.hold_look(0U, true, controller_session_a));
     held_a = wait_for_static_look([](const auto& current) {
         return current.look_index == 0 &&
-            current.behavior == emberlights::StaticLookBehavior::Hold;
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0xC1U;
     }).static_look;
     const auto covered_progress = runner.status().active_autoloop_progress;
     std::this_thread::sleep_for(std::chrono::milliseconds(125));
@@ -2671,9 +2802,8 @@ void test_runner_service_lifecycle() {
     CHECK((still_covered.active_autoloop ==
            showcore::AutoloopAddress{7U, 3U}));
     CHECK(still_covered.active_autoloop_progress != covered_progress);
-    stale_owner_a.expected_package_generation = held_a.package_generation;
-    stale_owner_a.expected_activation_generation = held_a.activation_generation;
-    CHECK(runner.hold_look(0U, false, stale_owner_a));
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
     CHECK(wait_for_active_look(-1));
     const auto revealed = runner.status();
     CHECK((revealed.active_autoloop ==
