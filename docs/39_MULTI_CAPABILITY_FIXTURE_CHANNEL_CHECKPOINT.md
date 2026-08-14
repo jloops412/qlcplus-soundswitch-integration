@@ -1,6 +1,7 @@
 # Multi-capability fixture-channel checkpoint
 
 Status: **implemented and packaged in Preview 91; portable, Windows-source, and package-contract tests green**  
+Successor: `40_NAMED_FIXTURE_CONTROL_SURFACES_CHECKPOINT.md` exposes these profile functions through the shared target-choice catalog in Static Looks and Live while preserving this checkpoint's safety and persistence contract.
 Date: 2026-08-13  
 Owners: fixture issue #52, UI facade issue #31, controller/binding issue #66
 
@@ -101,7 +102,7 @@ The Preview 91 handoff records the full portable suite, exact source commit, pac
 ## Honest remaining gaps
 
 - installed Windows GUI, keyboard, DPI, screen-reader, install/upgrade/uninstall evidence;
-- named capability pickers on Static Looks, Autoloops, Live overrides, MIDI, and EmberSkin components;
+- named capability pickers on Autoloops, MIDI/Control One, Ember Actions, and EmberSkin components; Static Looks and Live are implemented by the successor checkpoint;
 - real grouped multi-head/cell and pixel/matrix realization;
 - switching-channel dependency graphs and richer 16-bit capability ranges;
 - pinned offline fixture corpus and direct OFL transformer;

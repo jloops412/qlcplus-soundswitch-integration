@@ -1,6 +1,7 @@
 #include "emberlights/ember_action_json.hpp"
 
 #include "emberlights/file_identity.hpp"
+#include "showcore/number_chars.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -391,11 +392,10 @@ private:
             }
         }
         double value = 0.0;
-        const auto parsed = std::from_chars(
+        const auto parsed = showcore::parse_number_chars(
             source_.data() + start,
             source_.data() + position_,
-            value,
-            std::chars_format::general);
+            value);
         if (parsed.ec != std::errc{} || parsed.ptr != source_.data() + position_ ||
             !std::isfinite(value)) {
             fail("EA_JSON_NONFINITE", "A JSON number must be finite and representable.");

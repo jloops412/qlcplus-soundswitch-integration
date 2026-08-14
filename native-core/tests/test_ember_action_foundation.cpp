@@ -309,6 +309,28 @@ void test_generated_registry_adapter_and_ir_foundation() {
             CHECK(argument.value.maximum == 300.0);
         }
     }
+    const auto* fixture_override =
+        registry.find_command("fixture.override.property.set");
+    CHECK(fixture_override != nullptr);
+    if (fixture_override != nullptr) {
+        const auto property = std::find_if(
+            fixture_override->arguments.begin(),
+            fixture_override->arguments.end(),
+            [](const auto& argument) { return argument.name == "property"; });
+        CHECK(property != fixture_override->arguments.end());
+        if (property != fixture_override->arguments.end()) {
+            CHECK(property->value.kind ==
+                emberlights::EmberActionValueKind::Enum);
+            CHECK(property->value.schema_ref == "value.fixtureProperty");
+            CHECK(property->value.enum_values.size() == 53U);
+            if (property->value.enum_values.size() == 53U) {
+                CHECK(property->value.enum_values.front() == "intensity");
+                CHECK(property->value.enum_values[4U] == "white");
+                CHECK(property->value.enum_values[5U] == "amber");
+                CHECK(property->value.enum_values.back() == "custom16");
+            }
+        }
+    }
     const auto* transport_bpm = registry.find_state("transport.bpm");
     CHECK(transport_bpm != nullptr);
     if (transport_bpm != nullptr) {
@@ -414,7 +436,7 @@ void test_generated_registry_adapter_and_ir_foundation() {
     CHECK(compiled.ir->cache_key.registry_digest == emberlights::kUiRegistryDigest);
     CHECK(compiled.ir->cache_key.dependency_digest.starts_with("sha256:"));
     CHECK(compiled.ir->cache_key.cache_digest ==
-        "sha256:2001daca7934d05f89f6d7040e44d77dcdc32f7ec6a09d2d25e9e080f5ef3731");
+        "sha256:e46a4ce5c1428d62c3812145dab804bf58d60bf3e3d7ba013ae6a0e1fd500749");
 
     const auto repeated = emberlights::compile_ember_action_ir_foundation(
         prepared.prepared, registry);

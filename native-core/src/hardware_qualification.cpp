@@ -29,6 +29,82 @@ namespace {
 constexpr std::size_t kMaximumQualificationPayloadBytes = 2U * 1024U * 1024U;
 constexpr std::size_t kMaximumQualificationTextBytes = 4096U;
 
+struct Ir4SafeLookDefinition {
+    Ir4SixChannelSafeLook kind;
+    std::string_view id;
+    std::string_view name;
+    showcore::Property active_property;
+    std::uint16_t active_channel;
+};
+
+constexpr std::array<Ir4SafeLookDefinition, kIr4SixChannelSafeLookCount>
+    kIr4SafeLooks{{
+        {Ir4SixChannelSafeLook::Blackout,
+         "ir4-bench-blackout",
+         "Blackout",
+         showcore::Property::Count,
+         0U},
+        {Ir4SixChannelSafeLook::Red,
+         "ir4-bench-red",
+         "Red",
+         showcore::Property::Red,
+         1U},
+        {Ir4SixChannelSafeLook::Green,
+         "ir4-bench-green",
+         "Green",
+         showcore::Property::Green,
+         2U},
+        {Ir4SixChannelSafeLook::Blue,
+         "ir4-bench-blue",
+         "Blue",
+         showcore::Property::Blue,
+         3U},
+        {Ir4SixChannelSafeLook::White,
+         "ir4-bench-white",
+         "White",
+         showcore::Property::White,
+         4U},
+        {Ir4SixChannelSafeLook::Amber,
+         "ir4-bench-amber",
+         "Amber",
+         showcore::Property::Amber,
+         5U},
+    }};
+
+constexpr std::array kIr4SixChannelProperties{
+    showcore::Property::Red,
+    showcore::Property::Green,
+    showcore::Property::Blue,
+    showcore::Property::White,
+    showcore::Property::Amber,
+    showcore::Property::UV};
+
+[[nodiscard]] const Ir4SafeLookDefinition* ir4_safe_look_definition(
+    Ir4SixChannelSafeLook look) noexcept {
+    const auto found = std::find_if(
+        kIr4SafeLooks.begin(), kIr4SafeLooks.end(),
+        [look](const auto& candidate) { return candidate.kind == look; });
+    return found == kIr4SafeLooks.end() ? nullptr : &*found;
+}
+
+[[nodiscard]] LookDefinition make_ir4_safe_look(
+    const Ir4SafeLookDefinition& definition) {
+    LookDefinition look;
+    look.id = definition.id;
+    look.name = definition.name;
+    look.fade_ms = 0U;
+    look.assignments.reserve(kIr4SixChannelProperties.size());
+    for (const auto property : kIr4SixChannelProperties) {
+        look.assignments.push_back({
+            "ir4-bench-001",
+            property,
+            property == definition.active_property
+                ? showcore::PropertyValue::set(1.0F)
+                : showcore::PropertyValue::force_zero()});
+    }
+    return look;
+}
+
 class CanonicalWriter {
 public:
     void field(std::string_view value) {
@@ -479,9 +555,18 @@ ProjectDocument make_ir4_6ch_qualification_project() {
     project.connections.soundswitch_micro_universe = 1U;
     project.connections.soundswitch_micro_framing =
         showcore::SoundSwitchMicroFraming::NativeJls1;
+    project.connections.soundswitch_control_one_experimental = false;
     project.connections.frame_rate = 40U;
+    project.connections.midi_input_index = -1;
+    project.connections.midi_output_index = -1;
+    std::erase_if(
+        project.fixture_profiles,
+        [](const auto& profile) {
+            return profile.id != kBothLightingIr4SixChannelProfileId;
+        });
     project.fixtures.clear();
     project.groups.clear();
+    project.color_palettes.clear();
     project.looks.clear();
     project.autoloops.clear();
     project.audio_assets.clear();
@@ -496,19 +581,71 @@ ProjectDocument make_ir4_6ch_qualification_project() {
         1U,
         {"qualification", "uplight", "color"}});
 
-    LookDefinition red;
-    red.id = "ir4-bench-red";
-    red.name = "IR-4 Exact Red";
-    red.fade_ms = 0U;
-    red.assignments = {
-        {"ir4-bench-001", showcore::Property::Red, showcore::PropertyValue::set(1.0F)},
-        {"ir4-bench-001", showcore::Property::Green, showcore::PropertyValue::force_zero()},
-        {"ir4-bench-001", showcore::Property::Blue, showcore::PropertyValue::force_zero()},
-        {"ir4-bench-001", showcore::Property::White, showcore::PropertyValue::force_zero()},
-        {"ir4-bench-001", showcore::Property::Amber, showcore::PropertyValue::force_zero()},
-        {"ir4-bench-001", showcore::Property::UV, showcore::PropertyValue::force_zero()}};
-    project.looks.push_back(std::move(red));
+    project.looks.reserve(kIr4SafeLooks.size());
+    for (const auto& definition : kIr4SafeLooks) {
+        project.looks.push_back(make_ir4_safe_look(definition));
+    }
     return project;
+}
+
+ProjectDocument make_ir4_6ch_operator_bench_project() {
+    auto project = make_ir4_6ch_qualification_project();
+    project.id = "emberlights-ir4-6ch-operator-bench";
+    project.name = "EmberLights IR-4 6CH Editable Bench";
+    // Packaged operator assets must never begin emitting merely because they
+    // were opened. Studio requires an explicit Connections Save & Apply to
+    // SoundSwitch Micro universe 1 before this becomes an active bench.
+    project.connections.soundswitch_micro_universe = 0U;
+    if (project.fixture_profiles.size() == 1U && project.fixtures.size() == 1U) {
+        auto& profile = project.fixture_profiles.front();
+        profile.id = kIr4SixChannelOperatorBenchProfileId;
+        profile.name =
+            "Both Lighting BO-IR4 LED Mini Spotlight (6 Channel Operator Clone)";
+        profile.source = showcore::FixtureProfileSource::Local;
+        profile.source_revision =
+            "local-clone:" + std::string(kBothLightingBoIr4ManualRevision);
+        project.fixtures.front().profile_id = profile.id;
+    }
+    return project;
+}
+
+OneFixtureBenchContract inspect_one_fixture_bench_contract(
+    const ProjectDocument& project) noexcept {
+    OneFixtureBenchContract result;
+    result.exactly_one_fixture = project.fixtures.size() == 1U;
+    result.exactly_one_profile = project.fixture_profiles.size() == 1U;
+    if (result.exactly_one_fixture) {
+        const auto& fixture = project.fixtures.front();
+        result.fixture_on_selected_output = fixture.universe == 1U;
+        result.fixture_profile_present = std::any_of(
+            project.fixture_profiles.begin(), project.fixture_profiles.end(),
+            [&](const auto& profile) {
+                return profile.id == fixture.profile_id &&
+                    !profile.manufacturer.empty() && !profile.model.empty() &&
+                    !profile.mode.empty() && !profile.source_revision.empty() &&
+                    profile.source != showcore::FixtureProfileSource::Unknown;
+            });
+    }
+    result.soundswitch_micro_universe_one_only =
+        project.connections.soundswitch_micro_universe == 1U &&
+        project.connections.soundswitch_micro_framing ==
+            showcore::SoundSwitchMicroFraming::NativeJls1 &&
+        !project.connections.artnet_enabled && !project.connections.sacn_enabled &&
+        !project.connections.soundswitch_control_one_experimental &&
+        std::all_of(
+            project.connections.dmx_usb_pro_ports.begin(),
+            project.connections.dmx_usb_pro_ports.end(),
+            [](const auto& port) { return port.empty(); });
+    result.os2l_disabled = !project.connections.os2l_enabled;
+    result.midi_disabled = project.midi_mappings.empty() &&
+        project.connections.midi_input_index < 0 &&
+        project.connections.midi_output_index < 0;
+    result.automation_disabled =
+        project.autoloops.empty() && project.track_scripts.empty();
+    result.isolated_content = project.groups.empty() &&
+        project.color_palettes.empty() && project.audio_assets.empty() &&
+        !project.looks.empty();
+    return result;
 }
 
 FrameComparison compare_dmx_frames(
@@ -524,6 +661,10 @@ FrameComparison compare_dmx_frames(
             result.expected = expected[index];
             result.actual = actual[index];
         }
+        result.differing_channels[result.differing_slots] = {
+            static_cast<std::uint16_t>(index + 1U),
+            expected[index],
+            actual[index]};
         ++result.differing_slots;
     }
     return result;
@@ -533,12 +674,21 @@ PacketComparison compare_soundswitch_micro_packets(
     const showcore::SoundSwitchMicroPacket& expected,
     const showcore::SoundSwitchMicroPacket& actual) noexcept {
     PacketComparison result;
-    const auto maximum = std::max(expected.length, actual.length);
+    result.expected_length = expected.length;
+    result.actual_length = actual.length;
+    result.expected_length_valid = expected.length <= expected.bytes.size();
+    result.actual_length_valid = actual.length <= actual.bytes.size();
+    const auto expected_length = std::min(expected.length, expected.bytes.size());
+    const auto actual_length = std::min(actual.length, actual.bytes.size());
+    const auto maximum = std::max(expected_length, actual_length);
     for (std::size_t index = 0U; index < maximum; ++index) {
-        const auto expected_byte = index < expected.length ? expected.bytes[index] : 0U;
-        const auto actual_byte = index < actual.length ? actual.bytes[index] : 0U;
-        if (expected_byte == actual_byte &&
-            (index < expected.length) == (index < actual.length)) {
+        const auto expected_present = index < expected_length;
+        const auto actual_present = index < actual_length;
+        const auto expected_byte = static_cast<std::uint8_t>(
+            expected_present ? expected.bytes[index] : 0U);
+        const auto actual_byte = static_cast<std::uint8_t>(
+            actual_present ? actual.bytes[index] : 0U);
+        if (expected_byte == actual_byte && expected_present == actual_present) {
             continue;
         }
         if (result.differing_bytes == 0U) {
@@ -546,59 +696,165 @@ PacketComparison compare_soundswitch_micro_packets(
             result.expected = expected_byte;
             result.actual = actual_byte;
         }
+        result.differing_byte_rows[result.differing_bytes] = {
+            index,
+            expected_byte,
+            actual_byte,
+            expected_present,
+            actual_present};
         ++result.differing_bytes;
     }
     return result;
 }
 
-Ir4QualificationFrames build_ir4_6ch_red_qualification() {
-    Ir4QualificationFrames result;
-    result.raw_reference[0] = 255U;
-    result.raw_packet = showcore::build_soundswitch_micro_packet(
-        result.raw_reference,
-        showcore::SoundSwitchMicroFraming::NativeJls1);
-
-    auto project = make_ir4_6ch_qualification_project();
-    result.validation = validate_project(project);
-    if (!result.validation.ok()) {
-        result.error = Ir4QualificationError::InvalidProject;
-        return result;
+FixtureBenchQualificationSet build_fixture_bench_qualifications(
+    const ProjectDocument& project,
+    std::span<const FixtureBenchLookExpectation> expectations) {
+    FixtureBenchQualificationSet set;
+    if (expectations.empty() || expectations.size() > kMaximumStaticLooks) {
+        return set;
     }
+    set.looks.reserve(expectations.size());
 
+    const auto contract = inspect_one_fixture_bench_contract(project);
+    const auto project_validation = validate_project(project);
     auto compilation = compile_project(project);
-    result.validation = std::move(compilation.validation);
-    if (!compilation) {
-        result.error = Ir4QualificationError::CompilationFailed;
-        return result;
-    }
 
-    const auto* look = compilation.show->look(0U);
-    if (look == nullptr) {
-        result.error = Ir4QualificationError::MissingLook;
-        return result;
+    for (const auto& expectation : expectations) {
+        FixtureBenchQualificationFrames result;
+        result.look_id = expectation.look_id;
+        result.expected_universe = expectation.universe;
+        result.validation = project_validation;
+        result.raw_reference = expectation.expected_frame;
+
+        if (!contract.exact()) {
+            result.error = FixtureBenchQualificationError::InvalidBenchContract;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+        if (expectation.universe == 0U ||
+            expectation.universe > showcore::kV1UniverseCount) {
+            result.error = FixtureBenchQualificationError::InvalidExpectedUniverse;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+        result.raw_packet = showcore::build_soundswitch_micro_packet(
+            result.raw_reference,
+            showcore::SoundSwitchMicroFraming::NativeJls1);
+        if (!project_validation.ok()) {
+            result.error = FixtureBenchQualificationError::InvalidProject;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+        if (!compilation) {
+            result.validation = compilation.validation;
+            result.error = FixtureBenchQualificationError::CompilationFailed;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+
+        const auto source_look = std::find_if(
+            project.looks.begin(), project.looks.end(),
+            [&](const auto& look) { return look.id == expectation.look_id; });
+        if (source_look == project.looks.end()) {
+            result.error = FixtureBenchQualificationError::MissingLook;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+        const auto look_index = static_cast<std::size_t>(
+            std::distance(project.looks.begin(), source_look));
+        const auto* look = compilation.show->look(look_index);
+        if (look == nullptr) {
+            result.error = FixtureBenchQualificationError::MissingLook;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+
+        showcore::LayerBuffer layer;
+        const auto look_result = showcore::compile_static_look(*look, layer);
+        if (!look_result) {
+            result.error = FixtureBenchQualificationError::LookCompilationFailed;
+            set.looks.push_back(std::move(result));
+            continue;
+        }
+        auto& engine = compilation.show->engine();
+        engine.layers().replace_layer(showcore::LayerId::EventMoment, layer);
+        engine.tick();
+        result.runner_frames = engine.frames();
+        result.runner_rendered =
+            result.runner_frames.universes[expectation.universe - 1U];
+        for (std::size_t universe = 0U;
+             universe < result.runner_frames.universes.size(); ++universe) {
+            if (universe == expectation.universe - 1U) {
+                continue;
+            }
+            result.unrelated_output_nonzero_slots += static_cast<std::size_t>(
+                std::count_if(
+                    result.runner_frames.universes[universe].begin(),
+                    result.runner_frames.universes[universe].end(),
+                    [](std::uint8_t value) { return value != 0U; }));
+        }
+        result.runner_packet = showcore::build_soundswitch_micro_packet(
+            result.runner_rendered,
+            showcore::SoundSwitchMicroFraming::NativeJls1);
+        result.frame_comparison = compare_dmx_frames(
+            result.raw_reference, result.runner_rendered);
+        result.packet_comparison = compare_soundswitch_micro_packets(
+            result.raw_packet, result.runner_packet);
+        if (!result.frame_comparison.exact()) {
+            result.error = FixtureBenchQualificationError::FrameMismatch;
+        } else if (!result.packet_comparison.exact()) {
+            result.error = FixtureBenchQualificationError::PacketMismatch;
+        } else if (result.unrelated_output_nonzero_slots != 0U) {
+            result.error = FixtureBenchQualificationError::UnexpectedOutput;
+        }
+        set.looks.push_back(std::move(result));
     }
-    showcore::LayerBuffer layer;
-    const auto look_result = showcore::compile_static_look(*look, layer);
-    if (!look_result) {
-        result.error = Ir4QualificationError::LookCompilationFailed;
-        return result;
+    return set;
+}
+
+std::string_view ir4_6ch_safe_look_id(
+    Ir4SixChannelSafeLook look) noexcept {
+    const auto* definition = ir4_safe_look_definition(look);
+    return definition == nullptr ? std::string_view{} : definition->id;
+}
+
+showcore::DmxUniverse ir4_6ch_safe_look_expected_frame(
+    Ir4SixChannelSafeLook look) noexcept {
+    showcore::DmxUniverse frame{};
+    const auto* definition = ir4_safe_look_definition(look);
+    if (definition != nullptr && definition->active_channel != 0U) {
+        frame[definition->active_channel - 1U] = 255U;
     }
-    auto& engine = compilation.show->engine();
-    engine.layers().replace_layer(showcore::LayerId::EventMoment, layer);
-    engine.tick();
-    result.runner_rendered = engine.frames().universes[0];
-    result.runner_packet = showcore::build_soundswitch_micro_packet(
-        result.runner_rendered,
-        showcore::SoundSwitchMicroFraming::NativeJls1);
-    result.frame_comparison = compare_dmx_frames(
-        result.raw_reference, result.runner_rendered);
-    result.packet_comparison = compare_soundswitch_micro_packets(
-        result.raw_packet, result.runner_packet);
-    if (!result.frame_comparison.exact()) {
-        result.error = Ir4QualificationError::FrameMismatch;
-    } else if (!result.packet_comparison.exact()) {
-        result.error = Ir4QualificationError::PacketMismatch;
+    return frame;
+}
+
+FixtureBenchQualificationSet build_ir4_6ch_safe_qualifications() {
+    std::array<FixtureBenchLookExpectation, kIr4SixChannelSafeLookCount>
+        expectations{};
+    for (std::size_t index = 0U; index < expectations.size(); ++index) {
+        const auto look = static_cast<Ir4SixChannelSafeLook>(index);
+        expectations[index] = {
+            ir4_6ch_safe_look_id(look),
+            1U,
+            ir4_6ch_safe_look_expected_frame(look)};
     }
+    return build_fixture_bench_qualifications(
+        make_ir4_6ch_qualification_project(), expectations);
+}
+
+Ir4QualificationFrames build_ir4_6ch_red_qualification() {
+    auto set = build_ir4_6ch_safe_qualifications();
+    const auto red_id = ir4_6ch_safe_look_id(Ir4SixChannelSafeLook::Red);
+    const auto found = std::find_if(
+        set.looks.begin(), set.looks.end(),
+        [&](const auto& look) { return look.look_id == red_id; });
+    if (found != set.looks.end()) {
+        return std::move(*found);
+    }
+    Ir4QualificationFrames result;
+    result.look_id = red_id;
+    result.error = FixtureBenchQualificationError::MissingLook;
     return result;
 }
 

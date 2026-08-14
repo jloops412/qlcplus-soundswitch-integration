@@ -190,6 +190,12 @@ PatchResult Patch::add(FixtureInstance fixture) noexcept {
     return {};
 }
 
+void DmxFrameAttribution::clear() noexcept {
+    for (auto& universe : universes) {
+        universe.fill(ChannelRenderAttribution{});
+    }
+}
+
 namespace {
 
 [[nodiscard]] std::uint8_t encode_8bit(
@@ -202,14 +208,42 @@ namespace {
     return static_cast<std::uint8_t>(std::lround(minimum + clamped * span));
 }
 
+void record_attribution(
+    DmxFrameAttribution& attribution,
+    const FixtureInstance& fixture,
+    std::size_t mapping_index,
+    const ChannelMapping& mapping,
+    std::size_t slot,
+    Property property,
+    const ResolvedProperty& resolved,
+    RenderValueOrigin origin,
+    std::uint16_t capability_index = kInvalidRenderAttributionIndex,
+    bool fine_channel = false) noexcept {
+    if (fixture.universe >= kV1UniverseCount || slot >= kUniverseSlots) {
+        return;
+    }
+    attribution.universes[fixture.universe][slot] = {
+        fixture.id,
+        static_cast<std::uint16_t>(mapping_index),
+        capability_index,
+        property,
+        resolved.mode,
+        resolved.owned ? resolved.source : LayerId::Count,
+        mapping.encoding,
+        origin,
+        fine_channel};
+}
+
 }  // namespace
 
 void FixtureRenderer::render(
     const Patch& patch,
     const LayerStack& layers,
     const SafetyPolicy& safety,
-    DmxFrames& frames) const noexcept {
+    DmxFrames& frames,
+    DmxFrameAttribution& attribution) const noexcept {
     frames.clear();
+    attribution.clear();
 
     for (std::size_t fixture_index = 0; fixture_index < patch.size(); ++fixture_index) {
         const auto& fixture = patch.at(fixture_index);
@@ -226,6 +260,15 @@ void FixtureRenderer::render(
             if (mapping.encoding == ChannelEncoding::Constant8) {
                 frames.universes[fixture.universe][coarse_slot] =
                     static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    coarse_slot,
+                    Property::Count,
+                    {},
+                    RenderValueOrigin::Constant);
                 continue;
             }
 
@@ -273,15 +316,48 @@ void FixtureRenderer::render(
                     }
                 }
 
-                if (conflict ||
-                    (selected && selected_value.mode == ValueMode::ForceZero)) {
+                if (conflict) {
                     frames.universes[fixture.universe][coarse_slot] =
                         static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
+                    record_attribution(
+                        attribution,
+                        fixture,
+                        channel_index,
+                        mapping,
+                        coarse_slot,
+                        selected_property,
+                        selected_value,
+                        RenderValueOrigin::Conflict);
+                    continue;
+                }
+                if (selected && selected_value.mode == ValueMode::ForceZero) {
+                    frames.universes[fixture.universe][coarse_slot] =
+                        static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
+                    record_attribution(
+                        attribution,
+                        fixture,
+                        channel_index,
+                        mapping,
+                        coarse_slot,
+                        selected_property,
+                        selected_value,
+                        selected_value.source == LayerId::Safety
+                            ? RenderValueOrigin::Safety
+                            : RenderValueOrigin::Capability);
                     continue;
                 }
                 if (!selected) {
                     frames.universes[fixture.universe][coarse_slot] =
                         static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    record_attribution(
+                        attribution,
+                        fixture,
+                        channel_index,
+                        mapping,
+                        coarse_slot,
+                        mapping.property,
+                        {},
+                        RenderValueOrigin::Default);
                     continue;
                 }
                 if (selected_property == Property::Strobe &&
@@ -291,6 +367,15 @@ void FixtureRenderer::render(
                     // value, while any positive value enters a strobe range.
                     frames.universes[fixture.universe][coarse_slot] =
                         static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    record_attribution(
+                        attribution,
+                        fixture,
+                        channel_index,
+                        mapping,
+                        coarse_slot,
+                        selected_property,
+                        selected_value,
+                        RenderValueOrigin::Default);
                     continue;
                 }
 
@@ -307,6 +392,15 @@ void FixtureRenderer::render(
                 if (matching_count == 0U) {
                     frames.universes[fixture.universe][coarse_slot] =
                         static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    record_attribution(
+                        attribution,
+                        fixture,
+                        channel_index,
+                        mapping,
+                        coarse_slot,
+                        selected_property,
+                        selected_value,
+                        RenderValueOrigin::Default);
                     continue;
                 }
 
@@ -317,6 +411,8 @@ void FixtureRenderer::render(
                 const auto local_value = std::clamp(
                     scaled - static_cast<float>(selected_segment), 0.0F, 1.0F);
                 const ChannelCapabilityMapping* selected_capability = nullptr;
+                std::uint16_t selected_capability_index =
+                    kInvalidRenderAttributionIndex;
                 std::size_t current_segment = 0U;
                 for (std::size_t capability_index = 0U;
                      capability_index < mapping.capability_count;
@@ -328,12 +424,23 @@ void FixtureRenderer::render(
                     }
                     if (current_segment++ == selected_segment) {
                         selected_capability = &capability;
+                        selected_capability_index =
+                            static_cast<std::uint16_t>(capability_index);
                         break;
                     }
                 }
                 if (selected_capability == nullptr) {
                     frames.universes[fixture.universe][coarse_slot] =
                         static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                    record_attribution(
+                        attribution,
+                        fixture,
+                        channel_index,
+                        mapping,
+                        coarse_slot,
+                        selected_property,
+                        selected_value,
+                        RenderValueOrigin::Default);
                     continue;
                 }
                 if (selected_capability->behavior ==
@@ -346,6 +453,18 @@ void FixtureRenderer::render(
                         selected_capability->dmx_min,
                         selected_capability->dmx_max);
                 }
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    coarse_slot,
+                    selected_property,
+                    selected_value,
+                    selected_value.source == LayerId::Safety
+                        ? RenderValueOrigin::Safety
+                        : RenderValueOrigin::Capability,
+                    selected_capability_index);
                 continue;
             }
 
@@ -356,11 +475,34 @@ void FixtureRenderer::render(
                     mapping.encoding == ChannelEncoding::Linear16
                     ? static_cast<std::uint8_t>((mapping.blackout_value >> 8U) & 0xFFU)
                     : static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
+                const auto origin = resolved.source == LayerId::Safety
+                    ? RenderValueOrigin::Safety
+                    : RenderValueOrigin::Property;
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    coarse_slot,
+                    mapping.property,
+                    resolved,
+                    origin);
                 if (mapping.encoding == ChannelEncoding::Linear16 && mapping.fine_offset >= 0) {
                     const auto fine_slot = base_slot + static_cast<std::size_t>(mapping.fine_offset);
                     if (fine_slot < kUniverseSlots) {
                         frames.universes[fixture.universe][fine_slot] =
                             static_cast<std::uint8_t>(mapping.blackout_value & 0xFFU);
+                        record_attribution(
+                            attribution,
+                            fixture,
+                            channel_index,
+                            mapping,
+                            fine_slot,
+                            mapping.property,
+                            resolved,
+                            origin,
+                            kInvalidRenderAttributionIndex,
+                            true);
                     }
                 }
                 continue;
@@ -382,6 +524,31 @@ void FixtureRenderer::render(
                     static_cast<std::uint8_t>((encoded >> 8U) & 0xFFU);
                 frames.universes[fixture.universe][fine_slot] =
                     static_cast<std::uint8_t>(encoded & 0xFFU);
+                const auto origin = !resolved.owned
+                    ? RenderValueOrigin::Default
+                    : (resolved.source == LayerId::Safety
+                           ? RenderValueOrigin::Safety
+                           : RenderValueOrigin::Property);
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    coarse_slot,
+                    mapping.property,
+                    resolved,
+                    origin);
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    fine_slot,
+                    mapping.property,
+                    resolved,
+                    origin,
+                    kInvalidRenderAttributionIndex,
+                    true);
                 continue;
             }
 
@@ -389,10 +556,32 @@ void FixtureRenderer::render(
                 (!resolved.owned || resolved.value <= 0.0F)) {
                 frames.universes[fixture.universe][coarse_slot] =
                     static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    coarse_slot,
+                    mapping.property,
+                    resolved,
+                    RenderValueOrigin::Default);
             } else {
                 frames.universes[fixture.universe][coarse_slot] = resolved.owned
                     ? encode_8bit(resolved.value, mapping.dmx_min, mapping.dmx_max)
                     : static_cast<std::uint8_t>(mapping.default_value & 0xFFU);
+                record_attribution(
+                    attribution,
+                    fixture,
+                    channel_index,
+                    mapping,
+                    coarse_slot,
+                    mapping.property,
+                    resolved,
+                    !resolved.owned
+                        ? RenderValueOrigin::Default
+                        : (resolved.source == LayerId::Safety
+                               ? RenderValueOrigin::Safety
+                               : RenderValueOrigin::Property));
             }
         }
     }

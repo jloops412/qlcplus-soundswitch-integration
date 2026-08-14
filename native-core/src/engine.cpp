@@ -3,7 +3,7 @@
 namespace showcore {
 
 void Engine::tick() noexcept {
-    renderer_.render(patch_, layers_, safety_, frames_);
+    renderer_.render(patch_, layers_, safety_, frames_, frame_attribution_);
 }
 
 }  // namespace showcore

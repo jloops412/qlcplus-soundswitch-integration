@@ -20,7 +20,11 @@ enum class FixtureProfileTemplateId : std::uint8_t {
     Rgbw4,
     Rgba4,
     Rgbwauv6,
-    MasterRgbwauv7
+    MasterRgbwauv7,
+    Rgbwa5,
+    MasterRgb4,
+    MasterRgbw5,
+    PanTilt2
 };
 
 struct FixtureProfileTemplateDescriptor {
@@ -67,6 +71,91 @@ struct FixtureProfileEditorRow {
     std::string owner_label;
     std::string capability_label;
     std::string accessibility_label;
+};
+
+// Picker-ready rows for the complete shared semantic catalog. A UI presents
+// these labels and passes the typed Property value back to the mutation APIs;
+// an operator never has to type or remember a persistence ID.
+struct FixtureProfileParameterChoice {
+    showcore::Property property{showcore::Property::Count};
+    std::string stable_id;
+    std::string display_name;
+    std::string description;
+    std::string category_label;
+    std::string control_label;
+    std::string safety_label;
+    bool direct_assignment_available{false};
+    std::string unavailable_reason;
+    std::string accessibility_label;
+};
+
+enum class FixtureProfileChannelPlacementError : std::uint8_t {
+    None,
+    SourceReadOnly,
+    InvalidProfile,
+    InvalidProperty,
+    UnsafePreset,
+    ProfileFull,
+    CandidateInvalid
+};
+
+struct FixtureProfileChannelPlacementResult {
+    FixtureProfileChannelPlacementError error{
+        FixtureProfileChannelPlacementError::None};
+    bool changed{false};
+    bool filled_gap{false};
+    bool grew_footprint{false};
+    std::uint16_t channel{0U};
+    std::size_t filled_count{0U};
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureProfileChannelPlacementError::None;
+    }
+};
+
+enum class FixtureProfileChannelFunctionSwapError : std::uint8_t {
+    None,
+    SourceReadOnly,
+    InvalidProfile,
+    InvalidChannel,
+    SameChannel,
+    ChannelMissing,
+    FineChannelUnsupported,
+    CompoundChannelUnsupported,
+    UnsafeFunction,
+    IncompatibleMappings,
+    CandidateInvalid,
+    StalePlan
+};
+
+struct FixtureProfileChannelFunctionSwapPlan {
+    std::string profile_id;
+    std::string profile_name;
+    std::string source_revision;
+    showcore::FixtureProfileSource source{
+        showcore::FixtureProfileSource::Local};
+    std::string source_behavior_fingerprint;
+    std::uint16_t first_channel{0U};
+    std::uint16_t second_channel{0U};
+    showcore::Property first_property_before{showcore::Property::Count};
+    showcore::Property second_property_before{showcore::Property::Count};
+    showcore::Property first_property_after{showcore::Property::Count};
+    showcore::Property second_property_after{showcore::Property::Count};
+    std::string candidate_behavior_fingerprint;
+    bool changes_mapping{false};
+};
+
+struct FixtureProfileChannelFunctionSwapResult {
+    FixtureProfileChannelFunctionSwapError error{
+        FixtureProfileChannelFunctionSwapError::InvalidProfile};
+    bool changed{false};
+    FixtureProfileChannelFunctionSwapPlan plan;
+    std::string message;
+
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return error == FixtureProfileChannelFunctionSwapError::None;
+    }
 };
 
 enum class FixtureChannelCapabilityEditorError : std::uint8_t {
@@ -208,6 +297,41 @@ update_fixture_profile_channel_metadata(
 
 [[nodiscard]] std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
     const FixtureProfileDefinition& profile);
+
+[[nodiscard]] std::vector<FixtureProfileParameterChoice>
+fixture_profile_parameter_choices();
+
+// Assigns a catalog parameter to the lowest unused physical slot. If the
+// current footprint is completely described, the footprint grows by one.
+// Fine slots count as occupied, and chart-dependent/hazardous functions are
+// refused until their ranges are authored explicitly.
+[[nodiscard]] FixtureProfileChannelPlacementResult
+assign_next_or_append_fixture_profile_channel(
+    FixtureProfileDefinition& draft,
+    showcore::Property property);
+
+// Makes every currently unused footprint slot explicit as a zero-valued safe
+// constant. This never overwrites a coarse or fine slot and is a successful
+// no-op when the profile is already complete.
+[[nodiscard]] FixtureProfileChannelPlacementResult
+fill_fixture_profile_channel_gaps_with_safe_constants(
+    FixtureProfileDefinition& draft);
+
+// Plans and applies a property-label exchange between two compatible, direct
+// Linear8 channels. Physical offsets, owners, ranges, safe values, and every
+// unrelated row remain fixed. Fine, compound, chart-dependent, hazardous, or
+// physically incompatible rows fail closed. Only Local snapshots are mutable;
+// imported/built-in sources must be duplicated at the UI boundary first.
+[[nodiscard]] FixtureProfileChannelFunctionSwapResult
+plan_fixture_profile_channel_function_swap(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t first_channel,
+    std::uint16_t second_channel);
+
+[[nodiscard]] FixtureProfileChannelFunctionSwapResult
+apply_fixture_profile_channel_function_swap(
+    FixtureProfileDefinition& profile,
+    const FixtureProfileChannelFunctionSwapPlan& plan);
 
 [[nodiscard]] std::string make_fixture_channel_capability_id(
     std::string_view label);

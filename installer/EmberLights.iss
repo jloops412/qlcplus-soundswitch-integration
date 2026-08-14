@@ -50,6 +50,7 @@ Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs c
 Name: "{group}\EmberLights"; Filename: "{app}\{#AppExeName}"
 Name: "{group}\EmberLights Hardware Test"; Filename: "{app}\Tools\soundswitch_micro_probe.exe"; Parameters: "--active-test"
 Name: "{group}\Control One DMX Test"; Filename: "{cmd}"; Parameters: "/k """"{app}\Tools\soundswitch_control_one_probe.exe"" --help"""
+Name: "{group}\IR-4 6CH Editable Bench"; Filename: "{app}\{#AppExeName}"; Parameters: """{app}\Templates\EmberLights-IR4-6CH-Editable-Bench.emberlights"""
 Name: "{autodesktop}\EmberLights"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]

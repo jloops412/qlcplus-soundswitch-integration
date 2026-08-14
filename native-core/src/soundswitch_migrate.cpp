@@ -1,5 +1,6 @@
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
+#include "emberlights/hardware_qualification.hpp"
 #include "emberlights/soundswitch_import.hpp"
 #include "emberlights/soundswitch_migration_ir.hpp"
 #include "emberlights/soundswitch_source_binding.hpp"
@@ -29,7 +30,8 @@ void print_help() {
         << "  emberlights_migrate corpus-manifest <SoundSwitch project directory> --report <file> [--source-version <version>] [--scripted-tracks] [--force]\n"
         << "  emberlights_migrate convert-v1 <SoundSwitch project directory> <output.emberlights> [--report <file>] [--force]\n"
         << "  emberlights_migrate upgrade-fixtures <input.emberlights> <new-output.emberlights> [--soundswitch-source <directory>] [--source-archive <SoundSwitch.zip>] [--report <file>] [--source-report <file>] [--force]\n"
-        << "  emberlights_migrate template-v1 <output.emberlights> [--force]\n\n"
+        << "  emberlights_migrate template-v1 <output.emberlights> [--force]\n"
+        << "  emberlights_migrate template-ir4-6ch-bench <output.emberlights> [--force]\n\n"
         << "inspect reads and hashes the source without modifying it.\n"
         << "bundle copies every regular payload into payload/, verifies each SHA-256, and\n"
         << "publishes inventory.json only after the complete bundle verifies. The destination\n"
@@ -45,7 +47,9 @@ void print_help() {
         << "convert-v1 recognizes the qualified SoundSwitch 2.10.x color rig, rebuilds the\n"
         << "active 32-look bank as native semantic content, and leaves every DMX output off.\n"
         << "upgrade-fixtures creates a separate reviewed candidate for exact known-bad embedded\n"
-        << "profile signatures. It never edits or overwrites the input project.\n";
+        << "profile signatures. It never edits or overwrites the input project.\n"
+        << "template-ir4-6ch-bench creates an editable one-fixture Blackout/R/G/B/W/A\n"
+        << "project with every physical output disabled until Connections Save & Apply.\n";
 }
 
 [[nodiscard]] bool paths_name_same_file(
@@ -587,6 +591,28 @@ int run(const std::vector<std::filesystem::path>& arguments) {
             return 2;
         }
         std::cout << "Safe color-rig V1 template saved to " << arguments[1].string() << '\n';
+        return 0;
+    }
+    if (command == "template-ir4-6ch-bench") {
+        if (arguments.size() < 2U || arguments.size() > 3U ||
+            (arguments.size() == 3U && arguments[2] != "--force")) {
+            print_help();
+            return 1;
+        }
+        const bool force = arguments.size() == 3U;
+        std::error_code filesystem_error;
+        if (!force && std::filesystem::exists(arguments[1], filesystem_error)) {
+            std::cerr << "Output already exists; use --force to replace it.\n";
+            return 1;
+        }
+        const auto project = emberlights::make_ir4_6ch_operator_bench_project();
+        const auto saved = emberlights::save_project_atomic(arguments[1], project, false);
+        if (!saved) {
+            std::cerr << saved.message << '\n';
+            return 2;
+        }
+        std::cout << "Output-disabled editable IR-4 6CH bench saved to "
+                  << arguments[1].string() << '\n';
         return 0;
     }
     std::cerr << "Unknown command: " << command << "\n";

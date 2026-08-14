@@ -19,6 +19,9 @@ SOURCES := \
 	src/layer_resolver.cpp \
 	src/fixture.cpp \
 	src/fixture_capabilities.cpp \
+	src/fixture_control_action.cpp \
+	src/fixture_controller_binding.cpp \
+	src/fixture_function_component.cpp \
 	src/fixture_library.cpp \
 	src/fixture_parameter_catalog.cpp \
 	src/fixture_profile_editor.cpp \
@@ -40,6 +43,7 @@ SOURCES := \
 	src/autoloop_persistence.cpp \
 	src/autoloop_program.cpp \
 	src/autoloop_authoring.cpp \
+	src/autoloop_fixture_controls.cpp \
 	src/autoloop_content_pack.cpp \
 	src/autoloop_autoscript.cpp \
 	src/autoloop_autoscript_studio.cpp \
@@ -56,6 +60,10 @@ SOURCES := \
 	src/project_edit_history.cpp \
 	src/project_io.cpp \
 	src/file_identity.cpp \
+	src/ember_action_json.cpp \
+	src/ember_action_compiler.cpp \
+	src/ember_action_registry_adapter.cpp \
+	src/ember_action_executor.cpp \
 	src/audio_assets.cpp \
 	src/qlc_fixture_import.cpp \
 	src/ofl_fixture_catalog.cpp \
@@ -63,6 +71,7 @@ SOURCES := \
 	src/soundswitch_source_binding.cpp \
 	src/soundswitch_v1.cpp \
 	src/soundswitch_migration_ir.cpp \
+	src/migration_portability_review.cpp \
 	src/studio_document.cpp \
 	src/static_look_authoring.cpp \
 	src/static_look_preview.cpp \
@@ -72,9 +81,12 @@ SOURCES := \
 	src/compiler.cpp \
 	src/ui_command.cpp \
 	src/ui_state.cpp \
+	src/ui_authoring.cpp \
 	src/ui_visual.cpp \
 	src/live_view_model.cpp \
-	src/runner.cpp
+	src/runner.cpp \
+	src/runner_frame_inspector.cpp \
+	src/runner_raw_hardware_parity.cpp
 OBJECTS := $(SOURCES:%.cpp=$(BUILD)/%.o)
 DEPS := \
 	$(OBJECTS:.o=.d) \
@@ -93,12 +105,17 @@ DEPS := \
 	$(BUILD)/tests/test_soundswitch_control_one.d \
 	$(BUILD)/tests/test_ui_command_state.d \
 	$(BUILD)/tests/test_live_ui.d \
+	$(BUILD)/tests/test_runner_frame_inspector.d \
+	$(BUILD)/tests/test_runner_raw_hardware_parity.d \
 	$(BUILD)/tests/test_ui_visual.d \
+	$(BUILD)/tests/test_ui_authoring.d \
 	$(BUILD)/tests/test_studio_foundation.d \
 	$(BUILD)/tests/test_static_look_authoring.d \
 	$(BUILD)/tests/test_static_look_physical_preview.d \
 	$(BUILD)/tests/test_ofl_fixture_catalog.d \
 	$(BUILD)/tests/test_fixture_profile_editor.d \
+	$(BUILD)/tests/test_fixture_controller_binding.d \
+	$(BUILD)/tests/test_fixture_function_component.d \
 	$(BUILD)/tests/test_studio_authoring.d \
 	$(BUILD)/src/ember_action_json.d \
 	$(BUILD)/src/ember_action_compiler.d \
@@ -106,21 +123,24 @@ DEPS := \
 	$(BUILD)/src/ember_action_executor.d \
 	$(BUILD)/tests/test_ember_action_foundation.d \
 	$(BUILD)/tests/test_ember_action_executor.d \
+	$(BUILD)/tests/test_fixture_control_action.d \
 	$(BUILD)/tests/test_autoloop_v2_model.d \
 	$(BUILD)/tests/test_autoloop_v2_persistence.d \
 	$(BUILD)/tests/test_autoloop_v2_studio.d \
+	$(BUILD)/tests/test_autoloop_fixture_controls.d \
 	$(BUILD)/tests/test_autoloop_autoscript.d \
 	$(BUILD)/tests/test_autoloop_autoscript_studio.d \
 	$(BUILD)/tests/test_autoloop_v2_runtime.d \
 	$(BUILD)/tests/test_autoloop_v2_preview.d \
 	$(BUILD)/tests/test_autoloop_v2_palette_resolution.d \
 	$(BUILD)/tests/test_autoloop_v2_runner.d \
+	$(BUILD)/tests/test_migration_portability_review.d \
 	$(BUILD)/bench/bench_main.d \
 	$(BUILD)/bench/performance_bench.d
 
 .PHONY: all runner_lab qualification migration test ember-action-test ember-action-registry-generate ember-action-registry-check winmm-syntax dmx-usb-syntax bench smoke clean ui-registry-generate ui-registry-check surface-contract-gate
 
-all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/raw_hardware_test_tests $(BUILD)/raw_hardware_test_operator_tests $(BUILD)/connection_layout_tests $(BUILD)/connection_coordinator_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/ui_visual_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/static_look_physical_preview_tests $(BUILD)/ofl_fixture_catalog_tests $(BUILD)/fixture_profile_editor_tests $(BUILD)/studio_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/autoloop_v2_model_tests $(BUILD)/autoloop_v2_persistence_tests $(BUILD)/autoloop_v2_studio_tests $(BUILD)/autoloop_autoscript_tests $(BUILD)/autoloop_autoscript_studio_tests $(BUILD)/autoloop_v2_runtime_tests $(BUILD)/autoloop_v2_preview_tests $(BUILD)/autoloop_v2_palette_resolution_tests $(BUILD)/autoloop_v2_runner_tests $(BUILD)/core_bench $(BUILD)/performance_bench
+all: $(BUILD)/runner_demo $(BUILD)/os2l_capture $(BUILD)/midi_capture $(BUILD)/runner_lab $(BUILD)/emberlights_qualify $(BUILD)/emberlights_migrate $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/raw_hardware_test_tests $(BUILD)/raw_hardware_test_operator_tests $(BUILD)/connection_layout_tests $(BUILD)/connection_coordinator_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/runner_frame_inspector_tests $(BUILD)/runner_raw_hardware_parity_tests $(BUILD)/ui_visual_tests $(BUILD)/ui_authoring_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/static_look_physical_preview_tests $(BUILD)/ofl_fixture_catalog_tests $(BUILD)/fixture_profile_editor_tests $(BUILD)/fixture_controller_binding_tests $(BUILD)/fixture_function_component_tests $(BUILD)/studio_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/fixture_control_action_tests $(BUILD)/autoloop_v2_model_tests $(BUILD)/autoloop_v2_persistence_tests $(BUILD)/autoloop_v2_studio_tests $(BUILD)/autoloop_fixture_controls_tests $(BUILD)/autoloop_autoscript_tests $(BUILD)/autoloop_autoscript_studio_tests $(BUILD)/autoloop_v2_runtime_tests $(BUILD)/autoloop_v2_preview_tests $(BUILD)/autoloop_v2_palette_resolution_tests $(BUILD)/autoloop_v2_runner_tests $(BUILD)/migration_portability_review_tests $(BUILD)/core_bench $(BUILD)/performance_bench
 
 runner_lab: $(BUILD)/runner_lab
 
@@ -193,7 +213,16 @@ $(BUILD)/ui_command_state_tests: $(OBJECTS) $(BUILD)/tests/test_ui_command_state
 $(BUILD)/live_ui_tests: $(OBJECTS) $(BUILD)/tests/test_live_ui.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/runner_frame_inspector_tests: $(OBJECTS) $(BUILD)/tests/test_runner_frame_inspector.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/runner_raw_hardware_parity_tests: $(OBJECTS) $(BUILD)/tests/test_runner_raw_hardware_parity.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/ui_visual_tests: $(OBJECTS) $(BUILD)/tests/test_ui_visual.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/ui_authoring_tests: $(OBJECTS) $(BUILD)/tests/test_ui_authoring.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 $(BUILD)/studio_foundation_tests: $(OBJECTS) $(BUILD)/tests/test_studio_foundation.o
@@ -211,6 +240,12 @@ $(BUILD)/ofl_fixture_catalog_tests: $(OBJECTS) $(BUILD)/tests/test_ofl_fixture_c
 $(BUILD)/fixture_profile_editor_tests: $(OBJECTS) $(BUILD)/tests/test_fixture_profile_editor.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/fixture_controller_binding_tests: $(OBJECTS) $(BUILD)/tests/test_fixture_controller_binding.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/fixture_function_component_tests: $(OBJECTS) $(BUILD)/tests/test_fixture_function_component.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/studio_authoring_tests: $(OBJECTS) $(BUILD)/tests/test_studio_authoring.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -220,6 +255,9 @@ $(BUILD)/ember_action_foundation_tests: $(BUILD)/src/file_identity.o $(BUILD)/sr
 $(BUILD)/ember_action_executor_tests: $(BUILD)/src/file_identity.o $(BUILD)/src/ember_action_json.o $(BUILD)/src/ember_action_compiler.o $(BUILD)/src/ember_action_registry_adapter.o $(BUILD)/src/ember_action_executor.o $(BUILD)/tests/test_ember_action_executor.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/fixture_control_action_tests: $(OBJECTS) $(BUILD)/tests/test_fixture_control_action.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/autoloop_v2_model_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_model.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -227,6 +265,9 @@ $(BUILD)/autoloop_v2_persistence_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 $(BUILD)/autoloop_v2_studio_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_studio.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+$(BUILD)/autoloop_fixture_controls_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_fixture_controls.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 $(BUILD)/autoloop_autoscript_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_autoscript.o
@@ -247,6 +288,9 @@ $(BUILD)/autoloop_v2_palette_resolution_tests: $(OBJECTS) $(BUILD)/tests/test_au
 $(BUILD)/autoloop_v2_runner_tests: $(OBJECTS) $(BUILD)/tests/test_autoloop_v2_runner.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
+$(BUILD)/migration_portability_review_tests: $(OBJECTS) $(BUILD)/tests/test_migration_portability_review.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
 $(BUILD)/core_bench: $(OBJECTS) $(BUILD)/bench/bench_main.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
@@ -257,7 +301,7 @@ $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-test: ember-action-registry-check $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/raw_hardware_test_tests $(BUILD)/raw_hardware_test_operator_tests $(BUILD)/connection_layout_tests $(BUILD)/connection_coordinator_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/ui_visual_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/static_look_physical_preview_tests $(BUILD)/ofl_fixture_catalog_tests $(BUILD)/fixture_profile_editor_tests $(BUILD)/studio_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/autoloop_v2_model_tests $(BUILD)/autoloop_v2_persistence_tests $(BUILD)/autoloop_v2_studio_tests $(BUILD)/autoloop_autoscript_tests $(BUILD)/autoloop_autoscript_studio_tests $(BUILD)/autoloop_v2_runtime_tests $(BUILD)/autoloop_v2_preview_tests $(BUILD)/autoloop_v2_palette_resolution_tests $(BUILD)/autoloop_v2_runner_tests
+test: ember-action-registry-check $(BUILD)/core_tests $(BUILD)/soundswitch_micro_session_tests $(BUILD)/raw_hardware_test_tests $(BUILD)/raw_hardware_test_operator_tests $(BUILD)/connection_layout_tests $(BUILD)/connection_coordinator_tests $(BUILD)/soundswitch_control_one_tests $(BUILD)/ui_command_state_tests $(BUILD)/live_ui_tests $(BUILD)/runner_frame_inspector_tests $(BUILD)/runner_raw_hardware_parity_tests $(BUILD)/ui_visual_tests $(BUILD)/ui_authoring_tests $(BUILD)/studio_foundation_tests $(BUILD)/static_look_authoring_tests $(BUILD)/static_look_physical_preview_tests $(BUILD)/ofl_fixture_catalog_tests $(BUILD)/fixture_profile_editor_tests $(BUILD)/fixture_controller_binding_tests $(BUILD)/fixture_function_component_tests $(BUILD)/studio_authoring_tests $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/fixture_control_action_tests $(BUILD)/autoloop_v2_model_tests $(BUILD)/autoloop_v2_persistence_tests $(BUILD)/autoloop_v2_studio_tests $(BUILD)/autoloop_fixture_controls_tests $(BUILD)/autoloop_autoscript_tests $(BUILD)/autoloop_autoscript_studio_tests $(BUILD)/autoloop_v2_runtime_tests $(BUILD)/autoloop_v2_preview_tests $(BUILD)/autoloop_v2_palette_resolution_tests $(BUILD)/autoloop_v2_runner_tests $(BUILD)/migration_portability_review_tests
 	./$(BUILD)/core_tests
 	./$(BUILD)/soundswitch_micro_session_tests
 	./$(BUILD)/raw_hardware_test_tests
@@ -267,28 +311,37 @@ test: ember-action-registry-check $(BUILD)/core_tests $(BUILD)/soundswitch_micro
 	./$(BUILD)/soundswitch_control_one_tests
 	./$(BUILD)/ui_command_state_tests
 	./$(BUILD)/live_ui_tests
+	./$(BUILD)/runner_frame_inspector_tests
+	./$(BUILD)/runner_raw_hardware_parity_tests
 	./$(BUILD)/ui_visual_tests
+	./$(BUILD)/ui_authoring_tests
 	./$(BUILD)/studio_foundation_tests
 	./$(BUILD)/static_look_authoring_tests
 	./$(BUILD)/static_look_physical_preview_tests
 	./$(BUILD)/ofl_fixture_catalog_tests
 	./$(BUILD)/fixture_profile_editor_tests
+	./$(BUILD)/fixture_controller_binding_tests
+	./$(BUILD)/fixture_function_component_tests
 	./$(BUILD)/studio_authoring_tests
 	./$(BUILD)/ember_action_foundation_tests
 	./$(BUILD)/ember_action_executor_tests
+	./$(BUILD)/fixture_control_action_tests
 	./$(BUILD)/autoloop_v2_model_tests
 	./$(BUILD)/autoloop_v2_persistence_tests
 	./$(BUILD)/autoloop_v2_studio_tests
+	./$(BUILD)/autoloop_fixture_controls_tests
 	./$(BUILD)/autoloop_autoscript_tests
 	./$(BUILD)/autoloop_autoscript_studio_tests
 	./$(BUILD)/autoloop_v2_runtime_tests
 	./$(BUILD)/autoloop_v2_preview_tests
 	./$(BUILD)/autoloop_v2_palette_resolution_tests
 	./$(BUILD)/autoloop_v2_runner_tests
+	./$(BUILD)/migration_portability_review_tests
 
-ember-action-test: ember-action-registry-check $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests
+ember-action-test: ember-action-registry-check $(BUILD)/ember_action_foundation_tests $(BUILD)/ember_action_executor_tests $(BUILD)/fixture_control_action_tests
 	./$(BUILD)/ember_action_foundation_tests
 	./$(BUILD)/ember_action_executor_tests
+	./$(BUILD)/fixture_control_action_tests
 
 winmm-syntax:
 	$(CXX) -std=c++20 -Wall -Wextra -Wpedantic -Werror -D_WIN32 \

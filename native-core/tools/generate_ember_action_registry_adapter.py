@@ -25,7 +25,7 @@ HEADER_PATH = (
     ROOT
     / "native-core/include/emberlights/generated/ember_action_registry_adapter.generated.hpp"
 )
-GENERATOR_VERSION = "ember-action-registry-adapter/1.0.0"
+GENERATOR_VERSION = "ember-action-registry-adapter/1.1.0"
 CPP_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 VALUE_TYPES = {
     "boolean",
@@ -128,10 +128,29 @@ def validate_value(value: Any, owner: str) -> dict[str, Any]:
 
 
 class HeaderBuilder:
-    def __init__(self) -> None:
+    def __init__(self, catalog_values: list[dict[str, Any]]) -> None:
         self.auxiliary: list[str] = []
+        self.schema_values: dict[str, dict[str, Any]] = {}
+        for value in catalog_values:
+            require(isinstance(value, dict), "registry catalog value must be an object")
+            identifier = value.get("id")
+            require(isinstance(identifier, str) and identifier, "registry catalog value needs string id")
+            require(identifier not in self.schema_values, f"duplicate registry value {identifier}")
+            self.schema_values[identifier] = value
 
     def value(self, value: dict[str, Any], symbol: str) -> str:
+        value = dict(value)
+        schema_ref = value.get("schemaRef")
+        if schema_ref:
+            schema = self.schema_values.get(schema_ref)
+            require(schema is not None, f"{symbol}: unknown schemaRef {schema_ref}")
+            schema_type = schema.get("valueType")
+            require(
+                schema_type == value.get("type"),
+                f"{symbol}: schemaRef {schema_ref} type does not match",
+            )
+            if value.get("type") == "enum" and "enumValues" not in value:
+                value["enumValues"] = schema.get("enumValues", [])
         value = validate_value(value, symbol)
         enum_values = value.get("enumValues", [])
         enum_pointer = "nullptr"
@@ -254,7 +273,9 @@ def generate_header(catalog: dict[str, Any]) -> str:
         "state native ordinals must be contiguous",
     )
 
-    builder = HeaderBuilder()
+    catalog_values = catalog.get("values", [])
+    require(isinstance(catalog_values, list), "registry catalog values must be an array")
+    builder = HeaderBuilder(catalog_values)
     command_rows: list[str] = []
     for command in commands:
         require(

@@ -364,6 +364,11 @@ bool RunnerService::start(
     midi_actions_.reset();
     midi_monitor_.reset();
     output_queue_.reset();
+    {
+        const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
+        latest_output_snapshot_ = {};
+        has_output_snapshot_ = false;
+    }
     stop_requested_.store(false, std::memory_order_release);
     blackout_requested_.store(false, std::memory_order_release);
     work_light_requested_.store(false, std::memory_order_release);
@@ -793,6 +798,16 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.autoloop_v2.pending_bank_mask =
         autoloop_v2_pending_bank_mask_.load(std::memory_order_relaxed);
     return snapshot;
+}
+
+bool RunnerService::latest_output_snapshot(
+    RunnerOutputSnapshot& snapshot) const noexcept {
+    const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
+    if (!has_output_snapshot_) {
+        return false;
+    }
+    snapshot = latest_output_snapshot_;
+    return true;
 }
 
 bool RunnerService::post(const RunnerCommand& command) noexcept {
@@ -2259,8 +2274,13 @@ void RunnerService::run_scheduler() noexcept {
         engine.tick();
 
         OutputFrame output;
-        output.frames = engine.frames();
-        if (blackout_requested_.load(std::memory_order_acquire)) {
+        output.pre_blackout_frames = engine.frames();
+        output.frames = output.pre_blackout_frames;
+        output.attribution = engine.frame_attribution();
+        output.rendered_at_ms = now_ms;
+        output.blackout_applied =
+            blackout_requested_.load(std::memory_order_acquire);
+        if (output.blackout_applied) {
             output.frames.clear();
         }
         output.sequence = sequence;
@@ -2560,6 +2580,12 @@ void RunnerService::run_output() noexcept {
             continue;
         }
 
+        std::array<showcore::OutputBackendHealth, kRunnerOutputRouteCount>
+            route_before{};
+        for (std::size_t index = 0U; index < route_before.size(); ++index) {
+            route_before[index] = output_health_[index].snapshot();
+        }
+
         bool artnet_success = true;
         bool sacn_success = true;
         bool usb_success = true;
@@ -2660,6 +2686,38 @@ void RunnerService::run_output() noexcept {
                 output_health_[kSacnOutputHealth].mark_fault(0U);
                 sacn_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
+        }
+        RunnerOutputSnapshot published;
+        published.generation = frame.generation;
+        published.sequence = frame.sequence;
+        published.rendered_at_ms = frame.rendered_at_ms;
+        published.pre_blackout_frames = frame.pre_blackout_frames;
+        published.routed_frames = frame.frames;
+        published.attribution = frame.attribution;
+        published.blackout_applied = frame.blackout_applied;
+        for (std::size_t index = 0U; index < published.routes.size(); ++index) {
+            const auto route_after = output_health_[index].snapshot();
+            const auto attempted_delta =
+                route_after.frames_attempted - route_before[index].frames_attempted;
+            const auto accepted_delta =
+                route_after.frames_accepted - route_before[index].frames_accepted;
+            published.routes[index] = {
+                route_after.kind,
+                route_after.first_source_universe,
+                route_after.source_universe_count,
+                route_after.configured,
+                static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                    attempted_delta,
+                    std::numeric_limits<std::uint8_t>::max())),
+                static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                    accepted_delta,
+                    std::numeric_limits<std::uint8_t>::max())),
+                route_after.last_error};
+        }
+        {
+            const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
+            latest_output_snapshot_ = published;
+            has_output_snapshot_ = true;
         }
         output_frames_.fetch_add(1, std::memory_order_relaxed);
     }

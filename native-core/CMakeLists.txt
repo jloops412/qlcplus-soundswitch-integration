@@ -45,6 +45,9 @@ add_library(showcore STATIC
     src/layer_resolver.cpp
     src/fixture.cpp
     src/fixture_capabilities.cpp
+    src/fixture_control_action.cpp
+    src/fixture_controller_binding.cpp
+    src/fixture_function_component.cpp
     src/fixture_library.cpp
     src/fixture_parameter_catalog.cpp
     src/fixture_profile_editor.cpp
@@ -66,6 +69,7 @@ add_library(showcore STATIC
     src/autoloop_persistence.cpp
     src/autoloop_program.cpp
     src/autoloop_authoring.cpp
+    src/autoloop_fixture_controls.cpp
     src/autoloop_content_pack.cpp
     src/autoloop_autoscript.cpp
     src/autoloop_autoscript_studio.cpp
@@ -83,6 +87,10 @@ add_library(showcore STATIC
     src/project_edit_history.cpp
     src/project_io.cpp
     src/file_identity.cpp
+    src/ember_action_json.cpp
+    src/ember_action_compiler.cpp
+    src/ember_action_registry_adapter.cpp
+    src/ember_action_executor.cpp
     src/audio_assets.cpp
     src/qlc_fixture_import.cpp
     src/ofl_fixture_catalog.cpp
@@ -90,6 +98,7 @@ add_library(showcore STATIC
     src/soundswitch_source_binding.cpp
     src/soundswitch_v1.cpp
     src/soundswitch_migration_ir.cpp
+    src/migration_portability_review.cpp
     src/studio_document.cpp
     src/static_look_authoring.cpp
     src/static_look_preview.cpp
@@ -99,9 +108,12 @@ add_library(showcore STATIC
     src/compiler.cpp
     src/ui_command.cpp
     src/ui_state.cpp
+    src/ui_authoring.cpp
     src/ui_visual.cpp
     src/live_view_model.cpp
-    src/runner.cpp)
+    src/runner.cpp
+    src/runner_frame_inspector.cpp
+    src/runner_raw_hardware_parity.cpp)
 
 target_include_directories(showcore PUBLIC include)
 target_link_libraries(showcore PUBLIC Threads::Threads)
@@ -182,9 +194,21 @@ add_executable(live_ui_tests
     tests/test_live_ui.cpp)
 target_link_libraries(live_ui_tests PRIVATE showcore)
 
+add_executable(runner_frame_inspector_tests
+    tests/test_runner_frame_inspector.cpp)
+target_link_libraries(runner_frame_inspector_tests PRIVATE showcore)
+
+add_executable(runner_raw_hardware_parity_tests
+    tests/test_runner_raw_hardware_parity.cpp)
+target_link_libraries(runner_raw_hardware_parity_tests PRIVATE showcore)
+
 add_executable(ui_visual_tests
     tests/test_ui_visual.cpp)
 target_link_libraries(ui_visual_tests PRIVATE showcore)
+
+add_executable(ui_authoring_tests
+    tests/test_ui_authoring.cpp)
+target_link_libraries(ui_authoring_tests PRIVATE showcore)
 
 add_executable(studio_foundation_tests
     tests/test_studio_foundation.cpp)
@@ -206,24 +230,29 @@ add_executable(fixture_profile_editor_tests
     tests/test_fixture_profile_editor.cpp)
 target_link_libraries(fixture_profile_editor_tests PRIVATE showcore)
 
+add_executable(fixture_controller_binding_tests
+    tests/test_fixture_controller_binding.cpp)
+target_link_libraries(fixture_controller_binding_tests PRIVATE showcore)
+
+add_executable(fixture_function_component_tests
+    tests/test_fixture_function_component.cpp)
+target_link_libraries(fixture_function_component_tests PRIVATE showcore)
+
 add_executable(studio_authoring_tests
     tests/test_studio_authoring.cpp)
 target_link_libraries(studio_authoring_tests PRIVATE showcore)
 
 add_executable(ember_action_foundation_tests
-    src/ember_action_json.cpp
-    src/ember_action_compiler.cpp
-    src/ember_action_registry_adapter.cpp
     tests/test_ember_action_foundation.cpp)
 target_link_libraries(ember_action_foundation_tests PRIVATE showcore)
 
 add_executable(ember_action_executor_tests
-    src/ember_action_json.cpp
-    src/ember_action_compiler.cpp
-    src/ember_action_registry_adapter.cpp
-    src/ember_action_executor.cpp
     tests/test_ember_action_executor.cpp)
 target_link_libraries(ember_action_executor_tests PRIVATE showcore)
+
+add_executable(fixture_control_action_tests
+    tests/test_fixture_control_action.cpp)
+target_link_libraries(fixture_control_action_tests PRIVATE showcore)
 
 add_executable(autoloop_v2_model_tests
     tests/test_autoloop_v2_model.cpp)
@@ -236,6 +265,10 @@ target_link_libraries(autoloop_v2_persistence_tests PRIVATE showcore)
 add_executable(autoloop_v2_studio_tests
     tests/test_autoloop_v2_studio.cpp)
 target_link_libraries(autoloop_v2_studio_tests PRIVATE showcore)
+
+add_executable(autoloop_fixture_controls_tests
+    tests/test_autoloop_fixture_controls.cpp)
+target_link_libraries(autoloop_fixture_controls_tests PRIVATE showcore)
 
 add_executable(autoloop_autoscript_tests
     tests/test_autoloop_autoscript.cpp)
@@ -264,6 +297,10 @@ target_link_libraries(autoloop_v2_palette_resolution_tests PRIVATE showcore)
 add_executable(autoloop_v2_runner_tests
     tests/test_autoloop_v2_runner.cpp)
 target_link_libraries(autoloop_v2_runner_tests PRIVATE showcore)
+
+add_executable(migration_portability_review_tests
+    tests/test_migration_portability_review.cpp)
+target_link_libraries(migration_portability_review_tests PRIVATE showcore)
 
 add_executable(core_bench bench/bench_main.cpp)
 target_link_libraries(core_bench PRIVATE showcore)
@@ -370,6 +407,9 @@ if(WIN32)
         RUNTIME DESTINATION Tools)
     install(FILES "${EMBERLIGHTS_V1_TEMPLATE}" DESTINATION Templates)
     install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../installer/assets/EmberLights-IR4-6CH-Editable-Bench.emberlights"
+        DESTINATION Templates)
+    install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/../README.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../THIRD_PARTY_NOTICES.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/15_WINDOWS_V1_TESTING.md"
@@ -381,6 +421,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/IR4_6CH_RUNNER_FRAME_TEST.md"
         DESTINATION docs)
 else()
     # Linux currently exposes the deterministic Runner and authoring/diagnostic
@@ -433,7 +474,11 @@ add_test(NAME connection_layout_tests COMMAND connection_layout_tests)
 add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)
 add_test(NAME ui_command_state_tests COMMAND ui_command_state_tests)
 add_test(NAME live_ui_tests COMMAND live_ui_tests)
+add_test(NAME runner_frame_inspector_tests COMMAND runner_frame_inspector_tests)
+add_test(NAME runner_raw_hardware_parity_tests
+    COMMAND runner_raw_hardware_parity_tests)
 add_test(NAME ui_visual_tests COMMAND ui_visual_tests)
+add_test(NAME ui_authoring_tests COMMAND ui_authoring_tests)
 add_test(NAME studio_foundation_tests COMMAND studio_foundation_tests)
 set_tests_properties(studio_foundation_tests PROPERTIES
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -442,6 +487,10 @@ add_test(NAME static_look_physical_preview_tests
     COMMAND static_look_physical_preview_tests)
 add_test(NAME ofl_fixture_catalog_tests COMMAND ofl_fixture_catalog_tests)
 add_test(NAME fixture_profile_editor_tests COMMAND fixture_profile_editor_tests)
+add_test(NAME fixture_controller_binding_tests
+    COMMAND fixture_controller_binding_tests)
+add_test(NAME fixture_function_component_tests
+    COMMAND fixture_function_component_tests)
 add_test(NAME studio_authoring_tests COMMAND studio_authoring_tests)
 add_test(NAME ember_action_foundation_tests COMMAND ember_action_foundation_tests)
 set_tests_properties(ember_action_foundation_tests PROPERTIES
@@ -449,9 +498,12 @@ set_tests_properties(ember_action_foundation_tests PROPERTIES
 add_test(NAME ember_action_executor_tests COMMAND ember_action_executor_tests)
 set_tests_properties(ember_action_executor_tests PROPERTIES
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME fixture_control_action_tests COMMAND fixture_control_action_tests)
 add_test(NAME autoloop_v2_model_tests COMMAND autoloop_v2_model_tests)
 add_test(NAME autoloop_v2_persistence_tests COMMAND autoloop_v2_persistence_tests)
 add_test(NAME autoloop_v2_studio_tests COMMAND autoloop_v2_studio_tests)
+add_test(NAME autoloop_fixture_controls_tests
+    COMMAND autoloop_fixture_controls_tests)
 add_test(NAME autoloop_autoscript_tests COMMAND autoloop_autoscript_tests)
 add_test(NAME autoloop_autoscript_studio_tests
     COMMAND autoloop_autoscript_studio_tests)
@@ -462,6 +514,8 @@ add_test(NAME autoloop_v2_preview_tests COMMAND autoloop_v2_preview_tests)
 add_test(NAME autoloop_v2_palette_resolution_tests
     COMMAND autoloop_v2_palette_resolution_tests)
 add_test(NAME autoloop_v2_runner_tests COMMAND autoloop_v2_runner_tests)
+add_test(NAME migration_portability_review_tests
+    COMMAND migration_portability_review_tests)
 add_test(NAME midi_capture_list COMMAND midi_capture --list)
 add_test(
     NAME runner_lab_smoke

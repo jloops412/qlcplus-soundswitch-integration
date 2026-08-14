@@ -31,6 +31,7 @@ REQUIRED_FILES = (
     "Tools/soundswitch_control_one_probe.exe",
     "Tools/soundswitch_micro_probe.exe",
     "Templates/EmberLights-2026-V1-Template.emberlights",
+    "Templates/EmberLights-IR4-6CH-Editable-Bench.emberlights",
     "docs/README.md",
     "docs/THIRD_PARTY_NOTICES.md",
     "docs/15_WINDOWS_V1_TESTING.md",
@@ -42,6 +43,7 @@ REQUIRED_FILES = (
     "docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md",
     "docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md",
     "docs/MORNING_HARDWARE_TEST.md",
+    "docs/IR4_6CH_RUNNER_FRAME_TEST.md",
 )
 
 SAFETY_BOUNDARY = {

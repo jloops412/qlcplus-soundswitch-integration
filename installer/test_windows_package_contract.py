@@ -40,6 +40,22 @@ class WindowsPackageContractTests(unittest.TestCase):
         image[0x240 : 0x240 + len(encoded_name)] = encoded_name
         path.write_bytes(image)
 
+    def test_ir4_operator_bench_is_output_disabled_and_complete(self) -> None:
+        asset = (
+            Path(__file__).parent
+            / "assets"
+            / "EmberLights-IR4-6CH-Editable-Bench.emberlights"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "CONNECTIONS\t0\t127.0.0.1\t9996\t0\t127.0.0.1\t0\t0\t",
+            asset,
+        )
+        self.assertIn("\tlocal\tlocal-clone:manual-sha256:", asset)
+        self.assertIn("\twhite\t3\t-1\tlinear8\t", asset)
+        self.assertIn("\tamber\t4\t-1\tlinear8\t", asset)
+        for look in ("blackout", "red", "green", "blue", "white", "amber"):
+            self.assertEqual(asset.count(f"LOOK\tir4-bench-{look}\t"), 1)
+
     def test_manifest_is_deterministic_and_round_trips(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

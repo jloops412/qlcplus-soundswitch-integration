@@ -5,23 +5,32 @@
 #include "showcore/soundswitch_micro.hpp"
 #include "showcore/types.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace emberlights {
 
-enum class Ir4QualificationError : std::uint8_t {
+enum class FixtureBenchQualificationError : std::uint8_t {
     None,
     InvalidProject,
     CompilationFailed,
     MissingLook,
     LookCompilationFailed,
     FrameMismatch,
-    PacketMismatch
+    PacketMismatch,
+    InvalidBenchContract,
+    InvalidExpectedUniverse,
+    UnexpectedOutput
 };
+
+// Compatibility name retained for the original IR-4 red-only API.
+using Ir4QualificationError = FixtureBenchQualificationError;
 
 enum class MicroPhysicalQualificationResult : std::uint8_t {
     Passed,
@@ -58,13 +67,33 @@ struct MicroPhysicalQualificationEvidence {
     bool reconnect_blackout_succeeded{false};
 };
 
+struct FrameDifferenceRow {
+    std::uint16_t channel{0U};
+    std::uint8_t expected{0U};
+    std::uint8_t actual{0U};
+};
+
 struct FrameComparison {
     std::size_t differing_slots{0U};
     std::uint16_t first_differing_channel{0U};
     std::uint8_t expected{0U};
     std::uint8_t actual{0U};
+    // Fixed capacity covers every DMX slot, so a comparison never truncates
+    // the actionable channel-by-channel evidence.
+    std::array<FrameDifferenceRow, showcore::kUniverseSlots> differing_channels{};
 
     [[nodiscard]] bool exact() const noexcept { return differing_slots == 0U; }
+    [[nodiscard]] std::span<const FrameDifferenceRow> rows() const noexcept {
+        return {differing_channels.data(), differing_slots};
+    }
+};
+
+struct PacketDifferenceRow {
+    std::size_t offset{0U};
+    std::uint8_t expected{0U};
+    std::uint8_t actual{0U};
+    bool expected_present{false};
+    bool actual_present{false};
 };
 
 struct PacketComparison {
@@ -72,25 +101,98 @@ struct PacketComparison {
     std::size_t first_differing_offset{0U};
     std::uint8_t expected{0U};
     std::uint8_t actual{0U};
+    std::size_t expected_length{0U};
+    std::size_t actual_length{0U};
+    bool expected_length_valid{true};
+    bool actual_length_valid{true};
+    // JLS1 is bounded to the exact maximum packet size. Length mismatches are
+    // represented by a row at each missing/extra byte offset.
+    std::array<
+        PacketDifferenceRow,
+        showcore::kSoundSwitchMicroMaximumFrameSize> differing_byte_rows{};
 
-    [[nodiscard]] bool exact() const noexcept { return differing_bytes == 0U; }
+    [[nodiscard]] bool exact() const noexcept {
+        return differing_bytes == 0U && expected_length_valid &&
+            actual_length_valid && expected_length == actual_length;
+    }
+    [[nodiscard]] std::span<const PacketDifferenceRow> rows() const noexcept {
+        return {differing_byte_rows.data(), differing_bytes};
+    }
 };
 
-struct Ir4QualificationFrames {
-    Ir4QualificationError error{Ir4QualificationError::None};
+struct FixtureBenchQualificationFrames {
+    FixtureBenchQualificationError error{FixtureBenchQualificationError::None};
+    std::string look_id;
+    std::uint8_t expected_universe{1U};
     ProjectValidation validation{};
     showcore::DmxUniverse raw_reference{};
     showcore::DmxUniverse runner_rendered{};
+    showcore::DmxFrames runner_frames{};
     showcore::SoundSwitchMicroPacket raw_packet{};
     showcore::SoundSwitchMicroPacket runner_packet{};
     FrameComparison frame_comparison{};
     PacketComparison packet_comparison{};
+    std::size_t unrelated_output_nonzero_slots{0U};
 
     [[nodiscard]] bool exact() const noexcept {
-        return error == Ir4QualificationError::None &&
-            frame_comparison.exact() && packet_comparison.exact();
+        return error == FixtureBenchQualificationError::None &&
+            frame_comparison.exact() && packet_comparison.exact() &&
+            unrelated_output_nonzero_slots == 0U;
     }
 };
+
+// Compatibility type retained for the original IR-4 red-only API.
+using Ir4QualificationFrames = FixtureBenchQualificationFrames;
+
+struct OneFixtureBenchContract {
+    bool exactly_one_fixture{false};
+    bool exactly_one_profile{false};
+    bool fixture_profile_present{false};
+    bool fixture_on_selected_output{false};
+    bool soundswitch_micro_universe_one_only{false};
+    bool os2l_disabled{false};
+    bool midi_disabled{false};
+    bool automation_disabled{false};
+    bool isolated_content{false};
+
+    [[nodiscard]] bool exact() const noexcept {
+        return exactly_one_fixture && exactly_one_profile &&
+            fixture_profile_present && fixture_on_selected_output &&
+            soundswitch_micro_universe_one_only && os2l_disabled &&
+            midi_disabled && automation_disabled && isolated_content;
+    }
+};
+
+struct FixtureBenchLookExpectation {
+    std::string_view look_id;
+    std::uint8_t universe{1U};
+    showcore::DmxUniverse expected_frame{};
+};
+
+struct FixtureBenchQualificationSet {
+    std::vector<FixtureBenchQualificationFrames> looks;
+
+    [[nodiscard]] bool exact() const noexcept {
+        return !looks.empty() && std::all_of(
+            looks.begin(), looks.end(),
+            [](const auto& look) { return look.exact(); });
+    }
+};
+
+enum class Ir4SixChannelSafeLook : std::uint8_t {
+    Blackout,
+    Red,
+    Green,
+    Blue,
+    White,
+    Amber,
+    Count
+};
+
+inline constexpr std::size_t kIr4SixChannelSafeLookCount =
+    static_cast<std::size_t>(Ir4SixChannelSafeLook::Count);
+inline constexpr std::string_view kIr4SixChannelOperatorBenchProfileId =
+    "local.both-lighting.bo-ir4.6ch.operator-bench-v1";
 
 // Evidence records are Studio-side, append-only graduation artifacts. They do
 // not authorize the raw hardware-test path itself and are never consulted from
@@ -202,6 +304,12 @@ struct FixtureQualificationGate {
 };
 
 [[nodiscard]] ProjectDocument make_ir4_6ch_qualification_project();
+// Editable diagnostic clone for the packaged Studio workbench. The immutable
+// qualification project above remains the source of manual-backed truth.
+[[nodiscard]] ProjectDocument make_ir4_6ch_operator_bench_project();
+
+[[nodiscard]] OneFixtureBenchContract inspect_one_fixture_bench_contract(
+    const ProjectDocument& project) noexcept;
 
 [[nodiscard]] FrameComparison compare_dmx_frames(
     const showcore::DmxUniverse& expected,
@@ -210,6 +318,17 @@ struct FixtureQualificationGate {
 [[nodiscard]] PacketComparison compare_soundswitch_micro_packets(
     const showcore::SoundSwitchMicroPacket& expected,
     const showcore::SoundSwitchMicroPacket& actual) noexcept;
+
+[[nodiscard]] FixtureBenchQualificationSet build_fixture_bench_qualifications(
+    const ProjectDocument& project,
+    std::span<const FixtureBenchLookExpectation> expectations);
+
+[[nodiscard]] std::string_view ir4_6ch_safe_look_id(
+    Ir4SixChannelSafeLook look) noexcept;
+[[nodiscard]] showcore::DmxUniverse ir4_6ch_safe_look_expected_frame(
+    Ir4SixChannelSafeLook look) noexcept;
+[[nodiscard]] FixtureBenchQualificationSet
+build_ir4_6ch_safe_qualifications();
 
 [[nodiscard]] Ir4QualificationFrames build_ir4_6ch_red_qualification();
 

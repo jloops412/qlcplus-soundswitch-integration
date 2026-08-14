@@ -858,6 +858,25 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     }
 
     for (const auto& mapping : project.midi_mappings) {
+        if (mapping.fixture_control_binding_id.size() >
+            kMaximumFixtureControlBindingIdLength) {
+            add_issue(
+                result,
+                ProjectIssueSeverity::Error,
+                "midi.fixtureControlBindingId",
+                mapping.device_name,
+                "MIDI named fixture-control binding IDs must be 1024 characters or fewer.");
+        }
+        if (!mapping.fixture_control_binding_id.empty() &&
+            mapping.action.type != showcore::ActionType::SetProperty &&
+            mapping.action.type != showcore::ActionType::SetGroupProperty) {
+            add_issue(
+                result,
+                ProjectIssueSeverity::Error,
+                "midi.fixtureControlBindingAction",
+                mapping.device_name,
+                "Named fixture-control provenance is valid only for fixture or group property mappings.");
+        }
         if (mapping.action.type >= showcore::ActionType::Count) {
             add_issue(result, ProjectIssueSeverity::Error, "midi.action", mapping.device_name,
                       "MIDI mapping action is outside the supported range.");

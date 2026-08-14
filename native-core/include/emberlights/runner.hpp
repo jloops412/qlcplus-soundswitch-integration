@@ -6,6 +6,7 @@
 #include "showcore/midi.hpp"
 #include "showcore/os2l.hpp"
 #include "showcore/output_backend.hpp"
+#include "showcore/fixture.hpp"
 #include "showcore/spsc_queue.hpp"
 #include "showcore/sync_manager.hpp"
 #include "showcore/types.hpp"
@@ -209,6 +210,8 @@ struct RunnerCommand {
     StaticLookBehavior static_look_behavior{StaticLookBehavior::None};
 };
 
+inline constexpr std::size_t kRunnerOutputBackendCount = 6U;
+
 struct RunnerStatus {
     RunnerState state{RunnerState::Stopped};
     AdapterState os2l{AdapterState::Disabled};
@@ -222,7 +225,8 @@ struct RunnerStatus {
         AdapterState::Disabled};
     AdapterState soundswitch_micro{AdapterState::Disabled};
     AdapterState soundswitch_control_one{AdapterState::Disabled};
-    std::array<showcore::OutputBackendHealth, 6U> output_backends{};
+    std::array<showcore::OutputBackendHealth, kRunnerOutputBackendCount>
+        output_backends{};
     showcore::SyncState sync_state{showcore::SyncState::Waiting};
     showcore::ClockSource clock_source{showcore::ClockSource::None};
     double bpm{0.0};
@@ -298,9 +302,43 @@ struct RunnerOs2lButtonEvent {
 };
 
 struct RunnerOutputFrame {
+    showcore::DmxFrames pre_blackout_frames{};
     showcore::DmxFrames frames{};
+    showcore::DmxFrameAttribution attribution{};
+    std::uint64_t rendered_at_ms{0U};
     std::uint8_t sequence{0};
     std::uint64_t generation{0};
+    bool blackout_applied{false};
+};
+
+inline constexpr std::size_t kRunnerOutputRouteCount =
+    kRunnerOutputBackendCount;
+
+// Per-frame route evidence is derived on the output thread from the existing
+// backend health counters. Counts are backend frame/send attempts for this
+// frame, not cumulative lifetime counters.
+struct RunnerOutputRouteResult {
+    showcore::OutputBackendKind kind{showcore::OutputBackendKind::ArtNet};
+    std::uint8_t first_source_universe{0U};
+    std::uint8_t source_universe_count{0U};
+    bool configured{false};
+    std::uint8_t attempted_frames{0U};
+    std::uint8_t accepted_frames{0U};
+    std::uint32_t last_error{0U};
+};
+
+// Immutable value-copy boundary for diagnostics. The scheduler publishes only
+// a fixed RunnerOutputFrame to its SPSC queue. The output thread adds route
+// results and replaces the latest snapshot under a reader-side mutex.
+struct RunnerOutputSnapshot {
+    std::uint64_t generation{0U};
+    std::uint8_t sequence{0U};
+    std::uint64_t rendered_at_ms{0U};
+    showcore::DmxFrames pre_blackout_frames{};
+    showcore::DmxFrames routed_frames{};
+    showcore::DmxFrameAttribution attribution{};
+    bool blackout_applied{false};
+    std::array<RunnerOutputRouteResult, kRunnerOutputRouteCount> routes{};
 };
 
 class RunnerService {
@@ -323,6 +361,8 @@ public:
     void stop() noexcept;
 
     [[nodiscard]] RunnerStatus status() const noexcept;
+    [[nodiscard]] bool latest_output_snapshot(
+        RunnerOutputSnapshot& snapshot) const noexcept;
     [[nodiscard]] bool post(const RunnerCommand& command) noexcept;
     void set_blackout(bool active) noexcept;
     void set_work_light(bool active) noexcept;
@@ -403,6 +443,9 @@ private:
     MidiActionQueue midi_actions_{};
     MidiMonitorQueue midi_monitor_{};
     OutputQueue output_queue_{};
+    mutable std::mutex output_snapshot_mutex_{};
+    RunnerOutputSnapshot latest_output_snapshot_{};
+    bool has_output_snapshot_{false};
     std::thread scheduler_thread_{};
     std::thread input_thread_{};
     std::thread output_thread_{};
@@ -421,7 +464,9 @@ private:
         dmx_usb_pro_state_{};
     std::atomic<AdapterState> soundswitch_micro_state_{AdapterState::Disabled};
     std::atomic<AdapterState> soundswitch_control_one_state_{AdapterState::Disabled};
-    std::array<showcore::AtomicOutputBackendHealth, 6U> output_health_{};
+    std::array<showcore::AtomicOutputBackendHealth,
+               kRunnerOutputBackendCount>
+        output_health_{};
     std::atomic<showcore::SyncState> sync_state_{showcore::SyncState::Waiting};
     std::atomic<showcore::ClockSource> clock_source_{showcore::ClockSource::None};
     std::atomic<std::uint32_t> bpm_milli_{0};

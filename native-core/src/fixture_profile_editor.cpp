@@ -14,7 +14,7 @@ namespace {
 using showcore::ChannelEncoding;
 using showcore::Property;
 
-const std::array<FixtureProfileTemplateDescriptor, 6U> kTemplates{{
+const std::array<FixtureProfileTemplateDescriptor, 10U> kTemplates{{
     {FixtureProfileTemplateId::Dimmer1, "dimmer-1ch", "Dimmer • 1CH",
      "One master intensity channel", 1U},
     {FixtureProfileTemplateId::Rgb3, "rgb-3ch", "RGB • 3CH",
@@ -28,6 +28,14 @@ const std::array<FixtureProfileTemplateDescriptor, 6U> kTemplates{{
     {FixtureProfileTemplateId::MasterRgbwauv7, "master-rgbwauv-7ch",
      "Master + RGBWA+UV • 7CH",
      "Intensity, Red, Green, Blue, White, Amber, UV", 7U},
+    {FixtureProfileTemplateId::Rgbwa5, "rgbwa-5ch", "RGBWA • 5CH",
+     "Red, Green, Blue, White, Amber", 5U},
+    {FixtureProfileTemplateId::MasterRgb4, "master-rgb-4ch",
+     "Master + RGB • 4CH", "Intensity, Red, Green, Blue", 4U},
+    {FixtureProfileTemplateId::MasterRgbw5, "master-rgbw-5ch",
+     "Master + RGBW • 5CH", "Intensity, Red, Green, Blue, White", 5U},
+    {FixtureProfileTemplateId::PanTilt2, "pan-tilt-2ch", "Pan + Tilt • 2CH",
+     "8-bit Pan, Tilt", 2U},
 }};
 
 [[nodiscard]] ChannelDefinition direct_channel(
@@ -128,8 +136,77 @@ const std::array<FixtureProfileTemplateDescriptor, 6U> kTemplates{{
     case FixtureProfileTemplateId::MasterRgbwauv7:
         return {Property::Intensity, Property::Red, Property::Green, Property::Blue,
                 Property::White, Property::Amber, Property::UV};
+    case FixtureProfileTemplateId::Rgbwa5:
+        return {Property::Red, Property::Green, Property::Blue, Property::White,
+                Property::Amber};
+    case FixtureProfileTemplateId::MasterRgb4:
+        return {Property::Intensity, Property::Red, Property::Green,
+                Property::Blue};
+    case FixtureProfileTemplateId::MasterRgbw5:
+        return {Property::Intensity, Property::Red, Property::Green,
+                Property::Blue, Property::White};
+    case FixtureProfileTemplateId::PanTilt2:
+        return {Property::Pan, Property::Tilt};
     }
     return {};
+}
+
+[[nodiscard]] std::array<bool, showcore::kUniverseSlots>
+occupied_profile_slots(const FixtureProfileDefinition& profile) noexcept {
+    std::array<bool, showcore::kUniverseSlots> occupied{};
+    for (const auto& channel : profile.channels) {
+        if (channel.coarse_offset < occupied.size()) {
+            occupied[channel.coarse_offset] = true;
+        }
+        if (channel.fine_offset >= 0 &&
+            static_cast<std::size_t>(channel.fine_offset) < occupied.size()) {
+            occupied[static_cast<std::size_t>(channel.fine_offset)] = true;
+        }
+    }
+    return occupied;
+}
+
+[[nodiscard]] const ChannelDefinition* profile_channel_at(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t one_based_channel) noexcept {
+    if (one_based_channel == 0U) {
+        return nullptr;
+    }
+    const auto found = std::find_if(
+        profile.channels.begin(), profile.channels.end(),
+        [one_based_channel](const auto& channel) {
+            return channel.coarse_offset == one_based_channel - 1U;
+        });
+    return found == profile.channels.end() ? nullptr : &*found;
+}
+
+[[nodiscard]] ChannelDefinition* profile_channel_at(
+    FixtureProfileDefinition& profile,
+    std::uint16_t one_based_channel) noexcept {
+    return const_cast<ChannelDefinition*>(profile_channel_at(
+        static_cast<const FixtureProfileDefinition&>(profile),
+        one_based_channel));
+}
+
+[[nodiscard]] bool direct_swap_parameter_is_safe(Property property) noexcept {
+    const auto* descriptor = fixture_parameter_descriptor(property);
+    return descriptor != nullptr &&
+        descriptor->supports(FixtureParameterSurface::Profile) &&
+        descriptor->profile_preset ==
+            FixtureParameterProfilePreset::DirectLinear &&
+        descriptor->safety == FixtureParameterSafety::Normal;
+}
+
+[[nodiscard]] bool direct_channel_layouts_are_compatible(
+    const ChannelDefinition& first,
+    const ChannelDefinition& second) noexcept {
+    return first.encoding == second.encoding &&
+        first.dmx_min == second.dmx_min &&
+        first.dmx_max == second.dmx_max &&
+        first.default_value == second.default_value &&
+        first.blackout_value == second.blackout_value &&
+        first.highlight_value == second.highlight_value &&
+        first.owner == second.owner;
 }
 
 }  // namespace
@@ -437,6 +514,400 @@ std::vector<FixtureProfileEditorRow> fixture_profile_editor_rows(
             return left.channel < right.channel;
         });
     return rows;
+}
+
+std::vector<FixtureProfileParameterChoice>
+fixture_profile_parameter_choices() {
+    const auto catalog = fixture_parameter_catalog();
+    std::vector<FixtureProfileParameterChoice> choices;
+    choices.reserve(catalog.size());
+    for (const auto& descriptor : catalog) {
+        FixtureProfileParameterChoice choice;
+        choice.property = descriptor.property;
+        choice.stable_id = std::string(descriptor.stable_id);
+        choice.display_name = std::string(descriptor.display_name);
+        choice.description = std::string(descriptor.description);
+        choice.category_label = std::string(
+            fixture_parameter_category_name(descriptor.category));
+        choice.control_label = std::string(
+            fixture_parameter_control_kind_name(descriptor.control_kind));
+        choice.safety_label = std::string(
+            fixture_parameter_safety_name(descriptor.safety));
+        choice.direct_assignment_available =
+            descriptor.supports(FixtureParameterSurface::Profile) &&
+            descriptor.profile_preset ==
+                FixtureParameterProfilePreset::DirectLinear &&
+            descriptor.safety == FixtureParameterSafety::Normal;
+        if (!descriptor.supports(FixtureParameterSurface::Profile)) {
+            choice.unavailable_reason =
+                "This parameter is not available in fixture profiles.";
+        } else if (descriptor.profile_preset ==
+                   FixtureParameterProfilePreset::ManualDmxChart) {
+            choice.unavailable_reason =
+                "Add this from the fixture DMX chart with named ranges and a safe default.";
+        } else if (descriptor.safety != FixtureParameterSafety::Normal) {
+            choice.unavailable_reason =
+                "This safety-restricted parameter needs explicit reviewed ranges.";
+        }
+        choice.accessibility_label = choice.display_name + ", " +
+            choice.category_label + ", " + choice.control_label + ", " +
+            (choice.direct_assignment_available
+                 ? std::string("ready for a direct 8-bit channel")
+                 : choice.unavailable_reason);
+        choices.push_back(std::move(choice));
+    }
+    return choices;
+}
+
+FixtureProfileChannelPlacementResult
+assign_next_or_append_fixture_profile_channel(
+    FixtureProfileDefinition& draft,
+    Property property) {
+    FixtureProfileChannelPlacementResult result;
+    if (draft.source != showcore::FixtureProfileSource::Local) {
+        result.error = FixtureProfileChannelPlacementError::SourceReadOnly;
+        result.message =
+            "This source snapshot is read-only. Duplicate it as a Local profile before assigning channels.";
+        return result;
+    }
+    const auto* descriptor = fixture_parameter_descriptor(property);
+    if (descriptor == nullptr ||
+        !descriptor->supports(FixtureParameterSurface::Profile)) {
+        result.error = FixtureProfileChannelPlacementError::InvalidProperty;
+        result.message = "Choose a parameter from the fixture catalog.";
+        return result;
+    }
+    if (descriptor->profile_preset !=
+            FixtureParameterProfilePreset::DirectLinear ||
+        descriptor->safety != FixtureParameterSafety::Normal) {
+        result.error = FixtureProfileChannelPlacementError::UnsafePreset;
+        result.message = std::string(descriptor->display_name) +
+            " needs its documented DMX ranges and safe value; it was not guessed or assigned.";
+        return result;
+    }
+    if (draft.footprint > showcore::kUniverseSlots) {
+        result.error = FixtureProfileChannelPlacementError::InvalidProfile;
+        result.message = "Repair the profile footprint before assigning channels.";
+        return result;
+    }
+
+    const auto occupied = occupied_profile_slots(draft);
+    std::uint16_t channel = 0U;
+    for (std::size_t index = 0U; index < draft.footprint; ++index) {
+        if (!occupied[index]) {
+            channel = static_cast<std::uint16_t>(index + 1U);
+            result.filled_gap = true;
+            break;
+        }
+    }
+    auto candidate = draft;
+    if (channel == 0U) {
+        if (draft.footprint >= showcore::kUniverseSlots) {
+            result.error = FixtureProfileChannelPlacementError::ProfileFull;
+            result.message =
+                "All 512 fixture channels are already described; nothing changed.";
+            return result;
+        }
+        candidate.footprint = static_cast<std::uint16_t>(
+            static_cast<std::size_t>(draft.footprint) + 1U);
+        channel = candidate.footprint;
+        result.grew_footprint = true;
+    }
+
+    ChannelDefinition definition;
+    const auto preset = make_safe_fixture_profile_channel(
+        property, channel, definition);
+    if (!preset) {
+        result.error = preset.error == FixtureProfileEditorError::UnsafePreset
+            ? FixtureProfileChannelPlacementError::UnsafePreset
+            : FixtureProfileChannelPlacementError::CandidateInvalid;
+        result.message = preset.message;
+        return result;
+    }
+    candidate.channels.push_back(std::move(definition));
+    std::stable_sort(
+        candidate.channels.begin(), candidate.channels.end(),
+        [](const auto& left, const auto& right) {
+            return left.coarse_offset < right.coarse_offset;
+        });
+    const auto validation = validate_candidate(
+        candidate, false, "Catalog parameter assigned.");
+    if (!validation) {
+        result.error = FixtureProfileChannelPlacementError::CandidateInvalid;
+        result.message = validation.message;
+        return result;
+    }
+
+    draft = std::move(candidate);
+    result.error = FixtureProfileChannelPlacementError::None;
+    result.changed = true;
+    result.channel = channel;
+    result.message = std::string(descriptor->display_name) + " assigned to CH" +
+        std::to_string(channel) +
+        (result.grew_footprint
+             ? "; the profile footprint grew to " +
+                   std::to_string(draft.footprint) + "."
+             : "; the existing footprint gap was filled.") +
+        " Confirm the physical order against the fixture's DMX chart.";
+    return result;
+}
+
+FixtureProfileChannelPlacementResult
+fill_fixture_profile_channel_gaps_with_safe_constants(
+    FixtureProfileDefinition& draft) {
+    FixtureProfileChannelPlacementResult result;
+    if (draft.source != showcore::FixtureProfileSource::Local) {
+        result.error = FixtureProfileChannelPlacementError::SourceReadOnly;
+        result.message =
+            "This source snapshot is read-only. Duplicate it as a Local profile before filling unused slots.";
+        return result;
+    }
+    if (draft.footprint == 0U ||
+        draft.footprint > showcore::kUniverseSlots) {
+        result.error = FixtureProfileChannelPlacementError::InvalidProfile;
+        result.message = "Enter a footprint from 1 through 512 first.";
+        return result;
+    }
+
+    auto candidate = draft;
+    const auto occupied = occupied_profile_slots(candidate);
+    for (std::size_t index = 0U; index < candidate.footprint; ++index) {
+        if (occupied[index]) {
+            continue;
+        }
+        ChannelDefinition safe_constant;
+        const auto preset = make_safe_fixture_profile_channel(
+            Property::Count,
+            static_cast<std::uint16_t>(index + 1U),
+            safe_constant);
+        if (!preset) {
+            result.error = FixtureProfileChannelPlacementError::CandidateInvalid;
+            result.message = preset.message;
+            return result;
+        }
+        candidate.channels.push_back(std::move(safe_constant));
+        ++result.filled_count;
+    }
+    std::stable_sort(
+        candidate.channels.begin(), candidate.channels.end(),
+        [](const auto& left, const auto& right) {
+            return left.coarse_offset < right.coarse_offset;
+        });
+    const auto validation = validate_candidate(
+        candidate, false, "Unused footprint slots made explicit.");
+    if (!validation) {
+        result.error = FixtureProfileChannelPlacementError::CandidateInvalid;
+        result.filled_count = 0U;
+        result.message = validation.message;
+        return result;
+    }
+
+    result.error = FixtureProfileChannelPlacementError::None;
+    result.changed = result.filled_count != 0U;
+    if (result.changed) {
+        draft = std::move(candidate);
+        result.message = std::to_string(result.filled_count) +
+            " unused footprint slot" +
+            (result.filled_count == 1U ? std::string{} : std::string("s")) +
+            " now holds an explicit zero-valued safe constant. Confirm unused slots against the fixture's DMX chart.";
+    } else {
+        result.message =
+            "Every physical footprint slot is already described; nothing changed.";
+    }
+    return result;
+}
+
+FixtureProfileChannelFunctionSwapResult
+plan_fixture_profile_channel_function_swap(
+    const FixtureProfileDefinition& profile,
+    std::uint16_t first_channel,
+    std::uint16_t second_channel) {
+    FixtureProfileChannelFunctionSwapResult result;
+    if (profile.source != showcore::FixtureProfileSource::Local) {
+        result.error = FixtureProfileChannelFunctionSwapError::SourceReadOnly;
+        result.message =
+            "This source snapshot is read-only. Duplicate it as a Local profile before correcting channel functions.";
+        return result;
+    }
+    const auto summary = summarize_fixture_profile_mapping(
+        validation_copy(profile));
+    if (!summary.profile_valid) {
+        result.error = FixtureProfileChannelFunctionSwapError::InvalidProfile;
+        result.message = summary.validation_message;
+        return result;
+    }
+    if (first_channel == 0U || second_channel == 0U ||
+        first_channel > profile.footprint ||
+        second_channel > profile.footprint) {
+        result.error = FixtureProfileChannelFunctionSwapError::InvalidChannel;
+        result.message =
+            "Choose two mapped channels inside the profile footprint.";
+        return result;
+    }
+    if (first_channel == second_channel) {
+        result.error = FixtureProfileChannelFunctionSwapError::SameChannel;
+        result.message = "Choose two different physical channels; nothing changed.";
+        return result;
+    }
+    const auto* first = profile_channel_at(profile, first_channel);
+    const auto* second = profile_channel_at(profile, second_channel);
+    if (first == nullptr || second == nullptr) {
+        result.error = FixtureProfileChannelFunctionSwapError::ChannelMissing;
+        result.message =
+            "Both selected physical channels must have an existing mapping; nothing changed.";
+        return result;
+    }
+    if (first->fine_offset >= 0 || second->fine_offset >= 0) {
+        result.error =
+            FixtureProfileChannelFunctionSwapError::FineChannelUnsupported;
+        result.message =
+            "16-bit coarse/fine functions cannot be re-labelled with a direct-channel swap. Edit their complete mapping from the fixture chart.";
+        return result;
+    }
+    if (!first->capabilities.empty() || !second->capabilities.empty() ||
+        first->property == Property::Count ||
+        second->property == Property::Count) {
+        result.error =
+            FixtureProfileChannelFunctionSwapError::CompoundChannelUnsupported;
+        result.message =
+            "Safe constants and channels with named/compound ranges cannot be swapped. Edit their complete capability rows instead.";
+        return result;
+    }
+    if (first->encoding != ChannelEncoding::Linear8 ||
+        second->encoding != ChannelEncoding::Linear8 ||
+        !direct_swap_parameter_is_safe(first->property) ||
+        !direct_swap_parameter_is_safe(second->property)) {
+        result.error = FixtureProfileChannelFunctionSwapError::UnsafeFunction;
+        result.message =
+            "Only ordinary direct 8-bit functions can be swapped. Chart-dependent or safety-restricted functions stay unchanged.";
+        return result;
+    }
+    if (!direct_channel_layouts_are_compatible(*first, *second)) {
+        result.error =
+            FixtureProfileChannelFunctionSwapError::IncompatibleMappings;
+        result.message =
+            "The selected channels have different ranges, defaults, blackout/highlight values, or owners. Rebuild those mappings explicitly instead of swapping labels.";
+        return result;
+    }
+
+    auto& plan = result.plan;
+    plan.profile_id = profile.id;
+    plan.profile_name = profile.name;
+    plan.source_revision = profile.source_revision;
+    plan.source = profile.source;
+    plan.source_behavior_fingerprint =
+        fixture_profile_behavior_fingerprint(profile);
+    plan.first_channel = first_channel;
+    plan.second_channel = second_channel;
+    plan.first_property_before = first->property;
+    plan.second_property_before = second->property;
+    plan.first_property_after = second->property;
+    plan.second_property_after = first->property;
+    plan.changes_mapping = first->property != second->property;
+
+    auto candidate = profile;
+    if (plan.changes_mapping) {
+        auto* candidate_first = profile_channel_at(candidate, first_channel);
+        auto* candidate_second = profile_channel_at(candidate, second_channel);
+        std::swap(candidate_first->property, candidate_second->property);
+    }
+    const auto candidate_summary = summarize_fixture_profile_mapping(
+        validation_copy(candidate));
+    if (!candidate_summary.profile_valid) {
+        result.error = FixtureProfileChannelFunctionSwapError::CandidateInvalid;
+        result.plan = {};
+        result.message =
+            "The corrected profile candidate failed exact validation; nothing changed.";
+        return result;
+    }
+    plan.candidate_behavior_fingerprint =
+        fixture_profile_behavior_fingerprint(candidate);
+    result.error = FixtureProfileChannelFunctionSwapError::None;
+    result.changed = false;
+    if (!plan.changes_mapping) {
+        result.message = "Both channels already use " +
+            display_property(first->property) + "; nothing would change.";
+        return result;
+    }
+    result.message = "Ready to exchange " + display_property(first->property) +
+        " on CH" + std::to_string(first_channel) + " with " +
+        display_property(second->property) + " on CH" +
+        std::to_string(second_channel) +
+        ". Physical slots, ranges, owners, and safe values stay fixed; fixture confirmation is still required.";
+    return result;
+}
+
+FixtureProfileChannelFunctionSwapResult
+apply_fixture_profile_channel_function_swap(
+    FixtureProfileDefinition& profile,
+    const FixtureProfileChannelFunctionSwapPlan& plan) {
+    FixtureProfileChannelFunctionSwapResult result;
+    result.plan = plan;
+    const auto source_matches =
+        profile.id == plan.profile_id &&
+        profile.name == plan.profile_name &&
+        profile.source_revision == plan.source_revision &&
+        profile.source == plan.source &&
+        profile.source == showcore::FixtureProfileSource::Local &&
+        fixture_profile_behavior_fingerprint(profile) ==
+            plan.source_behavior_fingerprint;
+    if (!source_matches) {
+        result.error = FixtureProfileChannelFunctionSwapError::StalePlan;
+        result.message =
+            "The profile changed after this swap was reviewed; nothing changed.";
+        return result;
+    }
+    const auto current = plan_fixture_profile_channel_function_swap(
+        profile, plan.first_channel, plan.second_channel);
+    if (!current ||
+        current.plan.first_property_before != plan.first_property_before ||
+        current.plan.second_property_before != plan.second_property_before ||
+        current.plan.first_property_after != plan.first_property_after ||
+        current.plan.second_property_after != plan.second_property_after ||
+        current.plan.changes_mapping != plan.changes_mapping ||
+        current.plan.candidate_behavior_fingerprint !=
+            plan.candidate_behavior_fingerprint) {
+        result.error = FixtureProfileChannelFunctionSwapError::StalePlan;
+        result.message =
+            "The reviewed channel swap no longer matches the current profile; nothing changed.";
+        return result;
+    }
+    if (!plan.changes_mapping) {
+        result.error = FixtureProfileChannelFunctionSwapError::None;
+        result.message = current.message;
+        return result;
+    }
+
+    auto candidate = profile;
+    auto* first = profile_channel_at(candidate, plan.first_channel);
+    auto* second = profile_channel_at(candidate, plan.second_channel);
+    if (first == nullptr || second == nullptr) {
+        result.error = FixtureProfileChannelFunctionSwapError::StalePlan;
+        result.message =
+            "A reviewed physical channel is no longer mapped; nothing changed.";
+        return result;
+    }
+    std::swap(first->property, second->property);
+    const auto summary = summarize_fixture_profile_mapping(
+        validation_copy(candidate));
+    if (!summary.profile_valid ||
+        fixture_profile_behavior_fingerprint(candidate) !=
+            plan.candidate_behavior_fingerprint) {
+        result.error = FixtureProfileChannelFunctionSwapError::CandidateInvalid;
+        result.message =
+            "The corrected profile candidate failed exact validation; nothing changed.";
+        return result;
+    }
+
+    profile = std::move(candidate);
+    result.error = FixtureProfileChannelFunctionSwapError::None;
+    result.changed = true;
+    result.message = display_property(plan.first_property_after) + " is now CH" +
+        std::to_string(plan.first_channel) + "; " +
+        display_property(plan.second_property_after) + " is now CH" +
+        std::to_string(plan.second_channel) +
+        ". Physical hardware qualification is still required.";
+    return result;
 }
 
 std::string make_fixture_channel_capability_id(std::string_view label) {

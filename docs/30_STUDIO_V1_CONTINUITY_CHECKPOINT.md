@@ -231,3 +231,57 @@ canonical registry entries and pass the Surface Contract Gate. Palette-linked
 timeline/Autoloop events, dependency-impact UI, production picker/canvas,
 scripted-track ABI, source decoder fidelity, and physical fixture qualification
 remain separate ordered work.
+
+## 11. Additive named-controller and migration-readiness checkpoint — 2026-08-13
+
+Preview 93 extends Studio's existing fixture capability and format-1 mapping
+contracts without adding a vendor-specific controller engine or changing the
+Runner scheduler.
+
+### Persistent named fixture-function mappings
+
+- `plan_fixture_controller_binding` treats a learned MIDI message as an input
+  prototype and derives target, action, property, exact semantic range, and
+  stable choice provenance from `fixture_control_choices`;
+- an exact homogeneous group remains one group-property mapping; a
+  mixed-profile group expands atomically into fixture-property mappings so
+  each profile keeps its own normalized slot or continuous endpoints;
+- project and per-message fanout limits are checked before publication. A
+  relative prototype that cannot remain within the named range, an unavailable
+  or protected choice, an unconfirmed safety-gated choice, or incomplete
+  capacity returns no partial plan;
+- `MidiMappingDefinition::fixture_control_binding_id` stores the stable catalog
+  choice ID in format-1 MIDI field 19, which older writers reserved as literal
+  zero. Existing projects therefore retain an empty value, and current
+  serialize/parse/compile behavior remains deterministic;
+- the ID is authoring provenance, not a display label, raw byte, controller
+  model, or alternate runtime action. Compiled mappings remain the existing
+  bounded semantic `SetProperty` / `SetGroupProperty` actions.
+
+### Evidence-only source portability review
+
+`build_migration_portability_review` emits a content-safe, deterministic
+Probe → Inventory → Decode → Reconcile → Plan → Commit → Upgrade view. It
+reuses the current SoundSwitch source-binding audit and deliberately reports
+artifact/hash identity separately from semantic decoder qualification. It
+contains no source paths, hashes, payload bytes, raw DMX, or mutable project
+operation.
+
+The WOLFMIX row is research-only and every stage reports
+`wolfmix.controlled_delta_corpus_unavailable`. No WOLFMIX source inspector,
+parser, importer, project conversion, or runtime behavior exists in this
+slice. For SoundSwitch, an exact artifact identity still does not qualify a
+timeline decoder or upgrade an approximate migration item to exact.
+
+Focused warning-fatal Make and fresh CMake/CTest runs pass
+`fixture_controller_binding_tests` and
+`migration_portability_review_tests`, including format-1 provenance
+round-trip, compiled mixed-profile event values, fixed capacity refusal,
+content-safe serialization, SoundSwitch identity/fidelity separation, and the
+explicit WOLFMIX evidence blocker.
+
+The current Windows mapping and diagnostic controls remain part of the
+existing Authoring transition recorded in the direct-callback ledger. No new
+callable command, state, component, capability, registry generation, skin
+binding, or Runner path was added. Typed Studio mapping commands/results and a
+production registry-driven binding component remain issue #31/#66 work.

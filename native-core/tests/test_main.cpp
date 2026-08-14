@@ -371,6 +371,18 @@ void test_generic_profile_rendering() {
     CHECK(engine->frames().universes[0][5] == 0U);
     CHECK(engine->frames().universes[0][6] == 9U);
     CHECK(engine->frames().universes[0][7] == 128U);
+    const auto& defaults = engine->frame_attribution().universes[0];
+    CHECK(defaults[0].fixture_id == 0U);
+    CHECK(defaults[0].mapping_index == 0U);
+    CHECK(defaults[0].property == showcore::Property::Intensity);
+    CHECK(defaults[0].origin == showcore::RenderValueOrigin::Default);
+    CHECK(defaults[0].value_mode == showcore::ValueMode::Release);
+    CHECK(defaults[0].winning_layer == showcore::LayerId::Count);
+    CHECK(defaults[2].encoding == showcore::ChannelEncoding::Linear16);
+    CHECK(!defaults[2].fine_channel);
+    CHECK(defaults[3].fine_channel);
+    CHECK(defaults[4].origin == showcore::RenderValueOrigin::Constant);
+    CHECK(defaults[4].property == showcore::Property::Count);
 
     engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Intensity, showcore::PropertyValue::set(0.0F));
@@ -387,6 +399,14 @@ void test_generic_profile_rendering() {
     CHECK(engine->frames().universes[0][2] == 0x80U);
     CHECK(engine->frames().universes[0][3] == 0x00U);
     CHECK(engine->frames().universes[0][5] == 100U);
+    const auto& resolved = engine->frame_attribution().universes[0];
+    CHECK(resolved[0].origin == showcore::RenderValueOrigin::Property);
+    CHECK(resolved[0].value_mode == showcore::ValueMode::Set);
+    CHECK(resolved[0].winning_layer == showcore::LayerId::TrackScript);
+    CHECK(resolved[0].property == showcore::Property::Intensity);
+    CHECK(resolved[2].origin == showcore::RenderValueOrigin::Property);
+    CHECK(resolved[3].origin == showcore::RenderValueOrigin::Property);
+    CHECK(resolved[3].fine_channel);
 
     engine->layers().set(showcore::LayerId::Emergency, 0,
         showcore::Property::Intensity, showcore::PropertyValue::force_zero());
@@ -395,6 +415,10 @@ void test_generic_profile_rendering() {
     engine->tick();
     CHECK(engine->frames().universes[0][0] == 0U);
     CHECK(engine->frames().universes[0][1] == 0U);
+    const auto& forced = engine->frame_attribution().universes[0];
+    CHECK(forced[0].origin == showcore::RenderValueOrigin::Property);
+    CHECK(forced[0].value_mode == showcore::ValueMode::ForceZero);
+    CHECK(forced[0].winning_layer == showcore::LayerId::Emergency);
 }
 
 void test_ranged_channel_rendering() {
@@ -420,6 +444,71 @@ void test_ranged_channel_rendering() {
     engine->safety().strobe_allowed = false;
     engine->tick();
     CHECK(engine->frames().universes[0][0] == 0U);
+    const auto& safety = engine->frame_attribution().universes[0][0];
+    CHECK(safety.origin == showcore::RenderValueOrigin::Safety);
+    CHECK(safety.property == showcore::Property::Strobe);
+    CHECK(safety.value_mode == showcore::ValueMode::ForceZero);
+    CHECK(safety.winning_layer == showcore::LayerId::Safety);
+}
+
+void test_capability_frame_attribution() {
+    const std::array<showcore::ChannelCapabilityMapping, 3U> capabilities{{
+        {showcore::Property::Red, 0U, 63U, 32U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::Selectable, false},
+        {showcore::Property::Green, 64U, 127U, 96U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::Selectable, false},
+        {showcore::Property::Laser, 128U, 255U, 192U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::SafetyGated, false}
+    }};
+    const std::array<showcore::ChannelMapping, 1U> channels{{
+        {showcore::Property::Count, 0U, -1,
+         showcore::ChannelEncoding::Discrete8, 0U, 255U, 7U, 0U, 255U,
+         capabilities.data(), capabilities.size()}
+    }};
+    const showcore::FixtureProfile profile{
+        "Capability attribution", channels.data(), channels.size(), 1U};
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({7U, 0U, 10U, &profile}));
+
+    engine->tick();
+    auto evidence = engine->frame_attribution().universes[0][9];
+    CHECK(engine->frames().universes[0][9] == 7U);
+    CHECK(evidence.fixture_id == 7U);
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Default);
+
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Red, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    evidence = engine->frame_attribution().universes[0][9];
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Capability);
+    CHECK(evidence.property == showcore::Property::Red);
+    CHECK(evidence.capability_index == 0U);
+    CHECK(evidence.winning_layer == showcore::LayerId::ManualOverride);
+
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Green, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    evidence = engine->frame_attribution().universes[0][9];
+    CHECK(engine->frames().universes[0][9] == 0U);
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Conflict);
+    CHECK(evidence.winning_layer == showcore::LayerId::ManualOverride);
+
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Red, showcore::PropertyValue::release());
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Green, showcore::PropertyValue::release());
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Laser, showcore::PropertyValue::set(1.0F));
+    engine->tick();
+    evidence = engine->frame_attribution().universes[0][9];
+    CHECK(engine->frames().universes[0][9] == 0U);
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Safety);
+    CHECK(evidence.property == showcore::Property::Laser);
+    CHECK(evidence.value_mode == showcore::ValueMode::ForceZero);
+    CHECK(evidence.winning_layer == showcore::LayerId::Safety);
 }
 
 void test_qlc_fixture_import() {
@@ -2204,6 +2293,8 @@ void test_runner_os2l_startup_without_button_trigger() {
     }
 
     emberlights::RunnerService runner;
+    emberlights::RunnerOutputSnapshot unavailable_output;
+    CHECK(!runner.latest_output_snapshot(unavailable_output));
     CHECK(runner.start(std::move(compilation.show), project));
     const auto listen_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     auto status = runner.status();
@@ -2341,6 +2432,55 @@ void test_runner_service_lifecycle() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     CHECK(runner.status().state == emberlights::RunnerState::Running);
+    auto wait_for_output_snapshot = [&](auto predicate) {
+        const auto output_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        emberlights::RunnerOutputSnapshot output;
+        bool available = false;
+        while (std::chrono::steady_clock::now() < output_deadline) {
+            available = runner.latest_output_snapshot(output);
+            if (available && predicate(output)) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        CHECK(available);
+        CHECK(predicate(output));
+        return output;
+    };
+    const auto first_output = wait_for_output_snapshot([](const auto& output) {
+        return output.generation == 1U && output.sequence != 0U &&
+            output.rendered_at_ms != 0U && !output.blackout_applied;
+    });
+    CHECK(first_output.pre_blackout_frames.universes ==
+          first_output.routed_frames.universes);
+    CHECK(first_output.attribution.universes[0][0].fixture_id == 0U);
+    CHECK(std::all_of(
+        first_output.routes.begin(), first_output.routes.end(),
+        [](const auto& route) {
+            return !route.configured && route.attempted_frames == 0U &&
+                route.accepted_frames == 0U;
+        }));
+    for (std::size_t sample = 0U; sample < 256U; ++sample) {
+        emberlights::RunnerOutputSnapshot coherent;
+        CHECK(runner.latest_output_snapshot(coherent));
+        CHECK(coherent.generation == 1U);
+        CHECK(coherent.sequence != 0U);
+        CHECK(coherent.rendered_at_ms != 0U);
+        if (coherent.blackout_applied) {
+            CHECK(std::all_of(
+                coherent.routed_frames.universes.begin(),
+                coherent.routed_frames.universes.end(),
+                [](const auto& universe) {
+                    return std::all_of(
+                        universe.begin(), universe.end(),
+                        [](std::uint8_t value) { return value == 0U; });
+                }));
+        } else {
+            CHECK(coherent.pre_blackout_frames.universes ==
+                  coherent.routed_frames.universes);
+        }
+    }
     auto wait_for_active_look = [&](std::int32_t expected) {
         const auto look_deadline = std::chrono::steady_clock::now() +
             std::chrono::seconds(2);
@@ -2589,6 +2729,22 @@ void test_runner_service_lifecycle() {
     CHECK(runner.set_manual_bpm(128.0));
     runner.set_blackout(true);
     runner.set_work_light(true);
+    const auto blacked_out_output = wait_for_output_snapshot([](const auto& output) {
+        return output.generation == 1U && output.blackout_applied;
+    });
+    CHECK(std::any_of(
+        blacked_out_output.pre_blackout_frames.universes[0].begin(),
+        blacked_out_output.pre_blackout_frames.universes[0].end(),
+        [](std::uint8_t value) { return value != 0U; }));
+    CHECK(std::all_of(
+        blacked_out_output.routed_frames.universes.begin(),
+        blacked_out_output.routed_frames.universes.end(),
+        [](const auto& universe) {
+            return std::all_of(
+                universe.begin(), universe.end(),
+                [](std::uint8_t value) { return value == 0U; });
+        }));
+    CHECK(blacked_out_output.attribution.universes[0][0].fixture_id == 0U);
     std::this_thread::sleep_for(std::chrono::milliseconds(125));
     const auto active = runner.status();
     CHECK(active.frames >= 3U);
@@ -2669,6 +2825,12 @@ void test_runner_service_lifecycle() {
     CHECK(activated.active_autoloop_progress >= 0.0F && activated.active_autoloop_progress <= 1.0F);
     CHECK(activated.active_autoloop_bank_mask == (std::uint64_t{1} << 7U));
     CHECK(activated.manual_override_count == 0U);
+    const auto activated_output = wait_for_output_snapshot([](const auto& output) {
+        return output.generation == 2U;
+    });
+    CHECK(activated_output.blackout_applied);
+    CHECK(activated_output.rendered_at_ms >=
+          blacked_out_output.rendered_at_ms);
 
     CHECK(runner.hold_look(0U, true, owner_a));
     const auto new_package_hold = wait_for_static_look([](const auto& current) {
@@ -2702,6 +2864,47 @@ void test_runner_service_lifecycle() {
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
     CHECK(runner.status().manual_override_count == 0U);
+}
+
+void test_runner_output_snapshot_route_results() {
+    auto project = make_test_project();
+    project.connections.os2l_enabled = false;
+    project.connections.artnet_enabled = true;
+    project.connections.artnet_destination = "127.0.0.1";
+    project.connections.sacn_enabled = false;
+    project.connections.frame_rate = 40U;
+    auto compilation = emberlights::compile_project(project);
+    CHECK(compilation);
+    emberlights::RunnerService runner;
+    CHECK(runner.start(std::move(compilation.show), project));
+
+    const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::seconds(2);
+    emberlights::RunnerOutputSnapshot snapshot;
+    bool observed = false;
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (runner.latest_output_snapshot(snapshot)) {
+            const auto& route = snapshot.routes[0U];
+            if (route.configured && route.attempted_frames == 2U &&
+                route.accepted_frames == 2U) {
+                observed = true;
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(observed);
+    CHECK(snapshot.routes[0U].kind == showcore::OutputBackendKind::ArtNet);
+    CHECK(snapshot.routes[0U].first_source_universe == 1U);
+    CHECK(snapshot.routes[0U].source_universe_count == 2U);
+    CHECK(snapshot.routes[0U].last_error == 0U);
+    CHECK(std::all_of(
+        snapshot.routes.begin() + 1, snapshot.routes.end(),
+        [](const auto& route) {
+            return !route.configured && route.attempted_frames == 0U &&
+                route.accepted_frames == 0U;
+        }));
+    runner.stop();
 }
 
 void test_soundswitch_read_only_inspection_and_bundle() {
@@ -3962,6 +4165,7 @@ int main() {
     test_fixture_profile_validation();
     test_generic_profile_rendering();
     test_ranged_channel_rendering();
+    test_capability_frame_attribution();
     test_qlc_fixture_import();
     test_compiled_fixture_library();
     test_patch_and_render();
@@ -3992,6 +4196,7 @@ int main() {
     test_project_validation_io_and_compilation();
     test_runner_os2l_startup_without_button_trigger();
     test_runner_service_lifecycle();
+    test_runner_output_snapshot_route_results();
     test_soundswitch_read_only_inspection_and_bundle();
     test_soundswitch_source_binding_audit();
     test_soundswitch_application_data_backup_inspection_and_bundle();

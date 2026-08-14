@@ -58,8 +58,9 @@ EXPECTED_STATE_IDS = [
 ]
 
 EXPECTED_COMPONENT_IDS = [
-    "ember.activeLayers", "ember.autoloopMatrix", "ember.connectionPanel",
-    "ember.diagnostics", "ember.staticLookMatrix",
+    "ember.activeLayers", "ember.authoringWorkbench", "ember.autoloopMatrix",
+    "ember.connectionPanel", "ember.diagnostics", "ember.fixtureFunctionBrowser",
+    "ember.fixtureProfileEditor", "ember.staticLookMatrix",
 ]
 
 EXPECTED_CAPABILITY_IDS = ["content.staticLooks"]
@@ -79,7 +80,7 @@ class UiRegistryTests(unittest.TestCase):
     def test_current_native_ordinals_and_ids_are_exact(self):
         manifest, collections, digest = registry.load_registry()
         self.assertEqual(manifest["nativeMode"], "integrated")
-        self.assertEqual(manifest["registrySetVersion"], "1.1.0")
+        self.assertEqual(manifest["registrySetVersion"], "1.3.0")
         self.assertEqual(manifest["registryGeneration"], 2)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         commands = sorted(collections["commands"], key=lambda item: item["nativeOrdinal"])
@@ -201,7 +202,7 @@ class UiRegistryTests(unittest.TestCase):
             baseline, registry.generate_catalog(manifest, collections, digest)
         )
         self.assertEqual(report["classification"], "compatibleAdditive")
-        self.assertEqual(report["summary"]["added"], 17)
+        self.assertEqual(report["summary"]["added"], 20)
         self.assertEqual(report["summary"]["changedCompatible"], 13)
         self.assertEqual(report["summary"]["changedBreaking"], 0)
         self.assertEqual(report["summary"]["removed"], 0)

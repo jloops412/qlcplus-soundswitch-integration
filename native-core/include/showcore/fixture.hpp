@@ -99,6 +99,43 @@ struct FixtureInstance {
     const FixtureProfile* profile{nullptr};
 };
 
+// Fixed renderer evidence accompanies a DMX frame without retaining project
+// strings or allocating on the scheduler path. A slot with origin None is not
+// owned by a fixture mapping. Default and Constant distinguish profile-authored
+// values from resolved layer values; Conflict and Safety make fail-closed
+// output explicit instead of presenting it as an ordinary property winner.
+enum class RenderValueOrigin : std::uint8_t {
+    None,
+    Default,
+    Constant,
+    Property,
+    Capability,
+    Conflict,
+    Safety
+};
+
+inline constexpr std::uint16_t kInvalidRenderAttributionIndex = 0xFFFFU;
+
+struct ChannelRenderAttribution {
+    std::uint16_t fixture_id{kInvalidRenderAttributionIndex};
+    std::uint16_t mapping_index{kInvalidRenderAttributionIndex};
+    std::uint16_t capability_index{kInvalidRenderAttributionIndex};
+    Property property{Property::Count};
+    ValueMode value_mode{ValueMode::Release};
+    LayerId winning_layer{LayerId::Count};
+    ChannelEncoding encoding{ChannelEncoding::Linear8};
+    RenderValueOrigin origin{RenderValueOrigin::None};
+    bool fine_channel{false};
+};
+
+struct DmxFrameAttribution {
+    std::array<std::array<ChannelRenderAttribution, kUniverseSlots>,
+               kV1UniverseCount>
+        universes{};
+
+    void clear() noexcept;
+};
+
 enum class ProfileError : std::uint8_t {
     None,
     MissingName,
@@ -175,7 +212,8 @@ public:
         const Patch& patch,
         const LayerStack& layers,
         const SafetyPolicy& safety,
-        DmxFrames& frames) const noexcept;
+        DmxFrames& frames,
+        DmxFrameAttribution& attribution) const noexcept;
 };
 
 }  // namespace showcore

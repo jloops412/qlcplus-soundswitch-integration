@@ -306,17 +306,21 @@ For Wash FX Hex:
 
 ## 9. Required first-project artifact
 
-Generate a minimal project separate from the migration:
+Preview 95 generates two related projects separate from the migration. The
+immutable qualification project retains the evidence-bound SoundSwitch Micro
+U1 contract. The distributable operator copy is a Local editable clone and
+begins with every output disabled; the operator must explicitly select Micro
+U1 through Connections Save & Apply before Start Show.
 
 ```text
-Name: Joshua IR-4 Raw-to-Runner Bench
+Name: EmberLights IR-4 6CH Editable Bench
 Universe: 1
 Fixture count: 1
 Fixture: Both Lighting IR-4
 Mode: 6-channel
 Address: 1
-Output: SoundSwitch Micro universe 1
-Autoloops: optional single diagnostic loop only
+Output: disabled in package; explicit SoundSwitch Micro universe 1 operator step
+Autoloops: none
 Static Looks:
   Blackout
   Red
@@ -326,9 +330,18 @@ Static Looks:
   Amber
 ```
 
-Every look must render a documented, reviewable frame. The project must include profile/source hashes and remain `BenchReady` until the physical tests pass.
+Every look renders a documented, reviewable one-hot or blackout frame. The
+editable profile carries its exact manual-derived revision, CH6 Purple/UV is
+forced zero in every safe look, and the project remains unqualified until the
+physical tests pass.
 
-The raw Hardware Test frame and each equivalent Runner frame must be exportable and byte-compared.
+The raw Hardware Test frame and each equivalent actual Runner/routed frame must
+be exportable and byte-compared. Preview 95 implements the Runner snapshot,
+automatic manual-reference comparison, complete channel/packet difference
+rows, and packaged project. Preview 96 binds a completed embedded raw attempt
+to the current routed-frame hash and current Micro host-accept outcome, shows
+the prior operator observation for the matching raw requirement, and refuses
+stale repatches. The installed run and present physical result remain open.
 
 ## 10. Stop conditions
 

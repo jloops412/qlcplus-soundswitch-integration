@@ -495,6 +495,12 @@ template <typename Collection>
             }
             mapping.device_name = f[1];
             mapping.target_ref = f[18];
+            // Field 19 was reserved as literal zero by earlier format-1
+            // writers. Reuse it additively for optional named fixture-control
+            // provenance without invalidating existing project files.
+            if (f[19] != "0") {
+                mapping.fixture_control_binding_id = f[19];
+            }
             mapping.message_type = static_cast<showcore::MidiMessageType>(message_type);
             mapping.input_mode = static_cast<showcore::MidiInputMode>(input_mode);
             mapping.behavior = static_cast<showcore::MappingBehavior>(behavior);
@@ -988,7 +994,10 @@ std::string serialize_project(const ProjectDocument& project) {
             number_text(mapping.action.target_id), number_text(mapping.output_min),
             number_text(mapping.output_max), number_text(mapping.curve),
             mapping.inverted ? "1" : "0", mapping.soft_takeover ? "1" : "0",
-            number_text(mapping.takeover_tolerance), mapping.target_ref, "0", "0", "0"});
+            number_text(mapping.takeover_tolerance), mapping.target_ref,
+            mapping.fixture_control_binding_id.empty()
+                ? "0" : mapping.fixture_control_binding_id,
+            "0", "0"});
     }
     for (const auto& unknown : project.unknown_records) {
         payload.append(unknown);

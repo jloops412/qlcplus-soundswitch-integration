@@ -1,22 +1,31 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
 #include "emberlights/autoloop_autoscript_workflow.hpp"
+#include "emberlights/autoloop_fixture_controls.hpp"
 #include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/connection_layout.hpp"
 #include "emberlights/fixture_capabilities.hpp"
+#include "emberlights/fixture_controller_binding.hpp"
 #include "emberlights/fixture_parameter_catalog.hpp"
 #include "emberlights/fixture_profile_editor.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
+#include "emberlights/hardware_qualification.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
 #include "emberlights/live_view_model.hpp"
+#include "emberlights/migration_portability_review.hpp"
 #include "emberlights/ofl_fixture_catalog.hpp"
 #include "emberlights/runner.hpp"
+#include "emberlights/runner_frame_inspector.hpp"
+#include "emberlights/runner_raw_hardware_parity.hpp"
 #include "emberlights/static_look_authoring.hpp"
 #include "emberlights/static_look_physical_preview.hpp"
 #include "emberlights/static_look_preview.hpp"
+#include "emberlights/studio_document.hpp"
+#include "emberlights/studio_preview.hpp"
+#include "emberlights/ui_authoring.hpp"
 #include "emberlights/ui_command.hpp"
 #include "emberlights/ui_state.hpp"
 #include "emberlights/ui_visual.hpp"
@@ -279,6 +288,32 @@ static_assert(page_workspace(Page::Midi) == Workspace::Studio);
 static_assert(page_workspace(Page::Connections) == Workspace::System);
 static_assert(page_workspace(Page::Diagnostics) == Workspace::System);
 
+[[nodiscard]] constexpr bool is_authoring_page(Page page) noexcept {
+    return page == Page::Profiles || page == Page::Patch ||
+        page == Page::Groups || page == Page::Looks ||
+        page == Page::Autoloops || page == Page::Tracks;
+}
+
+[[nodiscard]] constexpr emberlights::UiAuthoringResourceKind
+authoring_resource_kind(Page page) noexcept {
+    switch (page) {
+    case Page::Profiles:
+        return emberlights::UiAuthoringResourceKind::FixtureProfile;
+    case Page::Patch:
+        return emberlights::UiAuthoringResourceKind::Fixture;
+    case Page::Groups:
+        return emberlights::UiAuthoringResourceKind::FixtureGroup;
+    case Page::Looks:
+        return emberlights::UiAuthoringResourceKind::StaticLook;
+    case Page::Autoloops:
+        return emberlights::UiAuthoringResourceKind::Autoloop;
+    case Page::Tracks:
+        return emberlights::UiAuthoringResourceKind::TrackScript;
+    default:
+        return emberlights::UiAuthoringResourceKind::FixtureProfile;
+    }
+}
+
 enum ControlId : int {
     IdFileNew = 100,
     IdFileOpen,
@@ -369,6 +404,9 @@ enum ControlId : int {
     IdOverridesHelp,
     IdOverridesActiveCount,
     IdOverridesMessage,
+    IdOverridesNamedLabel,
+    IdOverridesNamedChoice,
+    IdOverridesApplyNamed,
 
     IdProfileTitle = 2000,
     IdProfileList,
@@ -406,6 +444,7 @@ enum ControlId : int {
     IdProfileTemplate,
     IdProfileApplyTemplate,
     IdProfileCapabilitiesOpen,
+    IdProfileChannelWorkbench,
 
     IdCapabilityTitle = 2200,
     IdCapabilityContext,
@@ -439,6 +478,22 @@ enum ControlId : int {
     IdCapabilityOwnerLabel,
     IdCapabilityBlackoutLabel,
     IdCapabilityHighlightLabel,
+
+    IdChannelWorkbenchTitle = 2300,
+    IdChannelWorkbenchContext,
+    IdChannelWorkbenchList,
+    IdChannelWorkbenchNextPropertyLabel,
+    IdChannelWorkbenchNextProperty,
+    IdChannelWorkbenchAddNext,
+    IdChannelWorkbenchFillGaps,
+    IdChannelWorkbenchSwapFirstLabel,
+    IdChannelWorkbenchSwapFirst,
+    IdChannelWorkbenchSwapSecondLabel,
+    IdChannelWorkbenchSwapSecond,
+    IdChannelWorkbenchSwap,
+    IdChannelWorkbenchNamedRanges,
+    IdChannelWorkbenchDone,
+    IdChannelWorkbenchMessage,
 
     IdPatchTitle = 3000,
     IdPatchList,
@@ -503,6 +558,9 @@ enum ControlId : int {
     IdLookPhysicalPreview,
     IdLookPhysicalStop,
     IdLookPhysicalStatus,
+    IdLookNamedLabel,
+    IdLookNamedChoice,
+    IdLookApplyNamed,
 
     IdAutoloopTitle = 5000,
     IdAutoloopList,
@@ -547,6 +605,13 @@ enum ControlId : int {
     IdAutoscriptSummary,
     IdAutoscriptHelp,
     IdAutoscriptMessage,
+    IdAutoscriptFunctionPlacement,
+    IdAutoscriptFunctionTarget,
+    IdAutoscriptFunctionChoice,
+    IdAutoscriptFunctionStart,
+    IdAutoscriptFunctionEnd,
+    IdAutoscriptFunctionPosition,
+    IdAutoscriptFunctionApply,
 
     IdTrackTitle = 5500,
     IdTrackList,
@@ -575,6 +640,7 @@ enum ControlId : int {
     IdMidiLearn,
     IdMidiDelete,
     IdMidiMessage,
+    IdMidiNamedChoice,
 
     IdConnectionsTitle = 7000,
     IdProjectName,
@@ -616,8 +682,29 @@ enum ControlId : int {
     IdDiagnosticsText,
     IdDiagnosticsCopy,
     IdDiagnosticsExport,
-    IdDiagnosticsValidate
+    IdDiagnosticsValidate,
+
+    // Shared IDs are intentionally reused on separate authoring page parents.
+    // They describe one skin-facing Authoring Workbench adapter rather than
+    // six unrelated Win32-only controls.
+    IdAuthoringSearch = 9000,
+    IdAuthoringCollectionSummary,
+    IdAuthoringInspectorHeading,
+    IdAuthoringFind,
+    IdAuthoringClearFilter
 };
+
+[[nodiscard]] constexpr int authoring_collection_control_id(Page page) noexcept {
+    switch (page) {
+    case Page::Profiles: return IdProfileList;
+    case Page::Patch: return IdPatchList;
+    case Page::Groups: return IdGroupList;
+    case Page::Looks: return IdLookList;
+    case Page::Autoloops: return IdAutoloopList;
+    case Page::Tracks: return IdTrackList;
+    default: return 0;
+    }
+}
 
 constexpr std::array<int, emberlights::kConnectionLayoutItemCount>
     kConnectionLayoutControlIds{{
@@ -684,6 +771,7 @@ constexpr std::array<int, emberlights::kConnectionLayoutItemCount>
     case IdAutoloopNextEmpty:
     case IdAutoloopSwapTarget:
     case IdAutoscriptCommit:
+    case IdAutoscriptFunctionApply:
     case IdTrackSave:
     case IdTrackDelete:
     case IdTrackAddAudio:
@@ -759,6 +847,37 @@ void set_control_text(HWND control, std::string_view value) {
     static_cast<void>(::SetWindowTextW(control, wide.c_str()));
 }
 
+void set_multiline_control_text_preserving_view(
+    HWND control,
+    std::string_view value) {
+    DWORD selection_start = 0U;
+    DWORD selection_end = 0U;
+    static_cast<void>(::SendMessageW(
+        control,
+        EM_GETSEL,
+        reinterpret_cast<WPARAM>(&selection_start),
+        reinterpret_cast<LPARAM>(&selection_end)));
+    const auto first_visible_line = static_cast<int>(
+        ::SendMessageW(control, EM_GETFIRSTVISIBLELINE, 0, 0));
+    set_control_text(control, value);
+    const auto text_length = static_cast<DWORD>(std::max(
+        ::GetWindowTextLengthW(control), 0));
+    selection_start = std::min(selection_start, text_length);
+    selection_end = std::min(selection_end, text_length);
+    static_cast<void>(::SendMessageW(
+        control,
+        EM_SETSEL,
+        static_cast<WPARAM>(selection_start),
+        static_cast<LPARAM>(selection_end)));
+    const auto new_first_visible_line = static_cast<int>(
+        ::SendMessageW(control, EM_GETFIRSTVISIBLELINE, 0, 0));
+    static_cast<void>(::SendMessageW(
+        control,
+        EM_LINESCROLL,
+        0,
+        static_cast<LPARAM>(first_visible_line - new_first_visible_line)));
+}
+
 [[nodiscard]] std::string fixture_parameter_label(
     showcore::Property property,
     bool include_authoring_guidance = false) {
@@ -778,6 +897,81 @@ void set_control_text(HWND control, std::string_view value) {
         label += " • safety";
     }
     return label;
+}
+
+[[nodiscard]] bool live_override_property_visible(
+    showcore::Property property,
+    const emberlights::SafetySettings& safety) noexcept {
+    return property < showcore::Property::Count &&
+        property != showcore::Property::Fog &&
+        property != showcore::Property::Haze &&
+        property != showcore::Property::Laser &&
+        property != showcore::Property::Spark &&
+        (property != showcore::Property::Strobe || safety.strobe_allowed);
+}
+
+[[nodiscard]] std::string fixture_control_choice_label(
+    const emberlights::FixtureControlChoice& choice) {
+    std::ostringstream label;
+    label << fixture_parameter_label(choice.property) << " • " << choice.name;
+    if (choice.values.size() == 1U) {
+        const auto& value = choice.values.front();
+        label << " • CH" << value.channel << " DMX "
+              << static_cast<unsigned int>(value.dmx_min) << "–"
+              << static_cast<unsigned int>(value.dmx_max);
+        if (choice.behavior == showcore::ChannelCapabilityBehavior::Slot) {
+            label << " → " << static_cast<unsigned int>(value.raw_value);
+        }
+    } else {
+        label << " • " << choice.supported_fixture_count << '/'
+              << choice.target_fixture_count << " fixtures";
+    }
+    if (choice.behavior == showcore::ChannelCapabilityBehavior::Continuous) {
+        label << " • range position";
+    }
+    if (choice.safety_gated()) {
+        label << " • safety-gated";
+    }
+    if (!choice.owner.empty() && choice.owner != "fixture") {
+        label << " • " << choice.owner;
+    }
+    if (!choice.live_override_compatible()) {
+        label << " • profile-specific";
+    }
+    return label.str();
+}
+
+[[nodiscard]] std::string_view fixture_control_binding_target(
+    std::string_view binding_id) noexcept {
+    constexpr std::string_view prefix = "target:";
+    constexpr std::string_view delimiter = "|owner:";
+    if (!binding_id.starts_with(prefix)) {
+        return {};
+    }
+    const auto end = binding_id.find(delimiter, prefix.size());
+    if (end == std::string_view::npos || end == prefix.size()) {
+        return {};
+    }
+    return binding_id.substr(prefix.size(), end - prefix.size());
+}
+
+[[nodiscard]] std::string fixture_control_binding_label(
+    const emberlights::ProjectDocument& project,
+    std::string_view binding_id) {
+    const auto authored_target = fixture_control_binding_target(binding_id);
+    if (authored_target.empty()) {
+        return "Named fixture function";
+    }
+    const auto catalog = emberlights::fixture_control_choices(
+        project, authored_target);
+    const auto choice = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [binding_id](const auto& candidate) {
+            return candidate.id == binding_id;
+        });
+    return choice == catalog.choices.end()
+        ? "Named fixture function"
+        : choice->name;
 }
 
 [[nodiscard]] std::string trim(std::string_view value) {
@@ -1066,6 +1260,7 @@ private:
     void refresh_live_status();
     void refresh_overrides();
     void refresh_override_properties();
+    void refresh_override_control_choices();
     void refresh_profiles();
     void refresh_fixture_catalog_controls();
     [[nodiscard]] std::string current_profile_editor_snapshot() const;
@@ -1074,10 +1269,12 @@ private:
     void refresh_looks();
     void refresh_look_targets();
     void refresh_look_capabilities();
+    void refresh_look_control_choices();
     void refresh_look_draft_view();
     void refresh_physical_preview_status();
     void refresh_autoloops();
     void refresh_autoscript();
+    void refresh_autoscript_function_choices();
     void refresh_tracks();
     void refresh_track_audio_assets(std::string_view selected_asset_id);
     void refresh_midi();
@@ -1085,6 +1282,21 @@ private:
     void refresh_safety();
     void refresh_midi_ports();
     void refresh_diagnostics();
+    [[nodiscard]] std::vector<emberlights::UiAuthoringItem>
+        authoring_items(Page page) const;
+    [[nodiscard]] std::int32_t authoring_selected_index(Page page) const noexcept;
+    [[nodiscard]] std::string authoring_selected_id(Page page) const;
+    [[nodiscard]] std::string authoring_editor_snapshot(Page page) const;
+    [[nodiscard]] bool authoring_editor_changed(Page page) const;
+    void capture_authoring_editor_baseline(Page page);
+    void refresh_authoring_collection(Page page);
+    void refresh_authoring_summary(Page page);
+    void restore_authoring_collection_selection(Page page);
+    [[nodiscard]] bool confirm_authoring_selection_change(
+        Page page,
+        std::int32_t next_index);
+    void focus_authoring_search();
+    void clear_authoring_search();
 
     void handle_command(int id, int notification, HWND source);
     void handle_notify(const NMHDR& notification);
@@ -1112,6 +1324,7 @@ private:
     [[nodiscard]] emberlights::UiInvocationResult ui_start_show() noexcept override;
     [[nodiscard]] emberlights::UiInvocationResult ui_stop_show() noexcept override;
     void apply_fixture_override(bool active);
+    void apply_named_fixture_override();
     void clear_fixture_overrides();
 
     void select_profile(std::int32_t index);
@@ -1127,6 +1340,14 @@ private:
     void refresh_profile_mapping_summary();
     void refresh_profile_channel_table();
     void select_profile_channel(std::int32_t source_index);
+    void create_profile_channel_workbench();
+    void layout_profile_channel_workbench();
+    void open_profile_channel_workbench();
+    void refresh_profile_channel_workbench();
+    void add_next_profile_channel();
+    void fill_profile_channel_gaps();
+    void swap_profile_channel_functions();
+    void close_profile_channel_workbench();
     void create_profile_capability_window();
     void layout_profile_capability_window();
     void open_profile_capability_editor();
@@ -1159,6 +1380,7 @@ private:
     void apply_static_look_color();
     void apply_static_look_swatch(std::string_view swatch_id);
     void apply_static_look_property();
+    void apply_static_look_control_choice();
     void remove_static_look_property();
     void preview_static_look();
     [[nodiscard]] bool read_static_look_preview_draft(
@@ -1182,6 +1404,7 @@ private:
     void preview_autoscript_phase(double phase);
     void commit_autoscript_proposal();
     void discard_autoscript_proposal();
+    void apply_autoscript_fixture_function();
     void refresh_autoscript_summary(std::string_view message = {});
     void select_track(std::int32_t index);
     void new_track();
@@ -1196,6 +1419,7 @@ private:
     void copy_virtualdj_setup();
     void apply_safety();
     void update_midi_targets();
+    void refresh_midi_named_choices();
     void begin_midi_learn();
     void finish_midi_learn(const showcore::MidiMessage& message);
     void delete_midi_mapping();
@@ -1230,6 +1454,8 @@ private:
     std::array<HWND, static_cast<std::size_t>(Page::Count)> pages_{};
     std::array<HWND, static_cast<std::size_t>(Page::Count)> navigation_{};
     std::array<std::vector<HWND>, static_cast<std::size_t>(Page::Count)> page_controls_{};
+    std::array<std::string, static_cast<std::size_t>(Page::Count)>
+        authoring_editor_baselines_{};
     Page active_page_{Page::Live};
     Workspace active_workspace_{Workspace::Live};
     Page last_live_page_{Page::Live};
@@ -1251,6 +1477,7 @@ private:
     std::int32_t profile_index_{-1};
     std::vector<emberlights::ChannelDefinition> profile_draft_channels_;
     std::optional<std::string> profile_duplicate_source_id_{};
+    HWND profile_channel_workbench_{nullptr};
     HWND profile_capability_window_{nullptr};
     std::uint16_t profile_capability_channel_{0U};
     std::string selected_profile_capability_id_;
@@ -1258,6 +1485,8 @@ private:
     std::int32_t group_index_{-1};
     std::int32_t look_index_{-1};
     std::optional<emberlights::StaticLookDraft> look_draft_{};
+    std::vector<emberlights::FixtureControlChoice> look_control_choices_;
+    std::vector<emberlights::FixtureControlChoice> override_control_choices_;
     std::int32_t autoloop_index_{-1};
     std::int32_t track_index_{-1};
     std::uint16_t live_autoloop_bank_page_{0U};
@@ -1272,6 +1501,12 @@ private:
     std::int32_t last_painted_active_track_{-2};
     std::optional<showcore::AutoloopAddress> last_painted_active_autoloop_{};
     emberlights::StudioAutoloopAutoscriptWorkflow autoscript_workflow_;
+    std::vector<std::string> autoscript_function_placement_ids_;
+    std::vector<std::string> autoscript_function_target_ids_;
+    std::vector<emberlights::FixtureControlChoice>
+        autoscript_function_choices_;
+    std::string autoscript_function_preview_summary_;
+    std::vector<emberlights::FixtureControlChoice> midi_named_choices_;
 
     struct PendingFixtureCatalogDownload {
         emberlights::OpenFixtureLibraryDownloadResult result;
@@ -1418,12 +1653,14 @@ int Application::run(
         }
     }
     MSG message{};
-    std::array<ACCEL, 7> accelerator_definitions{{
+    std::array<ACCEL, 9> accelerator_definitions{{
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('N'), IdFileNew},
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('O'), IdFileOpen},
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('S'), IdFileSave},
+        {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('F'), IdAuthoringFind},
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('Z'), IdEditUndo},
         {static_cast<BYTE>(FVIRTKEY | FCONTROL), static_cast<WORD>('Y'), IdEditRedo},
+        {FVIRTKEY, VK_ESCAPE, IdAuthoringClearFilter},
         {FVIRTKEY, VK_F5, IdShowStartStop},
         {FVIRTKEY, VK_F8, IdLiveBlackout}}};
     const auto accelerators = ::CreateAcceleratorTableW(
@@ -1447,7 +1684,12 @@ int Application::run(
             profile_capability_window_ != nullptr &&
             ::IsWindowVisible(profile_capability_window_) != FALSE &&
             ::IsDialogMessageW(profile_capability_window_, &message) != FALSE;
+        const auto channel_workbench_dialog_handled =
+            profile_channel_workbench_ != nullptr &&
+            ::IsWindowVisible(profile_channel_workbench_) != FALSE &&
+            ::IsDialogMessageW(profile_channel_workbench_, &message) != FALSE;
         if (!connections_accelerator_handled && !capability_dialog_handled &&
+            !channel_workbench_dialog_handled &&
             (accelerators == nullptr ||
              ::TranslateAcceleratorW(window_, accelerators, &message) == 0) &&
             !::IsDialogMessageW(window_, &message)) {
@@ -1583,17 +1825,20 @@ bool Application::window_tree_ready() const noexcept {
             })) {
         return false;
     }
-    constexpr std::array<std::pair<Page, int>, 13> critical_controls{{
+    constexpr std::array<std::pair<Page, int>, 16> critical_controls{{
         {Page::Live, IdLiveStartStop},
         {Page::Overrides, IdOverridesApply},
         {Page::Profiles, IdProfileList},
+        {Page::Profiles, IdProfileChannelWorkbench},
         {Page::Patch, IdPatchList},
         {Page::Groups, IdGroupList},
         {Page::Looks, IdLookList},
         {Page::Autoloops, IdAutoloopList},
         {Page::Autoscript, IdAutoscriptGenerate},
+        {Page::Autoscript, IdAutoscriptFunctionApply},
         {Page::Tracks, IdTrackList},
         {Page::Midi, IdMidiList},
+        {Page::Midi, IdMidiNamedChoice},
         {Page::Connections, IdConnectionsApply},
         {Page::Safety, IdSafetyApply},
         {Page::Diagnostics, IdDiagnosticsText},
@@ -1674,6 +1919,23 @@ LRESULT CALLBACK Application::page_proc(
             return 0;
         }
     }
+    if (application != nullptr &&
+        window == application->profile_channel_workbench_) {
+        if (message == WM_SIZE) {
+            application->layout_profile_channel_workbench();
+            return 0;
+        }
+        if (message == WM_CLOSE) {
+            application->close_profile_channel_workbench();
+            return 0;
+        }
+        if (message == WM_GETMINMAXINFO) {
+            auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+            limits->ptMinTrackSize.x = 920;
+            limits->ptMinTrackSize.y = 600;
+            return 0;
+        }
+    }
     if (application != nullptr && message == WM_ERASEBKGND) {
         return TRUE;
     }
@@ -1686,7 +1948,9 @@ LRESULT CALLBACK Application::page_proc(
         message == WM_CTLCOLORSTATIC || message == WM_CTLCOLOREDIT ||
         message == WM_CTLCOLORLISTBOX || message == WM_CTLCOLORBTN) {
         return ::SendMessageW(
-            application != nullptr && window == application->profile_capability_window_
+            application != nullptr &&
+                    (window == application->profile_capability_window_ ||
+                     window == application->profile_channel_workbench_)
                 ? application->window_
                 : ::GetParent(window),
             message,
@@ -2071,7 +2335,7 @@ HWND Application::create_page(Page page) {
 void Application::create_navigation() {
     brand_label_ = add_label(window_, L"EMBERLIGHTS", 0);
     ::SendMessageW(brand_label_, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
-    skin_label_ = add_label(window_, L"DEFAULT 2.1 • EMBER DARK", 0);
+    skin_label_ = add_label(window_, L"DEFAULT 2.2 • EMBER DARK", 0);
     constexpr std::array<const wchar_t*, static_cast<std::size_t>(Workspace::Count)>
         workspace_names{{L"LIVE", L"STUDIO", L"SETUP"}};
     for (std::size_t index = 0; index < workspace_buttons_.size(); ++index) {
@@ -2356,7 +2620,8 @@ void Application::draw_owner_button(const DRAWITEMSTRUCT& item) {
         id == IdLookPhysicalPreview || id == IdProfileCatalogSearch ||
         id == IdProfileCatalogImport || id == IdCapabilityUpsert ||
         id == IdAutoloopSave || id == IdAutoscriptGenerate ||
-        id == IdAutoscriptCommit || id == IdTrackSave ||
+        id == IdAutoscriptCommit || id == IdAutoscriptFunctionApply ||
+        id == IdTrackSave ||
         id == IdConnectionsApply || id == IdSafetyApply;
 
     COLORREF fill = kColorControl;
@@ -2537,6 +2802,57 @@ void Application::draw_page_background(HWND page) {
     RECT client{};
     static_cast<void>(::GetClientRect(page, &client));
     static_cast<void>(::FillRect(device, &client, background_brush_));
+    const auto draw_panel = [&](const emberlights::UiRectangle& panel) {
+        if (!panel.has_area()) {
+            return;
+        }
+        RECT card{panel.x, panel.y, panel.right(), panel.bottom()};
+        const auto brush = ::CreateSolidBrush(kColorPanel);
+        const auto pen = ::CreatePen(PS_SOLID, 1, kColorBorderSubtle);
+        const auto previous_brush = brush == nullptr
+            ? nullptr
+            : ::SelectObject(device, brush);
+        const auto previous_pen = pen == nullptr
+            ? nullptr
+            : ::SelectObject(device, pen);
+        static_cast<void>(::RoundRect(
+            device, card.left, card.top, card.right, card.bottom, 14, 14));
+        if (previous_brush != nullptr) {
+            static_cast<void>(::SelectObject(device, previous_brush));
+        }
+        if (previous_pen != nullptr) {
+            static_cast<void>(::SelectObject(device, previous_pen));
+        }
+        if (brush != nullptr) {
+            static_cast<void>(::DeleteObject(brush));
+        }
+        if (pen != nullptr) {
+            static_cast<void>(::DeleteObject(pen));
+        }
+    };
+    const auto page_iterator = std::find(pages_.begin(), pages_.end(), page);
+    if (page_iterator != pages_.end()) {
+        const auto page_kind = static_cast<Page>(page_iterator - pages_.begin());
+        if (is_authoring_page(page_kind)) {
+            const auto layout = emberlights::compute_authoring_workbench_layout(
+                client.right - client.left,
+                client.bottom - client.top,
+                shell_layout_.density,
+                page_kind == Page::Patch
+                    ? emberlights::UiAuthoringCollectionEmphasis::Wide
+                    : emberlights::UiAuthoringCollectionEmphasis::Standard);
+            draw_panel(layout.library_panel);
+            draw_panel(layout.inspector_panel);
+            RECT title_accent{24, 54, 92, 57};
+            const auto accent_brush = ::CreateSolidBrush(kColorPrimary);
+            if (accent_brush != nullptr) {
+                static_cast<void>(::FillRect(device, &title_accent, accent_brush));
+                static_cast<void>(::DeleteObject(accent_brush));
+            }
+            ::EndPaint(page, &paint);
+            return;
+        }
+    }
     if (client.right > 32 && client.bottom > 76) {
         RECT card{12, 58, client.right - 12, client.bottom - 10};
         const auto brush = ::CreateSolidBrush(kColorPanel);
@@ -2632,11 +2948,11 @@ void Application::create_pages() {
         L"Immediate fixture/property controls. Overrides are transient, sit above Looks and Autoloops, "
         L"and remain subject to the Runner's safety limits. They never edit the project.",
         IdOverridesHelp);
-    add_label(page, L"Active fixture", 0);
+    add_label(page, L"Active fixture or group", 0);
     add_listbox(page, IdOverridesFixture);
     add_label(page, L"Property", 0);
     add_combo(page, IdOverridesProperty);
-    add_label(page, L"Value (0–100)", 0);
+    add_label(page, L"Level / range position (0–100)", 0);
     add_edit(page, IdOverridesValue);
     add_button(page, L"Apply Override", IdOverridesApply);
     add_button(page, L"Release Property", IdOverridesRelease);
@@ -2648,6 +2964,9 @@ void Application::create_pages() {
     add_button(page, L"25%", IdOverridesQuarter);
     add_button(page, L"50%", IdOverridesHalf);
     add_button(page, L"100%", IdOverridesFull);
+    add_label(page, L"Named function from active profile", IdOverridesNamedLabel);
+    add_combo(page, IdOverridesNamedChoice);
+    add_button(page, L"Apply Named Function", IdOverridesApplyNamed);
 
     page = pages_[static_cast<std::size_t>(Page::Profiles)];
     title = add_label(page, L"STUDIO • Fixture Profiles", IdProfileTitle);
@@ -2720,6 +3039,10 @@ void Application::create_pages() {
     add_combo(page, IdProfileTemplate);
     add_button(page, L"Replace Channel Map", IdProfileApplyTemplate);
     add_button(page, L"Named DMX ranges…", IdProfileCapabilitiesOpen);
+    add_button(
+        page,
+        L"Open Channel Map Workbench…",
+        IdProfileChannelWorkbench);
 
     page = pages_[static_cast<std::size_t>(Page::Patch)];
     title = add_label(page, L"STUDIO • Fixture Patch", IdPatchTitle);
@@ -2809,7 +3132,7 @@ void Application::create_pages() {
     add_combo(page, IdLookProperty);
     add_label(page, L"Ownership", 0);
     add_combo(page, IdLookOwnership);
-    add_label(page, L"Value %", 0);
+    add_label(page, L"Level / range position %", 0);
     add_edit(page, IdLookValue);
     add_button(page, L"Apply Property", IdLookApplyProperty);
     add_button(page, L"Remove from Look", IdLookRemoveProperty);
@@ -2833,6 +3156,9 @@ void Application::create_pages() {
         page,
         L"PHYSICAL PREVIEW OFF • Live must be stopped",
         IdLookPhysicalStatus);
+    add_label(page, L"Named function from fixture profile", IdLookNamedLabel);
+    add_combo(page, IdLookNamedChoice);
+    add_button(page, L"Use Named Function", IdLookApplyNamed);
 
     page = pages_[static_cast<std::size_t>(Page::Autoloops)];
     title = add_label(page, L"STUDIO • Autoloops", IdAutoloopTitle);
@@ -2912,6 +3238,22 @@ void Application::create_pages() {
         L"Save and reopen normally; Live will list persisted V2 placements by bank and slot.",
         IdAutoscriptHelp);
     add_label(page, L"", IdAutoscriptMessage);
+    add_label(page, L"Edit a committed V2 loop with an exact fixture-profile function", 0);
+    add_combo(page, IdAutoscriptFunctionPlacement);
+    add_label(page, L"Target", 0);
+    add_combo(page, IdAutoscriptFunctionTarget);
+    add_label(page, L"Named function", 0);
+    add_combo(page, IdAutoscriptFunctionChoice);
+    add_label(page, L"Start beat", 0);
+    add_edit(page, IdAutoscriptFunctionStart);
+    add_label(page, L"End beat", 0);
+    add_edit(page, IdAutoscriptFunctionEnd);
+    add_label(page, L"Range %", 0);
+    add_edit(page, IdAutoscriptFunctionPosition);
+    add_button(
+        page,
+        L"Preview + Add Function",
+        IdAutoscriptFunctionApply);
 
     page = pages_[static_cast<std::size_t>(Page::Tracks)];
     title = add_label(page, L"STUDIO • Track Scripts", IdTrackTitle);
@@ -2961,6 +3303,8 @@ void Application::create_pages() {
     add_button(page, L"Learn Next MIDI Control", IdMidiLearn);
     add_button(page, L"Delete Mapping", IdMidiDelete);
     add_label(page, L"", IdMidiMessage);
+    add_label(page, L"Named fixture function (optional)", 0);
+    add_combo(page, IdMidiNamedChoice);
 
     page = pages_[static_cast<std::size_t>(Page::Connections)];
     title = add_label(page, L"Connections & Output", IdConnectionsTitle);
@@ -3040,6 +3384,49 @@ void Application::create_pages() {
     add_button(page, L"Copy Diagnostics", IdDiagnosticsCopy);
     add_button(page, L"Save Diagnostics...", IdDiagnosticsExport);
     add_button(page, L"Validate Project", IdDiagnosticsValidate);
+
+    for (const auto authoring_page : {
+             Page::Profiles,
+             Page::Patch,
+             Page::Groups,
+             Page::Looks,
+             Page::Autoloops,
+             Page::Tracks}) {
+        const auto authoring_parent =
+            pages_[static_cast<std::size_t>(authoring_page)];
+        const auto descriptor = emberlights::authoring_resource_descriptor(
+            authoring_resource_kind(authoring_page));
+        const auto search = add_edit(authoring_parent, IdAuthoringSearch);
+        static_cast<void>(::SendMessageW(
+            search,
+            EM_SETLIMITTEXT,
+            emberlights::kUiAuthoringMaximumQueryBytes,
+            0));
+        const auto hint = widen(descriptor.search_hint);
+        static_cast<void>(::SendMessageW(
+            search,
+            EM_SETCUEBANNER,
+            TRUE,
+            reinterpret_cast<LPARAM>(hint.c_str())));
+        const auto summary = add_label(
+            authoring_parent,
+            L"Search by name, metadata, or stable ID",
+            IdAuthoringCollectionSummary);
+        ::SendMessageW(
+            summary,
+            WM_SETFONT,
+            reinterpret_cast<WPARAM>(caption_font_),
+            TRUE);
+        const auto inspector = add_label(
+            authoring_parent,
+            L"INSPECTOR • New draft",
+            IdAuthoringInspectorHeading);
+        ::SendMessageW(
+            inspector,
+            WM_SETFONT,
+            reinterpret_cast<WPARAM>(section_font_),
+            TRUE);
+    }
 }
 
 void Application::layout() {
@@ -3156,9 +3543,39 @@ void Application::layout_page(Page page, int width, int height) {
             ::MoveWindow(controls[index], x, y, std::max(1, w), std::max(1, h), TRUE);
         }
     };
+    const auto move_control = [&](int id, const emberlights::UiRectangle& area) {
+        const auto control = ::GetDlgItem(
+            pages_[static_cast<std::size_t>(page)], id);
+        if (control != nullptr && area.has_area()) {
+            ::MoveWindow(
+                control,
+                area.x,
+                area.y,
+                area.width,
+                area.height,
+                TRUE);
+        }
+    };
     constexpr int margin = 24;
     const auto usable_width = std::max(400, width - margin * 2);
     move(0, margin, 18, usable_width, 40);
+    std::optional<emberlights::UiAuthoringWorkbenchLayout> authoring_layout;
+    if (is_authoring_page(page)) {
+        authoring_layout = emberlights::compute_authoring_workbench_layout(
+            width,
+            height,
+            shell_layout_.density,
+            page == Page::Patch
+                ? emberlights::UiAuthoringCollectionEmphasis::Wide
+                : emberlights::UiAuthoringCollectionEmphasis::Standard);
+        move_control(IdAuthoringSearch, authoring_layout->search);
+        move_control(
+            IdAuthoringCollectionSummary,
+            authoring_layout->collection_summary);
+        move_control(
+            IdAuthoringInspectorHeading,
+            authoring_layout->inspector_heading);
+    }
 
     switch (page) {
     case Page::Live: {
@@ -3224,217 +3641,356 @@ void Application::layout_page(Page page, int width, int height) {
         move(3, margin, 156, left_width, std::max(260, height - 250));
         move(4, x, 128, 160, 26);
         move(5, x, 156, form_width, 27);
-        move(6, x, 196, 160, 26);
-        move(7, x, 224, 80, 27);
-        move(13, x + 90, 220, std::max(140, form_width - 90), 34);
+        move(18, x, 196, form_width, 26);
+        move(19, x, 224, std::max(120, form_width - 160), 250);
+        move(20, x + std::max(128, form_width - 152), 222, 152, 32);
+        move(6, x, 266, 220, 26);
+        move(7, x, 294, 80, 27);
+        move(13, x + 90, 290, std::max(140, form_width - 90), 34);
         constexpr int quick_width = 68;
-        move(14, x, 264, quick_width, 30);
-        move(15, x + quick_width + 8, 264, quick_width, 30);
-        move(16, x + (quick_width + 8) * 2, 264, quick_width, 30);
-        move(17, x + (quick_width + 8) * 3, 264, quick_width, 30);
-        move(8, x, 306, 150, 32);
-        move(9, x + 162, 306, 150, 32);
-        move(10, x, 350, 190, 32);
-        move(11, x, 396, form_width, 28);
-        move(12, x, 432, form_width, 54);
+        move(14, x, 334, quick_width, 30);
+        move(15, x + quick_width + 8, 334, quick_width, 30);
+        move(16, x + (quick_width + 8) * 2, 334, quick_width, 30);
+        move(17, x + (quick_width + 8) * 3, 334, quick_width, 30);
+        move(8, x, 376, 150, 32);
+        move(9, x + 162, 376, 150, 32);
+        move(10, x, 418, 190, 32);
+        move(11, x, 460, form_width, 28);
+        move(12, x, 494, form_width, 58);
         break;
     }
     case Page::Profiles: {
-        const auto left_width = std::min(350, usable_width / 3);
-        const auto profile_list_height = std::max(180, height - 550);
-        const auto catalog_y = 78 + profile_list_height;
-        move(1, margin, 70, left_width, profile_list_height);
-        move(2, margin, catalog_y, left_width, 32);
-        move(40, margin, catalog_y + 42, left_width, 24);
-        move(41, margin, catalog_y + 68, std::max(100, left_width - 98), 28);
-        move(42, margin + std::max(108, left_width - 90), catalog_y + 68, 90, 28);
-        move(43, margin, catalog_y + 104, left_width,
-             std::max(76, height - catalog_y - 282));
-        move(44, margin, height - 170, left_width, 32);
-        move(45, margin, height - 134, left_width, 34);
-        const auto action_width = std::max(58, (left_width - 18) / 4);
-        move(3, margin, height - 94, action_width, 32);
-        move(4, margin + action_width + 6, height - 94, action_width, 32);
-        move(5, margin + (action_width + 6) * 2, height - 94, action_width, 32);
-        move(6, margin + (action_width + 6) * 3, height - 94, action_width, 32);
-        const auto x = margin + left_width + 24;
-        const auto form_width = usable_width - left_width - 24;
+        const auto& workbench = *authoring_layout;
+        const auto& collection = workbench.collection;
+        const auto profile_list_height = std::max(
+            104,
+            std::min(collection.height * 34 / 100, collection.height - 238));
+        move(1, collection.x, collection.y, collection.width, profile_list_height);
+        auto catalog_y = collection.y + profile_list_height + 8;
+        move(2, collection.x, catalog_y, collection.width, 32);
+        catalog_y += 38;
+        move(40, collection.x, catalog_y, collection.width, 22);
+        catalog_y += 24;
+        move(41, collection.x, catalog_y, std::max(100, collection.width - 96), 28);
+        move(42, collection.right() - 88, catalog_y, 88, 28);
+        catalog_y += 34;
+        const auto catalog_status_height = 36;
+        const auto catalog_import_height = 32;
+        const auto catalog_results_height = std::max(
+            58,
+            collection.bottom() - catalog_y - catalog_import_height -
+                catalog_status_height - 12);
+        move(43, collection.x, catalog_y, collection.width, catalog_results_height);
+        catalog_y += catalog_results_height + 6;
+        move(44, collection.x, catalog_y, collection.width, catalog_import_height);
+        move(45, collection.x, catalog_y + catalog_import_height + 4,
+             collection.width, catalog_status_height);
+        const auto library_half = (workbench.library_actions.width - 8) / 2;
+        move(3, workbench.library_actions.x, workbench.library_actions.y,
+             library_half, 34);
+        move(4, workbench.library_actions.x + library_half + 8,
+             workbench.library_actions.y, library_half, 34);
+
+        const auto inspector_action_width = std::min(
+            170, (workbench.inspector_actions.width - 8) / 2);
+        move(5, workbench.inspector_actions.x, workbench.inspector_actions.y,
+             inspector_action_width, 34);
+        move(6, workbench.inspector_actions.right() - inspector_action_width,
+             workbench.inspector_actions.y, inspector_action_width, 34);
+
+        const auto& content = workbench.inspector_content;
+        const auto x = content.x;
+        const auto form_width = content.width;
+        const auto top = content.y;
         constexpr int label_width = 120;
-        constexpr int row_height = 34;
+        constexpr int row_height = 32;
         for (std::size_t row = 0; row < 5U; ++row) {
             const auto base = 7U + row * 2U;
-            move(base, x, 70 + static_cast<int>(row) * row_height, label_width, 26);
-            move(base + 1U, x + label_width, 70 + static_cast<int>(row) * row_height,
+            move(base, x, top + static_cast<int>(row) * row_height, label_width, 26);
+            move(base + 1U, x + label_width,
+                 top + static_cast<int>(row) * row_height,
                  form_width - label_width, 27);
         }
-        move(19, x, 242, std::min(190, form_width), 34);
-        move(46, x + 200, 246, 85, 24);
-        move(47, x + 285, 242, std::max(60, form_width - 425), 200);
-        move(48, x + std::max(293, form_width - 132), 242,
-             std::min(132, form_width), 34);
+        const auto toolbar_y = top + row_height * 5 + 4;
+        const auto toolbar_width = std::max(92, (form_width - 18) / 4);
+        move(19, x, toolbar_y, toolbar_width, 32);
+        move(46, x + toolbar_width + 6, toolbar_y + 4, 84, 24);
+        move(47, x + toolbar_width + 90, toolbar_y,
+             std::max(80, form_width - toolbar_width * 2 - 108), 200);
+        move(48, x + form_width - toolbar_width, toolbar_y, toolbar_width, 32);
 
-        move(20, x, 288, 62, 24);
-        move(21, x + 62, 286, 68, 27);
-        move(22, x + 142, 288, 72, 24);
-        move(23, x + 214, 286, std::max(130, form_width - 214), 200);
+        const auto table_heading_y = toolbar_y + 40;
+        move(17, x, table_heading_y, std::max(140, form_width - 230), 24);
+        move(50, x + std::max(148, form_width - 220), table_heading_y - 4,
+             std::min(220, form_width), 32);
+        const auto table_y = table_heading_y + 26;
+        const auto mapping_block_height = 164;
+        const auto table_height = std::max(
+            74, content.bottom() - table_y - mapping_block_height);
+        move(18, x, table_y, form_width, table_height);
 
-        move(24, x, 324, 72, 24);
-        move(25, x + 72, 322, std::min(170, std::max(112, form_width / 3)), 200);
+        const auto mapping_y = table_y + table_height + 6;
+        move(20, x, mapping_y + 2, 62, 24);
+        move(21, x + 62, mapping_y, 68, 27);
+        move(22, x + 142, mapping_y + 2, 72, 24);
+        move(23, x + 214, mapping_y, std::max(130, form_width - 214), 200);
+
+        move(24, x, mapping_y + 34, 72, 24);
+        move(25, x + 72, mapping_y + 32,
+             std::min(170, std::max(112, form_width / 3)), 200);
         const auto fine_x = x + std::min(252, std::max(194, form_width / 3 + 82));
-        move(26, fine_x, 324, 42, 24);
-        move(27, fine_x + 42, 322, 68, 27);
+        move(26, fine_x, mapping_y + 34, 42, 24);
+        move(27, fine_x + 42, mapping_y + 32, 68, 27);
 
         const auto compact_field = 58;
-        move(28, x, 360, 34, 24);
-        move(29, x + 34, 358, compact_field, 27);
-        move(30, x + 102, 360, 36, 24);
-        move(31, x + 138, 358, compact_field, 27);
-        move(32, x + 206, 360, 58, 24);
-        move(33, x + 264, 358, compact_field + 12, 27);
+        move(28, x, mapping_y + 68, 34, 24);
+        move(29, x + 34, mapping_y + 66, compact_field, 27);
+        move(30, x + 102, mapping_y + 68, 36, 24);
+        move(31, x + 138, mapping_y + 66, compact_field, 27);
+        move(32, x + 206, mapping_y + 68, 58, 24);
+        move(33, x + 264, mapping_y + 66, compact_field + 12, 27);
         const auto mapping_action_width = std::max(104, (form_width - 24) / 4);
-        move(34, x, 398, mapping_action_width, 32);
-        move(35, x + mapping_action_width + 8, 398, mapping_action_width, 32);
-        move(49, x + (mapping_action_width + 8) * 2, 398,
+        move(34, x, mapping_y + 100, mapping_action_width, 32);
+        move(35, x + mapping_action_width + 8, mapping_y + 100,
              mapping_action_width, 32);
-        move(39, x + (mapping_action_width + 8) * 3, 398,
+        move(49, x + (mapping_action_width + 8) * 2, mapping_y + 100,
              mapping_action_width, 32);
-
-        move(17, x, 440, label_width, 24);
-        move(18, x, 466, form_width, std::max(64, height - 718));
-        move(36, x, height - 238, form_width, 72);
-        move(37, x, height - 158, form_width, 78);
-        move(38, x, height - 72, form_width, 32);
+        move(39, x + (mapping_action_width + 8) * 3, mapping_y + 100,
+             mapping_action_width, 32);
+        move(36, x, mapping_y + 136, form_width,
+             std::max(24, content.bottom() - mapping_y - 136));
+        ::ShowWindow(controls[37], SW_HIDE);
+        move(38, x, workbench.inspector_actions.y - 30, form_width, 24);
         break;
     }
-    case Page::Patch:
-        move(1, margin, 70, usable_width, std::max(210, height - 335));
-        move(2, margin, height - 240, 80, 30);
-        move(3, margin + 90, height - 240, 110, 30);
-        move(4, margin + 210, height - 240, 80, 30);
-        move(5, margin, height - 192, 100, 26);
-        move(6, margin + 100, height - 192, 230, 27);
-        move(7, margin + 350, height - 192, 70, 26);
-        move(8, margin + 420, height - 192, std::max(220, usable_width - 750), 200);
-        move(9, width - 300, height - 192, 72, 26);
-        move(10, width - 228, height - 192, 70, 200);
-        move(11, width - 146, height - 192, 62, 26);
-        move(12, width - 84, height - 192, 60, 27);
-        move(13, margin, height - 150, 150, 26);
-        move(14, margin + 150, height - 150, usable_width - 150, 58);
-        move(15, margin, height - 78, usable_width, 36);
+    case Page::Patch: {
+        const auto& workbench = *authoring_layout;
+        move(1,
+             workbench.collection.x,
+             workbench.collection.y,
+             workbench.collection.width,
+             workbench.collection.height);
+        move(2,
+             workbench.library_actions.x,
+             workbench.library_actions.y,
+             std::min(150, workbench.library_actions.width),
+             34);
+        const auto action_width = std::min(
+            170, (workbench.inspector_actions.width - 8) / 2);
+        move(3,
+             workbench.inspector_actions.x,
+             workbench.inspector_actions.y,
+             action_width,
+             34);
+        move(4,
+             workbench.inspector_actions.right() - action_width,
+             workbench.inspector_actions.y,
+             action_width,
+             34);
+        const auto& content = workbench.inspector_content;
+        constexpr int label_width = 106;
+        move(5, content.x, content.y, label_width, 26);
+        move(6, content.x + label_width, content.y,
+             content.width - label_width, 27);
+        move(7, content.x, content.y + 42, label_width, 26);
+        move(8, content.x + label_width, content.y + 42,
+             content.width - label_width, 200);
+        const auto half = (content.width - 16) / 2;
+        move(9, content.x, content.y + 86, 72, 26);
+        move(10, content.x + 72, content.y + 84,
+             std::max(60, half - 72), 200);
+        move(11, content.x + half + 16, content.y + 86, 62, 26);
+        move(12, content.x + half + 78, content.y + 84,
+             std::max(60, half - 62), 27);
+        move(13, content.x, content.y + 128, content.width, 26);
+        move(14, content.x, content.y + 156, content.width,
+             std::max(120, content.height - 202));
+        move(15, content.x, content.bottom() - 36, content.width, 32);
         break;
+    }
     case Page::Groups: {
-        const auto left_width = std::min(330, usable_width / 3);
-        move(1, margin, 70, left_width, height - 150);
-        move(2, margin, height - 68, 70, 30);
-        move(3, margin + 78, height - 68, 90, 30);
-        move(4, margin + 176, height - 68, 90, 30);
-        move(5, margin + 274, height - 68, 70, 30);
-        const auto x = margin + left_width + 24;
-        const auto form_width = usable_width - left_width - 24;
-        move(6, x, 70, 110, 26);
-        move(7, x + 110, 70, form_width - 110, 27);
-        move(8, x, 110, form_width, 26);
-        move(9, x, 140, form_width, std::max(190, height - 305));
-        move(10, x, height - 122, form_width, 50);
-        move(11, x, height - 66, form_width, 30);
+        const auto& workbench = *authoring_layout;
+        move(1,
+             workbench.collection.x,
+             workbench.collection.y,
+             workbench.collection.width,
+             workbench.collection.height);
+        const auto library_half = (workbench.library_actions.width - 8) / 2;
+        move(2, workbench.library_actions.x, workbench.library_actions.y,
+             library_half, 34);
+        move(3, workbench.library_actions.x + library_half + 8,
+             workbench.library_actions.y, library_half, 34);
+        const auto action_width = std::min(
+            170, (workbench.inspector_actions.width - 8) / 2);
+        move(4, workbench.inspector_actions.x, workbench.inspector_actions.y,
+             action_width, 34);
+        move(5, workbench.inspector_actions.right() - action_width,
+             workbench.inspector_actions.y, action_width, 34);
+        const auto& content = workbench.inspector_content;
+        move(6, content.x, content.y, 110, 26);
+        move(7, content.x + 110, content.y, content.width - 110, 27);
+        move(8, content.x, content.y + 42, content.width, 26);
+        move(9, content.x, content.y + 72, content.width,
+             std::max(190, content.height - 180));
+        move(10, content.x, content.bottom() - 94, content.width, 50);
+        move(11, content.x, content.bottom() - 38, content.width, 30);
         break;
     }
     case Page::Looks: {
-        const auto left_width = std::min(230, usable_width / 3);
-        move(1, margin, 70, left_width, std::max(250, height - 200));
-        move(2, margin, height - 112, 70, 30);
-        move(3, margin + 78, height - 112, 96, 30);
-        move(4, margin, height - 74, 102, 30);
-        move(5, margin + 110, height - 74, 70, 30);
+        const auto& workbench = *authoring_layout;
+        move(1,
+             workbench.collection.x,
+             workbench.collection.y,
+             workbench.collection.width,
+             workbench.collection.height);
+        const auto library_half = (workbench.library_actions.width - 8) / 2;
+        move(2, workbench.library_actions.x, workbench.library_actions.y,
+             library_half, 34);
+        move(3, workbench.library_actions.x + library_half + 8,
+             workbench.library_actions.y, library_half, 34);
+        const auto action_width = std::min(
+            170, (workbench.inspector_actions.width - 8) / 2);
+        move(4, workbench.inspector_actions.x, workbench.inspector_actions.y,
+             action_width, 34);
+        move(5, workbench.inspector_actions.right() - action_width,
+             workbench.inspector_actions.y, action_width, 34);
 
-        const auto x = margin + left_width + 18;
-        const auto form_width = usable_width - left_width - 18;
-        move(6, x, 70, 48, 26);
-        move(7, x + 48, 70, std::max(150, form_width - 286), 27);
-        move(8, x + form_width - 226, 70, 136, 26);
-        move(9, x + form_width - 90, 70, 90, 27);
-        move(10, x, 104, 142, 26);
-        move(11, x + 142, 104, form_width - 142, 250);
-        move(12, x, 134, form_width, 28);
-        move(13, x, 166, 76, 26);
-        move(14, x + 76, 166, 86, 27);
-        move(15, x + 170, 166, 116, 28);
+        const auto& content = workbench.inspector_content;
+        const auto x = content.x;
+        const auto form_width = content.width;
+        const auto top = content.y;
+        move(6, x, top, 48, 26);
+        move(7, x + 48, top, std::max(150, form_width - 286), 27);
+        move(8, x + form_width - 226, top, 136, 26);
+        move(9, x + form_width - 90, top, 90, 27);
+        move(10, x, top + 34, 142, 26);
+        move(11, x + 142, top + 34, form_width - 142, 250);
+        move(12, x, top + 64, form_width, 24);
+        move(13, x, top + 92, 68, 26);
+        move(14, x + 68, top + 92, 86, 27);
+        move(15, x + 162, top + 92, 116, 28);
 
-        const auto emitter_width = std::max(58, form_width / 7);
+        const auto emitter_width = std::max(1, form_width / 7);
         for (std::size_t emitter = 0U; emitter < 7U; ++emitter) {
             const auto emitter_x = x + static_cast<int>(emitter) * emitter_width;
             const auto label_index = 16U + emitter * 2U;
-            move(label_index, emitter_x, 198, emitter_width - 6, 22);
-            move(label_index + 1U, emitter_x, 220, emitter_width - 6, 27);
+            move(label_index, emitter_x, top + 126, emitter_width - 6, 20);
+            move(label_index + 1U, emitter_x, top + 147, emitter_width - 6, 27);
         }
-        move(30, x, 256, 132, 30);
-        const auto swatch_width = std::max(52, (form_width - 144) / 4);
-        move(31, x + 142, 256, swatch_width, 30);
-        move(32, x + 148 + swatch_width, 256, swatch_width, 30);
-        move(33, x + 154 + swatch_width * 2, 256, swatch_width, 30);
-        move(34, x + 160 + swatch_width * 3, 256, swatch_width, 30);
-        move(35, x, 292, 78, 30);
-        move(36, x + 84, 292, 62, 30);
-        move(37, x + 152, 292, 70, 30);
+        constexpr int apply_color_width = 116;
+        constexpr int color_gap = 5;
+        const auto swatch_width = std::max(
+            1, (form_width - apply_color_width - color_gap * 7) / 7);
+        move(30, x, top + 180, apply_color_width, 30);
+        for (std::size_t swatch = 0U; swatch < 7U; ++swatch) {
+            move(
+                31U + swatch,
+                x + apply_color_width + color_gap +
+                    static_cast<int>(swatch) * (swatch_width + color_gap),
+                top + 180,
+                swatch_width,
+                30);
+        }
 
-        move(38, x + 236, 292, 66, 26);
-        move(39, x + 302, 292, std::max(105, form_width - 302), 250);
-        move(40, x, 330, 76, 26);
-        move(41, x + 76, 330, 112, 250);
-        move(42, x + 198, 330, 62, 26);
-        move(43, x + 260, 330, 62, 27);
-        move(44, x + 332, 330, 118, 30);
-        move(45, x + 458, 330, std::max(72, form_width - 458), 30);
+        constexpr int named_label_width = 180;
+        constexpr int named_action_width = 140;
+        move(55, x, top + 216, named_label_width, 26);
+        move(56, x + named_label_width, top + 216,
+             std::max(1, form_width - named_label_width - named_action_width - 8),
+             250);
+        move(57, x + form_width - named_action_width, top + 214,
+             named_action_width, 32);
+
+        const auto property_combo_width = std::clamp(form_width / 4, 112, 176);
+        move(38, x, top + 252, 62, 26);
+        move(39, x + 62, top + 252, property_combo_width, 250);
+        move(40, x + 70 + property_combo_width, top + 252, 78, 26);
+        move(41, x + 148 + property_combo_width, top + 252,
+             std::max(1, form_width - property_combo_width - 148), 250);
+        move(42, x, top + 286, 164, 26);
+        move(43, x + 164, top + 286, 62, 27);
+        const auto property_action_width = std::max(
+            96, (form_width - 242) / 2);
+        move(44, x + 234, top + 284, property_action_width, 30);
+        move(45, x + 242 + property_action_width, top + 284,
+             std::max(1, form_width - property_action_width - 242), 30);
 
         const auto pane_gap = 10;
         const auto pane_width = (form_width - pane_gap) / 2;
-        move(46, x, 370, pane_width, 26);
-        move(47, x, 398, pane_width, std::max(90, height - 590));
-        move(48, x + pane_width + pane_gap, 366, pane_width, 30);
-        move(49, x + pane_width + pane_gap, 398, pane_width,
-             std::max(90, height - 590));
-        move(52, x, height - 184, std::min(290, form_width), 32);
-        move(53, x + std::min(300, form_width), height - 184,
-             std::min(150, std::max(1, form_width - 300)), 32);
-        move(54, x, height - 146, form_width, 28);
-        move(50, x, height - 112, form_width, 52);
-        move(51, x, height - 52, form_width, 30);
+        move(46, x, top + 322, pane_width, 26);
+        const auto pane_height = std::max(
+            34, content.bottom() - (top + 350) - 106);
+        move(47, x, top + 350, pane_width, pane_height);
+        move(48, x + pane_width + pane_gap, top + 318, pane_width, 30);
+        move(49, x + pane_width + pane_gap, top + 350, pane_width,
+             pane_height);
+        const auto preview_width = std::max(1, (form_width - 8) * 2 / 3);
+        move(52, x, content.bottom() - 98, preview_width, 32);
+        move(53, x + preview_width + 8, content.bottom() - 98,
+             std::max(1, form_width - preview_width - 8), 32);
+        move(54, x, content.bottom() - 62, form_width, 26);
+        ::ShowWindow(controls[50], SW_HIDE);
+        move(51, x, content.bottom() - 28, form_width, 24);
         break;
     }
     case Page::Autoloops: {
-        const auto left_width = std::min(330, usable_width / 3);
-        move(1, margin, 70, left_width, height - 150);
-        move(2, margin, height - 68, 70, 30);
-        move(3, margin + 78, height - 68, 90, 30);
-        move(4, margin + 176, height - 68, 100, 30);
-        move(5, margin + 284, height - 68, 70, 30);
-        const auto x = margin + left_width + 24;
-        const auto form_width = usable_width - left_width - 24;
-        move(6, x, 148, 130, 30);
-        move(7, x + 140, 148, 140, 30);
-        move(8, x, 70, 105, 26);
-        move(9, x + 105, 70, form_width - 105, 27);
-        move(10, x, 108, 105, 26);
-        move(11, x + 105, 108, 70, 27);
-        move(12, x + 190, 108, 90, 26);
-        move(13, x + 280, 108, 70, 27);
-        move(14, x + 365, 108, 100, 26);
-        move(15, x + 465, 108, 80, 27);
-        move(16, x + 560, 108, 70, 26);
-        move(17, x + 630, 108, std::max(120, form_width - 630), 200);
-        move(18, x, 190, 130, 24);
-        move(19, x, 216, std::max(180, form_width - 430), 200);
-        move(20, x + form_width - 420, 190, 48, 24);
-        move(21, x + form_width - 372, 216, 76, 27);
-        move(22, x + form_width - 286, 216, 120, 200);
-        move(23, x + form_width - 156, 214, 156, 32);
-        move(24, x, 258, form_width, 26);
-        move(28, x + std::max(0, form_width - 316), 254, 150, 30);
-        move(29, x + std::max(0, form_width - 158), 254, 158, 30);
-        move(25, x, 288, form_width, std::max(120, height - 455));
-        move(26, x, height - 130, form_width, 50);
-        move(27, x, height - 72, form_width, 30);
+        const auto& workbench = *authoring_layout;
+        move(1,
+             workbench.collection.x,
+             workbench.collection.y,
+             workbench.collection.width,
+             workbench.collection.height);
+        const auto library_half = (workbench.library_actions.width - 8) / 2;
+        move(2, workbench.library_actions.x, workbench.library_actions.y,
+             library_half, 34);
+        move(3, workbench.library_actions.x + library_half + 8,
+             workbench.library_actions.y, library_half, 34);
+        const auto action_width = std::min(
+            170, (workbench.inspector_actions.width - 8) / 2);
+        move(4, workbench.inspector_actions.x, workbench.inspector_actions.y,
+             action_width, 34);
+        move(5, workbench.inspector_actions.right() - action_width,
+             workbench.inspector_actions.y, action_width, 34);
+        const auto& content = workbench.inspector_content;
+        const auto x = content.x;
+        const auto form_width = content.width;
+        const auto top = content.y;
+        move(8, x, top, 105, 26);
+        move(9, x + 105, top, form_width - 105, 27);
+        const auto field_gap = 8;
+        const auto field_width = std::max(1, (form_width - field_gap * 3) / 4);
+        for (std::size_t column = 0U; column < 4U; ++column) {
+            const auto field_x = x + static_cast<int>(column) *
+                (field_width + field_gap);
+            const auto base = 10U + column * 2U;
+            move(base, field_x, top + 38, field_width, 22);
+            move(base + 1U, field_x, top + 60, field_width, 200);
+        }
+        move(6, x, top + 96, 130, 30);
+        move(7, x + 140, top + 96, 140, 30);
+        move(18, x, top + 138, form_width, 24);
+        const auto builder_action_width = std::min(112, form_width / 5);
+        const auto builder_beat_width = std::min(68, form_width / 8);
+        const auto builder_transition_width = std::min(126, form_width / 5);
+        const auto builder_look_width = std::max(
+            1,
+            form_width - builder_action_width - builder_beat_width -
+                builder_transition_width - 70);
+        move(19, x, top + 164, builder_look_width, 200);
+        move(20, x + builder_look_width + 8, top + 166, 40, 24);
+        move(21, x + builder_look_width + 48, top + 164,
+             builder_beat_width, 27);
+        move(22, x + builder_look_width + builder_beat_width + 56,
+             top + 164, builder_transition_width, 200);
+        move(23, x + form_width - builder_action_width, top + 162,
+             builder_action_width, 32);
+        move(24, x, top + 204, form_width, 26);
+        move(28, x + std::max(0, form_width - 316), top + 200, 150, 30);
+        move(29, x + std::max(0, form_width - 158), top + 200, 158, 30);
+        move(25, x, top + 230, form_width,
+             std::max(90, content.height - 358));
+        move(26, x, content.bottom() - 88, form_width, 48);
+        move(27, x, content.bottom() - 34, form_width, 28);
         break;
     }
     case Page::Autoscript: {
@@ -3468,51 +4024,99 @@ void Application::layout_page(Page page, int width, int height) {
         move(24, margin + 360, 274, 130, 34);
         move(25, margin + 500, 274, 150, 34);
         move(26, margin + 660, 274, 90, 34);
-        move(27, margin, 322, usable_width, std::max(120, height - 520));
+        const auto summary_height = std::max(70, height - 620);
+        const auto function_y = 322 + summary_height + 10;
+        move(27, margin, 322, usable_width, summary_height);
+        const auto function_column = std::max(150, (usable_width - field_gap * 2) / 3);
+        move(30, margin, function_y, function_column, 24);
+        move(31, margin, function_y + 26, function_column, 220);
+        move(32, margin + function_column + field_gap, function_y + 2,
+             function_column, 24);
+        move(33, margin + function_column + field_gap, function_y + 26,
+             function_column, 220);
+        move(34, margin + (function_column + field_gap) * 2, function_y + 2,
+             function_column, 24);
+        move(35, margin + (function_column + field_gap) * 2, function_y + 26,
+             function_column, 220);
+        const auto compact_width = std::max(76, (usable_width - 310) / 3);
+        move(36, margin, function_y + 64, compact_width, 24);
+        move(37, margin, function_y + 88, compact_width, 27);
+        move(38, margin + compact_width + field_gap, function_y + 64,
+             compact_width, 24);
+        move(39, margin + compact_width + field_gap, function_y + 88,
+             compact_width, 27);
+        move(40, margin + (compact_width + field_gap) * 2, function_y + 64,
+             compact_width, 24);
+        move(41, margin + (compact_width + field_gap) * 2, function_y + 88,
+             compact_width, 27);
+        move(42, margin + usable_width - 270, function_y + 82, 270, 34);
         move(28, margin, height - 148, usable_width, 64);
         move(29, margin, height - 76, usable_width, 34);
         break;
     }
     case Page::Tracks: {
-        const auto left_width = std::min(330, usable_width / 3);
-        move(1, margin, 70, left_width, height - 150);
-        move(2, margin, height - 68, 70, 30);
-        move(3, margin + 78, height - 68, 90, 30);
-        move(4, margin + 176, height - 68, 100, 30);
-        move(5, margin + 284, height - 68, 70, 30);
-        const auto x = margin + left_width + 24;
-        const auto form_width = usable_width - left_width - 24;
-        move(6, x, 70, 130, 26);
-        move(7, x + 130, 70, form_width - 130, 27);
-        move(8, x, 108, 130, 26);
-        move(9, x + 130, 108, form_width - 130, 200);
-        move(10, x, 146, 115, 30);
-        move(11, x + 125, 146, 100, 30);
-        move(12, x + 235, 146, 100, 30);
-        move(13, x + 345, 146, 135, 30);
-        move(14, x, 188, 190, 26);
-        move(15, x + 190, 188, form_width - 190, 27);
-        move(16, x, 228, form_width, 26);
-        move(17, x, 258, form_width, std::max(150, height - 425));
-        move(18, x, height - 130, form_width, 50);
-        move(19, x, height - 72, form_width, 30);
+        const auto& workbench = *authoring_layout;
+        move(1,
+             workbench.collection.x,
+             workbench.collection.y,
+             workbench.collection.width,
+             workbench.collection.height);
+        const auto library_half = (workbench.library_actions.width - 8) / 2;
+        move(2, workbench.library_actions.x, workbench.library_actions.y,
+             library_half, 34);
+        move(3, workbench.library_actions.x + library_half + 8,
+             workbench.library_actions.y, library_half, 34);
+        const auto action_width = std::min(
+            170, (workbench.inspector_actions.width - 8) / 2);
+        move(4, workbench.inspector_actions.x, workbench.inspector_actions.y,
+             action_width, 34);
+        move(5, workbench.inspector_actions.right() - action_width,
+             workbench.inspector_actions.y, action_width, 34);
+        const auto& content = workbench.inspector_content;
+        const auto x = content.x;
+        const auto form_width = content.width;
+        const auto top = content.y;
+        move(6, x, top, 130, 26);
+        move(7, x + 130, top, form_width - 130, 27);
+        move(8, x, top + 38, 130, 26);
+        move(9, x + 130, top + 38, form_width - 130, 200);
+        move(10, x, top + 76, 115, 30);
+        move(11, x + 125, top + 76, 100, 30);
+        move(12, x + 235, top + 76, 100, 30);
+        move(13, x + 345, top + 76, 135, 30);
+        move(14, x, top + 118, 190, 26);
+        move(15, x + 190, top + 118, form_width - 190, 27);
+        move(16, x, top + 158, form_width, 26);
+        move(17, x, top + 188, form_width,
+             std::max(150, content.height - 302));
+        move(18, x, content.bottom() - 88, form_width, 48);
+        move(19, x, content.bottom() - 34, form_width, 28);
         break;
     }
-    case Page::Midi:
-        move(1, margin, 70, usable_width, std::max(210, height - 300));
-        move(2, margin, height - 205, 80, 26);
-        move(3, margin + 80, height - 205, 220, 200);
-        move(4, margin + 320, height - 205, 70, 26);
-        move(5, margin + 390, height - 205, 250, 200);
-        move(6, margin + 660, height - 205, 75, 26);
-        move(7, margin + 735, height - 205, 160, 200);
-        move(8, margin, height - 165, 80, 26);
-        move(9, margin + 80, height - 165, 180, 200);
-        move(10, margin + 280, height - 165, 130, 28);
-        move(11, margin, height - 115, 190, 32);
-        move(12, margin + 204, height - 115, 140, 32);
-        move(13, margin, height - 70, usable_width, 32);
+    case Page::Midi: {
+        const auto column_gap = 16;
+        const auto column_width = (usable_width - column_gap) / 2;
+        const auto first_row = height - 232;
+        const auto second_row = height - 192;
+        move(1, margin, 70, usable_width, std::max(190, height - 350));
+        move(2, margin, first_row, 80, 26);
+        move(3, margin + 80, first_row, column_width - 80, 200);
+        move(4, margin + column_width + column_gap, first_row, 70, 26);
+        move(5, margin + column_width + column_gap + 70, first_row,
+             column_width - 70, 200);
+        move(6, margin, second_row, 80, 26);
+        move(7, margin + 80, second_row, column_width - 80, 200);
+        move(14, margin + column_width + column_gap, second_row, 190, 26);
+        move(15, margin + column_width + column_gap + 190, second_row,
+             column_width - 190, 200);
+        move(8, margin, height - 150, 80, 26);
+        move(9, margin + 80, height - 150, 180, 200);
+        move(10, margin + 280, height - 150, 130, 28);
+        move(11, margin, height - 108, 190, 32);
+        move(12, margin + 204, height - 108, 140, 32);
+        move(13, margin, height - 66, usable_width, 32);
         break;
+    }
     case Page::Connections: {
         layout_connections();
         break;
@@ -3744,6 +4348,9 @@ void Application::show_page(Page page) {
     if (page != Page::Profiles && profile_capability_window_ != nullptr) {
         ::ShowWindow(profile_capability_window_, SW_HIDE);
     }
+    if (page != Page::Profiles && profile_channel_workbench_ != nullptr) {
+        ::ShowWindow(profile_channel_workbench_, SW_HIDE);
+    }
     if (active_page_ == Page::Looks && page != Page::Looks &&
         physical_preview_.status().owns_runner) {
         stop_physical_static_look_preview(false);
@@ -3819,6 +4426,7 @@ void Application::reset_authoring_selection() {
     autoloop_index_ = -1;
     track_index_ = -1;
     static_cast<void>(autoscript_workflow_.discard());
+    autoscript_function_preview_summary_.clear();
 }
 
 void Application::capture_saved_project() {
@@ -3900,6 +4508,26 @@ void listbox_add(HWND list, std::wstring_view text, std::intptr_t data) {
     }
 }
 
+void listbox_select_data(HWND list, std::intptr_t data) {
+    const auto count = static_cast<int>(::SendMessageW(list, LB_GETCOUNT, 0, 0));
+    for (int row = 0; row < count; ++row) {
+        if (static_cast<std::intptr_t>(
+                ::SendMessageW(list, LB_GETITEMDATA, row, 0)) == data) {
+            static_cast<void>(::SendMessageW(list, LB_SETCURSEL, row, 0));
+            return;
+        }
+    }
+    static_cast<void>(::SendMessageW(list, LB_SETCURSEL, -1, 0));
+}
+
+[[nodiscard]] std::int32_t listbox_selected_data(HWND list) {
+    const auto row = static_cast<int>(::SendMessageW(list, LB_GETCURSEL, 0, 0));
+    return row >= 0
+        ? static_cast<std::int32_t>(
+              ::SendMessageW(list, LB_GETITEMDATA, row, 0))
+        : -1;
+}
+
 void combo_add(HWND combo, std::wstring_view text, std::intptr_t data) {
     const auto index = static_cast<int>(::SendMessageW(
         combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text.data())));
@@ -3966,6 +4594,26 @@ void listview_set_row(
     return ListView_GetItem(list, &item) != FALSE
         ? static_cast<std::int32_t>(item.lParam)
         : -1;
+}
+
+void listview_select_data(HWND list, std::int32_t data) {
+    const auto count = ListView_GetItemCount(list);
+    for (int row = 0; row < count; ++row) {
+        LVITEMW item{};
+        item.mask = LVIF_PARAM;
+        item.iItem = row;
+        if (ListView_GetItem(list, &item) != FALSE &&
+            static_cast<std::int32_t>(item.lParam) == data) {
+            ListView_SetItemState(
+                list,
+                row,
+                LVIS_SELECTED | LVIS_FOCUSED,
+                LVIS_SELECTED | LVIS_FOCUSED);
+            static_cast<void>(ListView_EnsureVisible(list, row, FALSE));
+            return;
+        }
+    }
+    ListView_SetItemState(list, -1, 0U, LVIS_SELECTED | LVIS_FOCUSED);
 }
 
 [[nodiscard]] std::string action_name(showcore::ActionType action) {
@@ -4659,7 +5307,9 @@ void Application::refresh_overrides() {
         IdOverridesMessage,
         live.fixtures.empty()
             ? "Patch at least one fixture before using Live Overrides."
-            : "Select a target and property. Use the value presets or drag the slider; the slider applies when released.",
+            : (override_control_choices_.empty()
+                   ? "Select a target and property. Use the value presets or drag the slider; the slider applies when released."
+                   : "Choose a named profile function for exact shutter/wheel/effect behavior, or use the ordinary property level below. Continuous named ranges use the 0–100 position control."),
         live.fixtures.empty());
 }
 
@@ -4672,11 +5322,13 @@ void Application::refresh_override_properties() {
     static_cast<void>(::SendMessageW(properties, CB_RESETCONTENT, 0, 0));
     const auto selected = static_cast<int>(::SendMessageW(targets, LB_GETCURSEL, 0, 0));
     if (selected < 0) {
+        refresh_override_control_choices();
         return;
     }
     const auto target_index = static_cast<std::size_t>(::SendMessageW(
         targets, LB_GETITEMDATA, selected, 0));
     if (target_index >= live_view_model_.override_targets().size()) {
+        refresh_override_control_choices();
         return;
     }
     const auto& target = live_view_model_.override_targets()[target_index];
@@ -4685,12 +5337,8 @@ void Application::refresh_override_properties() {
     for (std::size_t index = 0U; index < showcore::kPropertyCount; ++index) {
         const auto property = static_cast<showcore::Property>(index);
         if (!target.supports_any(property) ||
-            property == showcore::Property::Fog ||
-            property == showcore::Property::Haze ||
-            property == showcore::Property::Laser ||
-            property == showcore::Property::Spark ||
-            (property == showcore::Property::Strobe &&
-             !live_view_model_.safety().strobe_allowed)) {
+            !live_override_property_visible(
+                property, live_view_model_.safety())) {
             continue;
         }
         std::string label = fixture_parameter_label(property);
@@ -4708,6 +5356,64 @@ void Application::refresh_override_properties() {
         static_cast<void>(::SendMessageW(
             properties, CB_SETCURSEL, static_cast<WPARAM>(selected_combo), 0));
     }
+    refresh_override_control_choices();
+}
+
+void Application::refresh_override_control_choices() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    const auto combo = ::GetDlgItem(page, IdOverridesNamedChoice);
+    std::string previous_id;
+    const auto previous = combo_selected_data(combo, -1);
+    if (previous >= 0 &&
+        static_cast<std::size_t>(previous) < override_control_choices_.size()) {
+        previous_id = override_control_choices_[static_cast<std::size_t>(previous)].id;
+    }
+    override_control_choices_.clear();
+    static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+    combo_add(combo, L"Choose a named function…", -1);
+
+    const auto targets = ::GetDlgItem(page, IdOverridesFixture);
+    const auto selected = static_cast<int>(::SendMessageW(
+        targets, LB_GETCURSEL, 0, 0));
+    if (selected >= 0) {
+        const auto target_index = static_cast<std::size_t>(::SendMessageW(
+            targets, LB_GETITEMDATA, selected, 0));
+        if (target_index < live_view_model_.override_targets().size()) {
+            const auto& target = live_view_model_.override_targets()[target_index];
+            const auto catalog = emberlights::fixture_control_choices(
+                live_project(), target.id);
+            for (const auto& choice : catalog.choices) {
+                if (!choice.live_override_compatible() ||
+                    !live_override_property_visible(
+                        choice.property, live_view_model_.safety())) {
+                    continue;
+                }
+                const auto data = static_cast<std::intptr_t>(
+                    override_control_choices_.size());
+                combo_add(
+                    combo,
+                    widen(fixture_control_choice_label(choice)),
+                    data);
+                override_control_choices_.push_back(choice);
+            }
+        }
+    }
+    auto selected_data = static_cast<std::intptr_t>(-1);
+    if (!previous_id.empty()) {
+        const auto found = std::find_if(
+            override_control_choices_.begin(), override_control_choices_.end(),
+            [&previous_id](const auto& choice) {
+                return choice.id == previous_id;
+            });
+        if (found != override_control_choices_.end()) {
+            selected_data = static_cast<std::intptr_t>(
+                found - override_control_choices_.begin());
+        }
+    }
+    combo_select_data(combo, selected_data);
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdOverridesApplyNamed),
+        override_control_choices_.empty() ? FALSE : TRUE));
 }
 
 void Application::refresh_profiles() {
@@ -4768,22 +5474,9 @@ void Application::refresh_profiles() {
         static_cast<std::intptr_t>(showcore::ChannelEncoding::Constant8));
     combo_select_data(encoding, previous_encoding);
 
-    const auto list = ::GetDlgItem(page, IdProfileList);
-    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
-    for (std::size_t index = 0; index < project_.fixture_profiles.size(); ++index) {
-        const auto& profile = project_.fixture_profiles[index];
-        std::ostringstream label;
-        label << profile.name << "  •  " << profile.footprint << "CH  •  "
-              << (profile.source == showcore::FixtureProfileSource::BuiltIn
-                      ? "VERIFIED BUILT-IN"
-                      : profile.source == showcore::FixtureProfileSource::Local
-                          ? "LOCAL"
-                          : "IMPORTED / REVIEW");
-        listbox_add(list, widen(label.str()), index);
-    }
+    refresh_authoring_collection(Page::Profiles);
     if (profile_index_ >= 0 &&
         static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size()) {
-        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, profile_index_, 0));
         select_profile(profile_index_);
     } else {
         new_profile();
@@ -4871,6 +5564,10 @@ void Application::refresh_profile_channel_table() {
                 LVIS_SELECTED | LVIS_FOCUSED);
         }
     }
+    if (profile_channel_workbench_ != nullptr &&
+        ::IsWindowVisible(profile_channel_workbench_) != FALSE) {
+        refresh_profile_channel_workbench();
+    }
 }
 
 void Application::select_profile_channel(std::int32_t source_index) {
@@ -4912,6 +5609,526 @@ void Application::select_profile_channel(std::int32_t source_index) {
             static_cast<std::uint16_t>(channel.coarse_offset + 1U);
         selected_profile_capability_id_.clear();
         refresh_profile_capability_editor();
+    }
+}
+
+void Application::create_profile_channel_workbench() {
+    if (profile_channel_workbench_ != nullptr) {
+        return;
+    }
+    profile_channel_workbench_ = ::CreateWindowExW(
+        WS_EX_TOOLWINDOW | WS_EX_CONTROLPARENT,
+        kPageClass,
+        L"EmberLights — Fixture channel map workbench",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME |
+            WS_CLIPCHILDREN,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        1080,
+        720,
+        window_,
+        nullptr,
+        instance_,
+        this);
+    if (profile_channel_workbench_ == nullptr) {
+        return;
+    }
+    enable_modern_window_frame(profile_channel_workbench_);
+    auto title = add_label(
+        profile_channel_workbench_,
+        L"FIXTURE CHANNEL MAP WORKBENCH",
+        IdChannelWorkbenchTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_label(profile_channel_workbench_, L"", IdChannelWorkbenchContext);
+    auto list = add_listview(profile_channel_workbench_, IdChannelWorkbenchList);
+    add_listview_column(list, 0, 58, L"CH");
+    add_listview_column(list, 1, 170, L"Function");
+    add_listview_column(list, 2, 118, L"Encoding");
+    add_listview_column(list, 3, 90, L"DMX");
+    add_listview_column(list, 4, 78, L"Default");
+    add_listview_column(list, 5, 64, L"Fine");
+    add_listview_column(list, 6, 110, L"Owner");
+    add_listview_column(list, 7, 100, L"Ranges");
+
+    add_label(
+        profile_channel_workbench_,
+        L"Add a direct parameter at the next open channel",
+        IdChannelWorkbenchNextPropertyLabel);
+    add_combo(profile_channel_workbench_, IdChannelWorkbenchNextProperty);
+    add_button(
+        profile_channel_workbench_,
+        L"Add at Next Channel",
+        IdChannelWorkbenchAddNext);
+    add_button(
+        profile_channel_workbench_,
+        L"Fill Unused Slots Safely",
+        IdChannelWorkbenchFillGaps);
+
+    add_label(
+        profile_channel_workbench_,
+        L"First physical channel",
+        IdChannelWorkbenchSwapFirstLabel);
+    add_combo(profile_channel_workbench_, IdChannelWorkbenchSwapFirst);
+    add_label(
+        profile_channel_workbench_,
+        L"Second physical channel",
+        IdChannelWorkbenchSwapSecondLabel);
+    add_combo(profile_channel_workbench_, IdChannelWorkbenchSwapSecond);
+    add_button(
+        profile_channel_workbench_,
+        L"Exchange Channel Functions…",
+        IdChannelWorkbenchSwap);
+
+    add_button(
+        profile_channel_workbench_,
+        L"Named DMX Ranges…",
+        IdChannelWorkbenchNamedRanges);
+    add_button(
+        profile_channel_workbench_,
+        L"Duplicate to Edit",
+        IdProfileDuplicate);
+    add_button(
+        profile_channel_workbench_,
+        L"Save Profile",
+        IdProfileSave);
+    add_button(
+        profile_channel_workbench_,
+        L"Done",
+        IdChannelWorkbenchDone);
+    add_label(profile_channel_workbench_, L"", IdChannelWorkbenchMessage);
+    layout_profile_channel_workbench();
+}
+
+void Application::layout_profile_channel_workbench() {
+    if (profile_channel_workbench_ == nullptr) {
+        return;
+    }
+    RECT client{};
+    static_cast<void>(::GetClientRect(profile_channel_workbench_, &client));
+    const auto width = std::max(1L, client.right - client.left);
+    const auto height = std::max(1L, client.bottom - client.top);
+    constexpr int margin = 18;
+    const auto usable = static_cast<int>(width) - margin * 2;
+    const auto move = [&](int id, int x, int y, int control_width, int control_height) {
+        const auto control = ::GetDlgItem(profile_channel_workbench_, id);
+        if (control != nullptr) {
+            ::MoveWindow(control, x, y, control_width, control_height, TRUE);
+        }
+    };
+    move(IdChannelWorkbenchTitle, margin, 12, usable, 34);
+    move(IdChannelWorkbenchContext, margin, 46, usable, 46);
+    const auto list_height = std::max(220, static_cast<int>(height) - 372);
+    move(IdChannelWorkbenchList, margin, 96, usable, list_height);
+    const auto form_y = 106 + list_height;
+
+    const auto add_label_width = std::min(300, std::max(210, usable / 3));
+    move(IdChannelWorkbenchNextPropertyLabel, margin, form_y + 2,
+         add_label_width, 26);
+    move(IdChannelWorkbenchNextProperty, margin + add_label_width, form_y,
+         std::max(180, usable - add_label_width - 370), 240);
+    move(IdChannelWorkbenchAddNext, margin + usable - 360, form_y - 2,
+         170, 32);
+    move(IdChannelWorkbenchFillGaps, margin + usable - 180, form_y - 2,
+         180, 32);
+
+    const auto swap_combo_width = std::max(150, (usable - 520) / 2);
+    move(IdChannelWorkbenchSwapFirstLabel, margin, form_y + 44, 142, 26);
+    move(IdChannelWorkbenchSwapFirst, margin + 142, form_y + 42,
+         swap_combo_width, 220);
+    const auto second_label_x = margin + 152 + swap_combo_width;
+    move(IdChannelWorkbenchSwapSecondLabel, second_label_x, form_y + 44,
+         154, 26);
+    move(IdChannelWorkbenchSwapSecond, second_label_x + 154, form_y + 42,
+         swap_combo_width, 220);
+    move(IdChannelWorkbenchSwap, margin + usable - 210, form_y + 40,
+         210, 34);
+
+    const auto button_y = form_y + 86;
+    const auto button_width = std::max(120, (usable - 30) / 4);
+    move(IdChannelWorkbenchNamedRanges, margin, button_y, button_width, 32);
+    move(IdProfileDuplicate, margin + button_width + 10, button_y,
+         button_width, 32);
+    move(IdProfileSave, margin + (button_width + 10) * 2, button_y,
+         button_width, 32);
+    move(IdChannelWorkbenchDone, margin + (button_width + 10) * 3, button_y,
+         button_width, 32);
+    move(IdChannelWorkbenchMessage, margin, button_y + 40, usable,
+         std::max(28, static_cast<int>(height) - button_y - 52));
+}
+
+void Application::open_profile_channel_workbench() {
+    create_profile_channel_workbench();
+    if (profile_channel_workbench_ == nullptr) {
+        set_page_message(
+            Page::Profiles,
+            IdProfileMessage,
+            "The Fixture Channel Map Workbench could not be opened.",
+            true);
+        return;
+    }
+    set_control_text(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+        "Choose ordinary parameters without typing IDs. Use Named DMX Ranges for shutter, strobe, gobos, programs, reset/service, or compound channels.");
+    static_cast<void>(::SendMessageW(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchSwapFirst),
+        CB_SETCURSEL,
+        static_cast<WPARAM>(-1),
+        0));
+    static_cast<void>(::SendMessageW(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchSwapSecond),
+        CB_SETCURSEL,
+        static_cast<WPARAM>(-1),
+        0));
+    refresh_profile_channel_workbench();
+    ::ShowWindow(profile_channel_workbench_, SW_SHOW);
+    static_cast<void>(::SetForegroundWindow(profile_channel_workbench_));
+}
+
+void Application::refresh_profile_channel_workbench() {
+    if (profile_channel_workbench_ == nullptr) {
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Profiles)];
+    const auto selected_profile_valid = profile_index_ >= 0 &&
+        static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size();
+    const auto source = selected_profile_valid
+        ? project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source
+        : showcore::FixtureProfileSource::Local;
+    const auto editable = source == showcore::FixtureProfileSource::Local;
+    std::uint16_t footprint = 0U;
+    const auto footprint_valid = parse_number(
+        control_text(::GetDlgItem(page, IdProfileFootprint)), footprint) &&
+        footprint != 0U && footprint <= showcore::kUniverseSlots;
+    std::uint16_t selected_channel = 0U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(page, IdProfileMappingChannel)),
+        selected_channel));
+
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = trim(control_text(::GetDlgItem(page, IdProfileName)));
+    draft.mode = trim(control_text(::GetDlgItem(page, IdProfileMode)));
+    draft.footprint = footprint_valid ? footprint : 0U;
+    draft.channels = profile_draft_channels_;
+    draft.source = source;
+    if (selected_profile_valid) {
+        const auto& saved =
+            project_.fixture_profiles[static_cast<std::size_t>(profile_index_)];
+        draft.id = saved.id;
+        draft.source_revision = saved.source_revision;
+    }
+
+    std::ostringstream context;
+    context << (draft.name.empty() ? "Unsaved local fixture profile" : draft.name)
+            << "  •  " << (footprint_valid ? std::to_string(footprint) : "invalid")
+            << "CH  •  ";
+    if (source == showcore::FixtureProfileSource::Local) {
+        context << "LOCAL DRAFT — changes remain staged until Save Profile";
+    } else if (source == showcore::FixtureProfileSource::BuiltIn) {
+        context << "VERIFIED BUILT-IN — read-only; use Duplicate to Edit";
+    } else {
+        context << "IMPORTED SNAPSHOT — read-only; duplicate and verify against the fixture manual";
+    }
+    if (runner_.status().state == emberlights::RunnerState::Running) {
+        context << "  •  LIVE snapshot is unchanged until Stop Show / Start Show";
+    }
+    set_control_text(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchContext),
+        context.str());
+
+    const auto list =
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchList);
+    ListView_DeleteAllItems(list);
+    const auto rows = emberlights::fixture_profile_editor_rows(draft);
+    for (std::size_t index = 0U; index < rows.size(); ++index) {
+        const auto& row = rows[index];
+        listview_set_row(
+            list,
+            static_cast<int>(index),
+            static_cast<LPARAM>(row.source_index),
+            {widen(number_text(row.channel)),
+             widen(row.property_label),
+             widen(row.encoding_label),
+             widen(row.range_label),
+             widen(row.default_label),
+             widen(row.fine_label),
+             widen(row.owner_label),
+             widen(row.capability_label)});
+        if (row.channel == selected_channel) {
+            ListView_SetItemState(
+                list,
+                static_cast<int>(index),
+                LVIS_SELECTED | LVIS_FOCUSED,
+                LVIS_SELECTED | LVIS_FOCUSED);
+        }
+    }
+
+    const auto next =
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchNextProperty);
+    const auto previous_property = combo_selected_data(
+        next, static_cast<std::intptr_t>(showcore::Property::Intensity));
+    static_cast<void>(::SendMessageW(next, CB_RESETCONTENT, 0, 0));
+    for (const auto& choice : emberlights::fixture_profile_parameter_choices()) {
+        if (!choice.direct_assignment_available) {
+            continue;
+        }
+        combo_add(
+            next,
+            widen(choice.category_label + "  •  " + choice.display_name),
+            static_cast<std::intptr_t>(choice.property));
+    }
+    combo_select_data(next, previous_property);
+
+    const auto first =
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchSwapFirst);
+    const auto second =
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchSwapSecond);
+    auto previous_first = combo_selected_data(first, -1);
+    auto previous_second = combo_selected_data(second, -1);
+    static_cast<void>(::SendMessageW(first, CB_RESETCONTENT, 0, 0));
+    static_cast<void>(::SendMessageW(second, CB_RESETCONTENT, 0, 0));
+    std::vector<std::uint16_t> swappable_channels;
+    for (const auto& row : rows) {
+        const auto& channel = profile_draft_channels_[row.source_index];
+        const auto* descriptor =
+            emberlights::fixture_parameter_descriptor(channel.property);
+        const auto swappable = channel.fine_offset < 0 &&
+            channel.capabilities.empty() &&
+            channel.encoding == showcore::ChannelEncoding::Linear8 &&
+            descriptor != nullptr &&
+            descriptor->profile_preset ==
+                emberlights::FixtureParameterProfilePreset::DirectLinear &&
+            descriptor->safety == emberlights::FixtureParameterSafety::Normal;
+        if (!swappable) {
+            continue;
+        }
+        const auto label = L"CH" + widen(number_text(row.channel)) + L"  •  " +
+            widen(row.property_label);
+        combo_add(first, label, row.channel);
+        combo_add(second, label, row.channel);
+        swappable_channels.push_back(row.channel);
+        if (previous_first < 0 &&
+            channel.property == showcore::Property::White) {
+            previous_first = row.channel;
+        }
+        if (previous_second < 0 &&
+            channel.property == showcore::Property::Amber) {
+            previous_second = row.channel;
+        }
+    }
+    const auto channel_is_swappable = [&](std::intptr_t channel) {
+        return channel >= 0 && std::find(
+            swappable_channels.begin(),
+            swappable_channels.end(),
+            static_cast<std::uint16_t>(channel)) != swappable_channels.end();
+    };
+    if (!channel_is_swappable(previous_first) &&
+        !swappable_channels.empty()) {
+        previous_first = swappable_channels.front();
+    }
+    if (!channel_is_swappable(previous_second) ||
+        previous_second == previous_first) {
+        const auto distinct = std::find_if(
+            swappable_channels.begin(),
+            swappable_channels.end(),
+            [&](std::uint16_t channel) {
+                return static_cast<std::intptr_t>(channel) != previous_first;
+            });
+        previous_second = distinct == swappable_channels.end()
+            ? previous_first
+            : static_cast<std::intptr_t>(*distinct);
+    }
+    combo_select_data(first, previous_first);
+    combo_select_data(second, previous_second);
+
+    const auto can_edit = editable && footprint_valid;
+    for (const auto id : {
+             IdChannelWorkbenchNextProperty,
+             IdChannelWorkbenchAddNext,
+             IdChannelWorkbenchFillGaps}) {
+        ::EnableWindow(
+            ::GetDlgItem(profile_channel_workbench_, id),
+            can_edit ? TRUE : FALSE);
+    }
+    for (const auto id : {
+             IdChannelWorkbenchSwapFirst,
+             IdChannelWorkbenchSwapSecond,
+             IdChannelWorkbenchSwap}) {
+        ::EnableWindow(
+            ::GetDlgItem(profile_channel_workbench_, id),
+            can_edit && swappable_channels.size() >= 2U ? TRUE : FALSE);
+    }
+    ::EnableWindow(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchNamedRanges),
+        rows.empty() ? FALSE : TRUE);
+    ::EnableWindow(
+        ::GetDlgItem(profile_channel_workbench_, IdProfileDuplicate),
+        selected_profile_valid ? TRUE : FALSE);
+    ::EnableWindow(
+        ::GetDlgItem(profile_channel_workbench_, IdProfileSave),
+        can_edit ? TRUE : FALSE);
+}
+
+void Application::add_next_profile_channel() {
+    if (profile_channel_workbench_ == nullptr) {
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Profiles)];
+    std::uint16_t footprint = 0U;
+    if (!parse_number(
+            control_text(::GetDlgItem(page, IdProfileFootprint)), footprint) ||
+        footprint == 0U || footprint > showcore::kUniverseSlots) {
+        set_control_text(
+            ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+            "Enter a fixture footprint from 1 through 512 first.");
+        return;
+    }
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = trim(control_text(::GetDlgItem(page, IdProfileName)));
+    draft.footprint = footprint;
+    draft.channels = profile_draft_channels_;
+    draft.source = profile_index_ >= 0 &&
+            static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size()
+        ? project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source
+        : showcore::FixtureProfileSource::Local;
+    const auto property = static_cast<showcore::Property>(combo_selected_data(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchNextProperty),
+        static_cast<std::intptr_t>(showcore::Property::Count)));
+    const auto result = emberlights::assign_next_or_append_fixture_profile_channel(
+        draft, property);
+    if (!result) {
+        set_control_text(
+            ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+            result.message);
+        return;
+    }
+    profile_draft_channels_ = std::move(draft.channels);
+    set_control_text(
+        ::GetDlgItem(page, IdProfileFootprint), number_text(draft.footprint));
+    set_control_text(
+        ::GetDlgItem(page, IdProfileMappingChannel), number_text(result.channel));
+    refresh_profile_channel_table();
+    refresh_profile_mapping_summary();
+    set_control_text(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+        result.message + " Save Profile to persist the draft.");
+    set_page_message(
+        Page::Profiles,
+        IdProfileMessage,
+        result.message + " Save Profile when the channel order matches the fixture manual.");
+}
+
+void Application::fill_profile_channel_gaps() {
+    if (profile_channel_workbench_ == nullptr) {
+        return;
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Profiles)];
+    std::uint16_t footprint = 0U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(page, IdProfileFootprint)), footprint));
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = trim(control_text(::GetDlgItem(page, IdProfileName)));
+    draft.footprint = footprint;
+    draft.channels = profile_draft_channels_;
+    draft.source = profile_index_ >= 0 &&
+            static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size()
+        ? project_.fixture_profiles[static_cast<std::size_t>(profile_index_)].source
+        : showcore::FixtureProfileSource::Local;
+    const auto result =
+        emberlights::fill_fixture_profile_channel_gaps_with_safe_constants(draft);
+    if (result.changed) {
+        profile_draft_channels_ = std::move(draft.channels);
+        refresh_profile_channel_table();
+        refresh_profile_mapping_summary();
+    }
+    set_control_text(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+        result.message + (result.changed ? " Save Profile to persist the draft." : ""));
+    if (!result) {
+        set_page_message(Page::Profiles, IdProfileMessage, result.message, true);
+    }
+}
+
+void Application::swap_profile_channel_functions() {
+    if (profile_channel_workbench_ == nullptr) {
+        return;
+    }
+    const auto first_channel = static_cast<std::uint16_t>(combo_selected_data(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchSwapFirst), 0));
+    const auto second_channel = static_cast<std::uint16_t>(combo_selected_data(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchSwapSecond), 0));
+    const auto page = pages_[static_cast<std::size_t>(Page::Profiles)];
+    std::uint16_t footprint = 0U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(page, IdProfileFootprint)), footprint));
+    emberlights::FixtureProfileDefinition draft;
+    draft.name = trim(control_text(::GetDlgItem(page, IdProfileName)));
+    draft.mode = trim(control_text(::GetDlgItem(page, IdProfileMode)));
+    draft.footprint = footprint;
+    draft.channels = profile_draft_channels_;
+    draft.source = showcore::FixtureProfileSource::Local;
+    draft.source_revision = "emberlights-local-draft-v1";
+    if (profile_index_ >= 0 &&
+        static_cast<std::size_t>(profile_index_) < project_.fixture_profiles.size()) {
+        const auto& saved =
+            project_.fixture_profiles[static_cast<std::size_t>(profile_index_)];
+        draft.id = saved.id;
+        draft.source = saved.source;
+        draft.source_revision = saved.source_revision;
+    }
+    const auto planned = emberlights::plan_fixture_profile_channel_function_swap(
+        draft, first_channel, second_channel);
+    if (!planned) {
+        set_control_text(
+            ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+            planned.message);
+        return;
+    }
+    if (!planned.plan.changes_mapping) {
+        set_control_text(
+            ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+            planned.message);
+        return;
+    }
+    const auto question = widen(
+        planned.message +
+        "\n\nThis changes the Local draft only. Save Profile afterward, rebind the patched fixture if prompted, then verify at low intensity against the physical fixture.");
+    if (::MessageBoxW(
+            profile_channel_workbench_,
+            question.c_str(),
+            L"Confirm physical channel-function exchange",
+            MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
+        return;
+    }
+    const auto applied = emberlights::apply_fixture_profile_channel_function_swap(
+        draft, planned.plan);
+    if (!applied) {
+        set_control_text(
+            ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+            applied.message);
+        return;
+    }
+    profile_draft_channels_ = std::move(draft.channels);
+    set_control_text(
+        ::GetDlgItem(page, IdProfileMappingChannel),
+        number_text(first_channel));
+    refresh_profile_channel_table();
+    refresh_profile_mapping_summary();
+    set_control_text(
+        ::GetDlgItem(profile_channel_workbench_, IdChannelWorkbenchMessage),
+        applied.message +
+            " Save Profile, accept the Patch rebind when correcting a duplicate, and verify the physical output.");
+    set_page_message(
+        Page::Profiles,
+        IdProfileMessage,
+        applied.message + " Save Profile to persist this exact mapping.");
+}
+
+void Application::close_profile_channel_workbench() {
+    if (profile_channel_workbench_ != nullptr) {
+        ::ShowWindow(profile_channel_workbench_, SW_HIDE);
+    }
+    if (window_ != nullptr) {
+        static_cast<void>(::SetForegroundWindow(window_));
     }
 }
 
@@ -5603,25 +6820,6 @@ void Application::close_profile_capability_editor() {
 
 void Application::refresh_patch() {
     const auto page = pages_[static_cast<std::size_t>(Page::Patch)];
-    const auto list = ::GetDlgItem(page, IdPatchList);
-    ListView_DeleteAllItems(list);
-    for (std::size_t index = 0; index < project_.fixtures.size(); ++index) {
-        const auto& fixture = project_.fixtures[index];
-        const auto profile = std::find_if(
-            project_.fixture_profiles.begin(),
-            project_.fixture_profiles.end(),
-            [&](const auto& candidate) { return candidate.id == fixture.profile_id; });
-        listview_set_row(
-            list,
-            static_cast<int>(index),
-            static_cast<LPARAM>(index),
-            {widen(fixture.name),
-             widen(fixture.id),
-             profile != project_.fixture_profiles.end() ? widen(profile->name) : L"Missing",
-             widen(number_text(fixture.universe)),
-             widen(number_text(fixture.address)),
-             profile != project_.fixture_profiles.end() ? widen(number_text(profile->footprint)) : L"—"});
-    }
     const auto profile_combo = ::GetDlgItem(page, IdPatchProfile);
     static_cast<void>(::SendMessageW(profile_combo, CB_RESETCONTENT, 0, 0));
     for (std::size_t index = 0; index < project_.fixture_profiles.size(); ++index) {
@@ -5642,6 +6840,7 @@ void Application::refresh_patch() {
     static_cast<void>(::SendMessageW(universe, CB_RESETCONTENT, 0, 0));
     combo_add(universe, L"1", 1);
     combo_add(universe, L"2", 2);
+    refresh_authoring_collection(Page::Patch);
     if (fixture_index_ >= 0 && static_cast<std::size_t>(fixture_index_) < project_.fixtures.size()) {
         select_fixture(fixture_index_);
     } else {
@@ -5650,17 +6849,8 @@ void Application::refresh_patch() {
 }
 
 void Application::refresh_groups() {
-    const auto page = pages_[static_cast<std::size_t>(Page::Groups)];
-    const auto list = ::GetDlgItem(page, IdGroupList);
-    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
-    for (std::size_t index = 0; index < project_.groups.size(); ++index) {
-        const auto& group = project_.groups[index];
-        std::ostringstream label;
-        label << group.name << " (" << group.fixture_ids.size() << ")";
-        listbox_add(list, widen(label.str()), index);
-    }
+    refresh_authoring_collection(Page::Groups);
     if (group_index_ >= 0 && static_cast<std::size_t>(group_index_) < project_.groups.size()) {
-        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, group_index_, 0));
         select_group(group_index_);
     } else {
         new_group();
@@ -5669,11 +6859,6 @@ void Application::refresh_groups() {
 
 void Application::refresh_looks() {
     const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
-    const auto list = ::GetDlgItem(page, IdLookList);
-    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
-    for (std::size_t index = 0; index < project_.looks.size(); ++index) {
-        listbox_add(list, widen(project_.looks[index].name), index);
-    }
     const auto ownership = ::GetDlgItem(page, IdLookOwnership);
     const auto previous_ownership = combo_selected_data(
         ownership, static_cast<std::intptr_t>(showcore::ValueMode::Set));
@@ -5696,8 +6881,8 @@ void Application::refresh_looks() {
         combo_selected_data(ownership) ==
             static_cast<std::intptr_t>(showcore::ValueMode::Set));
     refresh_look_targets();
+    refresh_authoring_collection(Page::Looks);
     if (look_index_ >= 0 && static_cast<std::size_t>(look_index_) < project_.looks.size()) {
-        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, look_index_, 0));
         select_look(look_index_);
     } else {
         new_look();
@@ -5802,6 +6987,48 @@ void Application::refresh_look_capabilities() {
         combo_add(properties, widen(label.str()), static_cast<std::intptr_t>(property));
     }
     combo_select_data(properties, previous_property);
+    refresh_look_control_choices();
+}
+
+void Application::refresh_look_control_choices() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto combo = ::GetDlgItem(page, IdLookNamedChoice);
+    std::string previous_id;
+    const auto previous = combo_selected_data(combo, -1);
+    if (previous >= 0 &&
+        static_cast<std::size_t>(previous) < look_control_choices_.size()) {
+        previous_id = look_control_choices_[static_cast<std::size_t>(previous)].id;
+    }
+    look_control_choices_.clear();
+    static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+    combo_add(combo, L"Choose a named function…", -1);
+    const auto catalog = emberlights::fixture_control_choices(
+        project_, selected_look_target_id());
+    for (const auto& choice : catalog.choices) {
+        const auto data = static_cast<std::intptr_t>(
+            look_control_choices_.size());
+        combo_add(
+            combo,
+            widen(fixture_control_choice_label(choice)),
+            data);
+        look_control_choices_.push_back(choice);
+    }
+    auto selected_data = static_cast<std::intptr_t>(-1);
+    if (!previous_id.empty()) {
+        const auto found = std::find_if(
+            look_control_choices_.begin(), look_control_choices_.end(),
+            [&previous_id](const auto& choice) {
+                return choice.id == previous_id;
+            });
+        if (found != look_control_choices_.end()) {
+            selected_data = static_cast<std::intptr_t>(
+                found - look_control_choices_.begin());
+        }
+    }
+    combo_select_data(combo, selected_data);
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdLookApplyNamed),
+        look_control_choices_.empty() ? FALSE : TRUE));
 }
 
 void Application::refresh_look_draft_view() {
@@ -5844,15 +7071,6 @@ void Application::refresh_look_draft_view() {
 
 void Application::refresh_autoloops() {
     const auto page = pages_[static_cast<std::size_t>(Page::Autoloops)];
-    const auto list = ::GetDlgItem(page, IdAutoloopList);
-    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
-    for (std::size_t index = 0; index < project_.autoloops.size(); ++index) {
-        const auto& loop = project_.autoloops[index];
-        std::ostringstream label;
-        label << "B" << loop.bank + 1U << " / S" << static_cast<unsigned int>(loop.slot + 1U)
-              << " — " << loop.name;
-        listbox_add(list, widen(label.str()), index);
-    }
     const auto repeat = ::GetDlgItem(page, IdAutoloopRepeat);
     static_cast<void>(::SendMessageW(repeat, CB_RESETCONTENT, 0, 0));
     combo_add(repeat, L"Once", static_cast<std::intptr_t>(showcore::AutoloopRepeat::Once));
@@ -5890,9 +7108,9 @@ void Application::refresh_autoloops() {
         L"Linear fade",
         static_cast<std::intptr_t>(showcore::AutoloopTransition::Linear));
     combo_select_data(transition, previous_transition);
+    refresh_authoring_collection(Page::Autoloops);
     if (autoloop_index_ >= 0 &&
         static_cast<std::size_t>(autoloop_index_) < project_.autoloops.size()) {
-        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, autoloop_index_, 0));
         select_autoloop(autoloop_index_);
     } else {
         new_autoloop();
@@ -5954,10 +7172,153 @@ void Application::refresh_autoscript() {
         ::GetDlgItem(page, IdAutoscriptSlot),
         next.found ? number_text(static_cast<unsigned int>(next.address.slot) + 1U)
                    : "");
+
+    const auto placement = ::GetDlgItem(page, IdAutoscriptFunctionPlacement);
+    std::string previous_placement;
+    const auto previous_placement_index = combo_selected_data(placement, -1);
+    if (previous_placement_index >= 0 &&
+        static_cast<std::size_t>(previous_placement_index) <
+            autoscript_function_placement_ids_.size()) {
+        previous_placement = autoscript_function_placement_ids_[
+            static_cast<std::size_t>(previous_placement_index)];
+    }
+    autoscript_function_placement_ids_.clear();
+    static_cast<void>(::SendMessageW(placement, CB_RESETCONTENT, 0, 0));
+    if (persisted && persisted.stamp.present) {
+        for (const auto& item : persisted.source.placements) {
+            const auto asset = std::find_if(
+                persisted.source.assets.begin(),
+                persisted.source.assets.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == item.asset_id;
+                });
+            if (asset == persisted.source.assets.end()) {
+                continue;
+            }
+            std::ostringstream label;
+            label << "B" << item.bank + 1U << " / S"
+                  << static_cast<unsigned int>(item.slot + 1U)
+                  << " — " << asset->name;
+            combo_add(
+                placement,
+                widen(label.str()),
+                static_cast<std::intptr_t>(
+                    autoscript_function_placement_ids_.size()));
+            autoscript_function_placement_ids_.push_back(item.id);
+        }
+    }
+    auto placement_selection = static_cast<std::intptr_t>(
+        autoscript_function_placement_ids_.empty() ? -1 : 0);
+    const auto retained_placement = std::find(
+        autoscript_function_placement_ids_.begin(),
+        autoscript_function_placement_ids_.end(),
+        previous_placement);
+    if (retained_placement != autoscript_function_placement_ids_.end()) {
+        placement_selection = static_cast<std::intptr_t>(std::distance(
+            autoscript_function_placement_ids_.begin(), retained_placement));
+    }
+    combo_select_data(placement, placement_selection);
+
+    const auto target = ::GetDlgItem(page, IdAutoscriptFunctionTarget);
+    std::string previous_target;
+    const auto previous_target_index = combo_selected_data(target, -1);
+    if (previous_target_index >= 0 &&
+        static_cast<std::size_t>(previous_target_index) <
+            autoscript_function_target_ids_.size()) {
+        previous_target = autoscript_function_target_ids_[
+            static_cast<std::size_t>(previous_target_index)];
+    }
+    autoscript_function_target_ids_.clear();
+    static_cast<void>(::SendMessageW(target, CB_RESETCONTENT, 0, 0));
+    for (const auto& fixture : project_.fixtures) {
+        combo_add(
+            target,
+            widen("Fixture • " + fixture.name),
+            static_cast<std::intptr_t>(autoscript_function_target_ids_.size()));
+        autoscript_function_target_ids_.push_back(fixture.id);
+    }
+    for (const auto& group : project_.groups) {
+        combo_add(
+            target,
+            widen("Group • " + group.name),
+            static_cast<std::intptr_t>(autoscript_function_target_ids_.size()));
+        autoscript_function_target_ids_.push_back(group.id);
+    }
+    auto target_selection = static_cast<std::intptr_t>(
+        autoscript_function_target_ids_.empty() ? -1 : 0);
+    const auto retained_target = std::find(
+        autoscript_function_target_ids_.begin(),
+        autoscript_function_target_ids_.end(),
+        previous_target);
+    if (retained_target != autoscript_function_target_ids_.end()) {
+        target_selection = static_cast<std::intptr_t>(std::distance(
+            autoscript_function_target_ids_.begin(), retained_target));
+    }
+    combo_select_data(target, target_selection);
+    if (trim(control_text(::GetDlgItem(page, IdAutoscriptFunctionStart))).empty()) {
+        set_control_text(::GetDlgItem(page, IdAutoscriptFunctionStart), "0");
+    }
+    if (trim(control_text(::GetDlgItem(page, IdAutoscriptFunctionEnd))).empty()) {
+        set_control_text(::GetDlgItem(page, IdAutoscriptFunctionEnd), "1");
+    }
+    if (trim(control_text(::GetDlgItem(page, IdAutoscriptFunctionPosition))).empty()) {
+        set_control_text(::GetDlgItem(page, IdAutoscriptFunctionPosition), "50");
+    }
+    refresh_autoscript_function_choices();
     refresh_autoscript_summary(
         persisted
             ? "Set musical intent, then generate an immutable offline proposal."
             : persisted.message);
+}
+
+void Application::refresh_autoscript_function_choices() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+    const auto combo = ::GetDlgItem(page, IdAutoscriptFunctionChoice);
+    std::string previous_id;
+    const auto previous = combo_selected_data(combo, -1);
+    if (previous >= 0 &&
+        static_cast<std::size_t>(previous) <
+            autoscript_function_choices_.size()) {
+        previous_id = autoscript_function_choices_[
+            static_cast<std::size_t>(previous)].id;
+    }
+    autoscript_function_choices_.clear();
+    static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+    const auto target_index = combo_selected_data(
+        ::GetDlgItem(page, IdAutoscriptFunctionTarget), -1);
+    if (target_index >= 0 &&
+        static_cast<std::size_t>(target_index) <
+            autoscript_function_target_ids_.size()) {
+        const auto catalog = emberlights::fixture_control_choices(
+            project_,
+            autoscript_function_target_ids_[static_cast<std::size_t>(target_index)]);
+        for (const auto& choice : catalog.choices) {
+            if (choice.safety_gated()) {
+                continue;
+            }
+            combo_add(
+                combo,
+                widen(fixture_control_choice_label(choice)),
+                static_cast<std::intptr_t>(autoscript_function_choices_.size()));
+            autoscript_function_choices_.push_back(choice);
+        }
+    }
+    auto selected = static_cast<std::intptr_t>(
+        autoscript_function_choices_.empty() ? -1 : 0);
+    const auto retained = std::find_if(
+        autoscript_function_choices_.begin(),
+        autoscript_function_choices_.end(),
+        [&](const auto& choice) { return choice.id == previous_id; });
+    if (retained != autoscript_function_choices_.end()) {
+        selected = static_cast<std::intptr_t>(std::distance(
+            autoscript_function_choices_.begin(), retained));
+    }
+    combo_select_data(combo, selected);
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(page, IdAutoscriptFunctionApply),
+        selected >= 0 && !autoscript_function_placement_ids_.empty()
+            ? TRUE
+            : FALSE));
 }
 
 void Application::refresh_autoscript_summary(std::string_view message) {
@@ -6034,6 +7395,10 @@ void Application::refresh_autoscript_summary(std::string_view message) {
                        "Discard it and generate again.";
         }
     }
+    if (!autoscript_function_preview_summary_.empty()) {
+        summary << "\r\n\r\nLAST NAMED FUNCTION PREVIEW\r\n"
+                << autoscript_function_preview_summary_;
+    }
     set_control_text(::GetDlgItem(page, IdAutoscriptSummary), summary.str());
     if (!message.empty()) {
         set_page_message(
@@ -6047,29 +7412,9 @@ void Application::refresh_autoscript_summary(std::string_view message) {
 }
 
 void Application::refresh_tracks() {
-    const auto page = pages_[static_cast<std::size_t>(Page::Tracks)];
-    const auto list = ::GetDlgItem(page, IdTrackList);
-    static_cast<void>(::SendMessageW(list, LB_RESETCONTENT, 0, 0));
-    for (std::size_t index = 0; index < project_.track_scripts.size(); ++index) {
-        const auto& track = project_.track_scripts[index];
-        std::ostringstream label;
-        label << track.name;
-        const auto asset = std::find_if(
-            project_.audio_assets.begin(), project_.audio_assets.end(), [&](const auto& candidate) {
-                return candidate.id == track.audio_asset_id;
-            });
-        if (asset != project_.audio_assets.end()) {
-            label << " — " << asset->name;
-        } else if (!track.audio_key.empty()) {
-            label << " — migration key";
-        }
-        label << " (" << track.cues.size() << " cue"
-              << (track.cues.size() == 1U ? "" : "s") << ')';
-        listbox_add(list, widen(label.str()), index);
-    }
+    refresh_authoring_collection(Page::Tracks);
     if (track_index_ >= 0 &&
         static_cast<std::size_t>(track_index_) < project_.track_scripts.size()) {
-        static_cast<void>(::SendMessageW(list, LB_SETCURSEL, track_index_, 0));
         select_track(track_index_);
     } else {
         new_track();
@@ -6105,6 +7450,32 @@ void Application::refresh_midi() {
     for (std::size_t index = 0; index < project_.midi_mappings.size(); ++index) {
         const auto& mapping = project_.midi_mappings[index];
         auto target = mapping.target_ref;
+        const auto resolve_name = [&](const auto& collection) {
+            const auto found = std::find_if(
+                collection.begin(), collection.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == mapping.target_ref;
+                });
+            return found == collection.end() ? std::string{} : found->name;
+        };
+        if (!target.empty()) {
+            auto resolved = resolve_name(project_.fixtures);
+            if (resolved.empty()) {
+                resolved = resolve_name(project_.groups);
+            }
+            if (resolved.empty()) {
+                resolved = resolve_name(project_.looks);
+            }
+            if (resolved.empty()) {
+                resolved = resolve_name(project_.autoloops);
+            }
+            if (resolved.empty()) {
+                resolved = resolve_name(project_.track_scripts);
+            }
+            if (!resolved.empty()) {
+                target = std::move(resolved);
+            }
+        }
         if (target.empty() && mapping.action.property < showcore::Property::Count) {
             target = std::string(emberlights::property_name(mapping.action.property));
         } else if (target.empty() &&
@@ -6112,6 +7483,10 @@ void Application::refresh_midi() {
                     mapping.action.type == showcore::ActionType::SetAutoloopBankEnabled) &&
                    mapping.action.target_id < showcore::kMaxAutoloopBanks) {
             target = "Bank " + std::to_string(mapping.action.target_id + 1U);
+        }
+        if (!mapping.fixture_control_binding_id.empty()) {
+            target += " • " + fixture_control_binding_label(
+                project_, mapping.fixture_control_binding_id);
         }
         listview_set_row(
             list,
@@ -6413,6 +7788,49 @@ std::string Application::diagnostics_text() const {
                    : emberlights::project_history_directory(current_path_).string())
            << " (up to " << emberlights::kMaximumProjectHistoryEntries << ")"
            << "\r\n\r\n";
+    emberlights::RunnerOutputSnapshot frame_snapshot;
+    const auto has_frame_snapshot = runner_.latest_output_snapshot(frame_snapshot);
+    emberlights::RunnerFrameInspectionOptions frame_options;
+    frame_options.inspected_at_ms = emberlights::RunnerService::monotonic_ms();
+    const auto frame_inspection = emberlights::inspect_runner_frame(
+        project_,
+        has_frame_snapshot ? &frame_snapshot : nullptr,
+        frame_options);
+    output << emberlights::format_runner_frame_inspection(frame_inspection)
+           << "\r\n";
+    if (has_frame_snapshot && status.active_look >= 0 &&
+        static_cast<std::size_t>(status.active_look) < project_.looks.size()) {
+        const auto& active_look =
+            project_.looks[static_cast<std::size_t>(status.active_look)];
+        for (std::size_t index = 0U;
+             index < emberlights::kIr4SixChannelSafeLookCount;
+             ++index) {
+            const auto look = static_cast<emberlights::Ir4SixChannelSafeLook>(index);
+            if (active_look.id != emberlights::ir4_6ch_safe_look_id(look)) {
+                continue;
+            }
+            const auto comparison = emberlights::compare_runner_frame_to_raw(
+                project_,
+                &frame_snapshot,
+                1U,
+                emberlights::ir4_6ch_safe_look_expected_frame(look),
+                frame_options);
+            output << "IR-4 manual reference for active look "
+                   << active_look.name << ":\r\n"
+                   << emberlights::format_runner_raw_reference_comparison(comparison)
+                   << "\r\n";
+            const auto parity =
+                emberlights::bind_runner_frame_to_raw_hardware_attempt(
+                    project_,
+                    &frame_snapshot,
+                    1U,
+                    emberlights::ir4_6ch_safe_look_expected_frame(look),
+                    frame_options);
+            output << emberlights::format_runner_raw_hardware_parity_report(parity)
+                   << "\r\n";
+            break;
+        }
+    }
     for (const auto& issue : validation.issues) {
         output << (issue.severity == emberlights::ProjectIssueSeverity::Error ? "ERROR" : "WARNING")
                << " [" << issue.code << "] " << issue.subject << ": " << issue.message
@@ -6424,17 +7842,500 @@ std::string Application::diagnostics_text() const {
 void Application::refresh_diagnostics() {
     const auto page = pages_[static_cast<std::size_t>(Page::Diagnostics)];
     if (page != nullptr) {
-        set_control_text(::GetDlgItem(page, IdDiagnosticsText), diagnostics_text());
+        set_multiline_control_text_preserving_view(
+            ::GetDlgItem(page, IdDiagnosticsText), diagnostics_text());
+    }
+}
+
+std::vector<emberlights::UiAuthoringItem> Application::authoring_items(
+    Page page) const {
+    std::vector<emberlights::UiAuthoringItem> items;
+    switch (page) {
+    case Page::Profiles:
+        items.reserve(project_.fixture_profiles.size());
+        for (const auto& profile : project_.fixture_profiles) {
+            std::ostringstream secondary;
+            secondary << profile.manufacturer << " • " << profile.model;
+            if (!profile.mode.empty()) {
+                secondary << " • " << profile.mode;
+            }
+            secondary << " • " << profile.footprint << "CH";
+            std::vector<std::string> terms{
+                profile.manufacturer,
+                profile.model,
+                profile.mode,
+                profile.source_revision};
+            for (const auto& channel : profile.channels) {
+                terms.push_back(std::string{
+                    fixture_parameter_label(channel.property, false)});
+                terms.push_back(channel.owner);
+                for (const auto& capability : channel.capabilities) {
+                    terms.push_back(capability.name);
+                    terms.push_back(capability.id);
+                }
+            }
+            items.push_back({
+                profile.id,
+                profile.name,
+                secondary.str(),
+                std::move(terms),
+                profile.source != showcore::FixtureProfileSource::Local});
+        }
+        break;
+    case Page::Patch:
+        items.reserve(project_.fixtures.size());
+        for (const auto& fixture : project_.fixtures) {
+            const auto profile = std::find_if(
+                project_.fixture_profiles.begin(),
+                project_.fixture_profiles.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == fixture.profile_id;
+                });
+            std::ostringstream secondary;
+            secondary << (profile != project_.fixture_profiles.end()
+                              ? profile->name
+                              : "Missing profile")
+                      << " • U" << static_cast<unsigned int>(fixture.universe)
+                      << ":" << fixture.address;
+            auto terms = fixture.roles;
+            terms.push_back(fixture.profile_id);
+            terms.push_back(number_text(fixture.address));
+            terms.push_back(number_text(fixture.universe));
+            items.push_back({
+                fixture.id,
+                fixture.name,
+                secondary.str(),
+                std::move(terms),
+                false});
+        }
+        break;
+    case Page::Groups:
+        items.reserve(project_.groups.size());
+        for (const auto& group : project_.groups) {
+            std::ostringstream secondary;
+            secondary << group.fixture_ids.size() << " fixture"
+                      << (group.fixture_ids.size() == 1U ? "" : "s");
+            items.push_back({
+                group.id,
+                group.name,
+                secondary.str(),
+                group.fixture_ids,
+                false});
+        }
+        break;
+    case Page::Looks:
+        items.reserve(project_.looks.size());
+        for (const auto& look : project_.looks) {
+            std::ostringstream secondary;
+            secondary << look.assignments.size() << " assignment"
+                      << (look.assignments.size() == 1U ? "" : "s")
+                      << " • " << look.fade_ms << "ms";
+            std::vector<std::string> terms;
+            terms.reserve(look.assignments.size() * 2U + 1U);
+            terms.push_back(number_text(look.fade_ms));
+            for (const auto& assignment : look.assignments) {
+                terms.push_back(assignment.fixture_id);
+                terms.push_back(std::string{
+                    fixture_parameter_label(assignment.property, false)});
+            }
+            items.push_back({
+                look.id,
+                look.name,
+                secondary.str(),
+                std::move(terms),
+                false});
+        }
+        break;
+    case Page::Autoloops:
+        items.reserve(project_.autoloops.size());
+        for (const auto& loop : project_.autoloops) {
+            std::ostringstream secondary;
+            secondary << "B" << loop.bank + 1U << " / S"
+                      << static_cast<unsigned int>(loop.slot + 1U) << " • "
+                      << loop.length_beats << " beats";
+            std::vector<std::string> terms{
+                number_text(loop.bank + 1U),
+                number_text(static_cast<unsigned int>(loop.slot + 1U)),
+                number_text(loop.length_beats)};
+            for (const auto& step : loop.steps) {
+                terms.push_back(step.look_id);
+            }
+            items.push_back({
+                loop.id,
+                loop.name,
+                secondary.str(),
+                std::move(terms),
+                false});
+        }
+        break;
+    case Page::Tracks:
+        items.reserve(project_.track_scripts.size());
+        for (const auto& track : project_.track_scripts) {
+            const auto asset = std::find_if(
+                project_.audio_assets.begin(),
+                project_.audio_assets.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == track.audio_asset_id;
+                });
+            std::ostringstream secondary;
+            secondary << track.cues.size() << " cue"
+                      << (track.cues.size() == 1U ? "" : "s");
+            if (asset != project_.audio_assets.end()) {
+                secondary << " • " << asset->name;
+            }
+            std::vector<std::string> terms{
+                track.audio_asset_id,
+                track.audio_key};
+            if (asset != project_.audio_assets.end()) {
+                terms.push_back(asset->name);
+                terms.push_back(asset->file_name);
+            }
+            for (const auto& cue : track.cues) {
+                terms.push_back(cue.target_ref);
+                terms.push_back(number_text(cue.at_beat));
+            }
+            items.push_back({
+                track.id,
+                track.name,
+                secondary.str(),
+                std::move(terms),
+                false});
+        }
+        break;
+    default:
+        break;
+    }
+    return items;
+}
+
+std::int32_t Application::authoring_selected_index(Page page) const noexcept {
+    switch (page) {
+    case Page::Profiles: return profile_index_;
+    case Page::Patch: return fixture_index_;
+    case Page::Groups: return group_index_;
+    case Page::Looks: return look_index_;
+    case Page::Autoloops: return autoloop_index_;
+    case Page::Tracks: return track_index_;
+    default: return -1;
+    }
+}
+
+std::string Application::authoring_selected_id(Page page) const {
+    const auto index = authoring_selected_index(page);
+    if (index < 0) {
+        return {};
+    }
+    const auto source_index = static_cast<std::size_t>(index);
+    switch (page) {
+    case Page::Profiles:
+        return source_index < project_.fixture_profiles.size()
+            ? project_.fixture_profiles[source_index].id
+            : std::string{};
+    case Page::Patch:
+        return source_index < project_.fixtures.size()
+            ? project_.fixtures[source_index].id
+            : std::string{};
+    case Page::Groups:
+        return source_index < project_.groups.size()
+            ? project_.groups[source_index].id
+            : std::string{};
+    case Page::Looks:
+        return source_index < project_.looks.size()
+            ? project_.looks[source_index].id
+            : std::string{};
+    case Page::Autoloops:
+        return source_index < project_.autoloops.size()
+            ? project_.autoloops[source_index].id
+            : std::string{};
+    case Page::Tracks:
+        return source_index < project_.track_scripts.size()
+            ? project_.track_scripts[source_index].id
+            : std::string{};
+    default:
+        return {};
+    }
+}
+
+std::string Application::authoring_editor_snapshot(Page page) const {
+    if (!is_authoring_page(page)) {
+        return {};
+    }
+    if (page == Page::Profiles) {
+        return current_profile_editor_snapshot();
+    }
+    const auto parent = pages_[static_cast<std::size_t>(page)];
+    std::ostringstream snapshot;
+    snapshot << authoring_selected_index(page) << ';';
+    const auto append_text = [&](int id) {
+        const auto value = normalize_newlines(
+            control_text(::GetDlgItem(parent, id)));
+        snapshot << value.size() << ':' << value << ';';
+    };
+    const auto append_combo = [&](int id) {
+        snapshot << combo_selected_data(::GetDlgItem(parent, id), -1) << ';';
+    };
+    switch (page) {
+    case Page::Patch:
+        append_text(IdPatchName);
+        append_combo(IdPatchProfile);
+        append_combo(IdPatchUniverse);
+        append_text(IdPatchAddress);
+        append_text(IdPatchRoles);
+        break;
+    case Page::Groups:
+        append_text(IdGroupName);
+        append_text(IdGroupMembers);
+        break;
+    case Page::Looks:
+        for (const auto id : {
+                 IdLookName,
+                 IdLookFade,
+                 IdLookRgbHex,
+                 IdLookRed,
+                 IdLookGreen,
+                 IdLookBlue,
+                 IdLookWhite,
+                 IdLookAmber,
+                 IdLookUv,
+                 IdLookIntensity,
+                 IdLookValue,
+                 IdLookAssignments}) {
+            append_text(id);
+        }
+        append_combo(IdLookTarget);
+        append_combo(IdLookProperty);
+        append_combo(IdLookOwnership);
+        append_combo(IdLookNamedChoice);
+        break;
+    case Page::Autoloops:
+        for (const auto id : {
+                 IdAutoloopName,
+                 IdAutoloopBank,
+                 IdAutoloopSlot,
+                 IdAutoloopLength,
+                 IdAutoloopStepBeat,
+                 IdAutoloopSteps}) {
+            append_text(id);
+        }
+        append_combo(IdAutoloopRepeat);
+        append_combo(IdAutoloopLookChoice);
+        append_combo(IdAutoloopStepTransition);
+        break;
+    case Page::Tracks:
+        append_text(IdTrackName);
+        append_combo(IdTrackAudioAsset);
+        append_text(IdTrackAudioKey);
+        append_text(IdTrackCues);
+        break;
+    default:
+        break;
+    }
+    return snapshot.str();
+}
+
+bool Application::authoring_editor_changed(Page page) const {
+    if (!is_authoring_page(page)) {
+        return false;
+    }
+    const auto& baseline =
+        authoring_editor_baselines_[static_cast<std::size_t>(page)];
+    return !baseline.empty() && authoring_editor_snapshot(page) != baseline;
+}
+
+void Application::capture_authoring_editor_baseline(Page page) {
+    if (is_authoring_page(page)) {
+        authoring_editor_baselines_[static_cast<std::size_t>(page)] =
+            authoring_editor_snapshot(page);
+        refresh_authoring_summary(page);
+    }
+}
+
+void Application::refresh_authoring_collection(Page page) {
+    if (!is_authoring_page(page)) {
+        return;
+    }
+    const auto parent = pages_[static_cast<std::size_t>(page)];
+    if (parent == nullptr) {
+        return;
+    }
+    const auto items = authoring_items(page);
+    const auto query = control_text(::GetDlgItem(parent, IdAuthoringSearch));
+    const auto projection = emberlights::project_authoring_items(
+        items, query, authoring_selected_id(page));
+    const auto previous_refreshing = refreshing_;
+    refreshing_ = true;
+    const auto collection = ::GetDlgItem(
+        parent, authoring_collection_control_id(page));
+    if (page == Page::Patch) {
+        ListView_DeleteAllItems(collection);
+        for (std::size_t row = 0U; row < projection.source_indices.size(); ++row) {
+            const auto source_index = projection.source_indices[row];
+            const auto& fixture = project_.fixtures[source_index];
+            const auto profile = std::find_if(
+                project_.fixture_profiles.begin(),
+                project_.fixture_profiles.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == fixture.profile_id;
+                });
+            listview_set_row(
+                collection,
+                static_cast<int>(row),
+                static_cast<LPARAM>(source_index),
+                {widen(fixture.name),
+                 widen(fixture.id),
+                 profile != project_.fixture_profiles.end()
+                     ? widen(profile->name)
+                     : L"Missing",
+                 widen(number_text(fixture.universe)),
+                 widen(number_text(fixture.address)),
+                 profile != project_.fixture_profiles.end()
+                     ? widen(number_text(profile->footprint))
+                     : L"—"});
+        }
+        listview_select_data(collection, authoring_selected_index(page));
+    } else {
+        static_cast<void>(::SendMessageW(collection, LB_RESETCONTENT, 0, 0));
+        for (const auto source_index : projection.source_indices) {
+            const auto& item = items[source_index];
+            const auto label = item.secondary_text.empty()
+                ? item.primary_text
+                : item.primary_text + "  •  " + item.secondary_text;
+            listbox_add(
+                collection,
+                widen(label),
+                static_cast<std::intptr_t>(source_index));
+        }
+        listbox_select_data(collection, authoring_selected_index(page));
+    }
+    set_control_text(
+        ::GetDlgItem(parent, IdAuthoringCollectionSummary),
+        emberlights::authoring_collection_summary(
+            authoring_resource_kind(page), projection));
+    refreshing_ = previous_refreshing;
+    refresh_authoring_summary(page);
+}
+
+void Application::refresh_authoring_summary(Page page) {
+    if (!is_authoring_page(page)) {
+        return;
+    }
+    const auto parent = pages_[static_cast<std::size_t>(page)];
+    if (parent == nullptr) {
+        return;
+    }
+    const auto items = authoring_items(page);
+    const auto query = control_text(::GetDlgItem(parent, IdAuthoringSearch));
+    const auto selected_id = authoring_selected_id(page);
+    const auto projection = emberlights::project_authoring_items(
+        items, query, selected_id);
+    set_control_text(
+        ::GetDlgItem(parent, IdAuthoringCollectionSummary),
+        emberlights::authoring_collection_summary(
+            authoring_resource_kind(page), projection));
+
+    emberlights::UiAuthoringInspectorStatus status;
+    status.kind = authoring_resource_kind(page);
+    status.draft_changed = authoring_editor_changed(page);
+    const auto selected_index = authoring_selected_index(page);
+    if (selected_index >= 0 &&
+        static_cast<std::size_t>(selected_index) < items.size()) {
+        const auto& item = items[static_cast<std::size_t>(selected_index)];
+        status.mode = item.read_only
+            ? emberlights::UiAuthoringInspectorMode::ReadOnly
+            : emberlights::UiAuthoringInspectorMode::Editing;
+        status.primary_text = item.primary_text;
+        status.stable_id = item.stable_id;
+    } else {
+        status.mode = emberlights::UiAuthoringInspectorMode::Creating;
+    }
+    set_control_text(
+        ::GetDlgItem(parent, IdAuthoringInspectorHeading),
+        emberlights::authoring_inspector_heading(status));
+}
+
+void Application::restore_authoring_collection_selection(Page page) {
+    if (!is_authoring_page(page)) {
+        return;
+    }
+    const auto collection = ::GetDlgItem(
+        pages_[static_cast<std::size_t>(page)],
+        authoring_collection_control_id(page));
+    const auto previous_refreshing = refreshing_;
+    refreshing_ = true;
+    if (page == Page::Patch) {
+        listview_select_data(collection, authoring_selected_index(page));
+    } else {
+        listbox_select_data(collection, authoring_selected_index(page));
+    }
+    refreshing_ = previous_refreshing;
+}
+
+bool Application::confirm_authoring_selection_change(
+    Page page,
+    std::int32_t next_index) {
+    if (!is_authoring_page(page) ||
+        next_index == authoring_selected_index(page) ||
+        !authoring_editor_changed(page)) {
+        return true;
+    }
+    const auto descriptor = emberlights::authoring_resource_descriptor(
+        authoring_resource_kind(page));
+    const auto message = widen(
+        std::string{"This "} + std::string{descriptor.singular} +
+        " has unsaved Inspector edits.\n\nDiscard those edits and open another " +
+        std::string{descriptor.singular} + "?\n\nChoose No, then use Save first, to keep them.");
+    if (::MessageBoxW(
+            window_,
+            message.c_str(),
+            L"Unsaved Inspector edits",
+            MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES) {
+        return true;
+    }
+    restore_authoring_collection_selection(page);
+    return false;
+}
+
+void Application::focus_authoring_search() {
+    if (!is_authoring_page(active_page_)) {
+        set_status(L"Ctrl+F searches the active Studio authoring library.");
+        return;
+    }
+    const auto search = ::GetDlgItem(
+        pages_[static_cast<std::size_t>(active_page_)], IdAuthoringSearch);
+    if (search != nullptr) {
+        ::SetFocus(search);
+        static_cast<void>(::SendMessageW(search, EM_SETSEL, 0, -1));
+        set_status(L"Search the current Studio library. Press Esc to clear the filter.");
+    }
+}
+
+void Application::clear_authoring_search() {
+    if (!is_authoring_page(active_page_)) {
+        return;
+    }
+    const auto search = ::GetDlgItem(
+        pages_[static_cast<std::size_t>(active_page_)], IdAuthoringSearch);
+    if (search != nullptr && !control_text(search).empty()) {
+        set_control_text(search, "");
+        refresh_authoring_collection(active_page_);
+        set_status(L"Studio library filter cleared.");
     }
 }
 
 void Application::handle_notify(const NMHDR& notification) {
     if (notification.idFrom == IdPatchList && notification.code == LVN_ITEMCHANGED && !refreshing_) {
         const auto index = listview_selected_data(notification.hwndFrom);
-        if (index >= 0) {
+        if (index >= 0 &&
+            confirm_authoring_selection_change(Page::Patch, index)) {
             select_fixture(index);
         }
     } else if (notification.idFrom == IdProfileChannels &&
+               notification.code == LVN_ITEMCHANGED && !refreshing_) {
+        const auto index = listview_selected_data(notification.hwndFrom);
+        if (index >= 0) {
+            select_profile_channel(index);
+        }
+    } else if (notification.idFrom == IdChannelWorkbenchList &&
                notification.code == LVN_ITEMCHANGED && !refreshing_) {
         const auto index = listview_selected_data(notification.hwndFrom);
         if (index >= 0) {
@@ -6468,7 +8369,15 @@ void Application::handle_horizontal_scroll(UINT scroll_code, HWND source) {
     if (scroll_code == TB_ENDTRACK || scroll_code == TB_THUMBPOSITION) {
         if (runner_.status().state == emberlights::RunnerState::Running &&
             !physical_preview_.status().owns_runner) {
-            apply_fixture_override(true);
+            const auto named = combo_selected_data(
+                ::GetDlgItem(page, IdOverridesNamedChoice), -1);
+            if (named >= 0 &&
+                static_cast<std::size_t>(named) <
+                    override_control_choices_.size()) {
+                apply_named_fixture_override();
+            } else {
+                apply_fixture_override(true);
+            }
         } else {
             set_page_message(
                 Page::Overrides,
@@ -6481,6 +8390,9 @@ void Application::handle_horizontal_scroll(UINT scroll_code, HWND source) {
 void Application::handle_timer() {
     refresh_live_status();
     refresh_physical_preview_status();
+    if (is_authoring_page(active_page_)) {
+        refresh_authoring_summary(active_page_);
+    }
     if (active_page_ == Page::Diagnostics) {
         refresh_diagnostics();
     }
@@ -6502,7 +8414,15 @@ void Application::handle_timer() {
     }
 }
 
-void Application::handle_command(int id, int notification, HWND) {
+void Application::handle_command(int id, int notification, HWND source) {
+    if (id == IdAuthoringFind) {
+        focus_authoring_search();
+        return;
+    }
+    if (id == IdAuthoringClearFilter) {
+        clear_authoring_search();
+        return;
+    }
     if (id >= IdWorkspaceLive && id <= IdWorkspaceSystem) {
         show_workspace(static_cast<Workspace>(id - IdWorkspaceLive));
         return;
@@ -6531,25 +8451,35 @@ void Application::handle_command(int id, int notification, HWND) {
     }
     if (notification == LBN_SELCHANGE && !refreshing_) {
         if (id == IdProfileList) {
-            select_profile(static_cast<std::int32_t>(::SendMessageW(
-                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Profiles)], IdProfileList),
-                LB_GETCURSEL, 0, 0)));
+            const auto index = listbox_selected_data(source);
+            if (index >= 0 &&
+                confirm_authoring_selection_change(Page::Profiles, index)) {
+                select_profile(index);
+            }
         } else if (id == IdGroupList) {
-            select_group(static_cast<std::int32_t>(::SendMessageW(
-                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Groups)], IdGroupList),
-                LB_GETCURSEL, 0, 0)));
+            const auto index = listbox_selected_data(source);
+            if (index >= 0 &&
+                confirm_authoring_selection_change(Page::Groups, index)) {
+                select_group(index);
+            }
         } else if (id == IdLookList) {
-            select_look(static_cast<std::int32_t>(::SendMessageW(
-                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Looks)], IdLookList),
-                LB_GETCURSEL, 0, 0)));
+            const auto index = listbox_selected_data(source);
+            if (index >= 0 &&
+                confirm_authoring_selection_change(Page::Looks, index)) {
+                select_look(index);
+            }
         } else if (id == IdAutoloopList) {
-            select_autoloop(static_cast<std::int32_t>(::SendMessageW(
-                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Autoloops)], IdAutoloopList),
-                LB_GETCURSEL, 0, 0)));
+            const auto index = listbox_selected_data(source);
+            if (index >= 0 &&
+                confirm_authoring_selection_change(Page::Autoloops, index)) {
+                select_autoloop(index);
+            }
         } else if (id == IdTrackList) {
-            select_track(static_cast<std::int32_t>(::SendMessageW(
-                ::GetDlgItem(pages_[static_cast<std::size_t>(Page::Tracks)], IdTrackList),
-                LB_GETCURSEL, 0, 0)));
+            const auto index = listbox_selected_data(source);
+            if (index >= 0 &&
+                confirm_authoring_selection_change(Page::Tracks, index)) {
+                select_track(index);
+            }
         } else if (id == IdOverridesFixture) {
             refresh_override_properties();
         } else if (id == IdProfileCatalogResults) {
@@ -6557,14 +8487,133 @@ void Application::handle_command(int id, int notification, HWND) {
         }
         return;
     }
+    if (id == IdAuthoringSearch && notification == EN_CHANGE &&
+        !refreshing_ && source != nullptr) {
+        const auto page_window = ::GetParent(source);
+        const auto page = std::find(pages_.begin(), pages_.end(), page_window);
+        if (page != pages_.end()) {
+            const auto page_kind = static_cast<Page>(
+                std::distance(pages_.begin(), page));
+            if (is_authoring_page(page_kind)) {
+                refresh_authoring_collection(page_kind);
+            }
+        }
+        return;
+    }
     if (id == IdMidiAction && notification == CBN_SELCHANGE && !refreshing_) {
         update_midi_targets();
+        return;
+    }
+    if (id == IdMidiTarget && notification == CBN_SELCHANGE && !refreshing_) {
+        refresh_midi_named_choices();
+        return;
+    }
+    if (id == IdAutoscriptFunctionTarget &&
+        notification == CBN_SELCHANGE && !refreshing_) {
+        refresh_autoscript_function_choices();
         return;
     }
     if (id == IdLookTarget && notification == CBN_SELCHANGE && !refreshing_) {
         refresh_look_capabilities();
         refresh_look_draft_view();
         update_physical_static_look_preview_if_active();
+        return;
+    }
+    if (id == IdOverridesNamedChoice && notification == CBN_SELCHANGE &&
+        !refreshing_) {
+        const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+        const auto selected = combo_selected_data(
+            ::GetDlgItem(page, IdOverridesNamedChoice), -1);
+        if (selected >= 0 &&
+            static_cast<std::size_t>(selected) <
+                override_control_choices_.size()) {
+            const auto& choice = override_control_choices_[
+                static_cast<std::size_t>(selected)];
+            combo_select_data(
+                ::GetDlgItem(page, IdOverridesProperty),
+                static_cast<std::intptr_t>(choice.property));
+            set_page_message(
+                Page::Overrides,
+                IdOverridesMessage,
+                choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
+                    ? "Named continuous range selected. The 0–100 control now chooses a position inside that documented DMX range."
+                    : "Named slot selected. Apply Named Function will use the profile's exact preferred DMX value; the percentage control is ignored.");
+        }
+        return;
+    }
+    if (id == IdLookNamedChoice && notification == CBN_SELCHANGE &&
+        !refreshing_) {
+        const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+        const auto selected = combo_selected_data(
+            ::GetDlgItem(page, IdLookNamedChoice), -1);
+        if (selected >= 0 &&
+            static_cast<std::size_t>(selected) < look_control_choices_.size()) {
+            const auto& choice = look_control_choices_[
+                static_cast<std::size_t>(selected)];
+            combo_select_data(
+                ::GetDlgItem(page, IdLookProperty),
+                static_cast<std::intptr_t>(choice.property));
+            set_page_message(
+                Page::Looks,
+                IdLookMessage,
+                choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
+                    ? "Named continuous range selected. Level / range position chooses 0–100 inside the profile's documented range."
+                    : "Named slot selected. Use Named Function writes the exact profile-backed selection; the percentage field is ignored.");
+        }
+        return;
+    }
+    if (id == IdMidiNamedChoice && notification == CBN_SELCHANGE &&
+        !refreshing_) {
+        const auto page = pages_[static_cast<std::size_t>(Page::Midi)];
+        const auto selected = combo_selected_data(
+            ::GetDlgItem(page, IdMidiNamedChoice), -1);
+        if (selected >= 0 &&
+            static_cast<std::size_t>(selected) < midi_named_choices_.size()) {
+            const auto& choice =
+                midi_named_choices_[static_cast<std::size_t>(selected)];
+            combo_select_data(
+                ::GetDlgItem(page, IdMidiProperty),
+                static_cast<std::intptr_t>(choice.property));
+            combo_select_data(
+                ::GetDlgItem(page, IdMidiBehavior),
+                static_cast<std::intptr_t>(
+                    choice.behavior ==
+                            showcore::ChannelCapabilityBehavior::Continuous
+                        ? showcore::MappingBehavior::Continuous
+                        : showcore::MappingBehavior::Momentary));
+            set_page_message(
+                Page::Midi,
+                IdMidiMessage,
+                choice.behavior ==
+                        showcore::ChannelCapabilityBehavior::Continuous
+                    ? "Named profile range selected. MIDI Learn will preserve the exact normalized endpoints and stable capability identity."
+                    : "Named profile slot selected. MIDI Learn will bind the exact profile-backed function value, not a guessed raw channel.");
+        }
+        return;
+    }
+    if (id == IdOverridesProperty && notification == CBN_SELCHANGE &&
+        !refreshing_) {
+        combo_select_data(
+            ::GetDlgItem(
+                pages_[static_cast<std::size_t>(Page::Overrides)],
+                IdOverridesNamedChoice),
+            -1);
+        return;
+    }
+    if (id == IdLookProperty && notification == CBN_SELCHANGE && !refreshing_) {
+        combo_select_data(
+            ::GetDlgItem(
+                pages_[static_cast<std::size_t>(Page::Looks)],
+                IdLookNamedChoice),
+            -1);
+        return;
+    }
+    if (id == IdMidiProperty && notification == CBN_SELCHANGE && !refreshing_) {
+        combo_select_data(
+            ::GetDlgItem(
+                pages_[static_cast<std::size_t>(Page::Midi)],
+                IdMidiNamedChoice),
+            -1);
         return;
     }
     if (id == IdLookOwnership && notification == CBN_SELCHANGE && !refreshing_) {
@@ -6630,7 +8679,7 @@ void Application::handle_command(int id, int notification, HWND) {
         const auto about = widen(
             std::string("EmberLights ") + std::string(emberlights::kVersion) +
             "\n\nOffline-first DJ and event lighting workstation.\n"
-            "Default 2.0 operator preview with separated Live, Studio, and Setup workspaces.\n"
+            "Default 2.2 operator preview with a searchable Studio authoring workbench.\n"
             "Unsigned Windows testing build.\n\nCommit: " + std::string(emberlights::kCommit));
         ::MessageBoxW(
             window_,
@@ -6640,6 +8689,7 @@ void Application::handle_command(int id, int notification, HWND) {
         break;
     }
     case IdOverridesApply: apply_fixture_override(true); break;
+    case IdOverridesApplyNamed: apply_named_fixture_override(); break;
     case IdOverridesRelease: apply_fixture_override(false); break;
     case IdOverridesReleaseAll: clear_fixture_overrides(); break;
     case IdOverridesZero:
@@ -6656,7 +8706,15 @@ void Application::handle_command(int id, int notification, HWND) {
             ::GetDlgItem(page, IdOverridesSlider), TBM_SETPOS, TRUE, value));
         if (runner_.status().state == emberlights::RunnerState::Running &&
             !physical_preview_.status().owns_runner) {
-            apply_fixture_override(true);
+            const auto named = combo_selected_data(
+                ::GetDlgItem(page, IdOverridesNamedChoice), -1);
+            if (named >= 0 &&
+                static_cast<std::size_t>(named) <
+                    override_control_choices_.size()) {
+                apply_named_fixture_override();
+            } else {
+                apply_fixture_override(true);
+            }
         } else {
             set_page_message(
                 Page::Overrides,
@@ -6870,19 +8928,74 @@ void Application::handle_command(int id, int notification, HWND) {
         }
         break;
     }
-    case IdProfileNew: new_profile(); break;
+    case IdProfileNew:
+        if (confirm_authoring_selection_change(Page::Profiles, -1)) {
+            new_profile();
+        }
+        break;
     case IdProfileImportQlc: import_qlc_fixture_dialog(); break;
-    case IdProfileDuplicate: duplicate_profile(); break;
-    case IdProfileSave: save_profile(); break;
+    case IdProfileDuplicate: {
+        const auto reopen_workbench = source != nullptr &&
+            ::GetParent(source) == profile_channel_workbench_;
+        duplicate_profile();
+        if (reopen_workbench) {
+            open_profile_channel_workbench();
+        }
+        break;
+    }
+    case IdProfileSave: {
+        const auto from_workbench = source != nullptr &&
+            ::GetParent(source) == profile_channel_workbench_;
+        save_profile();
+        if (from_workbench && profile_channel_workbench_ != nullptr &&
+            ::IsWindowVisible(profile_channel_workbench_) != FALSE) {
+            set_control_text(
+                ::GetDlgItem(
+                    profile_channel_workbench_, IdChannelWorkbenchMessage),
+                control_text(::GetDlgItem(
+                    pages_[static_cast<std::size_t>(Page::Profiles)],
+                    IdProfileMessage)));
+        }
+        break;
+    }
     case IdProfileDelete: delete_profile(); break;
-    case IdPatchNew: new_fixture(); break;
+    case IdProfileChannelWorkbench: open_profile_channel_workbench(); break;
+    case IdChannelWorkbenchAddNext: add_next_profile_channel(); break;
+    case IdChannelWorkbenchFillGaps: fill_profile_channel_gaps(); break;
+    case IdChannelWorkbenchSwap: swap_profile_channel_functions(); break;
+    case IdChannelWorkbenchNamedRanges:
+        open_profile_capability_editor();
+        if (profile_capability_window_ == nullptr ||
+            ::IsWindowVisible(profile_capability_window_) == FALSE) {
+            set_control_text(
+                ::GetDlgItem(
+                    profile_channel_workbench_, IdChannelWorkbenchMessage),
+                control_text(::GetDlgItem(
+                    pages_[static_cast<std::size_t>(Page::Profiles)],
+                    IdProfileMessage)));
+        }
+        break;
+    case IdChannelWorkbenchDone: close_profile_channel_workbench(); break;
+    case IdPatchNew:
+        if (confirm_authoring_selection_change(Page::Patch, -1)) {
+            new_fixture();
+        }
+        break;
     case IdPatchSave: save_fixture(); break;
     case IdPatchDelete: delete_fixture(); break;
-    case IdGroupNew: new_group(); break;
+    case IdGroupNew:
+        if (confirm_authoring_selection_change(Page::Groups, -1)) {
+            new_group();
+        }
+        break;
     case IdGroupDuplicate: duplicate_group(); break;
     case IdGroupSave: save_group(); break;
     case IdGroupDelete: delete_group(); break;
-    case IdLookNew: new_look(); break;
+    case IdLookNew:
+        if (confirm_authoring_selection_change(Page::Looks, -1)) {
+            new_look();
+        }
+        break;
     case IdLookDuplicate: duplicate_look(); break;
     case IdLookSave: save_look(); break;
     case IdLookDelete: delete_look(); break;
@@ -6896,11 +9009,16 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdLookSwatchUv: apply_static_look_swatch("uv-emitter"); break;
     case IdLookSwatchBlack: apply_static_look_swatch("black"); break;
     case IdLookApplyProperty: apply_static_look_property(); break;
+    case IdLookApplyNamed: apply_static_look_control_choice(); break;
     case IdLookRemoveProperty: remove_static_look_property(); break;
     case IdLookPreview: preview_static_look(); break;
     case IdLookPhysicalPreview: begin_or_update_physical_static_look_preview(); break;
     case IdLookPhysicalStop: stop_physical_static_look_preview(true); break;
-    case IdAutoloopNew: new_autoloop(); break;
+    case IdAutoloopNew:
+        if (confirm_authoring_selection_change(Page::Autoloops, -1)) {
+            new_autoloop();
+        }
+        break;
     case IdAutoloopDuplicate: duplicate_autoloop(); break;
     case IdAutoloopSave: save_autoloop(); break;
     case IdAutoloopDelete: delete_autoloop(); break;
@@ -6914,7 +9032,12 @@ void Application::handle_command(int id, int notification, HWND) {
     case IdAutoscriptPreviewMiddle: preview_autoscript_phase(0.5); break;
     case IdAutoscriptCommit: commit_autoscript_proposal(); break;
     case IdAutoscriptDiscard: discard_autoscript_proposal(); break;
-    case IdTrackNew: new_track(); break;
+    case IdAutoscriptFunctionApply: apply_autoscript_fixture_function(); break;
+    case IdTrackNew:
+        if (confirm_authoring_selection_change(Page::Tracks, -1)) {
+            new_track();
+        }
+        break;
     case IdTrackDuplicate: duplicate_track(); break;
     case IdTrackSave: save_track(); break;
     case IdTrackDelete: delete_track(); break;
@@ -7689,6 +9812,8 @@ void Application::review_soundswitch_migration_dialog() {
     static_cast<void>(::UpdateWindow(window_));
     const auto inspection = emberlights::inspect_soundswitch_project(*source);
     const auto audit = emberlights::audit_soundswitch_source_binding(project_, inspection);
+    const auto portability =
+        emberlights::build_migration_portability_review(audit);
 
     std::wostringstream review;
     review << L"SOUNDSWITCH MIGRATION REVIEW\n\n"
@@ -7714,12 +9839,55 @@ void Application::review_soundswitch_migration_dialog() {
             review << L"• " << widen(action) << L"\n";
         }
     }
+    review << L"\nPORTABILITY PIPELINE\n"
+           << L"Probe → Inventory → Decode → Reconcile → Plan → Commit → Upgrade\n";
+    for (const auto& source_review : portability.sources) {
+        review << L"\n" << widen(source_review.label)
+               << (source_review.research_only ? L" — RESEARCH ONLY" : L"")
+               << L"\n  Artifact identity: "
+               << (source_review.artifact_identity_verified ? L"verified" : L"not verified")
+               << L"  Semantic decoder: "
+               << (source_review.semantic_decoder_qualified ? L"qualified" : L"not qualified")
+               << L"  Import claim: "
+               << (source_review.semantic_import_claimed ? L"yes" : L"no")
+               << L"\n";
+        std::vector<std::string> blockers;
+        for (const auto& stage : source_review.stages) {
+            review << L"  "
+                   << widen(emberlights::migration_portability_stage_name(stage.stage))
+                   << L": "
+                   << widen(emberlights::migration_portability_readiness_name(
+                          stage.readiness))
+                   << L" / "
+                   << widen(emberlights::migration_portability_evidence_tier_name(
+                          stage.evidence_tier))
+                   << L"\n";
+            for (const auto& blocker : stage.blocker_codes) {
+                if (std::find(blockers.begin(), blockers.end(), blocker) ==
+                    blockers.end()) {
+                    blockers.push_back(blocker);
+                }
+            }
+        }
+        if (!blockers.empty()) {
+            review << L"  Blockers:";
+            const auto shown = std::min<std::size_t>(blockers.size(), 8U);
+            for (std::size_t index = 0U; index < shown; ++index) {
+                review << L"\n    • " << widen(blockers[index]);
+            }
+            if (blockers.size() > shown) {
+                review << L"\n    • … " << blockers.size() - shown
+                       << L" more";
+            }
+            review << L"\n";
+        }
+    }
     const auto ready = audit.review_state ==
         emberlights::SoundSwitchMigrationReviewState::ReadyForManualReview;
     ::MessageBoxW(
         window_,
         review.str().c_str(),
-        L"SoundSwitch migration review",
+        L"Migration portability review",
         MB_OK | (ready ? MB_ICONINFORMATION : MB_ICONWARNING));
     set_status(
         ready
@@ -8167,6 +10335,108 @@ void Application::apply_fixture_override(bool active) {
     set_page_message(Page::Overrides, IdOverridesMessage, message.str());
 }
 
+void Application::apply_named_fixture_override() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+    const auto selected_choice = combo_selected_data(
+        ::GetDlgItem(page, IdOverridesNamedChoice), -1);
+    if (selected_choice < 0 ||
+        static_cast<std::size_t>(selected_choice) >=
+            override_control_choices_.size()) {
+        set_page_message(
+            Page::Overrides,
+            IdOverridesMessage,
+            "Choose a named function from the active fixture profile first.",
+            true);
+        return;
+    }
+    const auto fixtures = ::GetDlgItem(page, IdOverridesFixture);
+    const auto selected_target = static_cast<int>(::SendMessageW(
+        fixtures, LB_GETCURSEL, 0, 0));
+    if (selected_target < 0) {
+        set_page_message(
+            Page::Overrides, IdOverridesMessage,
+            "Select an active fixture or group first.", true);
+        return;
+    }
+    const auto target_index = static_cast<std::size_t>(::SendMessageW(
+        fixtures, LB_GETITEMDATA, selected_target, 0));
+    if (target_index >= live_view_model_.override_targets().size()) {
+        set_page_message(
+            Page::Overrides, IdOverridesMessage,
+            "The selected target is no longer in the active Live package.", true);
+        return;
+    }
+    const auto& cached = override_control_choices_[
+        static_cast<std::size_t>(selected_choice)];
+    float position = 0.5F;
+    if (cached.behavior == showcore::ChannelCapabilityBehavior::Continuous) {
+        float percentage = 0.0F;
+        if (!parse_number(
+                control_text(::GetDlgItem(page, IdOverridesValue)), percentage) ||
+            !std::isfinite(percentage) || percentage < 0.0F ||
+            percentage > 100.0F) {
+            set_page_message(
+                Page::Overrides, IdOverridesMessage,
+                "A continuous named range needs a position from 0 through 100.",
+                true);
+            return;
+        }
+        position = percentage / 100.0F;
+    }
+
+    const auto& target = live_view_model_.override_targets()[target_index];
+    const auto catalog = emberlights::fixture_control_choices(
+        live_project(), target.id, position);
+    const auto resolved = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [&](const auto& choice) { return choice.id == cached.id; });
+    if (resolved == catalog.choices.end() ||
+        !resolved->live_override_compatible() ||
+        !live_override_property_visible(
+            resolved->property, live_view_model_.safety())) {
+        set_page_message(
+            Page::Overrides, IdOverridesMessage,
+            "That named function cannot be represented by one safe Live group value. "
+            "Use a fixture target or author it in a Static Look.", true);
+        return;
+    }
+
+    combo_select_data(
+        ::GetDlgItem(page, IdOverridesProperty),
+        static_cast<std::intptr_t>(resolved->property));
+    emberlights::UiCommandInvocation invocation;
+    invocation.command =
+        target.kind == emberlights::LiveOverrideTargetKind::Fixture
+        ? emberlights::UiCommandId::FixtureOverridePropertySet
+        : emberlights::UiCommandId::GroupOverridePropertySet;
+    invocation.target_id = target.id;
+    invocation.property = resolved->property;
+    invocation.number_value = resolved->shared_normalized_value;
+    const auto result = ui_commands_.invoke(invocation);
+    if (result != emberlights::UiInvocationResult::Accepted &&
+        result != emberlights::UiInvocationResult::NoChange) {
+        set_page_message(
+            Page::Overrides,
+            IdOverridesMessage,
+            "Named function rejected: " +
+                std::string(emberlights::ui_invocation_result_name(result)) +
+                ". Runner availability and all normal safety gates still apply.",
+            true);
+        return;
+    }
+    std::ostringstream message;
+    message << "Named override queued: " << target.name << " — "
+            << fixture_parameter_label(resolved->property) << " • "
+            << resolved->name;
+    if (resolved->behavior ==
+        showcore::ChannelCapabilityBehavior::Continuous) {
+        message << " at " << static_cast<unsigned int>(
+            std::lround(position * 100.0F)) << "% of its documented range";
+    }
+    message << ". Runner safety limits still apply.";
+    set_page_message(Page::Overrides, IdOverridesMessage, message.str());
+}
+
 void Application::clear_fixture_overrides() {
     if (ui_commands_.invoke({emberlights::UiCommandId::ReleaseAllOverrides}) !=
         emberlights::UiInvocationResult::Accepted) {
@@ -8333,6 +10603,9 @@ void Application::select_profile(std::int32_t index) {
     if (profile_capability_window_ != nullptr) {
         ::ShowWindow(profile_capability_window_, SW_HIDE);
     }
+    if (profile_channel_workbench_ != nullptr) {
+        ::ShowWindow(profile_channel_workbench_, SW_HIDE);
+    }
     selected_profile_capability_id_.clear();
     if (index < 0 || static_cast<std::size_t>(index) >= project_.fixture_profiles.size()) {
         new_profile();
@@ -8377,11 +10650,16 @@ void Application::select_profile(std::int32_t index) {
                         ? "Built-in profiles are read-only. Duplicate one to customize it."
                         : "Imported profiles are read-only. Duplicate one to customize it; verify importer warnings against the official DMX chart."));
     refresh_profile_mapping_summary();
+    restore_authoring_collection_selection(Page::Profiles);
+    capture_authoring_editor_baseline(Page::Profiles);
 }
 
 void Application::new_profile() {
     if (profile_capability_window_ != nullptr) {
         ::ShowWindow(profile_capability_window_, SW_HIDE);
+    }
+    if (profile_channel_workbench_ != nullptr) {
+        ::ShowWindow(profile_channel_workbench_, SW_HIDE);
     }
     selected_profile_capability_id_.clear();
     profile_index_ = -1;
@@ -8431,6 +10709,8 @@ void Application::new_profile() {
     set_page_message(Page::Profiles, IdProfileMessage,
                      "Create a local profile from the fixture's official DMX chart.");
     refresh_profile_mapping_summary();
+    restore_authoring_collection_selection(Page::Profiles);
+    capture_authoring_editor_baseline(Page::Profiles);
 }
 
 void Application::duplicate_profile() {
@@ -8559,15 +10839,20 @@ void Application::save_profile() {
     mark_dirty();
     refresh_profiles();
     refresh_patch();
+    auto saved_message = rebound_fixture_count == 0U
+        ? std::string("Fixture profile saved. Patch was unchanged.")
+        : "Fixture profile saved and " +
+              std::to_string(rebound_fixture_count) + " patched fixture" +
+              (rebound_fixture_count == 1U ? std::string{} : std::string("s")) +
+              " now uses this editable profile.";
+    if (runner_.status().state == emberlights::RunnerState::Running) {
+        saved_message +=
+            " The running Live package is intentionally unchanged; Stop Show, then Start Show to activate the saved profile/patch revision.";
+    }
     set_page_message(
         Page::Profiles,
         IdProfileMessage,
-        rebound_fixture_count == 0U
-            ? "Fixture profile saved. Patch was unchanged."
-            : "Fixture profile saved and " +
-                  std::to_string(rebound_fixture_count) + " patched fixture" +
-                  (rebound_fixture_count == 1U ? std::string{} : std::string("s")) +
-                  " now uses this editable profile.");
+        saved_message);
 }
 
 void Application::delete_profile() {
@@ -8953,6 +11238,8 @@ void Application::select_fixture(std::int32_t index) {
     set_control_text(::GetDlgItem(page, IdPatchRoles), roles.str());
     ::EnableWindow(::GetDlgItem(page, IdPatchDelete), TRUE);
     set_page_message(Page::Patch, IdPatchMessage, "Editing patched fixture " + fixture.id + ".");
+    restore_authoring_collection_selection(Page::Patch);
+    capture_authoring_editor_baseline(Page::Patch);
 }
 
 void Application::new_fixture() {
@@ -8985,6 +11272,8 @@ void Application::new_fixture() {
     ::EnableWindow(::GetDlgItem(page, IdPatchDelete), FALSE);
     set_page_message(Page::Patch, IdPatchMessage,
                      "Choose a profile and a non-overlapping universe/address.");
+    restore_authoring_collection_selection(Page::Patch);
+    capture_authoring_editor_baseline(Page::Patch);
 }
 
 void Application::save_fixture() {
@@ -9076,6 +11365,8 @@ void Application::select_group(std::int32_t index) {
     ::EnableWindow(::GetDlgItem(page, IdGroupDuplicate), TRUE);
     ::EnableWindow(::GetDlgItem(page, IdGroupDelete), TRUE);
     set_page_message(Page::Groups, IdGroupMessage, "Editing fixture group " + group.id + ".");
+    restore_authoring_collection_selection(Page::Groups);
+    capture_authoring_editor_baseline(Page::Groups);
 }
 
 void Application::new_group() {
@@ -9089,6 +11380,8 @@ void Application::new_group() {
         Page::Groups,
         IdGroupMessage,
         "Create a reusable group from the stable fixture IDs shown in Patch and Static Looks.");
+    restore_authoring_collection_selection(Page::Groups);
+    capture_authoring_editor_baseline(Page::Groups);
 }
 
 void Application::duplicate_group() {
@@ -9258,6 +11551,8 @@ void Application::select_look(std::int32_t index) {
     ::EnableWindow(::GetDlgItem(page, IdLookDelete), TRUE);
     set_page_message(Page::Looks, IdLookMessage, "Editing Static Look " + look.id + ".");
     update_physical_static_look_preview_if_active();
+    restore_authoring_collection_selection(Page::Looks);
+    capture_authoring_editor_baseline(Page::Looks);
 }
 
 void Application::new_look() {
@@ -9279,6 +11574,8 @@ void Application::new_look() {
     ::EnableWindow(::GetDlgItem(page, IdLookDelete), FALSE);
     set_page_message(Page::Looks, IdLookMessage,
                      "Choose a target, then apply a full color or explicit property ownership.");
+    restore_authoring_collection_selection(Page::Looks);
+    capture_authoring_editor_baseline(Page::Looks);
 }
 
 void Application::duplicate_look() {
@@ -9540,6 +11837,57 @@ void Application::apply_static_look_property() {
     }
 }
 
+void Application::apply_static_look_control_choice() {
+    if (!look_draft_.has_value()) {
+        new_look();
+    }
+    const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
+    const auto selected = combo_selected_data(
+        ::GetDlgItem(page, IdLookNamedChoice), -1);
+    if (selected < 0 ||
+        static_cast<std::size_t>(selected) >= look_control_choices_.size()) {
+        set_page_message(
+            Page::Looks, IdLookMessage,
+            "Choose a named function from the selected fixture profile first.",
+            true);
+        return;
+    }
+    const auto& choice = look_control_choices_[static_cast<std::size_t>(selected)];
+    float position = 0.5F;
+    if (choice.behavior == showcore::ChannelCapabilityBehavior::Continuous) {
+        float percentage = 0.0F;
+        if (!parse_number(
+                control_text(::GetDlgItem(page, IdLookValue)), percentage) ||
+            !std::isfinite(percentage) || percentage < 0.0F ||
+            percentage > 100.0F) {
+            set_page_message(
+                Page::Looks, IdLookMessage,
+                "A continuous named range needs a position from 0 through 100.",
+                true);
+            return;
+        }
+        position = percentage / 100.0F;
+    }
+    const auto outcome = emberlights::apply_static_look_control_choice(
+        *look_draft_,
+        project_,
+        selected_look_target_id(),
+        choice.id,
+        position);
+    combo_select_data(
+        ::GetDlgItem(page, IdLookProperty),
+        static_cast<std::intptr_t>(choice.property));
+    refresh_look_draft_view();
+    set_page_message(
+        Page::Looks,
+        IdLookMessage,
+        static_look_outcome_text("Named function • " + choice.name, outcome),
+        !outcome);
+    if (outcome) {
+        update_physical_static_look_preview_if_active();
+    }
+}
+
 void Application::remove_static_look_property() {
     if (!look_draft_.has_value()) {
         return;
@@ -9782,6 +12130,8 @@ void Application::select_autoloop(std::int32_t index) {
     ::EnableWindow(::GetDlgItem(page, IdAutoloopSwapTarget), TRUE);
     set_page_message(Page::Autoloops, IdAutoloopMessage,
                      "Editing Autoloop " + loop.id + ".");
+    restore_authoring_collection_selection(Page::Autoloops);
+    capture_authoring_editor_baseline(Page::Autoloops);
 }
 
 void Application::new_autoloop() {
@@ -9822,6 +12172,8 @@ void Application::new_autoloop() {
                 ? "The first open bank/slot was selected. Create a Static Look, then add steps here."
               : "The compiled 2,048-slot Autoloop library is full.",
         !found);
+    restore_authoring_collection_selection(Page::Autoloops);
+    capture_authoring_editor_baseline(Page::Autoloops);
 }
 
 void Application::duplicate_autoloop() {
@@ -10288,6 +12640,280 @@ void Application::discard_autoscript_proposal() {
     refresh_autoscript_summary(discarded.message);
 }
 
+void Application::apply_autoscript_fixture_function() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+    const auto placement_index = combo_selected_data(
+        ::GetDlgItem(page, IdAutoscriptFunctionPlacement), -1);
+    const auto target_index = combo_selected_data(
+        ::GetDlgItem(page, IdAutoscriptFunctionTarget), -1);
+    const auto choice_index = combo_selected_data(
+        ::GetDlgItem(page, IdAutoscriptFunctionChoice), -1);
+    if (placement_index < 0 ||
+        static_cast<std::size_t>(placement_index) >=
+            autoscript_function_placement_ids_.size() ||
+        target_index < 0 ||
+        static_cast<std::size_t>(target_index) >=
+            autoscript_function_target_ids_.size() ||
+        choice_index < 0 ||
+        static_cast<std::size_t>(choice_index) >=
+            autoscript_function_choices_.size()) {
+        refresh_autoscript_summary(
+            "Select a committed V2 placement, fixture/group, and named function first.");
+        return;
+    }
+
+    double start_beat = 0.0;
+    double end_beat = 0.0;
+    std::uint16_t position_percent = 0U;
+    if (!parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptFunctionStart)),
+            start_beat) ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptFunctionEnd)),
+            end_beat) ||
+        !parse_number(
+            control_text(::GetDlgItem(page, IdAutoscriptFunctionPosition)),
+            position_percent) ||
+        !std::isfinite(start_beat) || !std::isfinite(end_beat) ||
+        start_beat < 0.0 || end_beat <= start_beat ||
+        position_percent > 100U) {
+        refresh_autoscript_summary(
+            "Use a non-negative start beat, a larger end beat, and range position 0–100.");
+        return;
+    }
+
+    const auto persisted = emberlights::inspect_persisted_autoloop_source(project_);
+    if (!persisted || !persisted.stamp.present) {
+        refresh_autoscript_summary(
+            "Create and commit a V2 Autoloop before adding a fixture function.");
+        return;
+    }
+    const auto& placement_id = autoscript_function_placement_ids_[
+        static_cast<std::size_t>(placement_index)];
+    const auto placement = std::find_if(
+        persisted.source.placements.begin(), persisted.source.placements.end(),
+        [&](const auto& candidate) { return candidate.id == placement_id; });
+    if (placement == persisted.source.placements.end()) {
+        refresh_autoscript_summary(
+            "The selected V2 placement changed. Refresh the page and select it again.");
+        return;
+    }
+    const auto asset = std::find_if(
+        persisted.source.assets.begin(), persisted.source.assets.end(),
+        [&](const auto& candidate) {
+            return candidate.id == placement->asset_id;
+        });
+    if (asset == persisted.source.assets.end()) {
+        refresh_autoscript_summary(
+            "The selected placement has no valid V2 asset.");
+        return;
+    }
+    const auto program = std::find_if(
+        persisted.source.programs.begin(), persisted.source.programs.end(),
+        [&](const auto& candidate) {
+            return candidate.id == asset->program_id;
+        });
+    if (program == persisted.source.programs.end()) {
+        refresh_autoscript_summary(
+            "The selected placement has no valid V2 program.");
+        return;
+    }
+
+    const auto exact_tick = [&](double beat)
+        -> std::optional<emberlights::MusicalTick> {
+        constexpr auto ticks_per_beat =
+            static_cast<double>(emberlights::kMusicalTicksPerQuarter);
+        const auto maximum_beat = static_cast<double>(program->length_ticks) /
+            ticks_per_beat;
+        if (!std::isfinite(beat) || beat < 0.0 || beat > maximum_beat) {
+            return std::nullopt;
+        }
+        const auto floating = beat * ticks_per_beat;
+        const auto rounded = static_cast<emberlights::MusicalTick>(
+            std::llround(floating));
+        if (std::fabs(floating - static_cast<double>(rounded)) > 0.000001) {
+            return std::nullopt;
+        }
+        return rounded;
+    };
+    const auto start_tick = exact_tick(start_beat);
+    const auto end_tick = exact_tick(end_beat);
+    if (!start_tick.has_value() || !end_tick.has_value() ||
+        *end_tick <= *start_tick || *end_tick > program->length_ticks) {
+        refresh_autoscript_summary(
+            "Start/end must land exactly on the 960-PPQ grid and stay inside this loop.");
+        return;
+    }
+
+    emberlights::AutoloopAuthoringService authoring(persisted.source);
+    emberlights::AutoloopFixtureControlRequest request;
+    request.expected_generation = authoring.generation();
+    request.program_id = program->id;
+    request.target_id = autoscript_function_target_ids_[
+        static_cast<std::size_t>(target_index)];
+    request.choice_id = autoscript_function_choices_[
+        static_cast<std::size_t>(choice_index)].id;
+    request.start_tick = *start_tick;
+    request.end_tick = *end_tick;
+    request.position = static_cast<float>(position_percent) / 100.0F;
+
+    emberlights::AutoloopFixtureControlProposal proposal;
+    bool prepared = false;
+    const auto first_suffix = program->events.size() + 1U;
+    for (std::size_t attempt = 0U; attempt < 100000U; ++attempt) {
+        request.stable_id_prefix =
+            "fixture-function." + std::to_string(first_suffix + attempt);
+        proposal = emberlights::plan_autoloop_fixture_control(
+            authoring.snapshot(), project_, request);
+        if (proposal) {
+            prepared = true;
+            break;
+        }
+        if (proposal.result !=
+            emberlights::AutoloopFixtureControlResult::IdentifierCollision) {
+            break;
+        }
+    }
+    if (!prepared) {
+        refresh_autoscript_summary(
+            proposal.message.empty()
+                ? std::string("Named function rejected: ") +
+                    emberlights::autoloop_fixture_control_result_name(
+                        proposal.result)
+                : proposal.message);
+        return;
+    }
+
+    const auto applied = emberlights::apply_autoloop_fixture_control(
+        authoring, project_, request);
+    if (!applied) {
+        refresh_autoscript_summary(
+            applied.message.empty()
+                ? std::string("Named function rejected: ") +
+                    emberlights::autoloop_fixture_control_result_name(
+                        applied.result)
+                : applied.message);
+        return;
+    }
+
+    emberlights::StudioDocumentService document;
+    const auto loaded_document = document.replace_document(
+        document.generation(), project_,
+        emberlights::StudioDocumentBoundary::OpenedDocument);
+    if (!loaded_document) {
+        refresh_autoscript_summary(
+            "The current project could not enter the Studio preview transaction: " +
+            loaded_document.message);
+        return;
+    }
+    const auto document_snapshot = document.snapshot();
+    if (!document_snapshot.autoloop_source ||
+        !document_snapshot.autoloop_source.stamp.present) {
+        refresh_autoscript_summary(
+            "The Studio preview transaction could not verify the persisted V2 source.");
+        return;
+    }
+    const auto source_snapshot = authoring.snapshot();
+    emberlights::StudioPreviewService preview;
+    const auto preview_loaded = preview.load_autoloop_v2(
+        document_snapshot, source_snapshot);
+    if (!preview_loaded) {
+        refresh_autoscript_summary(
+            "Production-compiler preview rejected the edit: " +
+            preview_loaded.message);
+        return;
+    }
+    const auto preview_selected = preview.preview_autoloop_v2(
+        document_snapshot.generation, source_snapshot.generation,
+        placement_id);
+    if (!preview_selected) {
+        refresh_autoscript_summary(
+            "The edited placement could not be selected for preview: " +
+            preview_selected.message);
+        return;
+    }
+    const auto preview_seek = preview.seek_autoloop_v2(
+        document_snapshot.generation, source_snapshot.generation,
+        *start_tick);
+    const auto preview_snapshot = preview.snapshot();
+    if (!preview_seek || !preview_snapshot.output_disabled) {
+        refresh_autoscript_summary(
+            preview_seek.message.empty()
+                ? "The output-disabled preview safety contract did not pass."
+                : preview_seek.message);
+        return;
+    }
+
+    const auto committed = document.apply_autoloop_source(
+        document_snapshot.generation,
+        document_snapshot.autoloop_source.stamp,
+        source_snapshot.source);
+    if (!committed) {
+        refresh_autoscript_summary(
+            "The generation/digest-checked Studio commit was rejected: " +
+            committed.message);
+        return;
+    }
+
+    std::ostringstream preview_summary;
+    preview_summary << "Output adapters: DISABLED\r\n"
+                    << "Placement: " << placement_id << "  Beat: "
+                    << preview_snapshot.beat_position << "\r\n"
+                    << "Function writes: " << applied.writes.size()
+                    << "  Frame SHA-256: " << preview_snapshot.frame_sha256;
+    std::vector<const emberlights::StudioPreviewFixtureSnapshot*>
+        previewed_fixtures;
+    for (const auto& write : applied.writes) {
+        const auto fixture = std::find_if(
+            preview_snapshot.fixtures.begin(),
+            preview_snapshot.fixtures.end(),
+            [&](const auto& candidate) {
+                return candidate.fixture_id == write.fixture_id;
+            });
+        if (fixture != preview_snapshot.fixtures.end() &&
+            std::none_of(
+                previewed_fixtures.begin(), previewed_fixtures.end(),
+                [&](const auto* candidate) {
+                    return candidate->fixture_id == fixture->fixture_id;
+                })) {
+            previewed_fixtures.push_back(&*fixture);
+        }
+    }
+    const auto shown_fixture_count = std::min<std::size_t>(
+        previewed_fixtures.size(), 8U);
+    for (std::size_t index = 0U; index < shown_fixture_count; ++index) {
+        const auto& fixture = *previewed_fixtures[index];
+        preview_summary << "\r\n  " << fixture.fixture_name << " — U"
+                        << static_cast<unsigned int>(fixture.universe) << " A"
+                        << fixture.address << " — DMX";
+        for (const auto value : fixture.dmx_values) {
+            preview_summary << ' ' << static_cast<unsigned int>(value);
+        }
+    }
+    if (previewed_fixtures.size() > shown_fixture_count) {
+        preview_summary << "\r\n  … "
+                        << previewed_fixtures.size() - shown_fixture_count
+                        << " more fixtures";
+    }
+    for (const auto& warning : applied.warnings) {
+        preview_summary << "\r\n  Warning: " << warning;
+    }
+    autoscript_function_preview_summary_ = preview_summary.str();
+
+    project_ = document.snapshot().document;
+    static_cast<void>(autoscript_workflow_.discard());
+    mark_dirty();
+    refresh_live_lists();
+    refresh_diagnostics();
+    refresh_autoscript();
+    std::ostringstream message;
+    message << "Added " << applied.writes.size()
+            << " exact profile-backed fixture function"
+            << (applied.writes.size() == 1U ? "" : "s")
+            << " after an output-disabled production preview. Save the project to keep this V2 source transaction.";
+    refresh_autoscript_summary(message.str());
+}
+
 void Application::select_track(std::int32_t index) {
     if (index < 0 || static_cast<std::size_t>(index) >= project_.track_scripts.size()) {
         new_track();
@@ -10304,6 +12930,8 @@ void Application::select_track(std::int32_t index) {
     ::EnableWindow(::GetDlgItem(page, IdTrackDelete), TRUE);
     set_page_message(Page::Tracks, IdTrackMessage,
                      "Editing track script " + track.id + ".");
+    restore_authoring_collection_selection(Page::Tracks);
+    capture_authoring_editor_baseline(Page::Tracks);
 }
 
 void Application::new_track() {
@@ -10317,6 +12945,8 @@ void Application::new_track() {
     ::EnableWindow(::GetDlgItem(page, IdTrackDelete), FALSE);
     set_page_message(Page::Tracks, IdTrackMessage,
                      "Create a portable beat script. Link audio by content identity when it is available.");
+    restore_authoring_collection_selection(Page::Tracks);
+    capture_authoring_editor_baseline(Page::Tracks);
 }
 
 void Application::duplicate_track() {
@@ -10835,6 +13465,61 @@ void Application::update_midi_targets() {
     }
     ::EnableWindow(target, needs_target ? TRUE : FALSE);
     ::EnableWindow(property, needs_property ? TRUE : FALSE);
+    refresh_midi_named_choices();
+}
+
+void Application::refresh_midi_named_choices() {
+    const auto page = pages_[static_cast<std::size_t>(Page::Midi)];
+    const auto combo = ::GetDlgItem(page, IdMidiNamedChoice);
+    std::string previous_id;
+    const auto previous = combo_selected_data(combo, -1);
+    if (previous >= 0 &&
+        static_cast<std::size_t>(previous) < midi_named_choices_.size()) {
+        previous_id = midi_named_choices_[static_cast<std::size_t>(previous)].id;
+    }
+    midi_named_choices_.clear();
+    static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
+    combo_add(combo, L"Use the selected generic property", -1);
+
+    const auto action = static_cast<showcore::ActionType>(combo_selected_data(
+        ::GetDlgItem(page, IdMidiAction),
+        static_cast<std::intptr_t>(showcore::ActionType::Blackout)));
+    const auto target_index = combo_selected_data(
+        ::GetDlgItem(page, IdMidiTarget), -1);
+    std::string_view target_id;
+    if (action == showcore::ActionType::SetProperty && target_index >= 0 &&
+        static_cast<std::size_t>(target_index) < project_.fixtures.size()) {
+        target_id = project_.fixtures[static_cast<std::size_t>(target_index)].id;
+    } else if (action == showcore::ActionType::SetGroupProperty &&
+               target_index >= 0 &&
+               static_cast<std::size_t>(target_index) < project_.groups.size()) {
+        target_id = project_.groups[static_cast<std::size_t>(target_index)].id;
+    }
+    if (!target_id.empty()) {
+        const auto catalog = emberlights::fixture_control_choices(project_, target_id);
+        for (const auto& choice : catalog.choices) {
+            if (choice.safety_gated()) {
+                continue;
+            }
+            combo_add(
+                combo,
+                widen(fixture_control_choice_label(choice)),
+                static_cast<std::intptr_t>(midi_named_choices_.size()));
+            midi_named_choices_.push_back(choice);
+        }
+    }
+    auto selected = static_cast<std::intptr_t>(-1);
+    const auto retained = std::find_if(
+        midi_named_choices_.begin(), midi_named_choices_.end(),
+        [&](const auto& choice) { return choice.id == previous_id; });
+    if (retained != midi_named_choices_.end()) {
+        selected = static_cast<std::intptr_t>(
+            std::distance(midi_named_choices_.begin(), retained));
+    }
+    combo_select_data(combo, selected);
+    static_cast<void>(::EnableWindow(
+        combo,
+        target_id.empty() || midi_named_choices_.empty() ? FALSE : TRUE));
 }
 
 void Application::begin_midi_learn() {
@@ -10901,6 +13586,12 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
     }
     const auto before = project_;
     const auto page = pages_[static_cast<std::size_t>(Page::Midi)];
+    const auto finish_learning = [&]() {
+        midi_learning_ = false;
+        learn_input_.close_all();
+        static_cast<void>(::SetWindowTextW(
+            ::GetDlgItem(page, IdMidiLearn), L"Learn Next MIDI Control"));
+    };
     emberlights::MidiMappingDefinition mapping;
     mapping.preferred_input_index = project_.connections.midi_input_index;
     for (std::size_t index = 0; index < midi_inputs_.count; ++index) {
@@ -10951,20 +13642,74 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
                target < static_cast<std::intptr_t>(showcore::kMaxAutoloopBanks)) {
         mapping.action.target_id = static_cast<std::uint16_t>(target);
     }
-    project_.midi_mappings.push_back(std::move(mapping));
-    midi_learning_ = false;
-    learn_input_.close_all();
-    static_cast<void>(::SetWindowTextW(::GetDlgItem(page, IdMidiLearn),
-                                       L"Learn Next MIDI Control"));
+
+    const auto named_index = combo_selected_data(
+        ::GetDlgItem(page, IdMidiNamedChoice), -1);
+    std::size_t added_mapping_count = 1U;
+    bool expanded_named_group = false;
+    std::vector<std::string> binding_warnings;
+    auto candidate = project_;
+    if (named_index >= 0 &&
+        static_cast<std::size_t>(named_index) < midi_named_choices_.size()) {
+        const auto plan = emberlights::plan_fixture_controller_binding(
+            project_, mapping.target_ref,
+            midi_named_choices_[static_cast<std::size_t>(named_index)].id,
+            mapping);
+        if (!plan) {
+            finish_learning();
+            set_page_message(
+                Page::Midi,
+                IdMidiMessage,
+                plan.message.empty()
+                    ? "The named fixture-function binding was rejected."
+                    : plan.message,
+                true);
+            return;
+        }
+        added_mapping_count = plan.mappings.size();
+        expanded_named_group = plan.expanded_to_fixtures;
+        binding_warnings = plan.warnings;
+        candidate.midi_mappings.insert(
+            candidate.midi_mappings.end(),
+            plan.mappings.begin(), plan.mappings.end());
+    } else {
+        candidate.midi_mappings.push_back(std::move(mapping));
+    }
+
+    const auto compilation =
+        emberlights::compile_project_with_persisted_autoloops(candidate);
+    if (!compilation) {
+        finish_learning();
+        set_page_message(
+            Page::Midi,
+            IdMidiMessage,
+            "The complete controller map did not compile and was not saved: " +
+                first_validation_error(compilation.validation),
+            true);
+        return;
+    }
+    project_ = std::move(candidate);
+    finish_learning();
     mark_dirty();
     record_project_edit(before);
     refresh_midi();
+    std::ostringstream learned;
+    learned << (added_mapping_count == 1U ? "Mapping" : "Mappings")
+            << " learned and saved to the project";
+    if (expanded_named_group) {
+        learned << " as " << added_mapping_count
+                << " exact per-fixture mappings for the mixed-profile group";
+    }
+    if (!binding_warnings.empty()) {
+        learned << ". " << binding_warnings.front();
+    }
+    learned << (runner_.status().state == emberlights::RunnerState::Running
+            ? ". Save the project to atomically activate the newly compiled map."
+            : ".");
     set_page_message(
         Page::Midi,
         IdMidiMessage,
-        runner_.status().state == emberlights::RunnerState::Running
-            ? "Mapping saved. Save the project to atomically activate the newly compiled map."
-            : "Mapping learned and saved to the project.");
+        learned.str());
 }
 
 void Application::delete_midi_mapping() {

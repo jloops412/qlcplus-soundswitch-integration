@@ -1,9 +1,17 @@
 #include "emberlights/fixture_capabilities.hpp"
 
+#include "emberlights/fixture_parameter_catalog.hpp"
+#include "emberlights/fixture_profile_editor.hpp"
+
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
+#include <iterator>
+#include <map>
 #include <string>
+#include <tuple>
+#include <utility>
 
 namespace emberlights {
 namespace {
@@ -41,6 +49,46 @@ void append_fixture(
     result.any_master_intensity =
         result.any_master_intensity || capability.has_master_intensity;
     result.fixtures.push_back(std::move(capability));
+}
+
+[[nodiscard]] std::string_view parameter_id(
+    showcore::Property property) noexcept {
+    const auto* descriptor = fixture_parameter_descriptor(property);
+    return descriptor == nullptr ? property_name(property) : descriptor->stable_id;
+}
+
+[[nodiscard]] std::string control_choice_key(
+    const ChannelDefinition& channel,
+    const ChannelCapabilityDefinition& capability,
+    std::size_t occurrence) {
+    return channel.owner + "\x1f" + std::string(parameter_id(capability.property)) +
+        "\x1f" + capability.id + "\x1f" +
+        std::to_string(static_cast<unsigned int>(capability.behavior)) + "\x1f" +
+        std::to_string(static_cast<unsigned int>(capability.role)) + "\x1f" +
+        std::to_string(occurrence);
+}
+
+[[nodiscard]] std::string control_choice_id(
+    std::string_view target_id,
+    const ChannelDefinition& channel,
+    const ChannelCapabilityDefinition& capability,
+    std::size_t occurrence) {
+    return "target:" + std::string(target_id) +
+        "|owner:" + channel.owner +
+        "|parameter:" + std::string(parameter_id(capability.property)) +
+        "|function:" + capability.id +
+        "|behavior:" +
+        std::to_string(static_cast<unsigned int>(capability.behavior)) +
+        "|role:" +
+        std::to_string(static_cast<unsigned int>(capability.role)) +
+        "|occurrence:" + std::to_string(occurrence);
+}
+
+[[nodiscard]] int parameter_category_rank(showcore::Property property) noexcept {
+    const auto* descriptor = fixture_parameter_descriptor(property);
+    return descriptor == nullptr
+        ? static_cast<int>(FixtureParameterCategory::Custom)
+        : static_cast<int>(descriptor->category);
 }
 
 }  // namespace
@@ -214,6 +262,148 @@ FixtureTargetCapabilities inspect_fixture_target(
     if (result.target_found && result.fixtures.empty()) {
         result.warnings.push_back("The selected target has no patched fixtures.");
     }
+    return result;
+}
+
+FixtureControlChoiceCatalog fixture_control_choices(
+    const ProjectDocument& project,
+    std::string_view target_id,
+    float position) {
+    FixtureControlChoiceCatalog result;
+    const auto target = inspect_fixture_target(project, target_id);
+    result.target_found = target.target_found;
+    result.group = target.group;
+    result.target_id = std::string(target.target_id);
+    result.target_name = std::string(target.target_name);
+    result.target_fixture_count = target.fixtures.size();
+    result.warnings = target.warnings;
+    if (!target.target_found || target.fixtures.empty()) {
+        return result;
+    }
+    position = std::isfinite(position)
+        ? std::clamp(position, 0.0F, 1.0F)
+        : 0.5F;
+
+    struct AccumulatedChoice {
+        std::string key;
+        FixtureControlChoice choice;
+    };
+    std::vector<AccumulatedChoice> accumulated;
+
+    for (const auto& fixture : target.fixtures) {
+        if (!fixture.complete) {
+            continue;
+        }
+        const auto* profile = find_fixture_profile(project, fixture.profile_id);
+        if (profile == nullptr) {
+            continue;
+        }
+        std::map<std::string, std::size_t> occurrences;
+        for (const auto& channel : profile->channels) {
+            const auto one_based_channel = static_cast<std::uint16_t>(
+                static_cast<std::size_t>(channel.coarse_offset) + 1U);
+            for (const auto& capability : channel.capabilities) {
+                if (capability.access ==
+                        showcore::ChannelCapabilityAccess::Protected ||
+                    capability.property >= showcore::Property::Count) {
+                    continue;
+                }
+                const auto occurrence_base = channel.owner + "\x1f" +
+                    std::string(parameter_id(capability.property)) + "\x1f" +
+                    capability.id + "\x1f" +
+                    std::to_string(static_cast<unsigned int>(capability.behavior)) +
+                    "\x1f" +
+                    std::to_string(static_cast<unsigned int>(capability.role));
+                const auto occurrence = occurrences[occurrence_base]++;
+                const auto key = control_choice_key(
+                    channel, capability, occurrence);
+                const auto selection = resolve_fixture_channel_capability(
+                    *profile,
+                    one_based_channel,
+                    capability.id,
+                    position);
+                if (!selection) {
+                    continue;
+                }
+
+                auto found = std::find_if(
+                    accumulated.begin(), accumulated.end(),
+                    [&key](const auto& candidate) {
+                        return candidate.key == key;
+                    });
+                if (found == accumulated.end()) {
+                    AccumulatedChoice entry;
+                    entry.key = key;
+                    entry.choice.id = control_choice_id(
+                        target_id, channel, capability, occurrence);
+                    entry.choice.capability_id = capability.id;
+                    entry.choice.name = capability.name;
+                    entry.choice.owner = channel.owner;
+                    entry.choice.property = capability.property;
+                    entry.choice.behavior = capability.behavior;
+                    entry.choice.access = capability.access;
+                    entry.choice.role = capability.role;
+                    accumulated.push_back(std::move(entry));
+                    found = std::prev(accumulated.end());
+                } else {
+                    if (found->choice.name != capability.name) {
+                        result.warnings.push_back(
+                            "Named function " + capability.id +
+                            " has different labels across target profiles.");
+                    }
+                    if (capability.access ==
+                        showcore::ChannelCapabilityAccess::SafetyGated) {
+                        found->choice.access =
+                            showcore::ChannelCapabilityAccess::SafetyGated;
+                    }
+                }
+                found->choice.values.push_back({
+                    std::string(fixture.fixture_id),
+                    profile->id,
+                    selection.binding_id,
+                    one_based_channel,
+                    selection.property,
+                    selection.normalized_value,
+                    selection.raw_value,
+                    capability.dmx_min,
+                    capability.dmx_max});
+            }
+        }
+    }
+
+    result.choices.reserve(accumulated.size());
+    for (auto& entry : accumulated) {
+        auto& choice = entry.choice;
+        choice.supported_fixture_count = choice.values.size();
+        choice.target_fixture_count = result.target_fixture_count;
+        if (!choice.values.empty()) {
+            choice.shared_normalized_value = choice.values.front().normalized_value;
+            choice.shared_value = std::all_of(
+                choice.values.begin(), choice.values.end(),
+                [&](const auto& value) {
+                    return value.property == choice.property &&
+                        std::fabs(value.normalized_value -
+                                  choice.shared_normalized_value) <= 0.000001F;
+                });
+        }
+        result.choices.push_back(std::move(choice));
+    }
+    std::sort(
+        result.choices.begin(), result.choices.end(),
+        [](const auto& first, const auto& second) {
+            return std::tuple{
+                       parameter_category_rank(first.property),
+                       static_cast<std::size_t>(first.property),
+                       first.owner,
+                       first.name,
+                       first.id} <
+                std::tuple{
+                       parameter_category_rank(second.property),
+                       static_cast<std::size_t>(second.property),
+                       second.owner,
+                       second.name,
+                       second.id};
+        });
     return result;
 }
 

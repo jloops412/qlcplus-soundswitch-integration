@@ -1,0 +1,64 @@
+EMBERLIGHTS_PROJECT	1
+CHECKSUM	A4B45468
+PROJECT	emberlights-ir4-6ch-operator-bench	EmberLights IR-4 6CH Editable Bench
+CONNECTIONS	0	127.0.0.1	9996	0	127.0.0.1	0	0	127.0.0.1	1	40	120	-1	-1			dmxUsbProSerialV1+soundSwitchMicroJls1V1	0	0	0
+SAFETY	1	1	1	1	1	1	1
+PROFILE	local.both-lighting.bo-ir4.6ch.operator-bench-v1	Both Lighting	BO-IR4 LED Mini Spotlight	6 Channel (manual-matched; CH6 Purple/UV)	Both Lighting BO-IR4 LED Mini Spotlight (6 Channel Operator Clone)	local	local-clone:manual-sha256:1267e289b2c0577ec749f0de5265105db5e86b6ae3b2e12414cc00777fd3c03a#p5	6
+CHANNEL	local.both-lighting.bo-ir4.6ch.operator-bench-v1	red	0	-1	linear8	0	255	0
+CHANNEL_META_V1	local.both-lighting.bo-ir4.6ch.operator-bench-v1	0	0	255	fixture
+CHANNEL	local.both-lighting.bo-ir4.6ch.operator-bench-v1	green	1	-1	linear8	0	255	0
+CHANNEL_META_V1	local.both-lighting.bo-ir4.6ch.operator-bench-v1	1	0	255	fixture
+CHANNEL	local.both-lighting.bo-ir4.6ch.operator-bench-v1	blue	2	-1	linear8	0	255	0
+CHANNEL_META_V1	local.both-lighting.bo-ir4.6ch.operator-bench-v1	2	0	255	fixture
+CHANNEL	local.both-lighting.bo-ir4.6ch.operator-bench-v1	white	3	-1	linear8	0	255	0
+CHANNEL_META_V1	local.both-lighting.bo-ir4.6ch.operator-bench-v1	3	0	255	fixture
+CHANNEL	local.both-lighting.bo-ir4.6ch.operator-bench-v1	amber	4	-1	linear8	0	255	0
+CHANNEL_META_V1	local.both-lighting.bo-ir4.6ch.operator-bench-v1	4	0	255	fixture
+CHANNEL	local.both-lighting.bo-ir4.6ch.operator-bench-v1	uv	5	-1	linear8	0	255	0
+CHANNEL_META_V1	local.both-lighting.bo-ir4.6ch.operator-bench-v1	5	0	255	fixture
+FIXTURE	ir4-bench-001	Both Lighting IR-4 Bench Fixture	local.both-lighting.bo-ir4.6ch.operator-bench-v1	1	1
+ROLE	ir4-bench-001	qualification
+ROLE	ir4-bench-001	uplight
+ROLE	ir4-bench-001	color
+LOOK	ir4-bench-blackout	Blackout	0
+LOOK_VALUE	ir4-bench-blackout	ir4-bench-001	red	forceZero	0
+LOOK_VALUE	ir4-bench-blackout	ir4-bench-001	green	forceZero	0
+LOOK_VALUE	ir4-bench-blackout	ir4-bench-001	blue	forceZero	0
+LOOK_VALUE	ir4-bench-blackout	ir4-bench-001	white	forceZero	0
+LOOK_VALUE	ir4-bench-blackout	ir4-bench-001	amber	forceZero	0
+LOOK_VALUE	ir4-bench-blackout	ir4-bench-001	uv	forceZero	0
+LOOK	ir4-bench-red	Red	0
+LOOK_VALUE	ir4-bench-red	ir4-bench-001	red	set	1
+LOOK_VALUE	ir4-bench-red	ir4-bench-001	green	forceZero	0
+LOOK_VALUE	ir4-bench-red	ir4-bench-001	blue	forceZero	0
+LOOK_VALUE	ir4-bench-red	ir4-bench-001	white	forceZero	0
+LOOK_VALUE	ir4-bench-red	ir4-bench-001	amber	forceZero	0
+LOOK_VALUE	ir4-bench-red	ir4-bench-001	uv	forceZero	0
+LOOK	ir4-bench-green	Green	0
+LOOK_VALUE	ir4-bench-green	ir4-bench-001	red	forceZero	0
+LOOK_VALUE	ir4-bench-green	ir4-bench-001	green	set	1
+LOOK_VALUE	ir4-bench-green	ir4-bench-001	blue	forceZero	0
+LOOK_VALUE	ir4-bench-green	ir4-bench-001	white	forceZero	0
+LOOK_VALUE	ir4-bench-green	ir4-bench-001	amber	forceZero	0
+LOOK_VALUE	ir4-bench-green	ir4-bench-001	uv	forceZero	0
+LOOK	ir4-bench-blue	Blue	0
+LOOK_VALUE	ir4-bench-blue	ir4-bench-001	red	forceZero	0
+LOOK_VALUE	ir4-bench-blue	ir4-bench-001	green	forceZero	0
+LOOK_VALUE	ir4-bench-blue	ir4-bench-001	blue	set	1
+LOOK_VALUE	ir4-bench-blue	ir4-bench-001	white	forceZero	0
+LOOK_VALUE	ir4-bench-blue	ir4-bench-001	amber	forceZero	0
+LOOK_VALUE	ir4-bench-blue	ir4-bench-001	uv	forceZero	0
+LOOK	ir4-bench-white	White	0
+LOOK_VALUE	ir4-bench-white	ir4-bench-001	red	forceZero	0
+LOOK_VALUE	ir4-bench-white	ir4-bench-001	green	forceZero	0
+LOOK_VALUE	ir4-bench-white	ir4-bench-001	blue	forceZero	0
+LOOK_VALUE	ir4-bench-white	ir4-bench-001	white	set	1
+LOOK_VALUE	ir4-bench-white	ir4-bench-001	amber	forceZero	0
+LOOK_VALUE	ir4-bench-white	ir4-bench-001	uv	forceZero	0
+LOOK	ir4-bench-amber	Amber	0
+LOOK_VALUE	ir4-bench-amber	ir4-bench-001	red	forceZero	0
+LOOK_VALUE	ir4-bench-amber	ir4-bench-001	green	forceZero	0
+LOOK_VALUE	ir4-bench-amber	ir4-bench-001	blue	forceZero	0
+LOOK_VALUE	ir4-bench-amber	ir4-bench-001	white	forceZero	0
+LOOK_VALUE	ir4-bench-amber	ir4-bench-001	amber	set	1
+LOOK_VALUE	ir4-bench-amber	ir4-bench-001	uv	forceZero	0

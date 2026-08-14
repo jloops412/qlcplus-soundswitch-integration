@@ -128,10 +128,15 @@ blocked.
   v1 manifest instead of running the former fixed IR-4/Runner sequence.
 - The former `SoundSwitch-Micro-active-test.txt` report is not overwritten.
   Evidence-bound runs use the manifest-selected, explicitly versioned audit.
-- CR-4 raw-to-one-fixture Runner byte parity remains a separate acceptance gate
-  in issue #40 / the core recovery plan, section 8.4. It is deliberately not
-  invoked, erased, or claimed by this isolated qualification workflow.
+- Preview 95 implements the separate CR-4 software comparison surface through
+  the output-disabled **IR-4 6CH Editable Bench** project and the production
+  Runner frame report in System Diagnostics. Follow
+  `docs/IR4_6CH_RUNNER_FRAME_TEST.md` to compare complete raw-reference and
+  routed frames. It is deliberately not invoked, erased, or claimed by this
+  isolated evidence-bound qualification workflow; a successful software
+  comparison is not a physical hardware qualification.
 - Software tests and simulated transports prove only parsing, bounds, state,
   audit, and graduation contracts. They provide no owned-hardware, installed
-  Windows, visible blackout, spill, transport endurance, CR-4, or gig-readiness
-  evidence. Record those claims only from the corresponding physical runs.
+  Windows, visible blackout, spill, transport endurance, physical parity, or
+  gig-readiness evidence. Record those claims only from the corresponding
+  physical runs.

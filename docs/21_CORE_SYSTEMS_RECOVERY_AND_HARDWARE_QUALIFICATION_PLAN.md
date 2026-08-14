@@ -413,6 +413,23 @@ For a known test state:
 3. Compare the emitted universe byte-for-byte.
 4. Explain every difference.
 
+Preview 95 implements the software comparison boundary. The production
+renderer attaches fixed per-slot attribution, the normal output thread
+publishes the exact pre-global-blackout and routed frames plus per-backend
+attempt/accept results, and `RunnerFrameInspector` hashes and compares full
+512-byte references with bounded cause-labelled differences.
+
+Preview 96 implements the software evidence join. A read-only parity service
+verifies embedded completed Raw Hardware Test attempts, selects the best exact
+universe/backend/frame match deterministically, and reports the authored
+reference, actual routed frame, prior raw requirement/observation, and current
+Micro route acceptance as independent facts. A profile-only change can retain
+explicitly historical evidence only while fixture/profile identity,
+manufacturer/model/mode, universe, and address remain stable; a repatch or
+malformed audit fails closed. It always denies current optical/fixture-side
+observation. Acceptance remains incomplete until the installed Windows run
+captures a fresh raw attempt, reopened Runner snapshot, and physical response.
+
 This isolates compiler/profile defects from adapter defects.
 
 ### 8.5 Acceptance gate C
@@ -734,10 +751,12 @@ The work agent should use this exact order and keep each stage shippable:
 
 ### Slice 2 — Frame truth and bench project
 
-- bounded frame inspector;
+- bounded frame inspector — implemented in Preview 95 software;
 - migration patch warnings;
-- one-fixture bench project/wizard path;
-- raw-to-semantic comparison report.
+- one-fixture bench project/wizard path — output-disabled editable project and
+  installed guide packaged; native installed execution pending;
+- raw-to-semantic comparison report — automatic active-bench comparison
+  implemented; raw-attempt/physical evidence binding pending.
 
 ### Slice 3 — Blocking operational fixes
 

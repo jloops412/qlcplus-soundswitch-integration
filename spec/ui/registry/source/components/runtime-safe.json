@@ -23,6 +23,25 @@
   },
   "components": [
     {
+      "id": "ember.authoringWorkbench",
+      "label": "Authoring Workbench",
+      "description": "Presents one searchable stable-ID collection beside a contextual Inspector with explicit draft, read-only, empty, filtered, and selection-hidden states.",
+      "status": "bridged",
+      "supportedWorkspaces": ["studio"],
+      "supportedVariants": ["compact", "default", "wide"],
+      "properties": {
+        "collectionEmphasis": {"type": "enum", "enumValues": ["standard", "wide"]},
+        "query": {"type": "string", "maxLength": 256},
+        "resourceKind": {"type": "enum", "enumValues": ["autoloop", "fixture", "fixtureGroup", "fixtureProfile", "staticLook", "trackScript"]},
+        "showStableIds": {"type": "boolean"}
+      },
+      "events": ["createRequested", "deleteRequested", "duplicateRequested", "queryChanged", "saveRequested", "selectionChanged"],
+      "slots": ["collection", "inspector", "libraryActions", "inspectorActions"],
+      "accessibilityRole": "region",
+      "performanceClass": "virtualized",
+      "failureBehavior": "safeFallback"
+    },
+    {
       "id": "ember.activeLayers",
       "label": "Active Layers",
       "description": "Presents Runner-owned active content, safety, and override summaries without resolving lighting layers.",
@@ -120,6 +139,44 @@
       ],
       "accessibilityRole": "log",
       "performanceClass": "virtualized"
+    },
+    {
+      "id": "ember.fixtureFunctionBrowser",
+      "label": "Fixture Function Browser",
+      "description": "Browses stable profile-backed fixture functions and constructs exact existing fixture/group override commands without exposing raw protected DMX ranges.",
+      "status": "bridged",
+      "supportedWorkspaces": ["live", "studio"],
+      "supportedVariants": ["compact", "default"],
+      "properties": {
+        "position": {"type": "number", "minimum": 0, "maximum": 1},
+        "query": {"type": "string"},
+        "showDiagnostics": {"type": "boolean"}
+      },
+      "requiredCommands": [
+        "fixture.override.property.release",
+        "fixture.override.property.set",
+        "group.override.property.release",
+        "group.override.property.set"
+      ],
+      "requiredStates": ["override.activePropertyCount"],
+      "accessibilityRole": "listbox",
+      "performanceClass": "snapshotBounded",
+      "failureBehavior": "safeFallback"
+    },
+    {
+      "id": "ember.fixtureProfileEditor",
+      "label": "Fixture Profile Editor",
+      "description": "Presents ordered channel mappings, safe semantic parameters, named DMX ranges, provenance, audit results, and immutable-source duplicate-to-edit workflow.",
+      "status": "bridged",
+      "supportedWorkspaces": ["studio"],
+      "supportedVariants": ["compact", "default"],
+      "properties": {
+        "showCatalog": {"type": "boolean"},
+        "showDiagnostics": {"type": "boolean"}
+      },
+      "accessibilityRole": "form",
+      "performanceClass": "snapshotBounded",
+      "failureBehavior": "safeFallback"
     },
     {
       "id": "ember.staticLookMatrix",

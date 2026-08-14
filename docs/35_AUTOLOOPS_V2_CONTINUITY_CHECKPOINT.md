@@ -902,3 +902,71 @@ editing, post-commit V2 detail editing, SoundSwitch controlled-delta decoding,
 native Windows/hardware qualification, soak, signing, and production release
 remain follow-up work. The migration blocker remains
 `soundswitch.autoloop_delta_corpus_unavailable`.
+
+## 19. Additive named fixture-function authoring checkpoint — 2026-08-13
+
+This Preview 93 source slice extends the renderer-neutral fixture-control
+catalog into committed Autoloop V2 content. It consumes the existing source,
+authoring, persistence, compiler, preview, and fixture-capability contracts; it
+does not introduce another event model, profile interpreter, preview engine,
+Runner path, or command registry.
+
+### Exact proposal and transaction boundary
+
+- `plan_autoloop_fixture_control` accepts one immutable authoring snapshot,
+  project fixture truth, stable program/target/choice IDs, a canonical
+  half-open 960-PPQ tick range, and a bounded range position;
+- a fixture target emits one semantic target/lane/`PropertyBlock` event, while
+  a mixed-profile group emits one exact fixture-scoped set per supported
+  member so different profile ranges can retain different normalized values;
+- generated stable IDs come from a caller-owned prefix and collisions are
+  explicit refusal, never overwrite behavior;
+- the complete candidate is normalized and validated before
+  `AutoloopAuthoringService` applies it as one generation-checked source
+  transaction. Stale generation, missing program/target/choice, empty target,
+  invalid time, ownership conflict, identifier collision, fixture-write or
+  source capacity, protected choice, and safety-gated choice all leave the
+  original generation, digest, and canonical source unchanged;
+- no raw DMX address, channel offset, byte, display label, or Windows control
+  identity is persisted in the Autoloop event.
+
+### Transitional Windows journey
+
+The Studio AutoScript page can select an existing persisted V2 placement,
+fixture/group, named profile function, exact start/end beats, and continuous
+range position. It builds the immutable candidate, loads it through
+`StudioPreviewService`, seeks the production output-disabled preview, and
+shows the rendered frame digest before committing the canonical source through
+the existing `StudioDocumentService::apply_autoloop_source` authority. A
+preview/compile/generation failure leaves the project unchanged. One accepted
+gesture becomes one ordinary project edit and is durable only after normal
+Save.
+
+This remains in the already recorded Authoring direct-callback area. It adds
+no callable command/state/component/capability registry entry because the
+current controls only select arguments for an existing Studio authoring
+transaction. Issue #31 G1E remains the removal gate for the Win32 adapter.
+
+### Focused evidence and remaining boundary
+
+- warning-fatal Make and fresh CMake/CTest builds pass
+  `autoloop_fixture_controls_tests`;
+- regressions cover two deliberately different wheel profiles, exact
+  per-fixture semantic values, one atomic apply/Undo, half-open adjacency,
+  lane-priority overlap, and fail-closed stale/safety/protected/collision/
+  ownership/range/budget/capacity paths;
+- `fixture_controller_binding_tests` separately proves the same stable catalog
+  can produce persistent bounded MIDI/controller mappings without introducing
+  controller-specific fixture semantics;
+- `migration_portability_review_tests` separately keeps SoundSwitch artifact
+  identity distinct from semantic decoder fidelity and reports WOLFMIX as
+  research/evidence unavailable.
+
+Position/Attribute/Movement/Effect reference authoring and realization,
+drag/curve tooling, bulk AutoScript orchestration, controller feedback, Ember
+Actions/EmberSkin exposure, exact SoundSwitch controlled-delta decoding,
+installed Windows, physical fixtures/controllers, soak, and gig qualification
+remain open. The exact SoundSwitch blocker remains
+`soundswitch.autoloop_delta_corpus_unavailable`; the WOLFMIX blocker is
+`wolfmix.controlled_delta_corpus_unavailable`. Neither blocker is an import
+claim.

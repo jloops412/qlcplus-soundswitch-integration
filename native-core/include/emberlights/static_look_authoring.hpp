@@ -105,6 +105,17 @@ struct StaticLookDependencyReport {
     showcore::Property property,
     showcore::PropertyValue value);
 
+// Applies one human-readable profile function through its exact per-fixture
+// semantic realizations. This is the Static Look counterpart to choosing a
+// named function in Live or a future skin/controller picker; no raw DMX value
+// enters the authored Look.
+[[nodiscard]] StaticLookAuthoringOutcome apply_static_look_control_choice(
+    StaticLookDraft& draft,
+    const ProjectDocument& project,
+    std::string_view target_id,
+    std::string_view choice_id,
+    float position = 0.5F);
+
 [[nodiscard]] StaticLookAuthoringOutcome remove_static_look_property(
     StaticLookDraft& draft,
     const ProjectDocument& project,

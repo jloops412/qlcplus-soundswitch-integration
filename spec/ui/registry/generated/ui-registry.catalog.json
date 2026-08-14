@@ -1150,6 +1150,78 @@
       ]
     },
     {
+      "accessibilityRole": "region",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents one searchable stable-ID collection beside a contextual Inspector with explicit draft, read-only, empty, filtered, and selection-hidden states.",
+      "events": [
+        "createRequested",
+        "deleteRequested",
+        "duplicateRequested",
+        "queryChanged",
+        "saveRequested",
+        "selectionChanged"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.authoringWorkbench",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Authoring Workbench",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {
+        "collectionEmphasis": {
+          "enumValues": [
+            "standard",
+            "wide"
+          ],
+          "type": "enum"
+        },
+        "query": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "resourceKind": {
+          "enumValues": [
+            "autoloop",
+            "fixture",
+            "fixtureGroup",
+            "fixtureProfile",
+            "staticLook",
+            "trackScript"
+          ],
+          "type": "enum"
+        },
+        "showStableIds": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [],
+      "slots": [
+        "collection",
+        "inspector",
+        "libraryActions",
+        "inspectorActions"
+      ],
+      "status": "bridged",
+      "supportedVariants": [
+        "compact",
+        "default",
+        "wide"
+      ],
+      "supportedWorkspaces": [
+        "studio"
+      ]
+    },
+    {
       "accessibilityRole": "grid",
       "callable": false,
       "classification": "nativeComplex",
@@ -1311,6 +1383,99 @@
       ]
     },
     {
+      "accessibilityRole": "listbox",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Browses stable profile-backed fixture functions and constructs exact existing fixture/group override commands without exposing raw protected DMX ranges.",
+      "events": [],
+      "failureBehavior": "safeFallback",
+      "id": "ember.fixtureFunctionBrowser",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Fixture Function Browser",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {
+        "position": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "query": {
+          "type": "string"
+        },
+        "showDiagnostics": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [
+        "fixture.override.property.release",
+        "fixture.override.property.set",
+        "group.override.property.release",
+        "group.override.property.set"
+      ],
+      "requiredStates": [
+        "override.activePropertyCount"
+      ],
+      "slots": [],
+      "status": "bridged",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "form",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents ordered channel mappings, safe semantic parameters, named DMX ranges, provenance, audit results, and immutable-source duplicate-to-edit workflow.",
+      "events": [],
+      "failureBehavior": "safeFallback",
+      "id": "ember.fixtureProfileEditor",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Fixture Profile Editor",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {
+        "showCatalog": {
+          "type": "boolean"
+        },
+        "showDiagnostics": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [],
+      "slots": [],
+      "status": "bridged",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "studio"
+      ]
+    },
+    {
       "accessibilityRole": "grid",
       "callable": false,
       "classification": "nativeComplex",
@@ -1412,7 +1577,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.1.0",
+  "registrySetVersion": "1.3.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -1556,7 +1721,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "d3f5c6edc1226a5184ddcf7d7ed2405605534131e6c6ab88b167f111b1614945",
+  "sourceDigest": "a3edd0e488a49bbd15b2655be4fb2ee36506dd23a98498874e2bddbb46b790de",
   "states": [
     {
       "authority": "runnerScheduler",

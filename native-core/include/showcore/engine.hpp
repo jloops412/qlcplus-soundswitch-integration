@@ -14,6 +14,9 @@ public:
     [[nodiscard]] LayerStack& layers() noexcept { return layers_; }
     [[nodiscard]] SafetyPolicy& safety() noexcept { return safety_; }
     [[nodiscard]] const DmxFrames& frames() const noexcept { return frames_; }
+    [[nodiscard]] const DmxFrameAttribution& frame_attribution() const noexcept {
+        return frame_attribution_;
+    }
 
     void tick() noexcept;
 
@@ -22,6 +25,7 @@ private:
     LayerStack layers_{};
     SafetyPolicy safety_{};
     DmxFrames frames_{};
+    DmxFrameAttribution frame_attribution_{};
     FixtureRenderer renderer_{};
 };
 
