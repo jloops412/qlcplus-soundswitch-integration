@@ -46,7 +46,7 @@ must report zero breaking changes and zero removals.
 
 - Components: `ember.activeLayers`, `ember.authoringWorkbench`,
   `ember.autoloopMatrix`, `ember.connectionPanel`, `ember.diagnostics`,
-  `ember.fixtureFunctionBrowser` (displayed as Fixture Attribute Browser),
+  `ember.fixtureFunctionBrowser` (displayed as Fixture Control Inspector),
   `ember.fixtureProfileEditor`, and `ember.staticLookMatrix`. Bridged contracts
   describe toolkit-neutral native seams; all remain `callable: false`, so no
   production skin-runtime activation is implied.

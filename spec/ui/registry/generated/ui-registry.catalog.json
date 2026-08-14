@@ -1386,10 +1386,15 @@
       "accessibilityRole": "listbox",
       "callable": false,
       "classification": "nativeComplex",
-      "contractVersion": "0.2.0",
+      "contractVersion": "0.3.0",
       "deprecated": false,
-      "description": "Browses one stable profile-backed catalog containing direct fixture channels and selectable named DMX capabilities, with exact fixture/group override construction and protected ranges excluded.",
-      "events": [],
+      "description": "Searches and diagnoses one stable profile-backed catalog containing direct fixture channels and named DMX functions, with surface-aware availability for Live, Static Looks, Autoloops, and controller mappings; protected ranges remain excluded.",
+      "events": [
+        "favoriteToggled",
+        "filterChanged",
+        "selectionChanged",
+        "useRequested"
+      ],
       "failureBehavior": "safeFallback",
       "id": "ember.fixtureFunctionBrowser",
       "inputModes": [
@@ -1398,20 +1403,51 @@
         "touch"
       ],
       "introducedGeneration": 2,
-      "label": "Fixture Attribute Browser",
+      "label": "Fixture Control Inspector",
       "optionalCapabilities": [],
       "performanceClass": "snapshotBounded",
       "properties": {
+        "category": {
+          "enumValues": [
+            "all",
+            "atmosphere",
+            "beam",
+            "color",
+            "custom",
+            "effect",
+            "image",
+            "intensity",
+            "position"
+          ],
+          "type": "enum"
+        },
+        "favoritesOnly": {
+          "type": "boolean"
+        },
         "position": {
           "maximum": 1,
           "minimum": 0,
           "type": "number"
         },
         "query": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "selectedControlId": {
+          "maxLength": 512,
           "type": "string"
         },
         "showDiagnostics": {
           "type": "boolean"
+        },
+        "surface": {
+          "enumValues": [
+            "autoloop",
+            "controller",
+            "liveOverride",
+            "staticLook"
+          ],
+          "type": "enum"
         }
       },
       "requiredCapabilities": [],
@@ -1428,7 +1464,8 @@
       "status": "bridged",
       "supportedVariants": [
         "compact",
-        "default"
+        "default",
+        "wide"
       ],
       "supportedWorkspaces": [
         "live",
@@ -1577,7 +1614,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.4.0",
+  "registrySetVersion": "1.5.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -1721,7 +1758,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "3f44d8129607601db67f462b3710b52bf4c889d6238cebc10a7f4a2a957cf659",
+  "sourceDigest": "7e22086416145ec19d10d309e492d64eb60e96d3e8a8a59b2f81ffdbadc7026f",
   "states": [
     {
       "authority": "runnerScheduler",

@@ -275,6 +275,24 @@ struct CanonicalTarget {
     }
 }
 
+[[nodiscard]] bool choice_is_favorite(
+    const FixtureFunctionComponentQuery& query,
+    std::string_view choice_id) noexcept {
+    return std::any_of(
+        query.favorite_choice_ids.begin(),
+        query.favorite_choice_ids.end(),
+        [choice_id](std::string_view favorite_id) {
+            return favorite_id == choice_id;
+        });
+}
+
+[[nodiscard]] bool surface_accepts_profile_specific_values(
+    FixtureParameterSurface surface) noexcept {
+    return surface == FixtureParameterSurface::StaticLook ||
+        surface == FixtureParameterSurface::Autoloop ||
+        surface == FixtureParameterSurface::Controller;
+}
+
 [[nodiscard]] FixtureFunctionDmxDiagnostic make_diagnostic(
     const ProjectDocument& project,
     const FixtureControlChoiceValue& value) {
@@ -349,7 +367,9 @@ struct CanonicalTarget {
 [[nodiscard]] FixtureFunctionRow make_row(
     const ProjectDocument& project,
     const FixtureControlChoice& choice,
-    bool target_complete) {
+    bool target_complete,
+    FixtureParameterSurface surface,
+    bool favorite) {
     FixtureFunctionRow row;
     row.choice_id = choice.id;
     row.capability_id = choice.capability_id;
@@ -376,6 +396,13 @@ struct CanonicalTarget {
         choice.target_fixture_count};
     row.normalized_value = choice.shared_normalized_value;
     row.shared_semantic_value = choice.shared_value;
+    row.favorite = favorite;
+    row.accepts_position = choice.kind ==
+            FixtureControlChoiceKind::DirectAttribute ||
+        choice.behavior == showcore::ChannelCapabilityBehavior::Continuous;
+    row.uses_exact_profile_value = choice.kind ==
+            FixtureControlChoiceKind::NamedCapability &&
+        choice.behavior == showcore::ChannelCapabilityBehavior::Slot;
     row.safety_restricted = choice.safety_gated() ||
         (descriptor != nullptr && descriptor->safety_restricted());
     row.live_override_compatible = target_complete &&
@@ -387,23 +414,33 @@ struct CanonicalTarget {
     }
     row.has_profile_specific_dmx = profile_specific_dmx(row.diagnostics);
 
-    if (!target_complete) {
+    if (surface == FixtureParameterSurface::Profile) {
+        row.reason = FixtureFunctionReason::InvalidSurface;
+    } else if (!target_complete &&
+        !surface_accepts_profile_specific_values(surface)) {
         row.reason = FixtureFunctionReason::TargetIncomplete;
-    } else if (!choice.common() ||
-               choice.values.size() != choice.target_fixture_count) {
+    } else if (surface == FixtureParameterSurface::LiveOverride &&
+               (!choice.common() ||
+                choice.values.size() != choice.target_fixture_count)) {
         row.reason = FixtureFunctionReason::PartialGroupCoverage;
-    } else if (!choice.shared_value) {
+    } else if (surface == FixtureParameterSurface::LiveOverride &&
+               !choice.shared_value) {
         row.reason = FixtureFunctionReason::ProfileValuesDiffer;
-    } else if (!valid_normalized(choice.shared_normalized_value)) {
+    } else if (choice.values.empty() ||
+               (surface == FixtureParameterSurface::LiveOverride &&
+                !valid_normalized(choice.shared_normalized_value))) {
         row.reason = FixtureFunctionReason::InconsistentChoice;
-    } else if (row.safety_restricted) {
+    } else if (row.safety_restricted &&
+               surface != FixtureParameterSurface::StaticLook) {
         row.reason = FixtureFunctionReason::SafetyGateRequired;
     } else {
         row.reason = FixtureFunctionReason::None;
     }
 
     row.enabled = row.reason == FixtureFunctionReason::None &&
-        row.live_override_compatible;
+        (surface == FixtureParameterSurface::LiveOverride
+             ? row.live_override_compatible
+             : surface_accepts_profile_specific_values(surface));
     if (row.enabled) {
         row.availability = FixtureFunctionRowAvailability::Enabled;
     } else if (row.reason == FixtureFunctionReason::SafetyGateRequired) {
@@ -419,10 +456,25 @@ struct CanonicalTarget {
         : fixture_parameter_safety_name(descriptor->safety);
     row.reason_text = unavailable_reason_text(
         row.reason, row.coverage, safety_label);
+    if (row.enabled && surface == FixtureParameterSurface::StaticLook &&
+        row.safety_restricted) {
+        row.reason_text =
+            "Authorable in a Static Look; Runner arming, caps, and preview blocks still apply.";
+    } else if (row.enabled && choice.partial()) {
+        row.reason_text =
+            "Available for the supported fixtures; unsupported fixtures retain lower content.";
+    } else if (row.enabled && !choice.shared_value) {
+        row.reason_text =
+            "Available with exact per-profile values preserved for each fixture.";
+    } else if (row.enabled &&
+               surface != FixtureParameterSurface::LiveOverride) {
+        row.reason_text =
+            "Available on this authoring surface; semantic values resolve through each fixture profile.";
+    }
     row.accessibility_label = row.name + ", " + row.property_label +
         (row.kind == FixtureControlChoiceKind::DirectAttribute
-             ? " direct fixture attribute, "
-             : " named fixture capability, ") +
+             ? " direct fixture channel, "
+             : " named DMX function, ") +
         row.category_label + ", " + row.control_kind_label + ".";
     row.accessibility_description = coverage_text(row.coverage) + " " +
         row.reason_text + " " +
@@ -507,8 +559,11 @@ FixtureFunctionComponentModel build_fixture_function_component(
     const FixtureFunctionComponentQuery& query) {
     FixtureFunctionComponentModel model;
     model.target_id = std::string(query.target_id);
+    model.surface = query.surface;
     model.position = normalized_position(query.position);
     model.category_filter = query.category;
+    model.favorites_only = query.favorites_only;
+    model.selected_choice_id = std::string(query.selected_choice_id);
     const auto search_size = std::min(
         query.search.size(), kFixtureFunctionComponentMaximumSearchBytes);
     if (search_size != 0U) {
@@ -524,7 +579,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
         model.state = FixtureFunctionComponentState::Unavailable;
         model.reason = FixtureFunctionReason::TargetNotFound;
         model.message = "The fixture or group target no longer exists.";
-        model.accessibility_label = "Fixture attributes unavailable: target missing.";
+        model.accessibility_label = "Fixture controls unavailable: target missing.";
         return model;
     }
 
@@ -539,7 +594,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
     if (model.search_truncated) {
         append_warning(
             model,
-            "Fixture-attribute search was limited to the first " +
+            "Fixture-control search was limited to the first " +
                 std::to_string(kFixtureFunctionComponentMaximumSearchBytes) +
                 " bytes.");
     }
@@ -549,7 +604,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
         model.reason = FixtureFunctionReason::TargetIncomplete;
         model.message = "The target is missing a patched fixture profile.";
         model.accessibility_label =
-            model.target_name + ", fixture attributes unavailable: incomplete target.";
+            model.target_name + ", fixture controls unavailable: incomplete target.";
         return model;
     }
     if (catalog.target_fixture_count == 0U) {
@@ -567,6 +622,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
         requested_limit, kFixtureFunctionComponentMaximumRowLimit);
     std::array<std::size_t, kCategoryCount> total_by_category{};
     std::array<std::size_t, kCategoryCount> search_by_category{};
+    std::array<std::size_t, kCategoryCount> favorite_by_category{};
     std::array<std::size_t, kCategoryCount> visible_by_category{};
     model.rows.reserve(std::min(row_limit, catalog.choices.size()));
 
@@ -582,13 +638,19 @@ FixtureFunctionComponentModel build_fixture_function_component(
         ++total_by_category[index];
         const bool search_match = choice_matches_search(
             project, choice, category, tokens);
+        const bool favorite = choice_is_favorite(query, choice.id);
+        if (favorite) {
+            ++model.favorite_choice_count;
+            ++favorite_by_category[index];
+        }
         if (search_match) {
             ++search_by_category[index];
         }
         const bool category_match =
             !query.category.has_value() ||
             (valid_category(*query.category) && *query.category == category);
-        if (!search_match || !category_match) {
+        if (!search_match || !category_match ||
+            (query.favorites_only && !favorite)) {
             continue;
         }
         ++model.matching_choice_count;
@@ -596,7 +658,11 @@ FixtureFunctionComponentModel build_fixture_function_component(
             model.rows_truncated = true;
             continue;
         }
-        model.rows.push_back(make_row(project, choice, target.complete));
+        model.rows.push_back(make_row(
+            project, choice, target.complete, query.surface, favorite));
+        if (choice.id == query.selected_choice_id) {
+            model.selection_visible = true;
+        }
         ++visible_by_category[index];
     }
 
@@ -610,6 +676,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
             std::string(fixture_parameter_category_name(category)),
             total_by_category[index],
             search_by_category[index],
+            favorite_by_category[index],
             visible_by_category[index]});
     }
 
@@ -621,12 +688,14 @@ FixtureFunctionComponentModel build_fixture_function_component(
             ? FixtureFunctionReason::NoFunctions
             : FixtureFunctionReason::TargetIncomplete;
         model.message = target.complete
-            ? "No selectable profile-backed fixture attributes are defined for this target."
+            ? "No selectable profile-backed fixture controls are defined for this target."
             : "The target is missing a fixture or fixture profile.";
     } else if (model.rows.empty()) {
         model.state = FixtureFunctionComponentState::Empty;
         model.reason = FixtureFunctionReason::NoMatches;
-        model.message = "No fixture attributes match the current search and category filter.";
+        model.message = query.favorites_only && model.favorite_choice_count == 0U
+            ? "No fixture controls have been marked as favorites yet."
+            : "No fixture controls match the current search, category, and favorites filters.";
     } else {
         const bool any_enabled = std::any_of(
             model.rows.begin(), model.rows.end(),
@@ -636,19 +705,23 @@ FixtureFunctionComponentModel build_fixture_function_component(
             : FixtureFunctionComponentState::Degraded;
         if (!any_enabled) {
             model.reason = FixtureFunctionReason::NoLiveCompatibleFunctions;
-            model.message = "Matching profile attributes are visible for diagnosis but none can form one exact Live override command.";
+            model.message = query.surface == FixtureParameterSurface::LiveOverride
+                ? "Matching fixture controls are visible for diagnosis but none can form one exact Live override command."
+                : "Matching fixture controls are visible for diagnosis but unavailable on this authoring surface.";
         } else if (model.rows_truncated) {
             model.reason = FixtureFunctionReason::RowLimitReached;
-            model.message = "Exact fixture attributes are available; refine the search to see results beyond the bounded row limit.";
+            model.message = "Fixture controls are available; refine the search to see results beyond the bounded row limit.";
         } else {
             model.reason = FixtureFunctionReason::None;
-            model.message = "Exact fixture attributes are ready for typed Live override command construction.";
+            model.message = query.surface == FixtureParameterSurface::LiveOverride
+                ? "Exact fixture controls are ready for typed Live override command construction."
+                : "Profile-backed fixture controls are ready for this authoring surface.";
         }
     }
 
     std::ostringstream accessibility;
     accessibility << model.target_name << ", " << model.rows.size()
-                  << " fixture attribute";
+                  << " fixture control";
     if (model.rows.size() != 1U) {
         accessibility << 's';
     }
@@ -671,12 +744,17 @@ FixtureFunctionCommandBuildResult build_fixture_function_invocation(
         request.action != FixtureFunctionCommandAction::Release) {
         return command_failure(
             FixtureFunctionReason::InvalidAction,
-            "The fixture-attribute command action is invalid.");
+            "The fixture-control command action is invalid.");
+    }
+    if (snapshot.surface != FixtureParameterSurface::LiveOverride) {
+        return command_failure(
+            FixtureFunctionReason::InvalidSurface,
+            "Only a Live Fixture Control Inspector snapshot can build an override command.");
     }
     if (request.choice_id.empty()) {
         return command_failure(
             FixtureFunctionReason::SelectionMissing,
-            "No stable fixture-attribute choice ID was supplied.");
+            "No stable fixture-control choice ID was supplied.");
     }
     const auto matching_rows = static_cast<std::size_t>(std::count_if(
         snapshot.rows.begin(), snapshot.rows.end(),
@@ -686,7 +764,7 @@ FixtureFunctionCommandBuildResult build_fixture_function_invocation(
     if (matching_rows != 1U) {
         return command_failure(
             FixtureFunctionReason::SelectionMissing,
-            "The stable fixture-attribute choice is not present exactly once in this component snapshot.");
+            "The stable fixture-control choice is not present exactly once in this component snapshot.");
     }
     const auto snapshot_row = std::find_if(
         snapshot.rows.begin(), snapshot.rows.end(),
@@ -726,17 +804,22 @@ FixtureFunctionCommandBuildResult build_fixture_function_invocation(
         fresh_choice->access == showcore::ChannelCapabilityAccess::Protected) {
         return command_failure(
             FixtureFunctionReason::SelectionStale,
-            "The selected fixture attribute is missing, protected, or no longer supported by this target.");
+            "The selected fixture control is missing, protected, or no longer supported by this target.");
     }
     if (catalog.target_fixture_count != snapshot.target_fixture_count ||
         target.complete != snapshot.target_complete ||
         !same_choice_snapshot(*snapshot_row, *fresh_choice)) {
         return command_failure(
             FixtureFunctionReason::SelectionStale,
-            "The selected fixture attribute changed after the component snapshot was built; refresh before invoking it.");
+            "The selected fixture control changed after the component snapshot was built; refresh before invoking it.");
     }
 
-    const auto fresh_row = make_row(project, *fresh_choice, target.complete);
+    const auto fresh_row = make_row(
+        project,
+        *fresh_choice,
+        target.complete,
+        FixtureParameterSurface::LiveOverride,
+        snapshot_row->favorite);
     if (!fresh_row.enabled) {
         return command_failure(fresh_row.reason, fresh_row.reason_text);
     }
@@ -786,6 +869,7 @@ const char* fixture_function_reason_name(
         return "InconsistentChoice";
     case FixtureFunctionReason::RowLimitReached: return "RowLimitReached";
     case FixtureFunctionReason::InvalidAction: return "InvalidAction";
+    case FixtureFunctionReason::InvalidSurface: return "InvalidSurface";
     }
     return "Unknown";
 }

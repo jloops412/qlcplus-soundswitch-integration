@@ -179,6 +179,7 @@ int failures = 0;
 }
 
 void test_search_filter_order_and_bounds() {
+    CHECK(emberlights::kFixtureFunctionComponentVersion == 3U);
     const auto project = make_project();
     const auto model = group_model(project);
     CHECK(model.state == emberlights::FixtureFunctionComponentState::Ready);
@@ -456,6 +457,100 @@ void test_exact_fixture_and_group_invocations() {
     }
 }
 
+void test_surface_availability_favorites_and_selection() {
+    const auto project = make_project();
+
+    emberlights::FixtureFunctionComponentQuery look_query;
+    look_query.target_id = "group-wheels";
+    look_query.surface = emberlights::FixtureParameterSurface::StaticLook;
+    auto look = emberlights::build_fixture_function_component(
+        project, look_query);
+    const auto* initial_green = find_row(look, "green");
+    const auto* initial_open = find_row(look, "open");
+    CHECK(initial_green != nullptr);
+    CHECK(initial_open != nullptr);
+    if (initial_green == nullptr || initial_open == nullptr) {
+        return;
+    }
+    const auto green_id = initial_green->choice_id;
+    const auto open_id = initial_open->choice_id;
+    look_query.favorite_choice_ids = {green_id, open_id};
+    look = emberlights::build_fixture_function_component(project, look_query);
+    const auto* green = find_row(look, "green");
+    const auto* blue = find_row(look, "blue");
+    const auto* strobe = find_row(look, "strobe-slow-fast");
+    const auto* open = find_row(look, "open");
+    CHECK(green != nullptr);
+    CHECK(blue != nullptr);
+    CHECK(strobe != nullptr);
+    CHECK(open != nullptr);
+    if (green != nullptr) {
+        CHECK(green->enabled);
+        CHECK(green->coverage.partial());
+        CHECK(green->favorite);
+    }
+    if (blue != nullptr) {
+        CHECK(blue->enabled);
+        CHECK(!blue->shared_semantic_value);
+    }
+    if (strobe != nullptr) {
+        CHECK(strobe->enabled);
+        CHECK(strobe->safety_restricted);
+        CHECK(strobe->reason_text.find("Runner arming") != std::string::npos);
+    }
+    if (open != nullptr) {
+        CHECK(open->uses_exact_profile_value);
+        CHECK(!open->accepts_position);
+        CHECK(open->favorite);
+    }
+    CHECK(look.favorite_choice_count == 2U);
+
+    look_query.favorites_only = true;
+    look_query.selected_choice_id = green_id;
+    look = emberlights::build_fixture_function_component(project, look_query);
+    CHECK(look.rows.size() == 2U);
+    CHECK(look.matching_choice_count == 2U);
+    CHECK(look.selection_visible);
+    CHECK(std::all_of(
+        look.rows.begin(), look.rows.end(),
+        [](const auto& row) { return row.favorite; }));
+
+    emberlights::FixtureFunctionComponentQuery loop_query;
+    loop_query.target_id = "group-wheels";
+    loop_query.surface = emberlights::FixtureParameterSurface::Autoloop;
+    const auto loop = emberlights::build_fixture_function_component(
+        project, loop_query);
+    const auto* loop_green = find_row(loop, "green");
+    const auto* loop_strobe = find_row(loop, "strobe-slow-fast");
+    CHECK(loop_green != nullptr && loop_green->enabled);
+    CHECK(loop_strobe != nullptr && !loop_strobe->enabled);
+    if (loop_strobe != nullptr) {
+        CHECK(loop_strobe->reason ==
+              emberlights::FixtureFunctionReason::SafetyGateRequired);
+    }
+
+    auto controller_query = loop_query;
+    controller_query.surface =
+        emberlights::FixtureParameterSurface::Controller;
+    const auto controller = emberlights::build_fixture_function_component(
+        project, controller_query);
+    const auto* controller_green = find_row(controller, "green");
+    const auto* controller_strobe =
+        find_row(controller, "strobe-slow-fast");
+    CHECK(controller_green != nullptr && controller_green->enabled);
+    CHECK(controller_strobe != nullptr && !controller_strobe->enabled);
+
+    const auto invalid_surface =
+        emberlights::build_fixture_function_invocation(
+            project,
+            loop,
+            {loop_green == nullptr ? std::string_view{} : loop_green->choice_id,
+             emberlights::FixtureFunctionCommandAction::Set});
+    CHECK(!invalid_surface);
+    CHECK(invalid_surface.reason ==
+          emberlights::FixtureFunctionReason::InvalidSurface);
+}
+
 void test_partial_safety_and_protected_refusal() {
     const auto project = make_project();
     const auto model = group_model(project);
@@ -614,6 +709,7 @@ int main() {
     test_search_filter_order_and_bounds();
     test_mixed_profile_rows_diagnostics_and_accessibility();
     test_exact_fixture_and_group_invocations();
+    test_surface_availability_favorites_and_selection();
     test_partial_safety_and_protected_refusal();
     test_stale_missing_and_incomplete_selection();
     if (failures != 0) {

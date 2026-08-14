@@ -6,6 +6,7 @@
 #include "emberlights/connection_layout.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 #include "emberlights/fixture_controller_binding.hpp"
+#include "emberlights/fixture_function_component.hpp"
 #include "emberlights/fixture_parameter_catalog.hpp"
 #include "emberlights/fixture_profile_editor.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
@@ -407,6 +408,7 @@ enum ControlId : int {
     IdOverridesNamedLabel,
     IdOverridesNamedChoice,
     IdOverridesApplyNamed,
+    IdOverridesBrowseControls,
 
     IdProfileTitle = 2000,
     IdProfileList,
@@ -495,6 +497,26 @@ enum ControlId : int {
     IdChannelWorkbenchDone,
     IdChannelWorkbenchMessage,
 
+    IdFixtureControlInspectorTitle = 2400,
+    IdFixtureControlInspectorContext,
+    IdFixtureControlInspectorSearch,
+    IdFixtureControlInspectorCategory,
+    IdFixtureControlInspectorFavoritesOnly,
+    IdFixtureControlInspectorList,
+    IdFixtureControlInspectorDetails,
+    IdFixtureControlInspectorPositionLabel,
+    IdFixtureControlInspectorPosition,
+    IdFixtureControlInspectorPositionSlider,
+    IdFixtureControlInspectorZero,
+    IdFixtureControlInspectorQuarter,
+    IdFixtureControlInspectorHalf,
+    IdFixtureControlInspectorFull,
+    IdFixtureControlInspectorToggleFavorite,
+    IdFixtureControlInspectorUse,
+    IdFixtureControlInspectorClear,
+    IdFixtureControlInspectorDone,
+    IdFixtureControlInspectorMessage,
+
     IdPatchTitle = 3000,
     IdPatchList,
     IdPatchNew,
@@ -561,6 +583,7 @@ enum ControlId : int {
     IdLookNamedLabel,
     IdLookNamedChoice,
     IdLookApplyNamed,
+    IdLookBrowseControls,
 
     IdAutoloopTitle = 5000,
     IdAutoloopList,
@@ -612,6 +635,7 @@ enum ControlId : int {
     IdAutoscriptFunctionEnd,
     IdAutoscriptFunctionPosition,
     IdAutoscriptFunctionApply,
+    IdAutoscriptBrowseControls,
 
     IdTrackTitle = 5500,
     IdTrackList,
@@ -641,6 +665,7 @@ enum ControlId : int {
     IdMidiDelete,
     IdMidiMessage,
     IdMidiNamedChoice,
+    IdMidiBrowseControls,
 
     IdConnectionsTitle = 7000,
     IdProjectName,
@@ -976,7 +1001,7 @@ void set_multiline_control_text_preserving_view(
     std::string_view binding_id) {
     const auto authored_target = fixture_control_binding_target(binding_id);
     if (authored_target.empty()) {
-        return "Fixture attribute";
+        return "Fixture Control";
     }
     const auto catalog = emberlights::fixture_control_choices(
         project, authored_target);
@@ -986,7 +1011,7 @@ void set_multiline_control_text_preserving_view(
             return candidate.id == binding_id;
         });
     return choice == catalog.choices.end()
-        ? "Fixture attribute"
+        ? "Fixture Control"
         : choice->name;
 }
 
@@ -1374,6 +1399,18 @@ private:
     void remove_profile_capability();
     void save_profile_channel_metadata();
     void close_profile_capability_editor();
+    void create_fixture_control_inspector_window();
+    void layout_fixture_control_inspector_window();
+    void open_fixture_control_inspector(Page owner_page);
+    void refresh_fixture_control_inspector();
+    void refresh_fixture_control_inspector_details();
+    void use_fixture_control_inspector_selection();
+    void toggle_fixture_control_inspector_favorite();
+    void set_fixture_control_inspector_position(std::uint16_t percentage);
+    void close_fixture_control_inspector();
+    [[nodiscard]] std::string fixture_control_inspector_target_id() const;
+    [[nodiscard]] emberlights::FixtureParameterSurface
+        fixture_control_inspector_surface() const noexcept;
     void select_fixture(std::int32_t index);
     void new_fixture();
     void save_fixture();
@@ -1495,6 +1532,7 @@ private:
     std::optional<std::string> profile_duplicate_source_id_{};
     HWND profile_channel_workbench_{nullptr};
     HWND profile_capability_window_{nullptr};
+    HWND fixture_control_inspector_window_{nullptr};
     std::uint16_t profile_capability_channel_{0U};
     std::string selected_profile_capability_id_;
     std::int32_t fixture_index_{-1};
@@ -1523,6 +1561,9 @@ private:
         autoscript_function_choices_;
     std::string autoscript_function_preview_summary_;
     std::vector<emberlights::FixtureControlChoice> midi_named_choices_;
+    Page fixture_control_inspector_owner_{Page::Overrides};
+    emberlights::FixtureFunctionComponentModel fixture_control_inspector_model_;
+    std::vector<std::string> fixture_control_favorite_ids_;
 
     struct PendingFixtureCatalogDownload {
         emberlights::OpenFixtureLibraryDownloadResult result;
@@ -1952,6 +1993,23 @@ LRESULT CALLBACK Application::page_proc(
             return 0;
         }
     }
+    if (application != nullptr &&
+        window == application->fixture_control_inspector_window_) {
+        if (message == WM_SIZE) {
+            application->layout_fixture_control_inspector_window();
+            return 0;
+        }
+        if (message == WM_CLOSE) {
+            application->close_fixture_control_inspector();
+            return 0;
+        }
+        if (message == WM_GETMINMAXINFO) {
+            auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+            limits->ptMinTrackSize.x = 960;
+            limits->ptMinTrackSize.y = 680;
+            return 0;
+        }
+    }
     if (application != nullptr && message == WM_ERASEBKGND) {
         return TRUE;
     }
@@ -1966,7 +2024,8 @@ LRESULT CALLBACK Application::page_proc(
         return ::SendMessageW(
             application != nullptr &&
                     (window == application->profile_capability_window_ ||
-                     window == application->profile_channel_workbench_)
+                     window == application->profile_channel_workbench_ ||
+                     window == application->fixture_control_inspector_window_)
                 ? application->window_
                 : ::GetParent(window),
             message,
@@ -2961,7 +3020,7 @@ void Application::create_pages() {
     ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
     add_label(
         page,
-        L"Immediate fixture-attribute controls. Overrides are transient, sit above Looks and Autoloops, "
+        L"Immediate profile-backed fixture controls. Overrides are transient, sit above Looks and Autoloops, "
         L"and remain subject to the Runner's safety limits. They never edit the project.",
         IdOverridesHelp);
     add_label(page, L"Active fixture or group", 0);
@@ -2980,9 +3039,10 @@ void Application::create_pages() {
     add_button(page, L"25%", IdOverridesQuarter);
     add_button(page, L"50%", IdOverridesHalf);
     add_button(page, L"100%", IdOverridesFull);
-    add_label(page, L"Fixture Attribute • from active profile", IdOverridesNamedLabel);
+    add_label(page, L"Fixture Control • channel or named DMX function", IdOverridesNamedLabel);
     add_combo(page, IdOverridesNamedChoice);
-    add_button(page, L"Apply Fixture Attribute", IdOverridesApplyNamed);
+    add_button(page, L"Apply Control", IdOverridesApplyNamed);
+    add_button(page, L"Browse Controls…", IdOverridesBrowseControls);
 
     page = pages_[static_cast<std::size_t>(Page::Profiles)];
     title = add_label(page, L"STUDIO • Fixture Profiles", IdProfileTitle);
@@ -3152,7 +3212,7 @@ void Application::create_pages() {
     add_edit(page, IdLookValue);
     add_button(page, L"Apply Attribute", IdLookApplyProperty);
     add_button(page, L"Remove from Look", IdLookRemoveProperty);
-    add_label(page, L"Included fixture attributes", 0);
+    add_label(page, L"Included fixture controls", 0);
     add_edit(page, IdLookAssignments, true, true);
     add_button(page, L"Build Exact Offline DMX Preview", IdLookPreview);
     add_edit(page, IdLookPreviewText, true, true);
@@ -3172,9 +3232,10 @@ void Application::create_pages() {
         page,
         L"PHYSICAL PREVIEW OFF • Live must be stopped",
         IdLookPhysicalStatus);
-    add_label(page, L"Fixture Attribute • profile-backed", IdLookNamedLabel);
+    add_label(page, L"Fixture Control • channel or named DMX function", IdLookNamedLabel);
     add_combo(page, IdLookNamedChoice);
-    add_button(page, L"Use Fixture Attribute", IdLookApplyNamed);
+    add_button(page, L"Use Control", IdLookApplyNamed);
+    add_button(page, L"Browse Controls…", IdLookBrowseControls);
 
     page = pages_[static_cast<std::size_t>(Page::Autoloops)];
     title = add_label(page, L"STUDIO • Autoloops", IdAutoloopTitle);
@@ -3258,7 +3319,7 @@ void Application::create_pages() {
     add_combo(page, IdAutoscriptFunctionPlacement);
     add_label(page, L"Target", 0);
     add_combo(page, IdAutoscriptFunctionTarget);
-    add_label(page, L"Fixture Attribute", 0);
+    add_label(page, L"Fixture Control", 0);
     add_combo(page, IdAutoscriptFunctionChoice);
     add_label(page, L"Start beat", 0);
     add_edit(page, IdAutoscriptFunctionStart);
@@ -3270,6 +3331,7 @@ void Application::create_pages() {
         page,
         L"Preview + Add Function",
         IdAutoscriptFunctionApply);
+    add_button(page, L"Browse Controls…", IdAutoscriptBrowseControls);
 
     page = pages_[static_cast<std::size_t>(Page::Tracks)];
     title = add_label(page, L"STUDIO • Track Scripts", IdTrackTitle);
@@ -3319,8 +3381,9 @@ void Application::create_pages() {
     add_button(page, L"Learn Next MIDI Control", IdMidiLearn);
     add_button(page, L"Delete Mapping", IdMidiDelete);
     add_label(page, L"", IdMidiMessage);
-    add_label(page, L"Fixture Attribute • profile-backed (recommended)", 0);
+    add_label(page, L"Fixture Control • profile-backed (recommended)", 0);
     add_combo(page, IdMidiNamedChoice);
+    add_button(page, L"Browse Controls…", IdMidiBrowseControls);
 
     page = pages_[static_cast<std::size_t>(Page::Connections)];
     title = add_label(page, L"Connections & Output", IdConnectionsTitle);
@@ -3658,8 +3721,10 @@ void Application::layout_page(Page page, int width, int height) {
         move(4, x, 128, 160, 26);
         move(5, x, 156, form_width, 27);
         move(18, x, 196, form_width, 26);
-        move(19, x, 224, std::max(120, form_width - 160), 250);
-        move(20, x + std::max(128, form_width - 152), 222, 152, 32);
+        const auto control_combo_width = std::max(120, form_width - 260);
+        move(19, x, 224, control_combo_width, 250);
+        move(21, x + control_combo_width + 8, 222, 112, 32);
+        move(20, x + std::max(128, form_width - 132), 222, 132, 32);
         move(6, x, 266, 220, 26);
         move(7, x, 294, 80, 27);
         move(13, x + 90, 290, std::max(140, form_width - 90), 34);
@@ -3908,12 +3973,18 @@ void Application::layout_page(Page page, int width, int height) {
                 30);
         }
 
-        constexpr int named_label_width = 180;
-        constexpr int named_action_width = 140;
+        constexpr int named_label_width = 164;
+        constexpr int named_action_width = 120;
+        constexpr int named_browse_width = 120;
         move(55, x, top + 216, named_label_width, 26);
         move(56, x + named_label_width, top + 216,
-             std::max(1, form_width - named_label_width - named_action_width - 8),
+             std::max(
+                 1,
+                 form_width - named_label_width - named_action_width -
+                     named_browse_width - 16),
              250);
+        move(58, x + form_width - named_action_width - named_browse_width - 8,
+             top + 214, named_browse_width, 32);
         move(57, x + form_width - named_action_width, top + 214,
              named_action_width, 32);
 
@@ -4053,7 +4124,11 @@ void Application::layout_page(Page page, int width, int height) {
         move(34, margin + (function_column + field_gap) * 2, function_y + 2,
              function_column, 24);
         move(35, margin + (function_column + field_gap) * 2, function_y + 26,
-             function_column, 220);
+             std::max(1, function_column - 118), 220);
+        move(43,
+             margin + (function_column + field_gap) * 2 +
+                 std::max(1, function_column - 110),
+             function_y + 24, 110, 32);
         const auto compact_width = std::max(76, (usable_width - 310) / 3);
         move(36, margin, function_y + 64, compact_width, 24);
         move(37, margin, function_y + 88, compact_width, 27);
@@ -4124,7 +4199,8 @@ void Application::layout_page(Page page, int width, int height) {
         move(7, margin + 80, second_row, column_width - 80, 200);
         move(14, margin + column_width + column_gap, second_row, 190, 26);
         move(15, margin + column_width + column_gap + 190, second_row,
-             column_width - 190, 200);
+             std::max(1, column_width - 308), 200);
+        move(16, margin + usable_width - 110, second_row - 2, 110, 32);
         move(8, margin, height - 150, 80, 26);
         move(9, margin + 80, height - 150, 180, 200);
         move(10, margin + 280, height - 150, 130, 28);
@@ -4366,6 +4442,10 @@ void Application::show_page(Page page) {
     }
     if (page != Page::Profiles && profile_channel_workbench_ != nullptr) {
         ::ShowWindow(profile_channel_workbench_, SW_HIDE);
+    }
+    if (fixture_control_inspector_window_ != nullptr &&
+        page != fixture_control_inspector_owner_) {
+        close_fixture_control_inspector();
     }
     if (active_page_ == Page::Looks && page != Page::Looks &&
         physical_preview_.status().owns_runner) {
@@ -4635,7 +4715,7 @@ void listview_select_data(HWND list, std::int32_t data) {
 [[nodiscard]] std::string action_name(showcore::ActionType action) {
     switch (action) {
     case showcore::ActionType::None: return "None";
-    case showcore::ActionType::SetProperty: return "Set fixture attribute";
+    case showcore::ActionType::SetProperty: return "Set fixture control";
     case showcore::ActionType::Blackout: return "Blackout";
     case showcore::ActionType::TriggerLook: return "Trigger Static Look";
     case showcore::ActionType::TriggerAutoloop: return "Trigger Autoloop";
@@ -4790,7 +4870,7 @@ void set_static_look_color_controls(
     case emberlights::StaticLookAuthoringResult::EmptyTarget:
         return "The selected fixture group is empty.";
     case emberlights::StaticLookAuthoringResult::Unsupported:
-        return "The selected target does not support that fixture attribute or direct color.";
+        return "The selected target does not support that fixture control or direct color.";
     case emberlights::StaticLookAuthoringResult::InvalidValue:
         return "Enter values from 0 through 100 percent.";
     }
@@ -5325,7 +5405,7 @@ void Application::refresh_overrides() {
             ? "Patch at least one fixture before using Live Overrides."
             : (override_control_choices_.empty()
                    ? "Select a target and advanced semantic attribute. Use the value presets or drag the slider; the slider applies when released."
-                   : "Choose one profile-backed Fixture Attribute for direct intensity/color/position/beam control or exact shutter/wheel/effect behavior. The 0–100 control sets continuous range position; advanced semantic fallback remains available above."),
+                   : "Choose a profile-backed Fixture Control for a direct channel or exact shutter/wheel/effect function. The 0–100 input sets a direct value or continuous DMX-range position; exact slots ignore it."),
         live.fixtures.empty());
 }
 
@@ -5386,7 +5466,7 @@ void Application::refresh_override_control_choices() {
     }
     override_control_choices_.clear();
     static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
-    combo_add(combo, L"Choose a profile-backed Fixture Attribute…", -1);
+    combo_add(combo, L"Choose a profile-backed Fixture Control…", -1);
 
     const auto targets = ::GetDlgItem(page, IdOverridesFixture);
     const auto selected = static_cast<int>(::SendMessageW(
@@ -6834,6 +6914,757 @@ void Application::close_profile_capability_editor() {
     }
 }
 
+emberlights::FixtureParameterSurface
+Application::fixture_control_inspector_surface() const noexcept {
+    switch (fixture_control_inspector_owner_) {
+    case Page::Looks:
+        return emberlights::FixtureParameterSurface::StaticLook;
+    case Page::Autoscript:
+        return emberlights::FixtureParameterSurface::Autoloop;
+    case Page::Midi:
+        return emberlights::FixtureParameterSurface::Controller;
+    case Page::Overrides:
+    default:
+        return emberlights::FixtureParameterSurface::LiveOverride;
+    }
+}
+
+std::string Application::fixture_control_inspector_target_id() const {
+    switch (fixture_control_inspector_owner_) {
+    case Page::Overrides: {
+        const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
+        const auto list = ::GetDlgItem(page, IdOverridesFixture);
+        const auto selected = static_cast<int>(::SendMessageW(
+            list, LB_GETCURSEL, 0, 0));
+        if (selected < 0) {
+            return {};
+        }
+        const auto index = static_cast<std::size_t>(::SendMessageW(
+            list, LB_GETITEMDATA, selected, 0));
+        return index < live_view_model_.override_targets().size()
+            ? live_view_model_.override_targets()[index].id
+            : std::string{};
+    }
+    case Page::Looks:
+        return selected_look_target_id();
+    case Page::Autoscript: {
+        const auto page = pages_[static_cast<std::size_t>(Page::Autoscript)];
+        const auto index = combo_selected_data(
+            ::GetDlgItem(page, IdAutoscriptFunctionTarget), -1);
+        return index >= 0 && static_cast<std::size_t>(index) <
+                autoscript_function_target_ids_.size()
+            ? autoscript_function_target_ids_[static_cast<std::size_t>(index)]
+            : std::string{};
+    }
+    case Page::Midi: {
+        const auto page = pages_[static_cast<std::size_t>(Page::Midi)];
+        const auto action = static_cast<showcore::ActionType>(
+            combo_selected_data(
+                ::GetDlgItem(page, IdMidiAction),
+                static_cast<std::intptr_t>(showcore::ActionType::Blackout)));
+        const auto index = combo_selected_data(
+            ::GetDlgItem(page, IdMidiTarget), -1);
+        if (action == showcore::ActionType::SetProperty && index >= 0 &&
+            static_cast<std::size_t>(index) < project_.fixtures.size()) {
+            return project_.fixtures[static_cast<std::size_t>(index)].id;
+        }
+        if (action == showcore::ActionType::SetGroupProperty && index >= 0 &&
+            static_cast<std::size_t>(index) < project_.groups.size()) {
+            return project_.groups[static_cast<std::size_t>(index)].id;
+        }
+        return {};
+    }
+    default:
+        return {};
+    }
+}
+
+void Application::create_fixture_control_inspector_window() {
+    if (fixture_control_inspector_window_ != nullptr) {
+        return;
+    }
+    fixture_control_inspector_window_ = ::CreateWindowExW(
+        WS_EX_TOOLWINDOW | WS_EX_CONTROLPARENT,
+        kPageClass,
+        L"Fixture Control Inspector",
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        1120,
+        780,
+        window_,
+        nullptr,
+        instance_,
+        this);
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    enable_modern_window_frame(fixture_control_inspector_window_);
+    auto title = add_label(
+        fixture_control_inspector_window_,
+        L"FIXTURE CONTROL INSPECTOR",
+        IdFixtureControlInspectorTitle);
+    ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
+    add_label(
+        fixture_control_inspector_window_,
+        L"",
+        IdFixtureControlInspectorContext);
+    const auto search = add_edit(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorSearch);
+    static_cast<void>(::SendMessageW(
+        search,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            L"Search control, function, manufacturer, profile, channel, or stable ID")));
+    add_combo(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorCategory);
+    add_button(
+        fixture_control_inspector_window_,
+        L"Favorites only",
+        IdFixtureControlInspectorFavoritesOnly,
+        BS_AUTOCHECKBOX);
+    auto list = add_listview(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorList);
+    add_listview_column(list, 0, 105, L"Category");
+    add_listview_column(list, 1, 155, L"Control");
+    add_listview_column(list, 2, 205, L"DMX function");
+    add_listview_column(list, 3, 118, L"Input");
+    add_listview_column(list, 4, 92, L"Coverage");
+    add_listview_column(list, 5, 170, L"Profile DMX");
+    add_listview_column(list, 6, 140, L"Availability");
+    add_edit(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorDetails,
+        true,
+        true);
+    add_label(
+        fixture_control_inspector_window_,
+        L"Value / range position",
+        IdFixtureControlInspectorPositionLabel);
+    add_edit(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorPosition);
+    add_trackbar(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorPositionSlider,
+        0,
+        100);
+    add_button(
+        fixture_control_inspector_window_,
+        L"0%",
+        IdFixtureControlInspectorZero);
+    add_button(
+        fixture_control_inspector_window_,
+        L"25%",
+        IdFixtureControlInspectorQuarter);
+    add_button(
+        fixture_control_inspector_window_,
+        L"50%",
+        IdFixtureControlInspectorHalf);
+    add_button(
+        fixture_control_inspector_window_,
+        L"100%",
+        IdFixtureControlInspectorFull);
+    add_button(
+        fixture_control_inspector_window_,
+        L"☆ Add favorite",
+        IdFixtureControlInspectorToggleFavorite);
+    add_button(
+        fixture_control_inspector_window_,
+        L"Use Selected Control",
+        IdFixtureControlInspectorUse,
+        BS_DEFPUSHBUTTON);
+    add_button(
+        fixture_control_inspector_window_,
+        L"Clear filters",
+        IdFixtureControlInspectorClear);
+    add_button(
+        fixture_control_inspector_window_,
+        L"Done",
+        IdFixtureControlInspectorDone);
+    add_label(
+        fixture_control_inspector_window_,
+        L"",
+        IdFixtureControlInspectorMessage);
+    set_fixture_control_inspector_position(50U);
+    layout_fixture_control_inspector_window();
+}
+
+void Application::layout_fixture_control_inspector_window() {
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    RECT client{};
+    static_cast<void>(::GetClientRect(fixture_control_inspector_window_, &client));
+    constexpr int margin = 18;
+    constexpr int gap = 10;
+    const auto width = std::max(1L, client.right - client.left);
+    const auto height = std::max(1L, client.bottom - client.top);
+    const auto usable = static_cast<int>(width) - margin * 2;
+    const auto move = [&](int id, int x, int y, int control_width, int control_height) {
+        if (const auto control = ::GetDlgItem(
+                fixture_control_inspector_window_, id);
+            control != nullptr) {
+            ::MoveWindow(
+                control, x, y, control_width, control_height, TRUE);
+        }
+    };
+    move(IdFixtureControlInspectorTitle, margin, 12, usable, 34);
+    move(IdFixtureControlInspectorContext, margin, 48, usable, 28);
+    const auto category_width = std::clamp(usable / 4, 180, 260);
+    const auto favorites_width = 126;
+    move(
+        IdFixtureControlInspectorSearch,
+        margin,
+        82,
+        std::max(180, usable - category_width - favorites_width - gap * 2),
+        29);
+    move(
+        IdFixtureControlInspectorCategory,
+        margin + std::max(180, usable - category_width - favorites_width - gap * 2) + gap,
+        82,
+        category_width,
+        240);
+    move(
+        IdFixtureControlInspectorFavoritesOnly,
+        margin + usable - favorites_width,
+        82,
+        favorites_width,
+        28);
+
+    const auto lower_controls_height = 144;
+    const auto content_height = std::max(
+        260,
+        static_cast<int>(height) - 124 - lower_controls_height);
+    const auto details_width = std::clamp(usable * 34 / 100, 300, 430);
+    move(
+        IdFixtureControlInspectorList,
+        margin,
+        122,
+        usable - details_width - gap,
+        content_height);
+    move(
+        IdFixtureControlInspectorDetails,
+        margin + usable - details_width,
+        122,
+        details_width,
+        content_height);
+
+    const auto controls_y = 122 + content_height + 10;
+    move(IdFixtureControlInspectorPositionLabel, margin, controls_y, 168, 25);
+    move(IdFixtureControlInspectorPosition, margin + 168, controls_y, 62, 27);
+    move(
+        IdFixtureControlInspectorPositionSlider,
+        margin + 240,
+        controls_y - 2,
+        std::max(160, usable - 240 - 304),
+        34);
+    constexpr int preset_width = 64;
+    const auto presets_x = margin + usable - preset_width * 4 - gap * 3;
+    move(IdFixtureControlInspectorZero, presets_x, controls_y - 2, preset_width, 32);
+    move(IdFixtureControlInspectorQuarter, presets_x + preset_width + gap,
+         controls_y - 2, preset_width, 32);
+    move(IdFixtureControlInspectorHalf, presets_x + (preset_width + gap) * 2,
+         controls_y - 2, preset_width, 32);
+    move(IdFixtureControlInspectorFull, presets_x + (preset_width + gap) * 3,
+         controls_y - 2, preset_width, 32);
+
+    const auto action_y = controls_y + 42;
+    move(IdFixtureControlInspectorToggleFavorite, margin, action_y, 150, 34);
+    move(IdFixtureControlInspectorUse, margin + 160, action_y, 190, 34);
+    move(IdFixtureControlInspectorClear, margin + 360, action_y, 130, 34);
+    move(IdFixtureControlInspectorDone, margin + usable - 100, action_y, 100, 34);
+    move(
+        IdFixtureControlInspectorMessage,
+        margin,
+        action_y + 40,
+        usable,
+        std::max(28, static_cast<int>(height) - action_y - 48));
+}
+
+void Application::open_fixture_control_inspector(Page owner_page) {
+    if (owner_page != Page::Overrides && owner_page != Page::Looks &&
+        owner_page != Page::Autoscript && owner_page != Page::Midi) {
+        return;
+    }
+    fixture_control_inspector_owner_ = owner_page;
+    create_fixture_control_inspector_window();
+    if (fixture_control_inspector_window_ == nullptr) {
+        set_status(L"The Fixture Control Inspector could not be opened.");
+        return;
+    }
+    std::uint16_t percentage = 50U;
+    const auto owner = pages_[static_cast<std::size_t>(owner_page)];
+    const auto value_id = owner_page == Page::Overrides
+        ? IdOverridesValue
+        : owner_page == Page::Looks
+            ? IdLookValue
+            : owner_page == Page::Autoscript
+                ? IdAutoscriptFunctionPosition
+                : 0;
+    if (value_id != 0) {
+        static_cast<void>(parse_number(
+            control_text(::GetDlgItem(owner, value_id)), percentage));
+    }
+    set_fixture_control_inspector_position(
+        static_cast<std::uint16_t>(std::min<std::uint16_t>(percentage, 100U)));
+    refresh_fixture_control_inspector();
+    ::ShowWindow(fixture_control_inspector_window_, SW_SHOW);
+    static_cast<void>(::SetForegroundWindow(fixture_control_inspector_window_));
+}
+
+void Application::refresh_fixture_control_inspector() {
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    const auto list = ::GetDlgItem(
+        fixture_control_inspector_window_, IdFixtureControlInspectorList);
+    const auto selected_index = listview_selected_data(list);
+    std::string selected_id;
+    if (selected_index >= 0 &&
+        static_cast<std::size_t>(selected_index) <
+            fixture_control_inspector_model_.rows.size()) {
+        selected_id = fixture_control_inspector_model_.rows[
+            static_cast<std::size_t>(selected_index)].choice_id;
+    }
+
+    const auto category = ::GetDlgItem(
+        fixture_control_inspector_window_, IdFixtureControlInspectorCategory);
+    const auto category_data = combo_selected_data(category, -1);
+    float position = 0.5F;
+    float percentage = 50.0F;
+    if (parse_number(
+            control_text(::GetDlgItem(
+                fixture_control_inspector_window_,
+                IdFixtureControlInspectorPosition)),
+            percentage) &&
+        std::isfinite(percentage)) {
+        position = std::clamp(percentage / 100.0F, 0.0F, 1.0F);
+    }
+    std::vector<std::string_view> favorites;
+    favorites.reserve(fixture_control_favorite_ids_.size());
+    for (const auto& favorite : fixture_control_favorite_ids_) {
+        favorites.push_back(favorite);
+    }
+    const auto target_id = fixture_control_inspector_target_id();
+    const auto search_text = control_text(::GetDlgItem(
+        fixture_control_inspector_window_, IdFixtureControlInspectorSearch));
+    emberlights::FixtureFunctionComponentQuery query;
+    query.target_id = target_id;
+    query.surface = fixture_control_inspector_surface();
+    query.position = position;
+    query.search = search_text;
+    if (category_data >= 0) {
+        query.category = static_cast<emberlights::FixtureParameterCategory>(
+            category_data);
+    }
+    query.favorite_choice_ids = std::move(favorites);
+    query.favorites_only = Button_GetCheck(::GetDlgItem(
+        fixture_control_inspector_window_,
+        IdFixtureControlInspectorFavoritesOnly)) == BST_CHECKED;
+    query.selected_choice_id = selected_id;
+    query.row_limit = emberlights::kFixtureFunctionComponentMaximumRowLimit;
+    const auto& source = fixture_control_inspector_owner_ == Page::Overrides
+        ? live_project()
+        : project_;
+    fixture_control_inspector_model_ =
+        emberlights::build_fixture_function_component(source, query);
+
+    const auto previous_refreshing = refreshing_;
+    refreshing_ = true;
+    static_cast<void>(::SendMessageW(category, CB_RESETCONTENT, 0, 0));
+    std::ostringstream all_label;
+    all_label << "All categories ("
+              << fixture_control_inspector_model_.source_choice_count << ')';
+    combo_add(category, widen(all_label.str()), -1);
+    for (const auto& summary : fixture_control_inspector_model_.categories) {
+        std::ostringstream label;
+        label << summary.label << " (" << summary.search_match_count;
+        if (summary.favorite_count != 0U) {
+            label << ", ★" << summary.favorite_count;
+        }
+        label << ')';
+        combo_add(
+            category,
+            widen(label.str()),
+            static_cast<std::intptr_t>(summary.category));
+    }
+    combo_select_data(category, category_data);
+
+    ListView_DeleteAllItems(list);
+    std::int32_t retained_row = -1;
+    std::int32_t first_enabled_row = -1;
+    for (std::size_t index = 0U;
+         index < fixture_control_inspector_model_.rows.size();
+         ++index) {
+        const auto& row = fixture_control_inspector_model_.rows[index];
+        std::ostringstream coverage;
+        coverage << row.coverage.supported_fixture_count << '/'
+                 << row.coverage.target_fixture_count;
+        std::string dmx = "—";
+        if (!row.diagnostics.empty()) {
+            const auto& first = row.diagnostics.front();
+            std::ostringstream realization;
+            realization << "CH" << first.channel;
+            if (first.fine_channel != 0U) {
+                realization << "+CH" << first.fine_channel;
+            }
+            realization << " → "
+                        << static_cast<unsigned int>(first.raw_value);
+            if (first.fine_channel != 0U) {
+                realization << ':'
+                            << static_cast<unsigned int>(first.raw_fine_value);
+            }
+            if (row.has_profile_specific_dmx) {
+                realization << " • profile-specific";
+            }
+            dmx = realization.str();
+        }
+        const auto function_label = row.favorite
+            ? "★ " + row.name
+            : row.name;
+        const auto input_label = row.uses_exact_profile_value
+            ? "Exact slot"
+            : row.accepts_position
+                ? row.kind ==
+                        emberlights::FixtureControlChoiceKind::DirectAttribute
+                    ? row.control_kind_label
+                    : "Range position"
+                : row.control_kind_label;
+        const auto status = row.enabled
+            ? row.safety_restricted
+                ? "Authorable • gated"
+                : "Ready"
+            : row.availability ==
+                    emberlights::FixtureFunctionRowAvailability::SafetyConfirmationRequired
+                ? "Safety blocked"
+                : "Unavailable";
+        listview_set_row(
+            list,
+            static_cast<int>(index),
+            static_cast<LPARAM>(index),
+            {widen(row.category_label),
+             widen(row.property_label),
+             widen(function_label),
+             widen(input_label),
+             widen(coverage.str()),
+             widen(dmx),
+             widen(status)});
+        if (row.choice_id == selected_id) {
+            retained_row = static_cast<std::int32_t>(index);
+        }
+        if (first_enabled_row < 0 && row.enabled) {
+            first_enabled_row = static_cast<std::int32_t>(index);
+        }
+    }
+    listview_select_data(
+        list, retained_row >= 0 ? retained_row : first_enabled_row);
+    refreshing_ = previous_refreshing;
+
+    const auto surface_label = fixture_control_inspector_owner_ == Page::Overrides
+        ? "Live Overrides"
+        : fixture_control_inspector_owner_ == Page::Looks
+            ? "Static Looks"
+            : fixture_control_inspector_owner_ == Page::Autoscript
+                ? "Autoloop V2"
+                : "MIDI Mapping";
+    std::ostringstream context;
+    context << surface_label << " • "
+            << (fixture_control_inspector_model_.target_name.empty()
+                    ? "No target selected"
+                    : fixture_control_inspector_model_.target_name)
+            << " • " << fixture_control_inspector_model_.matching_choice_count
+            << " matching / "
+            << fixture_control_inspector_model_.source_choice_count
+            << " controls • "
+            << fixture_control_inspector_model_.favorite_choice_count
+            << " favorites";
+    set_control_text(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorContext),
+        context.str());
+    set_control_text(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorMessage),
+        fixture_control_inspector_model_.message);
+    refresh_fixture_control_inspector_details();
+}
+
+void Application::refresh_fixture_control_inspector_details() {
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    const auto list = ::GetDlgItem(
+        fixture_control_inspector_window_, IdFixtureControlInspectorList);
+    const auto selected = listview_selected_data(list);
+    const auto valid = selected >= 0 &&
+        static_cast<std::size_t>(selected) <
+            fixture_control_inspector_model_.rows.size();
+    std::ostringstream detail;
+    const emberlights::FixtureFunctionRow* row = nullptr;
+    if (valid) {
+        row = &fixture_control_inspector_model_.rows[
+            static_cast<std::size_t>(selected)];
+        detail << row->category_label << " • " << row->property_label
+               << "\r\n" << row->name << "\r\n\r\n"
+               << (row->kind ==
+                           emberlights::FixtureControlChoiceKind::DirectAttribute
+                       ? "DIRECT PROFILE CHANNEL"
+                       : "NAMED DMX FUNCTION")
+               << " • " << row->control_kind_label << "\r\n"
+               << "Stable control ID\r\n" << row->choice_id << "\r\n\r\n"
+               << "Coverage: " << row->coverage.supported_fixture_count << '/'
+               << row->coverage.target_fixture_count << " fixtures\r\n"
+               << "Owner: " << (row->owner.empty() ? "fixture" : row->owner)
+               << "\r\n"
+               << "Behavior: "
+               << (row->uses_exact_profile_value
+                       ? "exact profile slot"
+                       : row->accepts_position
+                           ? "continuous semantic position"
+                           : "profile-defined")
+               << "\r\n"
+               << "Availability: " << row->reason_text << "\r\n\r\n"
+               << "PROFILE DMX REALIZATION (diagnostic only)\r\n";
+        for (const auto& diagnostic : row->diagnostics) {
+            detail << "• "
+                   << (diagnostic.fixture_name.empty()
+                           ? diagnostic.fixture_id
+                           : diagnostic.fixture_name)
+                   << " — "
+                   << (diagnostic.profile_name.empty()
+                           ? diagnostic.profile_id
+                           : diagnostic.profile_name);
+            if (!diagnostic.profile_revision.empty()) {
+                detail << " [" << diagnostic.profile_revision << ']';
+            }
+            detail << "\r\n  CH" << diagnostic.channel;
+            if (diagnostic.fine_channel != 0U) {
+                detail << "+CH" << diagnostic.fine_channel;
+            }
+            detail << " • "
+                   << emberlights::channel_encoding_name(diagnostic.encoding)
+                   << " • DMX "
+                   << static_cast<unsigned int>(diagnostic.raw_value);
+            if (diagnostic.fine_channel != 0U) {
+                detail << ':'
+                       << static_cast<unsigned int>(diagnostic.raw_fine_value);
+            }
+            detail << " • range "
+                   << static_cast<unsigned int>(diagnostic.dmx_min) << "–"
+                   << static_cast<unsigned int>(diagnostic.dmx_max)
+                   << "\r\n  default " << diagnostic.default_value
+                   << " • blackout " << diagnostic.blackout_value
+                   << " • highlight " << diagnostic.highlight_value
+                   << "\r\n";
+        }
+        if (row->diagnostics.empty()) {
+            detail << "No resolved fixture/profile channel writes.\r\n";
+        }
+    } else {
+        detail << fixture_control_inspector_model_.message;
+    }
+    set_control_text(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorDetails),
+        detail.str());
+    const auto accepts_position = row != nullptr && row->accepts_position;
+    const auto usable = row != nullptr && row->enabled;
+    const auto favorite = row != nullptr && row->favorite;
+    static_cast<void>(::SetWindowTextW(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorToggleFavorite),
+        favorite ? L"★ Remove favorite" : L"☆ Add favorite"));
+    static_cast<void>(::SetWindowTextW(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorPositionLabel),
+        row != nullptr && row->uses_exact_profile_value
+            ? L"Exact profile slot"
+            : row != nullptr && row->kind ==
+                    emberlights::FixtureControlChoiceKind::NamedCapability
+                ? L"Range position %"
+                : L"Value / level %"));
+    for (const auto id : {
+             IdFixtureControlInspectorPosition,
+             IdFixtureControlInspectorPositionSlider,
+             IdFixtureControlInspectorZero,
+             IdFixtureControlInspectorQuarter,
+             IdFixtureControlInspectorHalf,
+             IdFixtureControlInspectorFull}) {
+        static_cast<void>(::EnableWindow(
+            ::GetDlgItem(fixture_control_inspector_window_, id),
+            accepts_position ? TRUE : FALSE));
+    }
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorToggleFavorite),
+        row == nullptr ? FALSE : TRUE));
+    static_cast<void>(::EnableWindow(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorUse),
+        usable ? TRUE : FALSE));
+}
+
+void Application::set_fixture_control_inspector_position(
+    std::uint16_t percentage) {
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    percentage = std::min<std::uint16_t>(percentage, 100U);
+    set_control_text(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorPosition),
+        number_text(percentage));
+    static_cast<void>(::SendMessageW(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorPositionSlider),
+        TBM_SETPOS,
+        TRUE,
+        percentage));
+}
+
+void Application::toggle_fixture_control_inspector_favorite() {
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    const auto selected = listview_selected_data(::GetDlgItem(
+        fixture_control_inspector_window_, IdFixtureControlInspectorList));
+    if (selected < 0 || static_cast<std::size_t>(selected) >=
+            fixture_control_inspector_model_.rows.size()) {
+        return;
+    }
+    const auto choice_id = fixture_control_inspector_model_.rows[
+        static_cast<std::size_t>(selected)].choice_id;
+    const auto existing = std::find(
+        fixture_control_favorite_ids_.begin(),
+        fixture_control_favorite_ids_.end(),
+        choice_id);
+    if (existing == fixture_control_favorite_ids_.end()) {
+        fixture_control_favorite_ids_.push_back(choice_id);
+    } else {
+        fixture_control_favorite_ids_.erase(existing);
+    }
+    refresh_fixture_control_inspector();
+}
+
+void Application::use_fixture_control_inspector_selection() {
+    if (fixture_control_inspector_window_ == nullptr) {
+        return;
+    }
+    const auto selected = listview_selected_data(::GetDlgItem(
+        fixture_control_inspector_window_, IdFixtureControlInspectorList));
+    if (selected < 0 || static_cast<std::size_t>(selected) >=
+            fixture_control_inspector_model_.rows.size()) {
+        return;
+    }
+    const auto& row = fixture_control_inspector_model_.rows[
+        static_cast<std::size_t>(selected)];
+    if (!row.enabled) {
+        set_control_text(
+            ::GetDlgItem(
+                fixture_control_inspector_window_,
+                IdFixtureControlInspectorMessage),
+            row.reason_text);
+        return;
+    }
+    std::uint16_t percentage = 50U;
+    static_cast<void>(parse_number(
+        control_text(::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorPosition)),
+        percentage));
+    const auto select_choice = [&](HWND combo, const auto& choices) {
+        const auto found = std::find_if(
+            choices.begin(), choices.end(),
+            [&](const auto& choice) { return choice.id == row.choice_id; });
+        if (found == choices.end()) {
+            return false;
+        }
+        combo_select_data(
+            combo,
+            static_cast<std::intptr_t>(std::distance(choices.begin(), found)));
+        return true;
+    };
+    const auto page = pages_[static_cast<std::size_t>(
+        fixture_control_inspector_owner_)];
+    switch (fixture_control_inspector_owner_) {
+    case Page::Overrides: {
+        refresh_override_control_choices();
+        const auto combo = ::GetDlgItem(page, IdOverridesNamedChoice);
+        if (select_choice(combo, override_control_choices_)) {
+            set_control_text(
+                ::GetDlgItem(page, IdOverridesValue), number_text(percentage));
+            static_cast<void>(::SendMessageW(
+                ::GetDlgItem(page, IdOverridesSlider),
+                TBM_SETPOS,
+                TRUE,
+                percentage));
+            handle_command(IdOverridesNamedChoice, CBN_SELCHANGE, combo);
+        }
+        break;
+    }
+    case Page::Looks: {
+        refresh_look_control_choices();
+        const auto combo = ::GetDlgItem(page, IdLookNamedChoice);
+        if (select_choice(combo, look_control_choices_)) {
+            set_control_text(
+                ::GetDlgItem(page, IdLookValue), number_text(percentage));
+            handle_command(IdLookNamedChoice, CBN_SELCHANGE, combo);
+        }
+        break;
+    }
+    case Page::Autoscript: {
+        refresh_autoscript_function_choices();
+        const auto combo = ::GetDlgItem(page, IdAutoscriptFunctionChoice);
+        if (select_choice(combo, autoscript_function_choices_)) {
+            set_control_text(
+                ::GetDlgItem(page, IdAutoscriptFunctionPosition),
+                number_text(percentage));
+            refresh_autoscript_summary(
+                "Fixture Control selected by stable ID. Set the beat range, then preview and add it.");
+        }
+        break;
+    }
+    case Page::Midi: {
+        refresh_midi_named_choices();
+        const auto combo = ::GetDlgItem(page, IdMidiNamedChoice);
+        if (select_choice(combo, midi_named_choices_)) {
+            handle_command(IdMidiNamedChoice, CBN_SELCHANGE, combo);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    set_control_text(
+        ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorMessage),
+        "Selected by stable Fixture Control ID. The destination surface retains semantic values; profile DMX bytes remain diagnostic only.");
+}
+
+void Application::close_fixture_control_inspector() {
+    if (fixture_control_inspector_window_ != nullptr) {
+        ::ShowWindow(fixture_control_inspector_window_, SW_HIDE);
+    }
+    if (window_ != nullptr) {
+        static_cast<void>(::SetForegroundWindow(window_));
+    }
+}
+
 void Application::refresh_patch() {
     const auto page = pages_[static_cast<std::size_t>(Page::Patch)];
     const auto profile_combo = ::GetDlgItem(page, IdPatchProfile);
@@ -7017,7 +7848,7 @@ void Application::refresh_look_control_choices() {
     }
     look_control_choices_.clear();
     static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
-    combo_add(combo, L"Choose a profile-backed Fixture Attribute…", -1);
+    combo_add(combo, L"Choose a profile-backed Fixture Control…", -1);
     const auto catalog = emberlights::fixture_control_choices(
         project_, selected_look_target_id());
     for (const auto& choice : catalog.choices) {
@@ -7412,7 +8243,7 @@ void Application::refresh_autoscript_summary(std::string_view message) {
         }
     }
     if (!autoscript_function_preview_summary_.empty()) {
-        summary << "\r\n\r\nLAST FIXTURE ATTRIBUTE PREVIEW\r\n"
+        summary << "\r\n\r\nLAST FIXTURE CONTROL PREVIEW\r\n"
                 << autoscript_function_preview_summary_;
     }
     set_control_text(::GetDlgItem(page, IdAutoscriptSummary), summary.str());
@@ -8372,10 +9203,34 @@ void Application::handle_notify(const NMHDR& notification) {
                 ::GetDlgItem(profile_capability_window_, IdCapabilityRemove),
                 editable ? TRUE : FALSE);
         }
+    } else if (notification.idFrom == IdFixtureControlInspectorList &&
+               notification.code == LVN_ITEMCHANGED && !refreshing_) {
+        refresh_fixture_control_inspector_details();
+    } else if (notification.idFrom == IdFixtureControlInspectorList &&
+               notification.code == NM_DBLCLK && !refreshing_) {
+        use_fixture_control_inspector_selection();
     }
 }
 
 void Application::handle_horizontal_scroll(UINT scroll_code, HWND source) {
+    if (fixture_control_inspector_window_ != nullptr && source != nullptr &&
+        source == ::GetDlgItem(
+            fixture_control_inspector_window_,
+            IdFixtureControlInspectorPositionSlider)) {
+        const auto value = static_cast<std::uint16_t>(std::clamp<int>(
+            static_cast<int>(::SendMessageW(source, TBM_GETPOS, 0, 0)),
+            0,
+            100));
+        set_control_text(
+            ::GetDlgItem(
+                fixture_control_inspector_window_,
+                IdFixtureControlInspectorPosition),
+            number_text(value));
+        if (scroll_code == TB_ENDTRACK || scroll_code == TB_THUMBPOSITION) {
+            refresh_fixture_control_inspector();
+        }
+        return;
+    }
     const auto page = pages_[static_cast<std::size_t>(Page::Overrides)];
     if (source == nullptr || source != ::GetDlgItem(page, IdOverridesSlider)) {
         return;
@@ -8439,6 +9294,93 @@ void Application::handle_command(int id, int notification, HWND source) {
         clear_authoring_search();
         return;
     }
+    if (id == IdOverridesBrowseControls || id == IdLookBrowseControls ||
+        id == IdAutoscriptBrowseControls || id == IdMidiBrowseControls) {
+        open_fixture_control_inspector(
+            id == IdOverridesBrowseControls
+                ? Page::Overrides
+                : id == IdLookBrowseControls
+                    ? Page::Looks
+                    : id == IdAutoscriptBrowseControls
+                        ? Page::Autoscript
+                        : Page::Midi);
+        return;
+    }
+    if (id == IdFixtureControlInspectorDone) {
+        close_fixture_control_inspector();
+        return;
+    }
+    if (id == IdFixtureControlInspectorUse) {
+        use_fixture_control_inspector_selection();
+        return;
+    }
+    if (id == IdFixtureControlInspectorToggleFavorite) {
+        toggle_fixture_control_inspector_favorite();
+        return;
+    }
+    if (id == IdFixtureControlInspectorClear) {
+        set_control_text(
+            ::GetDlgItem(
+                fixture_control_inspector_window_,
+                IdFixtureControlInspectorSearch),
+            "");
+        combo_select_data(
+            ::GetDlgItem(
+                fixture_control_inspector_window_,
+                IdFixtureControlInspectorCategory),
+            -1);
+        static_cast<void>(::SendMessageW(
+            ::GetDlgItem(
+                fixture_control_inspector_window_,
+                IdFixtureControlInspectorFavoritesOnly),
+            BM_SETCHECK,
+            BST_UNCHECKED,
+            0));
+        refresh_fixture_control_inspector();
+        return;
+    }
+    if (id == IdFixtureControlInspectorZero ||
+        id == IdFixtureControlInspectorQuarter ||
+        id == IdFixtureControlInspectorHalf ||
+        id == IdFixtureControlInspectorFull) {
+        set_fixture_control_inspector_position(
+            id == IdFixtureControlInspectorZero
+                ? 0U
+                : id == IdFixtureControlInspectorQuarter
+                    ? 25U
+                    : id == IdFixtureControlInspectorHalf ? 50U : 100U);
+        refresh_fixture_control_inspector();
+        return;
+    }
+    if ((id == IdFixtureControlInspectorCategory &&
+         notification == CBN_SELCHANGE) ||
+        (id == IdFixtureControlInspectorFavoritesOnly &&
+         notification == BN_CLICKED) ||
+        (id == IdFixtureControlInspectorSearch &&
+         notification == EN_CHANGE)) {
+        if (!refreshing_) {
+            refresh_fixture_control_inspector();
+        }
+        return;
+    }
+    if (id == IdFixtureControlInspectorPosition && !refreshing_) {
+        if (notification == EN_CHANGE) {
+            std::uint16_t percentage = 0U;
+            if (parse_number(control_text(source), percentage) &&
+                percentage <= 100U) {
+                static_cast<void>(::SendMessageW(
+                    ::GetDlgItem(
+                        fixture_control_inspector_window_,
+                        IdFixtureControlInspectorPositionSlider),
+                    TBM_SETPOS,
+                    TRUE,
+                    percentage));
+            }
+        } else if (notification == EN_KILLFOCUS) {
+            refresh_fixture_control_inspector();
+        }
+        return;
+    }
     if (id >= IdWorkspaceLive && id <= IdWorkspaceSystem) {
         show_workspace(static_cast<Workspace>(id - IdWorkspaceLive));
         return;
@@ -8498,6 +9440,11 @@ void Application::handle_command(int id, int notification, HWND source) {
             }
         } else if (id == IdOverridesFixture) {
             refresh_override_properties();
+            if (fixture_control_inspector_window_ != nullptr &&
+                fixture_control_inspector_owner_ == Page::Overrides &&
+                ::IsWindowVisible(fixture_control_inspector_window_) != FALSE) {
+                refresh_fixture_control_inspector();
+            }
         } else if (id == IdProfileCatalogResults) {
             refresh_fixture_catalog_controls();
         }
@@ -8518,21 +9465,41 @@ void Application::handle_command(int id, int notification, HWND source) {
     }
     if (id == IdMidiAction && notification == CBN_SELCHANGE && !refreshing_) {
         update_midi_targets();
+        if (fixture_control_inspector_window_ != nullptr &&
+            fixture_control_inspector_owner_ == Page::Midi &&
+            ::IsWindowVisible(fixture_control_inspector_window_) != FALSE) {
+            refresh_fixture_control_inspector();
+        }
         return;
     }
     if (id == IdMidiTarget && notification == CBN_SELCHANGE && !refreshing_) {
         refresh_midi_named_choices();
+        if (fixture_control_inspector_window_ != nullptr &&
+            fixture_control_inspector_owner_ == Page::Midi &&
+            ::IsWindowVisible(fixture_control_inspector_window_) != FALSE) {
+            refresh_fixture_control_inspector();
+        }
         return;
     }
     if (id == IdAutoscriptFunctionTarget &&
         notification == CBN_SELCHANGE && !refreshing_) {
         refresh_autoscript_function_choices();
+        if (fixture_control_inspector_window_ != nullptr &&
+            fixture_control_inspector_owner_ == Page::Autoscript &&
+            ::IsWindowVisible(fixture_control_inspector_window_) != FALSE) {
+            refresh_fixture_control_inspector();
+        }
         return;
     }
     if (id == IdLookTarget && notification == CBN_SELCHANGE && !refreshing_) {
         refresh_look_capabilities();
         refresh_look_draft_view();
         update_physical_static_look_preview_if_active();
+        if (fixture_control_inspector_window_ != nullptr &&
+            fixture_control_inspector_owner_ == Page::Looks &&
+            ::IsWindowVisible(fixture_control_inspector_window_) != FALSE) {
+            refresh_fixture_control_inspector();
+        }
         return;
     }
     if (id == IdOverridesNamedChoice && notification == CBN_SELCHANGE &&
@@ -8555,7 +9522,7 @@ void Application::handle_command(int id, int notification, HWND source) {
                     ? "Direct profile attribute selected. The 0–100 control spans the complete semantic channel; the profile owns channel order, encoding, and DMX realization."
                     : (choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
                            ? "Named capability range selected. The 0–100 control chooses a position inside its documented DMX range."
-                           : "Named capability slot selected. Apply Fixture Attribute uses the profile's exact preferred DMX value; the percentage control is ignored."));
+                           : "Named DMX slot selected. Apply Control uses the profile's exact preferred DMX value; the percentage input is ignored."));
         }
         return;
     }
@@ -8578,7 +9545,7 @@ void Application::handle_command(int id, int notification, HWND source) {
                     ? "Direct profile attribute selected. Level spans the complete semantic channel and preserves the profile's exact DMX realization."
                     : (choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
                            ? "Named capability range selected. Level / range position chooses 0–100 inside the documented range."
-                           : "Named capability slot selected. Use Fixture Attribute writes the exact profile-backed selection; the percentage field is ignored."));
+                           : "Named DMX slot selected. Use Control writes the exact profile-backed selection; the percentage field is ignored."));
         }
         return;
     }
@@ -10367,7 +11334,7 @@ void Application::apply_named_fixture_override() {
         set_page_message(
             Page::Overrides,
             IdOverridesMessage,
-            "Choose a profile-backed Fixture Attribute first.",
+            "Choose a profile-backed Fixture Control first.",
             true);
         return;
     }
@@ -10418,7 +11385,7 @@ void Application::apply_named_fixture_override() {
             resolved->property, live_view_model_.safety())) {
         set_page_message(
             Page::Overrides, IdOverridesMessage,
-            "That Fixture Attribute cannot be represented by one safe Live group value. "
+            "That Fixture Control cannot be represented by one safe Live group value. "
             "Use a fixture target or author it in a Static Look.", true);
         return;
     }
@@ -10440,7 +11407,7 @@ void Application::apply_named_fixture_override() {
         set_page_message(
             Page::Overrides,
             IdOverridesMessage,
-            "Fixture Attribute rejected: " +
+            "Fixture Control rejected: " +
                 std::string(emberlights::ui_invocation_result_name(result)) +
                 ". Runner availability and all normal safety gates still apply.",
             true);
@@ -11870,7 +12837,7 @@ void Application::apply_static_look_control_choice() {
         static_cast<std::size_t>(selected) >= look_control_choices_.size()) {
         set_page_message(
             Page::Looks, IdLookMessage,
-            "Choose a profile-backed Fixture Attribute first.",
+            "Choose a profile-backed Fixture Control first.",
             true);
         return;
     }
@@ -11903,7 +12870,7 @@ void Application::apply_static_look_control_choice() {
     set_page_message(
         Page::Looks,
         IdLookMessage,
-        static_look_outcome_text("Fixture Attribute • " + choice.name, outcome),
+        static_look_outcome_text("Fixture Control • " + choice.name, outcome),
         !outcome);
     if (outcome) {
         update_physical_static_look_preview_if_active();
@@ -12680,7 +13647,7 @@ void Application::apply_autoscript_fixture_function() {
         static_cast<std::size_t>(choice_index) >=
             autoscript_function_choices_.size()) {
         refresh_autoscript_summary(
-            "Select a committed V2 placement, fixture/group, and Fixture Attribute first.");
+            "Select a committed V2 placement, fixture/group, and Fixture Control first.");
         return;
     }
 
@@ -12707,7 +13674,7 @@ void Application::apply_autoscript_fixture_function() {
     const auto persisted = emberlights::inspect_persisted_autoloop_source(project_);
     if (!persisted || !persisted.stamp.present) {
         refresh_autoscript_summary(
-            "Create and commit a V2 Autoloop before adding a Fixture Attribute.");
+            "Create and commit a V2 Autoloop before adding a Fixture Control.");
         return;
     }
     const auto& placement_id = autoscript_function_placement_ids_[
@@ -12799,7 +13766,7 @@ void Application::apply_autoscript_fixture_function() {
     if (!prepared) {
         refresh_autoscript_summary(
             proposal.message.empty()
-                ? std::string("Fixture Attribute rejected: ") +
+                ? std::string("Fixture Control rejected: ") +
                     emberlights::autoloop_fixture_control_result_name(
                         proposal.result)
                 : proposal.message);
@@ -12811,7 +13778,7 @@ void Application::apply_autoscript_fixture_function() {
     if (!applied) {
         refresh_autoscript_summary(
             applied.message.empty()
-                ? std::string("Fixture Attribute rejected: ") +
+                ? std::string("Fixture Control rejected: ") +
                     emberlights::autoloop_fixture_control_result_name(
                         applied.result)
                 : applied.message);
@@ -12930,7 +13897,7 @@ void Application::apply_autoscript_fixture_function() {
     refresh_autoscript();
     std::ostringstream message;
     message << "Added " << applied.writes.size()
-            << " exact profile-backed Fixture Attribute"
+            << " exact profile-backed Fixture Control"
             << (applied.writes.size() == 1U ? "" : "s")
             << " after an output-disabled production preview. Save the project to keep this V2 source transaction.";
     refresh_autoscript_summary(message.str());
@@ -13683,7 +14650,7 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
                 Page::Midi,
                 IdMidiMessage,
                 plan.message.empty()
-                    ? "The profile-backed Fixture Attribute binding was rejected."
+                    ? "The profile-backed Fixture Control binding was rejected."
                     : plan.message,
                 true);
             return;

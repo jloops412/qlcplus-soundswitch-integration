@@ -15,12 +15,13 @@ namespace emberlights {
 
 // This is a toolkit-neutral snapshot/controller boundary for future native
 // EmberSkin controls. The stable type ID is retained for compatibility even
-// though v2 presents the complete Fixture Attribute catalog (direct channels
-// plus named compound-channel capabilities). It never owns command dispatch or
-// live state.
+// though v3 presents the complete Fixture Control catalog (direct channels plus
+// named compound-channel functions). It never owns command dispatch or live
+// state. "Attribute Cue" is intentionally not used here: that term is reserved
+// for a future reusable authored cue built from these lower-level controls.
 inline constexpr std::string_view kFixtureFunctionComponentType =
     "ember.fixtureFunctionBrowser";
-inline constexpr std::uint16_t kFixtureFunctionComponentVersion = 2U;
+inline constexpr std::uint16_t kFixtureFunctionComponentVersion = 3U;
 inline constexpr std::size_t kFixtureFunctionComponentDefaultRowLimit = 128U;
 inline constexpr std::size_t kFixtureFunctionComponentMaximumRowLimit = 512U;
 inline constexpr std::size_t kFixtureFunctionComponentMaximumSearchBytes = 128U;
@@ -60,14 +61,19 @@ enum class FixtureFunctionReason : std::uint8_t {
     SelectionStale,
     InconsistentChoice,
     RowLimitReached,
-    InvalidAction
+    InvalidAction,
+    InvalidSurface
 };
 
 struct FixtureFunctionComponentQuery {
     std::string_view target_id;
+    FixtureParameterSurface surface{FixtureParameterSurface::LiveOverride};
     float position{0.5F};
     std::string_view search;
     std::optional<FixtureParameterCategory> category;
+    std::vector<std::string_view> favorite_choice_ids;
+    bool favorites_only{false};
+    std::string_view selected_choice_id;
     std::size_t row_limit{kFixtureFunctionComponentDefaultRowLimit};
 };
 
@@ -133,6 +139,9 @@ struct FixtureFunctionRow {
     bool shared_semantic_value{false};
     bool has_profile_specific_dmx{false};
     bool live_override_compatible{false};
+    bool favorite{false};
+    bool accepts_position{false};
+    bool uses_exact_profile_value{false};
     bool safety_restricted{false};
     bool enabled{false};
     FixtureFunctionRowAvailability availability{
@@ -151,6 +160,7 @@ struct FixtureFunctionCategorySummary {
     // optional category filter; visible rows are after all filters and limits.
     std::size_t total_count{0U};
     std::size_t search_match_count{0U};
+    std::size_t favorite_count{0U};
     std::size_t visible_count{0U};
 };
 
@@ -158,15 +168,20 @@ struct FixtureFunctionComponentModel {
     FixtureFunctionComponentState state{
         FixtureFunctionComponentState::Unavailable};
     FixtureFunctionTargetKind target_kind{FixtureFunctionTargetKind::Missing};
+    FixtureParameterSurface surface{FixtureParameterSurface::LiveOverride};
     std::string target_id;
     std::string target_name;
     std::size_t target_fixture_count{0U};
     float position{0.5F};
     std::string search_query;
     std::optional<FixtureParameterCategory> category_filter;
+    std::string selected_choice_id;
     std::size_t source_choice_count{0U};
     std::size_t matching_choice_count{0U};
+    std::size_t favorite_choice_count{0U};
     bool target_complete{false};
+    bool favorites_only{false};
+    bool selection_visible{false};
     bool rows_truncated{false};
     bool search_truncated{false};
     bool warnings_truncated{false};
@@ -181,6 +196,9 @@ struct FixtureFunctionComponentModel {
 // Builds a detached snapshot from an immutable project document. Search is
 // ASCII case-insensitive, whitespace-tokenized, and bounded. Catalog order is
 // preserved so filtering never changes stable category/function ordering.
+// Availability is evaluated for the requested surface: Live requires one exact
+// group value, while Static Looks, Autoloops, and controller mappings can retain
+// per-fixture profile values under their own safety rules.
 [[nodiscard]] FixtureFunctionComponentModel build_fixture_function_component(
     const ProjectDocument& project,
     const FixtureFunctionComponentQuery& query);

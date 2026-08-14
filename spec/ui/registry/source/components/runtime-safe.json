@@ -142,17 +142,22 @@
     },
     {
       "id": "ember.fixtureFunctionBrowser",
-      "label": "Fixture Attribute Browser",
-      "description": "Browses one stable profile-backed catalog containing direct fixture channels and selectable named DMX capabilities, with exact fixture/group override construction and protected ranges excluded.",
+      "label": "Fixture Control Inspector",
+      "description": "Searches and diagnoses one stable profile-backed catalog containing direct fixture channels and named DMX functions, with surface-aware availability for Live, Static Looks, Autoloops, and controller mappings; protected ranges remain excluded.",
       "status": "bridged",
-      "contractVersion": "0.2.0",
+      "contractVersion": "0.3.0",
       "supportedWorkspaces": ["live", "studio"],
-      "supportedVariants": ["compact", "default"],
+      "supportedVariants": ["compact", "default", "wide"],
       "properties": {
+        "category": {"type": "enum", "enumValues": ["all", "atmosphere", "beam", "color", "custom", "effect", "image", "intensity", "position"]},
+        "favoritesOnly": {"type": "boolean"},
         "position": {"type": "number", "minimum": 0, "maximum": 1},
-        "query": {"type": "string"},
-        "showDiagnostics": {"type": "boolean"}
+        "query": {"type": "string", "maxLength": 128},
+        "selectedControlId": {"type": "string", "maxLength": 512},
+        "showDiagnostics": {"type": "boolean"},
+        "surface": {"type": "enum", "enumValues": ["autoloop", "controller", "liveOverride", "staticLook"]}
       },
+      "events": ["favoriteToggled", "filterChanged", "selectionChanged", "useRequested"],
       "requiredCommands": [
         "fixture.override.property.release",
         "fixture.override.property.set",

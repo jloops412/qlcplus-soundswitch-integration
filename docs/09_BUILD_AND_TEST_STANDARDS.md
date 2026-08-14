@@ -72,9 +72,9 @@ Tests must cover:
 - Preserve original source bundle and unknown data.
 - Migration reports are deterministic and machine-readable.
 
-## Fixture Attribute gate
+## Fixture Control gate
 
-Any profile-backed operator control must prove the same stable Fixture Attribute
+Any profile-backed operator control must prove the same stable Fixture Control
 identity across each surface it claims:
 
 - direct 8-bit and 16-bit mappings preserve normalized 0..1 semantic endpoints
