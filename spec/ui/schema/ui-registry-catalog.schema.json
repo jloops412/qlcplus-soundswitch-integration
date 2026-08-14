@@ -24,7 +24,7 @@
     "schemaVersion": {"const": 1},
     "registrySetVersion": {"type": "string"},
     "registryGeneration": {"type": "integer", "minimum": 1},
-    "generator": {"const": "emberlights-ui-registry-generator/1.1.0"},
+    "generator": {"const": "emberlights-ui-registry-generator/1.2.0"},
     "sourceDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "status": {"enum": ["implementationDraft", "accepted", "deprecated"]},
     "ownerReservations": {"type": "array"},
@@ -90,6 +90,9 @@
         "feedback": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
         "persistenceScope": {"type": "string"},
         "undoable": {"type": "boolean"},
+        "midiBindable": {"type": "boolean"},
+        "keyboardBindable": {"type": "boolean"},
+        "actionBindable": {"type": "boolean"},
         "deprecated": {"type": "boolean"}
       }
     },

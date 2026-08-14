@@ -143,7 +143,7 @@ void append_dependencies(
 GeneratedUiRegistryEmberActionView::GeneratedUiRegistryEmberActionView() {
     commands_.reserve(generated_action_registry::kCommands.size());
     for (const auto& generated : generated_action_registry::kCommands) {
-        if (generated.status == "planned") continue;
+        if (generated.status == "planned" || !generated.action_bindable) continue;
         EmberActionCommandContract command;
         command.id = std::string(generated.id);
         command.arguments.reserve(generated.argument_count);

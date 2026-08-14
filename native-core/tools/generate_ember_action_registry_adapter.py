@@ -25,7 +25,7 @@ HEADER_PATH = (
     ROOT
     / "native-core/include/emberlights/generated/ember_action_registry_adapter.generated.hpp"
 )
-GENERATOR_VERSION = "ember-action-registry-adapter/1.1.0"
+GENERATOR_VERSION = "ember-action-registry-adapter/1.2.0"
 CPP_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 VALUE_TYPES = {
     "boolean",
@@ -252,6 +252,11 @@ def validate_native_definition(definition: Any, kind: str) -> dict[str, Any]:
         "replacement" not in definition or isinstance(definition["replacement"], str),
         f"{kind} {definition['id']}: replacement must be string",
     )
+    if kind == "command":
+        require(
+            isinstance(definition.get("actionBindable", True), bool),
+            f"{kind} {definition['id']}: actionBindable must be boolean",
+        )
     return definition
 
 
@@ -301,6 +306,7 @@ def generate_header(catalog: dict[str, Any]) -> str:
             f"{cpp_bool(command.get('parallelCompatible', False), 'parallelCompatible')}, "
             f"{cpp_bool(command.get('studioTransactionCompatible', False), 'studioTransactionCompatible')}, "
             f"{cpp_bool(command.get('onActivateSafe', False), 'onActivateSafe')}, "
+            f"{cpp_bool(command.get('actionBindable', True), 'actionBindable')}, "
             f"{arguments}, {argument_count}U, {capabilities}, {capability_count}U, {result}"
             "},"
         )
@@ -364,6 +370,7 @@ def generate_header(catalog: dict[str, Any]) -> str:
         "    bool parallel_compatible{false};",
         "    bool studio_transaction_compatible{false};",
         "    bool on_activate_safe{false};",
+        "    bool action_bindable{true};",
         "    const GeneratedCommandArgumentMetadata* arguments{nullptr};",
         "    std::size_t argument_count{0U};",
         "    const std::string_view* required_capabilities{nullptr};",

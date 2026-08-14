@@ -29,17 +29,6 @@ using Clock = std::chrono::steady_clock;
         config.output_cap <= 0.5F;
 }
 
-[[nodiscard]] bool output_configured(
-    const ConnectionSettings& connections) noexcept {
-    return connections.artnet_enabled || connections.sacn_enabled ||
-        connections.soundswitch_micro_universe != 0U ||
-        connections.soundswitch_control_one_experimental ||
-        std::any_of(
-            connections.dmx_usb_pro_ports.begin(),
-            connections.dmx_usb_pro_ports.end(),
-            [](const auto& port) { return !port.empty(); });
-}
-
 [[nodiscard]] bool direct_output_property(showcore::Property property) noexcept {
     switch (property) {
     case showcore::Property::Intensity:
@@ -141,6 +130,17 @@ void include_adapter(
 
 }  // namespace
 
+bool static_look_physical_preview_output_configured(
+    const ConnectionSettings& connections) noexcept {
+    return connections.artnet_enabled || connections.sacn_enabled ||
+        connections.soundswitch_micro_universe != 0U ||
+        connections.soundswitch_control_one_experimental ||
+        std::any_of(
+            connections.dmx_usb_pro_ports.begin(),
+            connections.dmx_usb_pro_ports.end(),
+            [](const auto& port) { return !port.empty(); });
+}
+
 StaticLookPhysicalPreviewCandidate build_static_look_physical_preview_candidate(
     const ProjectDocument& project,
     const StaticLookDraft& draft,
@@ -151,7 +151,7 @@ StaticLookPhysicalPreviewCandidate build_static_look_physical_preview_candidate(
         result.error = StaticLookPhysicalPreviewError::InvalidConfiguration;
         return result;
     }
-    if (!output_configured(project.connections)) {
+    if (!static_look_physical_preview_output_configured(project.connections)) {
         result.error = StaticLookPhysicalPreviewError::NoOutputConfigured;
         return result;
     }

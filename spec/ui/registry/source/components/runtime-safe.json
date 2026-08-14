@@ -236,6 +236,33 @@
       "requiredCapabilities": ["content.staticLooks"],
       "accessibilityRole": "grid",
       "performanceClass": "virtualized"
+    },
+    {
+      "id": "ember.staticLookPreview",
+      "label": "Static Look Preview",
+      "description": "Presents offline simulation, explicitly armed bounded fixture preview, countdown, cap, fixture count, exact faults, and terminal blackout/stop without owning output behavior.",
+      "supportedWorkspaces": ["studio"],
+      "supportedVariants": ["default", "wide"],
+      "properties": {
+        "allowPhysical": {"type": "boolean"},
+        "showFrameDigest": {"type": "boolean"}
+      },
+      "events": ["physicalPreviewRequested", "simulationRequested", "stopRequested"],
+      "requiredCommands": ["staticLook.preview.start", "staticLook.preview.stop"],
+      "requiredStates": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "requiredCapabilities": ["content.staticLookPreview"],
+      "accessibilityRole": "group",
+      "performanceClass": "healthBounded",
+      "failureBehavior": "safeFallback"
     }
   ]
 }

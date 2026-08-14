@@ -243,6 +243,55 @@
       "value": {"type": "number", "minimum": 0, "maximum": 1, "unit": "normalized"},
       "updateClass": "progress", "nativeUpdateClass": "Realtime", "maximumPublishHz": 30,
       "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 46, "id": "staticLook.preview.state", "label": "Static Look preview state", "category": "staticLook",
+      "description": "Authoritative asynchronous lifecycle of the Studio Static Look preview coordinator.",
+      "value": {"type": "enum", "enumValues": ["stopped", "starting", "active", "updating", "stopping", "timedOut", "fault"]},
+      "scope": "documentSession", "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 47, "id": "staticLook.preview.mode", "label": "Static Look preview mode", "category": "staticLook",
+      "description": "Whether the coordinator is stopped, simulating offline, or holding the bounded physical-preview lease.",
+      "value": {"type": "enum", "enumValues": ["none", "simulation", "physical"]},
+      "scope": "documentSession", "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 48, "id": "staticLook.preview.error", "label": "Static Look preview error", "category": "staticLook",
+      "description": "Bounded stable error token from offline simulation or the physical-preview authority.",
+      "value": {"type": "string", "maxLength": 64}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 49, "id": "staticLook.preview.remainingMs", "label": "Static Look preview remaining time", "category": "staticLook",
+      "description": "Remaining physical-preview lease time; presentation polling is not timeout authority.",
+      "value": {"type": "integer", "minimum": 0, "maximum": 60000}, "scope": "documentSession",
+      "authority": "studioPreviewService", "updateClass": "progress", "nativeUpdateClass": "Realtime",
+      "maximumPublishHz": 10, "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 50, "id": "staticLook.preview.outputCap", "label": "Static Look preview output cap", "category": "staticLook",
+      "description": "Effective normalized intensity cap applied by physical-preview authority; zero for simulation.",
+      "value": {"type": "number", "minimum": 0, "maximum": 0.5, "unit": "normalized"},
+      "scope": "documentSession", "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 51, "id": "staticLook.preview.selectedFixtureCount", "label": "Static Look preview fixture count", "category": "staticLook",
+      "description": "Number of fixtures resolved in the selected preview target.",
+      "value": {"type": "integer", "minimum": 0}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 52, "id": "staticLook.preview.updateCount", "label": "Static Look preview update count", "category": "staticLook",
+      "description": "Number of successfully activated draft updates in the current preview session.",
+      "value": {"type": "integer", "minimum": 0}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 53, "id": "staticLook.preview.frameDigest", "label": "Static Look preview frame digest", "category": "staticLook",
+      "description": "Offline simulation frame SHA-256 for diagnostics; empty in physical mode.",
+      "value": {"type": "string", "maxLength": 71}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
     }
   ]
 }

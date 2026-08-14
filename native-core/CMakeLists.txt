@@ -105,6 +105,7 @@ add_library(showcore STATIC
     src/static_look_authoring.cpp
     src/static_look_preview.cpp
     src/static_look_physical_preview.cpp
+    src/static_look_preview_coordinator.cpp
     src/studio_color.cpp
     src/studio_preview.cpp
     src/compiler.cpp
@@ -243,6 +244,10 @@ target_link_libraries(static_look_authoring_tests PRIVATE showcore)
 add_executable(static_look_physical_preview_tests
     tests/test_static_look_physical_preview.cpp)
 target_link_libraries(static_look_physical_preview_tests PRIVATE showcore)
+
+add_executable(static_look_preview_coordinator_tests
+    tests/test_static_look_preview_coordinator.cpp)
+target_link_libraries(static_look_preview_coordinator_tests PRIVATE showcore)
 
 add_executable(ofl_fixture_catalog_tests
     tests/test_ofl_fixture_catalog.cpp)
@@ -532,6 +537,8 @@ set_tests_properties(studio_foundation_tests PROPERTIES
 add_test(NAME static_look_authoring_tests COMMAND static_look_authoring_tests)
 add_test(NAME static_look_physical_preview_tests
     COMMAND static_look_physical_preview_tests)
+add_test(NAME static_look_preview_coordinator_tests
+    COMMAND static_look_preview_coordinator_tests)
 add_test(NAME ofl_fixture_catalog_tests COMMAND ofl_fixture_catalog_tests)
 add_test(NAME fixture_profile_editor_tests COMMAND fixture_profile_editor_tests)
 add_test(NAME fixture_controller_binding_tests

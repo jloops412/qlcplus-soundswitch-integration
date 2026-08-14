@@ -37,6 +37,7 @@ EXPECTED_COMMAND_IDS = [
     "autoloop.bankFilter.setEnabled", "trackScript.start", "trackScript.clear",
     "fixture.override.property.set", "fixture.override.property.release",
     "group.override.property.set", "group.override.property.release",
+    "staticLook.preview.start", "staticLook.preview.stop",
 ]
 
 EXPECTED_STATE_IDS = [
@@ -59,16 +60,20 @@ EXPECTED_STATE_IDS = [
     "staticLook.active.activationGeneration", "staticLook.active.ownerKind",
     "staticLook.active.ownerFeedbackKey", "staticLook.active.behavior",
     "staticLook.active.status", "staticLook.active.transitionProgress",
+    "staticLook.preview.state", "staticLook.preview.mode",
+    "staticLook.preview.error", "staticLook.preview.remainingMs",
+    "staticLook.preview.outputCap", "staticLook.preview.selectedFixtureCount",
+    "staticLook.preview.updateCount", "staticLook.preview.frameDigest",
 ]
 
 EXPECTED_COMPONENT_IDS = [
     "ember.activeLayers", "ember.authoringWorkbench", "ember.autoloopMatrix",
     "ember.connectionPanel", "ember.diagnostics", "ember.fixtureControlSurface",
     "ember.fixtureFunctionBrowser", "ember.fixtureProfileEditor",
-    "ember.staticLookMatrix",
+    "ember.staticLookMatrix", "ember.staticLookPreview",
 ]
 
-EXPECTED_CAPABILITY_IDS = ["content.staticLooks"]
+EXPECTED_CAPABILITY_IDS = ["content.staticLookPreview", "content.staticLooks"]
 
 EXPECTED_VALUE_IDS = [
     "target.autoloop", "target.fixture", "target.fixtureGroup", "target.project",
@@ -85,15 +90,15 @@ class UiRegistryTests(unittest.TestCase):
     def test_current_native_ordinals_and_ids_are_exact(self):
         manifest, collections, digest = registry.load_registry()
         self.assertEqual(manifest["nativeMode"], "integrated")
-        self.assertEqual(manifest["registrySetVersion"], "1.7.0")
+        self.assertEqual(manifest["registrySetVersion"], "1.8.0")
         self.assertEqual(manifest["registryGeneration"], 2)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         commands = sorted(collections["commands"], key=lambda item: item["nativeOrdinal"])
         states = sorted(collections["states"], key=lambda item: item["nativeOrdinal"])
         self.assertEqual([item["id"] for item in commands], EXPECTED_COMMAND_IDS)
-        self.assertEqual([item["nativeOrdinal"] for item in commands], list(range(29)))
+        self.assertEqual([item["nativeOrdinal"] for item in commands], list(range(31)))
         self.assertEqual([item["id"] for item in states], EXPECTED_STATE_IDS)
-        self.assertEqual([item["nativeOrdinal"] for item in states], list(range(46)))
+        self.assertEqual([item["nativeOrdinal"] for item in states], list(range(54)))
         self.assertEqual([item["id"] for item in collections["components"]], EXPECTED_COMPONENT_IDS)
         self.assertEqual([item["id"] for item in collections["capabilities"]], EXPECTED_CAPABILITY_IDS)
         self.assertEqual([item["id"] for item in collections["values"]], EXPECTED_VALUE_IDS)
@@ -220,7 +225,7 @@ class UiRegistryTests(unittest.TestCase):
             baseline, registry.generate_catalog(manifest, collections, digest)
         )
         self.assertEqual(report["classification"], "compatibleAdditive")
-        self.assertEqual(report["summary"]["added"], 28)
+        self.assertEqual(report["summary"]["added"], 40)
         self.assertEqual(report["summary"]["changedCompatible"], 17)
         self.assertEqual(report["summary"]["changedBreaking"], 0)
         self.assertEqual(report["summary"]["removed"], 0)
@@ -261,6 +266,14 @@ class UiRegistryTests(unittest.TestCase):
         lifecycle_mismatch = copy.deepcopy(collections)
         lifecycle_mismatch["components"][0]["status"] = "deprecated"
         mutations.append(lifecycle_mismatch)
+
+        invalid_binding_policy = copy.deepcopy(collections)
+        definition(
+            invalid_binding_policy,
+            "commands",
+            "staticLook.preview.start",
+        )["actionBindable"] = "false"
+        mutations.append(invalid_binding_policy)
 
         for index, candidate in enumerate(mutations):
             with self.subTest(index=index), self.assertRaises(registry.RegistryError):

@@ -32,6 +32,29 @@
       "relevantComponents": ["ember.staticLookMatrix"],
       "version": "1.0.0",
       "qualificationStatus": "softwareVerified"
+    },
+    {
+      "id": "content.staticLookPreview",
+      "label": "Static Look preview",
+      "description": "Studio can simulate a Static Look draft asynchronously and, after explicit operator arming, use the bounded physical-preview authority while Live is stopped.",
+      "category": "content",
+      "origin": "application",
+      "dependencies": ["content.staticLooks"],
+      "absenceBehavior": "disable",
+      "relevantCommands": ["staticLook.preview.start", "staticLook.preview.stop"],
+      "relevantStates": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "relevantComponents": ["ember.staticLookPreview"],
+      "version": "1.0.0",
+      "qualificationStatus": "softwareVerified"
     }
   ]
 }

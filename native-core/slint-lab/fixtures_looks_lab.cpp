@@ -1,7 +1,9 @@
 #include "emberlights/fixtures_looks_shell.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/static_look_authoring.hpp"
+#include "emberlights/static_look_preview_coordinator.hpp"
 #include "emberlights/studio_document.hpp"
+#include "emberlights/ui_command.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -19,6 +21,7 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -32,6 +35,8 @@
 
 namespace {
 
+class LabPreviewCommandHost;
+
 struct LabState {
     emberlights::StudioDocumentService document;
     std::optional<emberlights::StaticLookDraft> selected_look_draft;
@@ -44,8 +49,8 @@ struct LabState {
     std::string look_search;
     std::string operation_message;
     bool draft_dirty{false};
-    bool preview_active{false};
     unsigned int created_look_count{0U};
+    LabPreviewCommandHost* preview_host{nullptr};
 };
 
 [[nodiscard]] emberlights::ChannelDefinition direct_channel(
@@ -194,6 +199,186 @@ struct LabState {
         project.looks.push_back(draft.look);
     }
     return project;
+}
+
+[[nodiscard]] emberlights::UiInvocationResult ui_result(
+    emberlights::StaticLookPreviewRequestResult result) noexcept {
+    switch (result) {
+    case emberlights::StaticLookPreviewRequestResult::Accepted:
+        return emberlights::UiInvocationResult::Accepted;
+    case emberlights::StaticLookPreviewRequestResult::NoChange:
+        return emberlights::UiInvocationResult::NoChange;
+    case emberlights::StaticLookPreviewRequestResult::Unavailable:
+        return emberlights::UiInvocationResult::Unavailable;
+    case emberlights::StaticLookPreviewRequestResult::InvalidArguments:
+        return emberlights::UiInvocationResult::InvalidArguments;
+    }
+    return emberlights::UiInvocationResult::InternalError;
+}
+
+class LabPreviewCommandHost final : public emberlights::UiAppCommandHost {
+public:
+    LabPreviewCommandHost(LabState& state, bool physical_enabled)
+        : state_(state),
+          coordinator_(runner_, physical_enabled),
+          facade_(runner_, *this) {}
+
+    [[nodiscard]] emberlights::UiCommandFacade& facade() noexcept {
+        return facade_;
+    }
+
+    [[nodiscard]] emberlights::StaticLookPreviewCoordinatorStatus status() {
+        return coordinator_.status();
+    }
+
+    [[nodiscard]] bool physical_available(
+        const emberlights::ProjectDocument& project) const noexcept {
+        return coordinator_.physical_available(project);
+    }
+
+    void update_selected_draft() noexcept {
+        try {
+            const auto preview = coordinator_.status();
+            if (!state_.selected_look_draft.has_value() ||
+                preview.mode == emberlights::StaticLookPreviewMode::None ||
+                preview.look_id != state_.selected_look_id ||
+                preview.target_id != state_.selected_target_id ||
+                (preview.state !=
+                     emberlights::StaticLookPreviewCoordinatorState::Starting &&
+                 preview.state !=
+                     emberlights::StaticLookPreviewCoordinatorState::Active &&
+                 preview.state !=
+                     emberlights::StaticLookPreviewCoordinatorState::Updating)) {
+                return;
+            }
+            const auto snapshot = state_.document.snapshot();
+            const auto result = coordinator_.update(
+                snapshot.document,
+                *state_.selected_look_draft,
+                state_.selected_target_id);
+            if (result != emberlights::StaticLookPreviewRequestResult::Accepted &&
+                result != emberlights::StaticLookPreviewRequestResult::NoChange) {
+                state_.operation_message =
+                    "The active preview could not accept this draft update.";
+            }
+        } catch (...) {
+            state_.operation_message =
+                "The preview update failed before it reached the preview worker.";
+        }
+    }
+
+    void stop_for_context_change() noexcept {
+        static_cast<void>(facade_.invoke(
+            {emberlights::UiCommandId::StaticLookPreviewStop}));
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult ui_start_show()
+        noexcept override {
+        return emberlights::UiInvocationResult::Unsupported;
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult ui_stop_show()
+        noexcept override {
+        return emberlights::UiInvocationResult::Unsupported;
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult ui_start_static_look_preview(
+        std::string_view look_id,
+        std::string_view target_id,
+        emberlights::UiStaticLookPreviewMode mode) noexcept override {
+        try {
+            if (!state_.selected_look_draft.has_value() ||
+                state_.selected_look_draft->look.id != look_id ||
+                state_.selected_look_id != look_id ||
+                state_.selected_target_id != target_id) {
+                return emberlights::UiInvocationResult::NotFound;
+            }
+            const auto preview_mode =
+                mode == emberlights::UiStaticLookPreviewMode::Simulation
+                ? emberlights::StaticLookPreviewMode::Simulation
+                : mode == emberlights::UiStaticLookPreviewMode::Physical
+                    ? emberlights::StaticLookPreviewMode::Physical
+                    : emberlights::StaticLookPreviewMode::None;
+            const auto snapshot = state_.document.snapshot();
+            const auto result = coordinator_.start(
+                snapshot.document,
+                *state_.selected_look_draft,
+                target_id,
+                preview_mode);
+            return ui_result(result);
+        } catch (...) {
+            return emberlights::UiInvocationResult::InternalError;
+        }
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult
+    ui_stop_static_look_preview() noexcept override {
+        return ui_result(coordinator_.stop());
+    }
+
+private:
+    LabState& state_;
+    emberlights::RunnerService runner_;
+    emberlights::StaticLookPreviewCoordinator coordinator_;
+    emberlights::UiCommandFacade facade_;
+};
+
+[[nodiscard]] bool preview_busy(
+    emberlights::StaticLookPreviewCoordinatorState state) noexcept {
+    return state == emberlights::StaticLookPreviewCoordinatorState::Starting ||
+        state == emberlights::StaticLookPreviewCoordinatorState::Active ||
+        state == emberlights::StaticLookPreviewCoordinatorState::Updating ||
+        state == emberlights::StaticLookPreviewCoordinatorState::Stopping;
+}
+
+[[nodiscard]] std::string preview_status_text(
+    const emberlights::StaticLookPreviewCoordinatorStatus& status) {
+    if (status.state == emberlights::StaticLookPreviewCoordinatorState::Stopped) {
+        return "Preview stopped";
+    }
+    if (status.state == emberlights::StaticLookPreviewCoordinatorState::TimedOut) {
+        return "Preview timed out • fixtures blacked out";
+    }
+    if (status.state == emberlights::StaticLookPreviewCoordinatorState::Fault) {
+        return "Preview fault • " + status.error;
+    }
+    const auto mode = status.mode == emberlights::StaticLookPreviewMode::Physical
+        ? std::string("Fixture preview")
+        : std::string("Offline simulation");
+    return mode + " • " +
+        emberlights::static_look_preview_coordinator_state_name(status.state);
+}
+
+[[nodiscard]] std::string preview_detail_text(
+    const emberlights::StaticLookPreviewCoordinatorStatus& status,
+    bool output_configured) {
+    if (status.mode == emberlights::StaticLookPreviewMode::Simulation &&
+        preview_busy(status.state)) {
+        const auto digest = status.frame_sha256.empty()
+            ? std::string("rendering")
+            : "frame " + status.frame_sha256.substr(0U, 12U);
+        return "OFFLINE • no DMX output • " + digest;
+    }
+    if (status.mode == emberlights::StaticLookPreviewMode::Physical &&
+        preview_busy(status.state)) {
+        const auto seconds = (status.remaining_ms + 999U) / 1'000U;
+        return "LIVE STOPPED PREVIEW • " +
+            std::to_string(static_cast<unsigned int>(
+                status.output_cap * 100.0F + 0.5F)) +
+            "% max • " + std::to_string(seconds) + "s • " +
+            std::to_string(status.selected_fixture_count) + " fixtures";
+    }
+    if (status.state == emberlights::StaticLookPreviewCoordinatorState::Fault ||
+        status.state == emberlights::StaticLookPreviewCoordinatorState::TimedOut) {
+        return "Output is stopped and terminal blackout has been requested.";
+    }
+    if (!status.physical_enabled) {
+        return "Simulation uses the same renderer offline • fixture output is locked unless explicitly armed at launch";
+    }
+    if (!output_configured) {
+        return "Simulation ready • fixture output is armed but no output adapter is configured";
+    }
+    return "Simulation ready • bounded fixture preview: 35% max, 30s, selected target only";
 }
 
 [[nodiscard]] bool reload_selected_look_draft(LabState& state) {
@@ -359,21 +544,60 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
         "Generation " + std::to_string(snapshot.generation) + " • " +
         std::to_string(snapshot.undo_count) + " undo • " +
         std::to_string(snapshot.redo_count) + " redo";
+    auto preview = emberlights::StaticLookPreviewCoordinatorStatus{};
+    if (state.preview_host != nullptr) {
+        try {
+            preview = state.preview_host->status();
+        } catch (...) {
+            preview.state = emberlights::StaticLookPreviewCoordinatorState::Fault;
+            preview.error = "status-unavailable";
+        }
+    }
+    const auto output_configured =
+        emberlights::static_look_physical_preview_output_configured(
+            project.connections);
+    const auto active_preview = preview_busy(preview.state);
+    const auto physical_ready = state.preview_host != nullptr &&
+        !active_preview && state.preview_host->physical_available(project);
+    const auto output_state =
+        preview.mode == emberlights::StaticLookPreviewMode::Physical &&
+            active_preview
+        ? "Preview " + std::to_string(static_cast<unsigned int>(
+              preview.output_cap * 100.0F + 0.5F)) + "%"
+        : preview.mode == emberlights::StaticLookPreviewMode::Simulation &&
+              active_preview
+            ? std::string("Offline simulation")
+            : preview.physical_enabled && output_configured
+                ? std::string("Preview armed")
+                : std::string("No output");
 
     ui.set_project_name(shared_string(model.project_name));
     ui.set_save_state(shared_string(save_state));
     ui.set_validation_state(shared_string(model.validation_status));
     ui.set_dj_state("Not connected");
-    ui.set_output_state("No output");
+    ui.set_output_state(shared_string(output_state));
     ui.set_workspace_message(shared_string(state.operation_message.empty()
         ? model.message
         : state.operation_message));
-    ui.set_preview_status(shared_string(state.preview_active
-        ? std::string_view("Preview simulation active • no DMX output")
-        : std::string_view(model.preview_status)));
-    ui.set_preview_active(state.preview_active);
+    ui.set_preview_status(shared_string(preview_status_text(preview)));
+    ui.set_preview_detail(shared_string(
+        preview_detail_text(preview, output_configured)));
+    ui.set_preview_state(shared_string(
+        emberlights::static_look_preview_coordinator_state_name(
+            preview.state)));
+    ui.set_preview_mode(shared_string(
+        emberlights::static_look_preview_mode_name(preview.mode)));
+    ui.set_preview_active(active_preview);
+    ui.set_can_simulate_preview(model.can_preview && !active_preview);
+    ui.set_can_physical_preview(model.can_preview && physical_ready);
+    ui.set_physical_preview_enabled(preview.physical_enabled);
+    ui.set_preview_remaining_seconds(static_cast<int>(
+        (preview.remaining_ms + 999U) / 1'000U));
+    ui.set_preview_output_cap_percent(static_cast<int>(
+        preview.output_cap * 100.0F + 0.5F));
+    ui.set_preview_fixture_count(static_cast<int>(
+        preview.selected_fixture_count));
     ui.set_can_edit(model.can_edit);
-    ui.set_can_preview(model.can_preview && !state.preview_active);
     ui.set_can_save_look(state.draft_dirty);
     ui.set_can_save_project(
         state.project_path.has_value() && modified);
@@ -544,6 +768,9 @@ void mutate_selected_look(
         state.operation_message = outcome.warnings.empty()
             ? "Static Look draft updated. Save Look commits one Undo transaction."
             : outcome.warnings.front();
+        if (state.preview_host != nullptr) {
+            state.preview_host->update_selected_draft();
+        }
     } else {
         state.operation_message = outcome.warnings.empty()
             ? "The Static Look already has that value."
@@ -581,6 +808,9 @@ void mutate_selected_look(
 }
 
 void undo_studio_edit(LabState& state) {
+    if (state.preview_host != nullptr) {
+        state.preview_host->stop_for_context_change();
+    }
     if (state.draft_dirty) {
         const auto was_new = state.selected_look_draft.has_value() &&
             !state.selected_look_draft->source_index.has_value();
@@ -604,6 +834,9 @@ void undo_studio_edit(LabState& state) {
 }
 
 void redo_studio_edit(LabState& state) {
+    if (state.preview_host != nullptr) {
+        state.preview_host->stop_for_context_change();
+    }
     if (state.draft_dirty) {
         state.operation_message =
             "Save or undo the Static Look draft before using Redo.";
@@ -642,6 +875,54 @@ void save_studio_project(LabState& state) {
     state.operation_message = acknowledged
         ? "Project saved atomically to " + state.project_path->string() + "."
         : acknowledged.message;
+}
+
+void invoke_preview(
+    const FixturesLooksLab& ui,
+    LabState& state,
+    emberlights::UiStaticLookPreviewMode mode) {
+    if (state.preview_host == nullptr) {
+        state.operation_message = "The preview command host is unavailable.";
+        refresh_ui(ui, state);
+        return;
+    }
+    emberlights::UiCommandInvocation invocation;
+    invocation.command = emberlights::UiCommandId::StaticLookPreviewStart;
+    invocation.target_id = state.selected_look_id;
+    invocation.secondary_target_id = state.selected_target_id;
+    invocation.static_look_preview_mode = mode;
+    const auto result = state.preview_host->facade().invoke(invocation);
+    if (result == emberlights::UiInvocationResult::Accepted) {
+        state.operation_message =
+            mode == emberlights::UiStaticLookPreviewMode::Physical
+            ? "Bounded fixture preview queued. Live stays stopped; Stop always requests terminal blackout."
+            : "Offline simulation queued on the preview worker; no output adapter is opened.";
+    } else if (result == emberlights::UiInvocationResult::NoChange) {
+        state.operation_message = "That preview is already active or starting.";
+    } else if (result == emberlights::UiInvocationResult::Unavailable &&
+               mode == emberlights::UiStaticLookPreviewMode::Physical) {
+        state.operation_message =
+            "Fixture preview is locked, has no configured output, or Live is not stopped.";
+    } else {
+        state.operation_message = "Preview request rejected: " +
+            std::string(emberlights::ui_invocation_result_name(result)) + ".";
+    }
+    refresh_ui(ui, state);
+}
+
+void stop_preview(const FixturesLooksLab& ui, LabState& state) {
+    if (state.preview_host == nullptr) {
+        return;
+    }
+    const auto result = state.preview_host->facade().invoke(
+        {emberlights::UiCommandId::StaticLookPreviewStop});
+    state.operation_message = result == emberlights::UiInvocationResult::Accepted
+        ? "Blackout and preview stop queued."
+        : result == emberlights::UiInvocationResult::NoChange
+            ? "Preview is already stopped."
+            : "Preview stop rejected: " +
+                std::string(emberlights::ui_invocation_result_name(result)) + ".";
+    refresh_ui(ui, state);
 }
 
 [[nodiscard]] int model_smoke() {
@@ -710,20 +991,30 @@ int main(int argc, char** argv) {
     }
 
     std::optional<std::filesystem::path> requested_project_path;
+    bool allow_physical_preview = false;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument(argv[index]);
         if (argument == "--project" && index + 1 < argc) {
             requested_project_path = std::filesystem::path(argv[++index]);
+        } else if (argument == "--allow-physical-preview") {
+            allow_physical_preview = true;
         } else if (argument == "--help") {
             std::cout
-                << "Usage: EmberLights-Fixtures-Looks-Lab [--project <file>]\n"
+                << "Usage: EmberLights-Fixtures-Looks-Lab [--project <file>] "
+                   "[--allow-physical-preview]\n"
                 << "A missing --project file starts the sample as a new document; "
-                   "Save Project creates it atomically.\n";
+                   "Save Project creates it atomically. Physical preview also "
+                   "requires --project and a configured output adapter.\n";
             return EXIT_SUCCESS;
         } else {
             std::cerr << "Unknown or incomplete argument: " << argument << '\n';
             return EXIT_FAILURE;
         }
+    }
+    if (allow_physical_preview && !requested_project_path.has_value()) {
+        std::cerr
+            << "--allow-physical-preview requires an explicit --project path.\n";
+        return EXIT_FAILURE;
     }
 
     auto state = std::make_shared<LabState>();
@@ -782,6 +1073,13 @@ int main(int argc, char** argv) {
         state->operation_message =
             "Output-disabled sample. Launch with --project <file> to test durable save/history.";
     }
+    if (allow_physical_preview) {
+        state->operation_message +=
+            " Bounded fixture preview was explicitly armed for this lab process.";
+    }
+    auto preview_host = std::make_unique<LabPreviewCommandHost>(
+        *state, allow_physical_preview);
+    state->preview_host = preview_host.get();
     auto ui = FixturesLooksLab::create();
     const slint::ComponentWeakHandle<FixturesLooksLab> weak_ui(ui);
 
@@ -799,7 +1097,12 @@ int main(int argc, char** argv) {
     });
     ui->on_select_target([with_ui](const slint::SharedString& id) {
         with_ui([&](const auto& component, auto& state) {
-            state.selected_target_id = string_from(id);
+            const auto requested = string_from(id);
+            if (requested != state.selected_target_id &&
+                state.preview_host != nullptr) {
+                state.preview_host->stop_for_context_change();
+            }
+            state.selected_target_id = requested;
             state.selected_choice_id.clear();
             state.operation_message.clear();
             refresh_ui(component, state);
@@ -813,6 +1116,10 @@ int main(int argc, char** argv) {
                     "Save or undo the current Static Look draft before changing selection.";
                 refresh_ui(component, state);
                 return;
+            }
+            if (requested != state.selected_look_id &&
+                state.preview_host != nullptr) {
+                state.preview_host->stop_for_context_change();
             }
             state.selected_look_id = requested;
             state.selected_choice_id.clear();
@@ -894,19 +1201,25 @@ int main(int argc, char** argv) {
                 });
             });
         });
-    ui->on_preview_start([with_ui]() {
+    ui->on_preview_simulate([with_ui]() {
         with_ui([](const auto& component, auto& state) {
-            state.preview_active = true;
-            state.operation_message =
-                "Preview is simulated in this lab; no DMX output is opened.";
-            refresh_ui(component, state);
+            invoke_preview(
+                component,
+                state,
+                emberlights::UiStaticLookPreviewMode::Simulation);
+        });
+    });
+    ui->on_preview_physical([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            invoke_preview(
+                component,
+                state,
+                emberlights::UiStaticLookPreviewMode::Physical);
         });
     });
     ui->on_preview_stop([with_ui]() {
         with_ui([](const auto& component, auto& state) {
-            state.preview_active = false;
-            state.operation_message = "Preview simulation stopped.";
-            refresh_ui(component, state);
+            stop_preview(component, state);
         });
     });
     ui->on_save_look([with_ui]() {
@@ -945,6 +1258,9 @@ int main(int argc, char** argv) {
                 refresh_ui(component, state);
                 return;
             }
+            if (state.preview_host != nullptr) {
+                state.preview_host->stop_for_context_change();
+            }
             const auto snapshot = state.document.snapshot();
             std::string stable_id;
             do {
@@ -970,6 +1286,9 @@ int main(int argc, char** argv) {
                     "Save or undo the current Static Look draft before duplicating.";
                 refresh_ui(component, state);
                 return;
+            }
+            if (state.preview_host != nullptr) {
+                state.preview_host->stop_for_context_change();
             }
             if (!state.selected_look_draft.has_value() &&
                 !reload_selected_look_draft(state)) {
@@ -1002,6 +1321,15 @@ int main(int argc, char** argv) {
         });
     });
 
+    slint::Timer preview_status_timer;
+    preview_status_timer.start(
+        slint::TimerMode::Repeated,
+        std::chrono::milliseconds(100),
+        [weak_ui, state] {
+            if (const auto locked = weak_ui.lock()) {
+                refresh_ui(**locked, *state);
+            }
+        });
     refresh_ui(*ui, *state);
     ui->run();
     return EXIT_SUCCESS;

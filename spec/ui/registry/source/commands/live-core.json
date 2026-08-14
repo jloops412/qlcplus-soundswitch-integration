@@ -278,6 +278,55 @@
       },
       "availability": "runner.state == 'running' && group.supports(property)",
       "feedback": ["override.activePropertyCount"]
+    },
+    {
+      "nativeName": "StaticLookPreviewStart", "nativeOrdinal": 29, "id": "staticLook.preview.start",
+      "label": "Start Static Look preview",
+      "description": "Starts an asynchronous offline simulation or explicitly armed bounded fixture preview for one Static Look draft and selected fixture target.",
+      "category": "staticLook", "scopes": ["studio"], "realtimeClass": "utilityAsync",
+      "parameters": {
+        "lookId": {"type": "id", "required": true, "targetKind": "staticLook"},
+        "targetId": {"type": "string", "required": true, "maxLength": 128},
+        "mode": {"type": "enum", "required": true, "enumValues": ["simulation", "physical"]}
+      },
+      "availability": "runner.state == 'stopped' && staticLook.preview.available",
+      "safetyClass": "boundedPreview", "safetyGate": "staticLookPhysicalPreviewAuthority",
+      "feedback": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "persistenceScope": "none", "midiBindable": false,
+      "keyboardBindable": false, "actionBindable": false,
+      "requiredCapabilities": ["content.staticLookPreview"],
+      "notes": "Physical mode is accepted only by a trusted Studio host after explicit process-level arming. The renderer never receives Runner or output ownership."
+    },
+    {
+      "nativeName": "StaticLookPreviewStop", "nativeOrdinal": 30, "id": "staticLook.preview.stop",
+      "label": "Blackout and stop Static Look preview",
+      "description": "Stops the current simulation or performs terminal blackout and releases the bounded physical-preview Runner lease.",
+      "category": "staticLook", "scopes": ["studio"], "realtimeClass": "utilityAsync",
+      "availability": "staticLook.preview.state != 'stopped'",
+      "safetyClass": "boundedPreview", "safetyGate": "staticLookPhysicalPreviewAuthority",
+      "feedback": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "persistenceScope": "none", "midiBindable": false,
+      "keyboardBindable": false, "actionBindable": false,
+      "requiredCapabilities": ["content.staticLookPreview"],
+      "notes": "The physical service owns terminal blackout. A surface may request stop but cannot replace that authority."
     }
   ]
 }

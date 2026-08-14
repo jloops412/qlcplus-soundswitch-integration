@@ -517,6 +517,17 @@ staticLook.preview.stop
 staticLook.update
 ```
 
+### Preview control contract
+
+The reusable Studio preview surface projects `staticLook.preview.state`,
+`mode`, `error`, `remainingMs`, `outputCap`, `selectedFixtureCount`,
+`updateCount`, and `frameDigest`. It presents offline simulation separately
+from explicitly armed physical output and always exposes a single stop action.
+The renderer may invoke only the registered commands; the asynchronous Studio
+service and bounded production-Runner lease own compilation, output, timeout,
+hazard rejection, and terminal blackout. Preview start/stop are deliberately
+unavailable to MIDI, keyboard, and Ember Actions.
+
 ## 11. Contextual Inspector
 
 Component type:

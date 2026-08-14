@@ -1,6 +1,42 @@
 {
   "capabilities": [
     {
+      "absenceBehavior": "disable",
+      "callable": false,
+      "category": "content",
+      "conflicts": [],
+      "dependencies": [
+        "content.staticLooks"
+      ],
+      "deprecated": false,
+      "description": "Studio can simulate a Static Look draft asynchronously and, after explicit operator arming, use the bounded physical-preview authority while Live is stopped.",
+      "experimental": false,
+      "id": "content.staticLookPreview",
+      "introducedGeneration": 2,
+      "label": "Static Look preview",
+      "origin": "application",
+      "qualificationStatus": "softwareVerified",
+      "relevantCommands": [
+        "staticLook.preview.start",
+        "staticLook.preview.stop"
+      ],
+      "relevantComponents": [
+        "ember.staticLookPreview"
+      ],
+      "relevantStates": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "status": "implemented",
+      "version": "1.0.0"
+    },
+    {
       "absenceBehavior": "reject",
       "callable": false,
       "category": "content",
@@ -942,6 +978,103 @@
       "undoable": false
     },
     {
+      "actionBindable": false,
+      "availability": "runner.state == 'stopped' && staticLook.preview.available",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Starts an asynchronous offline simulation or explicitly armed bounded fixture preview for one Static Look draft and selected fixture target.",
+      "feedback": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "id": "staticLook.preview.start",
+      "interaction": "trigger",
+      "introducedGeneration": 1,
+      "keyboardBindable": false,
+      "label": "Start Static Look preview",
+      "midiBindable": false,
+      "nativeName": "StaticLookPreviewStart",
+      "nativeOrdinal": 29,
+      "notes": "Physical mode is accepted only by a trusted Studio host after explicit process-level arming. The renderer never receives Runner or output ownership.",
+      "parameters": {
+        "lookId": {
+          "required": true,
+          "targetKind": "staticLook",
+          "type": "id"
+        },
+        "mode": {
+          "enumValues": [
+            "simulation",
+            "physical"
+          ],
+          "required": true,
+          "type": "enum"
+        },
+        "targetId": {
+          "maxLength": 128,
+          "required": true,
+          "type": "string"
+        }
+      },
+      "persistenceScope": "none",
+      "realtimeClass": "utilityAsync",
+      "requiredCapabilities": [
+        "content.staticLookPreview"
+      ],
+      "safetyClass": "boundedPreview",
+      "safetyGate": "staticLookPhysicalPreviewAuthority",
+      "scopes": [
+        "studio"
+      ],
+      "status": "implemented",
+      "undoable": false
+    },
+    {
+      "actionBindable": false,
+      "availability": "staticLook.preview.state != 'stopped'",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Stops the current simulation or performs terminal blackout and releases the bounded physical-preview Runner lease.",
+      "feedback": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "id": "staticLook.preview.stop",
+      "interaction": "trigger",
+      "introducedGeneration": 1,
+      "keyboardBindable": false,
+      "label": "Blackout and stop Static Look preview",
+      "midiBindable": false,
+      "nativeName": "StaticLookPreviewStop",
+      "nativeOrdinal": 30,
+      "notes": "The physical service owns terminal blackout. A surface may request stop but cannot replace that authority.",
+      "parameters": {},
+      "persistenceScope": "none",
+      "realtimeClass": "utilityAsync",
+      "requiredCapabilities": [
+        "content.staticLookPreview"
+      ],
+      "safetyClass": "boundedPreview",
+      "safetyGate": "staticLookPhysicalPreviewAuthority",
+      "scopes": [
+        "studio"
+      ],
+      "status": "implemented",
+      "undoable": false
+    },
+    {
       "availability": "runner.state == 'running' && staticLook.exists(lookId)",
       "category": "staticLook",
       "deprecated": false,
@@ -1672,9 +1805,67 @@
         "live",
         "studio"
       ]
+    },
+    {
+      "accessibilityRole": "group",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents offline simulation, explicitly armed bounded fixture preview, countdown, cap, fixture count, exact faults, and terminal blackout/stop without owning output behavior.",
+      "events": [
+        "physicalPreviewRequested",
+        "simulationRequested",
+        "stopRequested"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.staticLookPreview",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Static Look Preview",
+      "optionalCapabilities": [],
+      "performanceClass": "healthBounded",
+      "properties": {
+        "allowPhysical": {
+          "type": "boolean"
+        },
+        "showFrameDigest": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [
+        "content.staticLookPreview"
+      ],
+      "requiredCommands": [
+        "staticLook.preview.start",
+        "staticLook.preview.stop"
+      ],
+      "requiredStates": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "default",
+        "wide"
+      ],
+      "supportedWorkspaces": [
+        "studio"
+      ]
     }
   ],
-  "generator": "emberlights-ui-registry-generator/1.1.0",
+  "generator": "emberlights-ui-registry-generator/1.2.0",
   "interactions": [
     {
       "id": "absolute",
@@ -1725,7 +1916,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.7.0",
+  "registrySetVersion": "1.8.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -1869,7 +2060,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "a5d3ed5cc0f60c8caaa756c63d848dcb961d1d87c9761b3897a73ef28b010a3b",
+  "sourceDigest": "e63bf41dd8548a26e2c83c38ab8c98f209096ac1c15b84f225b3831c3d000ed6",
   "states": [
     {
       "authority": "runnerScheduler",
@@ -2800,6 +2991,205 @@
         "minimum": 0,
         "type": "number",
         "unit": "normalized"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Bounded stable error token from offline simulation or the physical-preview authority.",
+      "id": "staticLook.preview.error",
+      "introducedGeneration": 1,
+      "label": "Static Look preview error",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 48,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "maxLength": 64,
+        "type": "string"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Offline simulation frame SHA-256 for diagnostics; empty in physical mode.",
+      "id": "staticLook.preview.frameDigest",
+      "introducedGeneration": 1,
+      "label": "Static Look preview frame digest",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 53,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "maxLength": 71,
+        "type": "string"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Whether the coordinator is stopped, simulating offline, or holding the bounded physical-preview lease.",
+      "id": "staticLook.preview.mode",
+      "introducedGeneration": 1,
+      "label": "Static Look preview mode",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 47,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "simulation",
+          "physical"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Effective normalized intensity cap applied by physical-preview authority; zero for simulation.",
+      "id": "staticLook.preview.outputCap",
+      "introducedGeneration": 1,
+      "label": "Static Look preview output cap",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 50,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "maximum": 0.5,
+        "minimum": 0,
+        "type": "number",
+        "unit": "normalized"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Remaining physical-preview lease time; presentation polling is not timeout authority.",
+      "id": "staticLook.preview.remainingMs",
+      "introducedGeneration": 1,
+      "label": "Static Look preview remaining time",
+      "maximumPublishHz": 10,
+      "nativeOrdinal": 49,
+      "nativeUpdateClass": "Realtime",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "progress",
+      "value": {
+        "maximum": 60000,
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Number of fixtures resolved in the selected preview target.",
+      "id": "staticLook.preview.selectedFixtureCount",
+      "introducedGeneration": 1,
+      "label": "Static Look preview fixture count",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 51,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Authoritative asynchronous lifecycle of the Studio Static Look preview coordinator.",
+      "id": "staticLook.preview.state",
+      "introducedGeneration": 1,
+      "label": "Static Look preview state",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 46,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "stopped",
+          "starting",
+          "active",
+          "updating",
+          "stopping",
+          "timedOut",
+          "fault"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Number of successfully activated draft updates in the current preview session.",
+      "id": "staticLook.preview.updateCount",
+      "introducedGeneration": 1,
+      "label": "Static Look preview update count",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 52,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
       }
     },
     {

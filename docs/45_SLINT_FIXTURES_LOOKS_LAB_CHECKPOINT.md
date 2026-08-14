@@ -13,11 +13,13 @@ controls, explicit ownership, validation, and Advanced diagnostics in one
 product-shaped Slint surface.
 
 The legacy Win32 presentation remains frozen under D-091. The lab is opt-in,
-is not installed by CMake, does not replace `EmberLights.exe`, opens no output,
-and defaults to an unsaved sample. Passing `--project <file>` opens an existing
+is not installed by CMake, does not replace `EmberLights.exe`, opens no output
+by default, and defaults to an unsaved sample. Passing `--project <file>` opens an existing
 project or assigns a path to the sample so the lab can exercise the existing
 atomic Studio save/history path. D-092 pins Slint 1.17.1 for this experiment
-only.
+only. D-094 additionally permits an explicit
+`--project <file> --allow-physical-preview` process to exercise the existing bounded authority;
+the project must still configure an output and Live must remain stopped.
 
 ## Architecture
 
@@ -27,6 +29,8 @@ only.
 | Domain mutation | Existing Static Look authoring functions and `StudioDocumentService` | Applies/removes properties and exact profile choices, then commits one generation-checked Undo transaction; Slint owns no lighting semantics or document state |
 | Lab presentation | `fixtures_looks_lab.slint` | Layout, styling, accessibility declarations, task controls, responsive center workspace, and Advanced drawer |
 | Renderer adapter | `fixtures_looks_lab.cpp` | Projects immutable model snapshots, forwards typed user intent, and refreshes the lab |
+| Preview command boundary | Registry `1.8.0`, `UiCommandFacade`, and `StaticLookPreviewCoordinator` | Runs compilation/output work off the UI thread, coalesces draft updates, publishes one coherent status snapshot, and excludes preview from MIDI/keyboard/Actions |
+| Physical authority | Existing `StaticLookPhysicalPreviewService` | Owns the production-Runner lease, selected-target isolation, 35% cap, hazard rejection, 30-second timeout, faults, and terminal blackout; the renderer cannot replace it |
 | Build boundary | `EMBERLIGHTS_BUILD_SLINT_LAB=OFF` by default | Finds Slint 1.17.1 exactly and builds a separate non-installed executable only when requested |
 
 The shell model intentionally contains no Slint type. A future accepted Default,
@@ -46,13 +50,16 @@ The lab currently supports:
 6. a Pan/Tilt XY pad, Focus fader, and profile-backed Gobo choice tiles;
 7. target coverage, unavailable/mixed state, validation, read-only, stale, and
    explicit empty-state projection in the renderer-neutral model;
-8. bounded preview simulation with an explicit start/stop state and no output;
-9. raw channel/range evidence only inside the nonmodal Advanced drawer;
-10. persistent stable choice IDs from the same catalog used by Static Looks,
+8. asynchronous offline **Simulate** with frame digest and no adapter output;
+9. explicitly armed **Preview fixtures** with visible mode, lifecycle, cap,
+   countdown, fixture count, exact fault token, coalesced edits, and one
+   **Blackout & stop** exit;
+10. raw channel/range evidence only inside the nonmodal Advanced drawer;
+11. persistent stable choice IDs from the same catalog used by Static Looks,
     Live, Autoloops, mappings, Ember Actions, migration, and future skins;
-11. `Save Look` as one generation-checked Studio Undo transaction, draft-aware
+12. `Save Look` as one generation-checked Studio Undo transaction, draft-aware
     Undo/Redo controls, and visible generation/history counts;
-12. `Save Project` through `save_project_atomic`, followed by an exact-generation
+13. `Save Project` through `save_project_atomic`, followed by an exact-generation
     durable-baseline acknowledgement only after the write succeeds.
 
 The renderer receives booleans, labels, immutable projections, and callbacks.
@@ -66,6 +73,11 @@ workflow without adding a file dialog to the toolkit evaluation.
 Passed on the source host:
 
 - warning-fatal native compile and `fixtures_looks_shell_tests`;
+- warning-fatal `static_look_preview_coordinator_tests` covering asynchronous
+  simulation/update/stop, latest-wins edits, explicit physical arming,
+  cap/countdown, timeout/restart isolation, and stop-to-black Runner release;
+- registry `1.8.0` generation/check, V1 compatible-additive diff, facade tests,
+  and Ember Action exclusion tests;
 - `test_ui_direction.py`;
 - all seven `test_slint_lab_contract.py` checks;
 - warning-free Slint markup compilation with official
@@ -106,7 +118,8 @@ still requires:
 - cold start, idle memory, resize/repaint, long-list, software-renderer,
   scheduler-jitter, and packaged-size measurements;
 - Windows evidence for Studio save/history/undo plus complete validation/fault
-  UX, read-only behavior, and bounded physical preview while Live is stopped;
+  UX, read-only behavior, and the now-wired bounded physical preview while Live
+  is stopped, including timeout/fault terminal blackout;
 - Safe/Runner independence and skin activation/failure continuity;
 - measured WinUI 3 control comparison and Direct2D/Win32 Safe baseline;
 - explicit dependency/license/attribution and installer servicing decisions;
@@ -121,8 +134,8 @@ activate an accepted replacement-shell slice or remain withheld under D-091.
 
 ## Next bounded pass
 
-Run and capture Windows evidence for the now-wired Studio document/history path.
-Then wire the existing bounded Static Look physical-preview authority through a
-typed adapter command, without giving the renderer direct Runner, scheduler, or
-output ownership. Build the WinUI comparison from the same model/query fixture
-so the toolkit decision is measured on equal workflows.
+Run and capture Windows evidence for the now-wired Studio document/history and
+bounded-preview paths, including default output lock, explicit arming, edit
+coalescing, timeout/fault, and terminal blackout. Build the WinUI comparison
+from the same model/query/preview command fixture so the toolkit decision is
+measured on equal workflows.

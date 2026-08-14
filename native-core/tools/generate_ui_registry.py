@@ -26,7 +26,7 @@ HEADER_PATH = ROOT / "native-core/include/emberlights/generated/ui_registry.gene
 CATALOG_PATH = ROOT / "spec/ui/registry/generated/ui-registry.catalog.json"
 REFERENCE_PATH = ROOT / "docs/generated/ui-registry/REFERENCE.md"
 CROSS_REFERENCE_PATH = ROOT / "spec/ui/registry/generated/surface-cross-reference-report.json"
-GENERATOR_VERSION = "1.1.0"
+GENERATOR_VERSION = "1.2.0"
 GENERATOR_ID = f"emberlights-ui-registry-generator/{GENERATOR_VERSION}"
 ID_PATTERN = re.compile(r"^[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9_\[\]-]+)+$")
 TOKEN_PATTERN = re.compile(r"^[a-z][a-zA-Z0-9]*$")
@@ -489,6 +489,10 @@ def validate_registry(
 
     for command in commands:
         validate_lifecycle("command", command, generation)
+        for field in ("midiBindable", "keyboardBindable", "actionBindable"):
+            if field in command:
+                require(isinstance(command[field], bool),
+                        f"command {command['id']}: {field} must be boolean")
         require(command.get("interaction") in interaction_ids,
                 f"command {command['id']}: unknown interaction {command.get('interaction')}")
         require(command.get("realtimeClass") in {
@@ -724,6 +728,7 @@ def generate_header(
         "    bool emergency{false};",
         "    bool midi_bindable{true};",
         "    bool keyboard_bindable{true};",
+        "    bool action_bindable{true};",
         "};",
         "",
         f"inline constexpr std::array<UiCommandDefinition, {len(commands)}> kUiCommandDefinitions{{{{",
@@ -733,12 +738,13 @@ def generate_header(
         emergency = "true" if command.get("safetyClass") == "emergency" else "false"
         midi = "true" if command.get("midiBindable", True) else "false"
         keyboard = "true" if command.get("keyboardBindable", True) else "false"
+        action = "true" if command.get("actionBindable", True) else "false"
         lines.append(
-            "    {UiCommandId::%s, %s, %s, UiCommandInteraction::%s, %s, %s, %s},"
+            "    {UiCommandId::%s, %s, %s, UiCommandInteraction::%s, %s, %s, %s, %s},"
             % (
                 command["nativeName"], cpp_string(command["id"]),
                 cpp_string(command["label"]), interaction_by_id[command["interaction"]],
-                emergency, midi, keyboard,
+                emergency, midi, keyboard, action,
             )
         )
     lines.extend([

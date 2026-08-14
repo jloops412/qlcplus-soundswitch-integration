@@ -570,6 +570,22 @@ UiInvocationResult UiCommandFacade::invoke(
             ? UiInvocationResult::Accepted
             : UiInvocationResult::QueueFull;
     }
+    case UiCommandId::StaticLookPreviewStart:
+        if (invocation.target_id.empty() ||
+            invocation.secondary_target_id.empty() ||
+            invocation.static_look_preview_mode ==
+                UiStaticLookPreviewMode::None) {
+            return UiInvocationResult::InvalidArguments;
+        }
+        if (status.state != RunnerState::Stopped) {
+            return UiInvocationResult::Unavailable;
+        }
+        return app_.ui_start_static_look_preview(
+            invocation.target_id,
+            invocation.secondary_target_id,
+            invocation.static_look_preview_mode);
+    case UiCommandId::StaticLookPreviewStop:
+        return app_.ui_stop_static_look_preview();
     case UiCommandId::Count: break;
     }
     return UiInvocationResult::Unsupported;

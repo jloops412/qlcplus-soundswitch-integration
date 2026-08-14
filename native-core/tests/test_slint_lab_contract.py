@@ -52,8 +52,11 @@ class SlintLabContractTests(unittest.TestCase):
             'label: "Force zero"',
             "profile-search-changed",
             "look-search-changed",
-            "preview-start",
+            "preview-simulate",
+            "preview-physical",
             "preview-stop",
+            "Preview fixtures",
+            "Blackout & stop",
         )
         for text in required:
             self.assertIn(text, self.surface, text)
@@ -73,7 +76,7 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertGreaterEqual(self.surface.count("accessible-role"), 6)
         self.assertGreaterEqual(self.surface.count("accessible-label"), 6)
 
-    def test_adapter_uses_existing_domain_mutations_and_opens_no_output(self):
+    def test_adapter_uses_domain_commands_and_keeps_output_behind_explicit_authority(self):
         for function in (
             "build_fixtures_looks_shell_model",
             "apply_static_look_property",
@@ -84,6 +87,10 @@ class SlintLabContractTests(unittest.TestCase):
             "commit_static_look_draft",
             "save_project_atomic",
             "acknowledge_saved",
+            "StaticLookPreviewCoordinator",
+            "UiCommandFacade",
+            "StaticLookPreviewStart",
+            "--allow-physical-preview",
         ):
             self.assertIn(function, self.adapter)
         self.assertIn("--model-smoke", self.adapter)
@@ -91,9 +98,12 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertIn("state.document.undo", self.adapter)
         self.assertIn("state.document.redo", self.adapter)
         self.assertIn("no DMX output", self.adapter)
+        self.assertIn("requires an explicit --project path", self.adapter)
+        self.assertIn("static_look_physical_preview_output_configured", self.adapter)
         self.assertNotIn("state.project.looks.push_back", self.adapter)
         self.assertNotIn("OutputBackend", self.adapter)
         self.assertNotIn("start_output", self.adapter)
+        self.assertNotIn("RunnerService::start", self.adapter)
 
     def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)

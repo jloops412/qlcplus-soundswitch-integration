@@ -277,12 +277,14 @@ void test_generated_registry_adapter_and_ir_foundation() {
     CHECK(registry.find_command("com.test.command.missing") == nullptr);
     CHECK(registry.find_state("com.test.state.missing") == nullptr);
     CHECK(registry.find_capability("content.staticLooks") == nullptr);
+    CHECK(registry.find_command("staticLook.preview.start") == nullptr);
+    CHECK(registry.find_command("staticLook.preview.stop") == nullptr);
 
     for (const auto& definition : emberlights::kUiCommandDefinitions) {
         const auto* command = registry.find_command(definition.id);
-        CHECK(command != nullptr);
+        CHECK((command != nullptr) == definition.action_bindable);
         const auto native = registry.native_command_id(definition.id);
-        CHECK(native.has_value());
+        CHECK(native.has_value() == definition.action_bindable);
         if (native.has_value()) CHECK(*native == definition.command);
     }
     for (std::size_t index = 0U; index < emberlights::kLiveCoreUiStates.size(); ++index) {
@@ -436,7 +438,7 @@ void test_generated_registry_adapter_and_ir_foundation() {
     CHECK(compiled.ir->cache_key.registry_digest == emberlights::kUiRegistryDigest);
     CHECK(compiled.ir->cache_key.dependency_digest.starts_with("sha256:"));
     CHECK(compiled.ir->cache_key.cache_digest ==
-        "sha256:df0071ca132d1034040250e56fbbfd989637525681c2a33642e7d327b18e499a");
+        "sha256:0db8bd450622cd7384825d4a7a005b1b0a403b621162a38977bf5c49a3d58bde");
 
     const auto repeated = emberlights::compile_ember_action_ir_foundation(
         prepared.prepared, registry);

@@ -1954,8 +1954,8 @@ void test_repeated_execution_no_allocations_and_probe(
 int main() {
     const emberlights::GeneratedUiRegistryEmberActionView registry;
     CHECK(registry.registry_digest() == emberlights::kUiRegistryDigest);
-    CHECK(emberlights::kUiCommandDefinitions.size() == 29U);
-    CHECK(emberlights::kLiveCoreUiStates.size() == 46U);
+    CHECK(emberlights::kUiCommandDefinitions.size() == 31U);
+    CHECK(emberlights::kLiveCoreUiStates.size() == 54U);
     test_deterministic_execution_and_trace(registry);
     test_sequence_refusal_and_dispatcher_fault(registry);
     test_cancellation_and_fail_closed_context(registry);

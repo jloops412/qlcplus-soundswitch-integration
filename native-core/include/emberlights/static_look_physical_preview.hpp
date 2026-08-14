@@ -118,6 +118,11 @@ build_static_look_physical_preview_candidate(
     std::string_view target_id,
     StaticLookPhysicalPreviewConfig config = {});
 
+// Cheap host-side availability check. This only reports whether at least one
+// output adapter is configured; it does not start, probe, or qualify hardware.
+[[nodiscard]] bool static_look_physical_preview_output_configured(
+    const ConnectionSettings& connections) noexcept;
+
 // A bounded hardware-preview lease over the production Runner. This class does
 // not create another renderer or output implementation. Begin is accepted only
 // when the supplied Runner is stopped. Every owned exit calls Runner::stop(),

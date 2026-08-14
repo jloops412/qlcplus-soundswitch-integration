@@ -498,16 +498,24 @@ export component FixturesLooksLab inherits Window {
     in property <string> output-state: "Dry run";
     in property <string> workspace-message;
     in property <string> preview-status;
+    in property <string> preview-detail;
+    in property <string> preview-state: "stopped";
+    in property <string> preview-mode: "none";
     in property <string> selected-look-name;
     in property <string> selected-target-name;
     in property <string> selected-target-detail;
     in property <bool> can-edit: true;
-    in property <bool> can-preview: true;
+    in property <bool> can-simulate-preview: true;
+    in property <bool> can-physical-preview: false;
+    in property <bool> physical-preview-enabled: false;
     in property <bool> can-save-look: false;
     in property <bool> can-save-project: false;
     in property <bool> can-undo: false;
     in property <bool> can-redo: false;
     in property <bool> preview-active: false;
+    in property <int> preview-remaining-seconds: 0;
+    in property <int> preview-output-cap-percent: 0;
+    in property <int> preview-fixture-count: 0;
     in property <bool> live-running: false;
     in property <string> history-state;
     in-out property <bool> advanced-open: false;
@@ -553,7 +561,8 @@ export component FixturesLooksLab inherits Window {
     callback look-search-changed(string);
     callback control-value-changed(string, float);
     callback control-ownership-changed(string, string);
-    callback preview-start();
+    callback preview-simulate();
+    callback preview-physical();
     callback preview-stop();
     callback save-look();
     callback save-project();
@@ -606,7 +615,11 @@ export component FixturesLooksLab inherits Window {
                 }
                 StatusPill { label: "Project"; state: root.validation-state; tone: root.validation-state == "Validated" ? Theme.good : Theme.warn; }
                 StatusPill { label: "DJ"; state: root.dj-state; tone: Theme.warn; }
-                StatusPill { label: "Output"; state: root.output-state; tone: Theme.text-muted; }
+                StatusPill {
+                    label: "Output";
+                    state: root.output-state;
+                    tone: root.preview-mode == "physical" ? Theme.warn : root.preview-mode == "simulation" ? Theme.good : Theme.text-muted;
+                }
                 Rectangle { horizontal-stretch: 1; background: #00000000; }
                 Button { text: "Command Explorer"; }
                 Button {
@@ -616,14 +629,10 @@ export component FixturesLooksLab inherits Window {
                         root.open-advanced();
                     }
                 }
-                Rectangle {
-                    width: 92px;
-                    height: 38px;
-                    border-radius: 5px;
-                    border-width: 2px;
-                    border-color: #cc3030;
-                    background: #2e1718;
-                    Text { text: "BLACKOUT"; color: #ffffff; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Button {
+                    text: root.preview-mode == "physical" && root.preview-active ? "BLACKOUT & STOP" : "BLACKOUT";
+                    enabled: root.preview-mode == "physical" && root.preview-active;
+                    clicked => { root.preview-stop(); }
                 }
             }
         }
@@ -718,29 +727,57 @@ export component FixturesLooksLab inherits Window {
                         }
                     }
                     Rectangle {
-                        height: 42px;
-                        border-radius: 6px;
+                        height: 76px;
+                        border-radius: 8px;
                         border-width: 1px;
-                        border-color: root.can-preview ? #275b3e : root.live-running ? #725328 : Theme.border-subtle;
-                        background: root.can-preview ? #15281e : root.live-running ? #2b2417 : Theme.panel;
+                        border-color: root.preview-state == "fault" || root.preview-state == "timedOut" ? #8a3939 : root.preview-mode == "physical" ? #8b642d : root.can-simulate-preview ? #275b3e : Theme.border-subtle;
+                        background: root.preview-state == "fault" || root.preview-state == "timedOut" ? #321a1b : root.preview-mode == "physical" ? #2b2417 : root.preview-active ? #15281e : Theme.panel;
+                        accessible-role: AccessibleRole.groupbox;
+                        accessible-label: root.preview-status + ". " + root.preview-detail;
                         HorizontalLayout {
-                            padding-left: 12px;
-                            padding-right: 8px;
-                            spacing: 10px;
+                            padding-left: 14px;
+                            padding-right: 10px;
+                            spacing: 12px;
                             alignment: center;
-                            Text { text: root.can-preview ? "●" : "■"; color: root.can-preview ? Theme.good : Theme.warn; font-size: 11px; }
-                            Text { text: root.preview-status; color: Theme.text-secondary; font-size: 11px; overflow: elide; }
-                            Rectangle { horizontal-stretch: 1; background: #00000000; }
-                            Button {
-                                text: root.preview-active ? "Stop preview" : "Preview";
-                                enabled: root.can-preview || root.preview-active;
-                                clicked => {
-                                    if (root.preview-active) {
-                                        root.preview-stop();
-                                    } else {
-                                        root.preview-start();
-                                    }
+                            Rectangle {
+                                width: 9px;
+                                height: 9px;
+                                border-radius: 5px;
+                                background: root.preview-state == "fault" || root.preview-state == "timedOut" ? Theme.danger : root.preview-mode == "physical" ? Theme.warn : root.preview-active ? Theme.good : Theme.text-muted;
+                            }
+                            VerticalLayout {
+                                spacing: 4px;
+                                Text {
+                                    text: root.preview-status;
+                                    color: Theme.text;
+                                    font-size: 12px;
+                                    font-weight: 650;
+                                    overflow: elide;
                                 }
+                                Text {
+                                    text: root.preview-detail;
+                                    color: root.preview-mode == "physical" ? Theme.warn : Theme.text-muted;
+                                    font-size: 10px;
+                                    overflow: elide;
+                                }
+                            }
+                            Rectangle { horizontal-stretch: 1; background: #00000000; }
+                            if !root.preview-active: HorizontalLayout {
+                                spacing: 7px;
+                                Button {
+                                    text: "Simulate";
+                                    enabled: root.can-simulate-preview;
+                                    clicked => { root.preview-simulate(); }
+                                }
+                                Button {
+                                    text: "Preview fixtures";
+                                    enabled: root.can-physical-preview;
+                                    clicked => { root.preview-physical(); }
+                                }
+                            }
+                            if root.preview-active: Button {
+                                text: root.preview-mode == "physical" ? "Blackout & stop" : "Stop simulation";
+                                clicked => { root.preview-stop(); }
                             }
                         }
                     }
