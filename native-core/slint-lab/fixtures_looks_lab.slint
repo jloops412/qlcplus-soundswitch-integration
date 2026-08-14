@@ -1,0 +1,956 @@
+import { Button, LineEdit, ScrollView, Slider } from "std-widgets.slint";
+
+// Non-product issue #37 laboratory surface. Domain state is supplied by
+// FixturesLooksShellModel; this file owns presentation only.
+export struct ShellListItem {
+    stable-id: string,
+    title: string,
+    detail: string,
+    badge: string,
+    selected: bool,
+    warning: bool,
+}
+
+export struct ChoiceTileItem {
+    choice-id: string,
+    title: string,
+    detail: string,
+    active: bool,
+    selected: bool,
+    enabled: bool,
+    safety-restricted: bool,
+}
+
+global Theme {
+    in property <brush> app: #111416;
+    in property <brush> chrome: #171b1e;
+    in property <brush> canvas: #131719;
+    in property <brush> panel: #1d2226;
+    in property <brush> raised: #252b30;
+    in property <brush> control: #293036;
+    in property <brush> control-hover: #333c43;
+    in property <brush> border: #414b53;
+    in property <brush> border-subtle: #30383e;
+    in property <brush> text: #eef1f3;
+    in property <brush> text-secondary: #b7c0c6;
+    in property <brush> text-muted: #7f8a92;
+    in property <brush> brand: #f08a3c;
+    in property <brush> brand-soft: #422a1b;
+    in property <brush> focus: #8bc8ff;
+    in property <brush> good: #49c77a;
+    in property <brush> warn: #e7b24a;
+    in property <brush> danger: #e05252;
+}
+
+component Hairline inherits Rectangle {
+    height: 1px;
+    background: Theme.border-subtle;
+}
+
+component StatusPill inherits Rectangle {
+    in property <string> label;
+    in property <string> state;
+    in property <brush> tone: Theme.text-muted;
+    height: 28px;
+    min-width: 96px;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: root.tone;
+    background: Theme.panel;
+    accessible-role: AccessibleRole.region;
+    accessible-label: root.label + ": " + root.state;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 7px;
+        alignment: center;
+        Rectangle {
+            width: 7px;
+            height: 7px;
+            border-radius: 4px;
+            background: root.tone;
+        }
+        Text {
+            text: root.label;
+            color: Theme.text-muted;
+            font-size: 11px;
+        }
+        Text {
+            text: root.state;
+            color: Theme.text;
+            font-size: 11px;
+            font-weight: 600;
+        }
+    }
+}
+
+component WorkspaceRailButton inherits Rectangle {
+    in property <string> glyph;
+    in property <string> label;
+    in property <bool> selected: false;
+    callback clicked();
+    width: 48px;
+    height: 52px;
+    border-radius: 6px;
+    background: root.selected ? Theme.brand-soft : touch.has-hover ? Theme.control : #00000000;
+    border-width: root.selected ? 1px : 0px;
+    border-color: root.selected ? Theme.brand : #00000000;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checked: root.selected;
+
+    VerticalLayout {
+        padding: 6px;
+        spacing: 2px;
+        alignment: center;
+        Text {
+            text: root.glyph;
+            color: root.selected ? Theme.brand : Theme.text-secondary;
+            font-size: 17px;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.label;
+            color: root.selected ? Theme.text : Theme.text-muted;
+            font-size: 9px;
+            horizontal-alignment: center;
+        }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+component SectionTitle inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    height: 42px;
+    VerticalLayout {
+        spacing: 2px;
+        Text {
+            text: root.title;
+            color: Theme.text;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        Text {
+            text: root.detail;
+            color: Theme.text-muted;
+            font-size: 11px;
+            overflow: elide;
+        }
+    }
+}
+
+component LibraryRow inherits Rectangle {
+    in property <ShellListItem> item;
+    callback selected(string);
+    height: 66px;
+    border-radius: 6px;
+    border-width: item.selected ? 1px : 0px;
+    border-color: item.warning ? Theme.warn : item.selected ? Theme.brand : #00000000;
+    background: item.selected ? Theme.brand-soft : touch.has-hover ? Theme.control : Theme.panel;
+    accessible-role: list-item;
+    accessible-label: item.title + ". " + item.detail + ". " + item.badge;
+    accessible-item-selectable: true;
+    accessible-item-selected: item.selected;
+
+    HorizontalLayout {
+        padding: 9px;
+        spacing: 9px;
+        Rectangle {
+            width: 4px;
+            border-radius: 2px;
+            background: item.warning ? Theme.warn : item.selected ? Theme.brand : Theme.border;
+        }
+        VerticalLayout {
+            spacing: 3px;
+            Text {
+                text: item.title;
+                color: Theme.text;
+                font-size: 12px;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: item.detail;
+                color: Theme.text-muted;
+                font-size: 10px;
+                overflow: elide;
+            }
+            Text {
+                text: item.badge;
+                color: item.warning ? Theme.warn : Theme.text-secondary;
+                font-size: 10px;
+                overflow: elide;
+            }
+        }
+    }
+    touch := TouchArea { clicked => { root.selected(item.stable-id); } }
+}
+
+component OwnerSegment inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> segment-value;
+    in property <bool> enabled: true;
+    callback selected(string);
+    height: 34px;
+    min-width: 86px;
+    border-radius: 5px;
+    border-width: value == segment-value ? 1px : 0px;
+    border-color: value == segment-value ? Theme.brand : #00000000;
+    background: value == segment-value ? Theme.brand-soft : touch.has-hover ? Theme.control-hover : Theme.control;
+    opacity: root.enabled ? 1 : 0.45;
+    accessible-role: radio-button;
+    accessible-label: label;
+    accessible-checked: value == segment-value;
+    accessible-enabled: root.enabled;
+    Text {
+        text: root.label;
+        color: value == segment-value ? Theme.text : Theme.text-secondary;
+        font-size: 11px;
+        font-weight: value == segment-value ? 600 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.selected(root.segment-value); }
+    }
+}
+
+component OwnershipStrip inherits Rectangle {
+    in property <string> value: "release";
+    in property <bool> enabled: true;
+    callback selected(string);
+    height: 34px;
+    background: #00000000;
+    HorizontalLayout {
+        spacing: 4px;
+        OwnerSegment {
+            label: "Release";
+            value: root.value;
+            segment-value: "release";
+            enabled: root.enabled;
+            selected(value) => { root.selected(value); }
+        }
+        OwnerSegment {
+            label: "Set";
+            value: root.value;
+            segment-value: "set";
+            enabled: root.enabled;
+            selected(value) => { root.selected(value); }
+        }
+        OwnerSegment {
+            label: "Force zero";
+            value: root.value;
+            segment-value: "forceZero";
+            enabled: root.enabled;
+            selected(value) => { root.selected(value); }
+        }
+    }
+}
+
+component FaderCard inherits Rectangle {
+    in property <string> choice-id;
+    in property <string> title;
+    in property <string> detail;
+    in-out property <float> value: 0;
+    in property <string> ownership: "release";
+    in property <bool> enabled: true;
+    callback value-changed(string, float);
+    callback ownership-changed(string, string);
+    min-height: 126px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+    background: Theme.panel;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+        HorizontalLayout {
+            Text {
+                text: root.title;
+                color: Theme.text;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            Text {
+                text: round(root.value * 100) + "%";
+                color: Theme.text;
+                font-size: 13px;
+                font-weight: 600;
+                horizontal-alignment: right;
+            }
+        }
+        Text {
+            text: root.detail;
+            color: Theme.text-muted;
+            font-size: 10px;
+            overflow: elide;
+        }
+        Slider {
+            value: root.value;
+            minimum: 0;
+            maximum: 1;
+            enabled: root.enabled && root.ownership == "set";
+            changed(value) => {
+                root.value = value;
+                root.value-changed(root.choice-id, value);
+            }
+        }
+        OwnershipStrip {
+            value: root.ownership;
+            enabled: root.enabled;
+            selected(value) => { root.ownership-changed(root.choice-id, value); }
+        }
+    }
+}
+
+component ColorChannel inherits Rectangle {
+    in property <string> choice-id;
+    in property <string> label;
+    in property <brush> channel-color;
+    in-out property <float> value: 0;
+    in property <string> ownership: "release";
+    in property <bool> enabled: true;
+    callback value-changed(string, float);
+    callback ownership-changed(string, string);
+    min-width: 74px;
+    height: 174px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: ownership == "set" ? channel-color : Theme.border-subtle;
+    background: Theme.panel;
+
+    VerticalLayout {
+        padding: 9px;
+        spacing: 6px;
+        Text {
+            text: root.label;
+            color: Theme.text-secondary;
+            font-size: 10px;
+            horizontal-alignment: center;
+        }
+        Rectangle {
+            height: 68px;
+            border-radius: 4px;
+            background: Theme.control;
+            Rectangle {
+                y: parent.height * (1 - root.value);
+                height: parent.height * root.value;
+                width: parent.width;
+                border-radius: 4px;
+                background: root.channel-color;
+                opacity: root.ownership == "set" ? 0.92 : 0.25;
+            }
+        }
+        Slider {
+            value: root.value;
+            minimum: 0;
+            maximum: 1;
+            enabled: root.enabled && root.ownership == "set";
+            changed(value) => {
+                root.value = value;
+                root.value-changed(root.choice-id, value);
+            }
+        }
+        Text {
+            text: root.ownership == "forceZero" ? "OFF" : root.ownership == "release" ? "REL" : round(root.value * 100) + "%";
+            color: root.ownership == "set" ? root.channel-color : Theme.text-muted;
+            font-size: 10px;
+            font-weight: 600;
+            horizontal-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.ownership-changed(root.choice-id, root.ownership == "set" ? "release" : "set");
+        }
+    }
+}
+
+component XYPad inherits Rectangle {
+    in property <string> pan-choice-id;
+    in property <string> tilt-choice-id;
+    in-out property <float> pan: 0.5;
+    in-out property <float> tilt: 0.5;
+    in property <string> ownership: "release";
+    in property <bool> enabled: true;
+    callback value-changed(string, float);
+    callback ownership-changed(string, string);
+    min-height: 240px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+    background: Theme.panel;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+        HorizontalLayout {
+            Text {
+                text: "Position";
+                color: Theme.text;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            Text {
+                text: "Pan " + round(root.pan * 100) + "%  •  Tilt " + round(root.tilt * 100) + "%";
+                color: Theme.text-muted;
+                font-size: 10px;
+                horizontal-alignment: right;
+            }
+        }
+        pad := Rectangle {
+            min-height: 150px;
+            border-radius: 5px;
+            border-width: 1px;
+            border-color: Theme.border;
+            background: Theme.canvas;
+            Rectangle { x: parent.width / 2; width: 1px; height: parent.height; background: Theme.border-subtle; }
+            Rectangle { y: parent.height / 2; height: 1px; width: parent.width; background: Theme.border-subtle; }
+            Rectangle {
+                x: root.pan * (parent.width - self.width);
+                y: (1 - root.tilt) * (parent.height - self.height);
+                width: 20px;
+                height: 20px;
+                border-radius: 10px;
+                border-width: 2px;
+                border-color: Theme.focus;
+                background: Theme.brand;
+                opacity: root.ownership == "set" ? 1 : 0.35;
+            }
+            touch := TouchArea {
+                enabled: root.enabled && root.ownership == "set";
+                moved => {
+                    root.pan = max(0, min(1, self.mouse-x / self.width));
+                    root.tilt = max(0, min(1, 1 - self.mouse-y / self.height));
+                    root.value-changed(root.pan-choice-id, root.pan);
+                    root.value-changed(root.tilt-choice-id, root.tilt);
+                }
+            }
+        }
+        OwnershipStrip {
+            value: root.ownership;
+            enabled: root.enabled;
+            selected(value) => {
+                root.ownership-changed(root.pan-choice-id, value);
+                root.ownership-changed(root.tilt-choice-id, value);
+            }
+        }
+    }
+}
+
+component ChoiceTile inherits Rectangle {
+    in property <ChoiceTileItem> item;
+    callback selected(string);
+    height: 64px;
+    min-width: 112px;
+    border-radius: 6px;
+    border-width: item.active || item.selected ? 2px : 1px;
+    border-color: item.safety-restricted ? Theme.warn : item.active ? Theme.good : item.selected ? Theme.brand : Theme.border-subtle;
+    background: item.active ? #173225 : item.selected ? Theme.brand-soft : touch.has-hover ? Theme.control : Theme.panel;
+    opacity: item.enabled ? 1 : 0.45;
+    accessible-role: button;
+    accessible-label: item.title + ". " + item.detail;
+    accessible-enabled: item.enabled;
+    accessible-checked: item.active;
+    VerticalLayout {
+        padding: 8px;
+        spacing: 3px;
+        Text {
+            text: item.title;
+            color: Theme.text;
+            font-size: 11px;
+            font-weight: 600;
+            overflow: elide;
+        }
+        Text {
+            text: item.safety-restricted ? "Safety confirmation" : item.detail;
+            color: item.safety-restricted ? Theme.warn : Theme.text-muted;
+            font-size: 9px;
+            overflow: elide;
+        }
+    }
+    touch := TouchArea {
+        enabled: item.enabled;
+        clicked => { root.selected(item.choice-id); }
+    }
+}
+
+export component FixturesLooksLab inherits Window {
+    title: "EmberLights • Fixtures + Static Looks • Slint Lab";
+    preferred-width: 1366px;
+    preferred-height: 768px;
+    min-width: 1366px;
+    min-height: 768px;
+    background: Theme.app;
+    default-font-family: "Segoe UI";
+    default-font-size: 13px;
+
+    in property <string> project-name: "Ballroom Rig";
+    in property <string> save-state: "Saved";
+    in property <string> validation-state: "Validated";
+    in property <string> dj-state: "Listening";
+    in property <string> output-state: "Dry run";
+    in property <string> workspace-message;
+    in property <string> preview-status;
+    in property <string> selected-look-name;
+    in property <string> selected-target-name;
+    in property <string> selected-target-detail;
+    in property <bool> can-edit: true;
+    in property <bool> can-preview: true;
+    in property <bool> preview-active: false;
+    in property <bool> live-running: false;
+    in-out property <bool> advanced-open: false;
+    in-out property <string> profile-search;
+    in-out property <string> look-search;
+    in property <[ShellListItem]> profile-items;
+    in property <[ShellListItem]> target-items;
+    in property <[ShellListItem]> look-items;
+    in property <[ChoiceTileItem]> choice-items;
+
+    in property <string> intensity-choice-id;
+    in property <float> intensity-value: 0.72;
+    in property <string> intensity-ownership: "set";
+    in property <string> red-choice-id;
+    in property <float> red-value: 0.92;
+    in property <string> red-ownership: "set";
+    in property <string> green-choice-id;
+    in property <float> green-value: 0.42;
+    in property <string> green-ownership: "set";
+    in property <string> blue-choice-id;
+    in property <float> blue-value: 0.12;
+    in property <string> blue-ownership: "set";
+    in property <string> white-choice-id;
+    in property <float> white-value: 0.16;
+    in property <string> white-ownership: "set";
+    in property <string> amber-choice-id;
+    in property <float> amber-value: 0.28;
+    in property <string> amber-ownership: "set";
+    in property <string> pan-choice-id;
+    in property <float> pan-value: 0.5;
+    in property <string> tilt-choice-id;
+    in property <float> tilt-value: 0.58;
+    in property <string> position-ownership: "set";
+    in property <string> focus-choice-id;
+    in property <float> focus-value: 0.64;
+    in property <string> focus-ownership: "release";
+
+    callback select-profile(string);
+    callback select-target(string);
+    callback select-look(string);
+    callback select-choice(string);
+    callback profile-search-changed(string);
+    callback look-search-changed(string);
+    callback control-value-changed(string, float);
+    callback control-ownership-changed(string, string);
+    callback preview-start();
+    callback preview-stop();
+    callback save-look();
+    callback create-look();
+    callback duplicate-look();
+    callback open-advanced();
+
+    property <length> rail-width: 64px;
+    property <length> library-width: 286px;
+    property <length> looks-width: 310px;
+    property <length> header-height: 64px;
+
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: root.header-height;
+            background: Theme.chrome;
+            border-width: 0px;
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 14px;
+                spacing: 14px;
+                alignment: center;
+                HorizontalLayout {
+                    width: root.rail-width + root.library-width - 16px;
+                    spacing: 10px;
+                    alignment: center;
+                    Rectangle {
+                        width: 34px;
+                        height: 34px;
+                        border-radius: 9px;
+                        background: Theme.brand;
+                        Text {
+                            text: "E";
+                            color: #17120d;
+                            font-size: 18px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 1px;
+                        Text { text: "EMBERLIGHTS"; color: Theme.text; font-size: 11px; font-weight: 700; }
+                        Text { text: root.project-name + "  •  " + root.save-state; color: Theme.text-muted; font-size: 10px; overflow: elide; }
+                    }
+                }
+                StatusPill { label: "Project"; state: root.validation-state; tone: root.validation-state == "Validated" ? Theme.good : Theme.warn; }
+                StatusPill { label: "DJ"; state: root.dj-state; tone: Theme.warn; }
+                StatusPill { label: "Output"; state: root.output-state; tone: Theme.text-muted; }
+                Rectangle { horizontal-stretch: 1; background: #00000000; }
+                Button { text: "Command Explorer"; }
+                Button {
+                    text: root.advanced-open ? "Close Advanced" : "Advanced";
+                    clicked => {
+                        root.advanced-open = !root.advanced-open;
+                        root.open-advanced();
+                    }
+                }
+                Rectangle {
+                    width: 92px;
+                    height: 38px;
+                    border-radius: 5px;
+                    border-width: 2px;
+                    border-color: #cc3030;
+                    background: #2e1718;
+                    Text { text: "BLACKOUT"; color: #ffffff; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                }
+            }
+        }
+        Hairline { }
+        HorizontalLayout {
+            spacing: 0px;
+            Rectangle {
+                width: root.rail-width;
+                background: Theme.chrome;
+                VerticalLayout {
+                    padding-top: 12px;
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 7px;
+                    WorkspaceRailButton { glyph: "▦"; label: "Home"; }
+                    WorkspaceRailButton { glyph: "◫"; label: "Fixtures"; selected: true; }
+                    WorkspaceRailButton { glyph: "◆"; label: "Looks"; selected: true; }
+                    WorkspaceRailButton { glyph: "◉"; label: "Loops"; }
+                    WorkspaceRailButton { glyph: "⌁"; label: "Mapping"; }
+                    Rectangle { vertical-stretch: 1; background: #00000000; }
+                    WorkspaceRailButton { glyph: "⚙"; label: "System"; }
+                    Text { text: "LAB"; color: Theme.warn; font-size: 9px; font-weight: 700; horizontal-alignment: center; }
+                }
+            }
+            Hairline { width: 1px; }
+            Rectangle {
+                width: root.library-width;
+                background: Theme.panel;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+                    SectionTitle { title: "Fixture library"; detail: "Profiles, provenance, patch and groups"; }
+                    LineEdit {
+                        text <=> root.profile-search;
+                        placeholder-text: "Search profiles, maker, model or mode";
+                        edited => { root.profile-search-changed(self.text); }
+                    }
+                    HorizontalLayout {
+                        height: 32px;
+                        spacing: 6px;
+                        Button { text: "Profiles"; primary: true; }
+                        Button { text: "Import OFL / QXF"; }
+                    }
+                    Text { text: "PROFILES"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                    ScrollView {
+                        vertical-stretch: 3;
+                        VerticalLayout {
+                            spacing: 6px;
+                            for item in root.profile-items: LibraryRow {
+                                item: item;
+                                selected(id) => { root.select-profile(id); }
+                            }
+                        }
+                    }
+                    Hairline { }
+                    Text { text: "PATCH TARGETS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                    ScrollView {
+                        vertical-stretch: 2;
+                        VerticalLayout {
+                            spacing: 6px;
+                            for item in root.target-items: LibraryRow {
+                                item: item;
+                                selected(id) => { root.select-target(id); }
+                            }
+                        }
+                    }
+                }
+            }
+            Hairline { width: 1px; }
+            Rectangle {
+                horizontal-stretch: 1;
+                background: Theme.canvas;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 12px;
+                    Rectangle {
+                        height: 70px;
+                        background: #00000000;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                spacing: 3px;
+                                Text { text: root.selected-look-name; color: Theme.text; font-size: 21px; font-weight: 650; overflow: elide; }
+                                Text { text: root.selected-target-name + "  •  " + root.selected-target-detail; color: Theme.text-muted; font-size: 11px; overflow: elide; }
+                            }
+                            Rectangle { horizontal-stretch: 1; background: #00000000; }
+                            Button { text: "Duplicate"; enabled: root.can-edit; clicked => { root.duplicate-look(); } }
+                            Button { text: "Save Look"; primary: true; enabled: root.can-edit; clicked => { root.save-look(); } }
+                        }
+                    }
+                    Rectangle {
+                        height: 42px;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.can-preview ? #275b3e : root.live-running ? #725328 : Theme.border-subtle;
+                        background: root.can-preview ? #15281e : root.live-running ? #2b2417 : Theme.panel;
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 8px;
+                            spacing: 10px;
+                            alignment: center;
+                            Text { text: root.can-preview ? "●" : "■"; color: root.can-preview ? Theme.good : Theme.warn; font-size: 11px; }
+                            Text { text: root.preview-status; color: Theme.text-secondary; font-size: 11px; overflow: elide; }
+                            Rectangle { horizontal-stretch: 1; background: #00000000; }
+                            Button {
+                                text: root.preview-active ? "Stop preview" : "Preview";
+                                enabled: root.can-preview || root.preview-active;
+                                clicked => {
+                                    if (root.preview-active) {
+                                        root.preview-stop();
+                                    } else {
+                                        root.preview-start();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 14px;
+                            Text { text: "INTENSITY & OWNERSHIP"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            FaderCard {
+                                choice-id: root.intensity-choice-id;
+                                title: "Master intensity";
+                                detail: "Fixture master • Static Look owns only when Set";
+                                value: root.intensity-value;
+                                ownership: root.intensity-ownership;
+                                enabled: root.can-edit;
+                                value-changed(id, value) => { root.control-value-changed(id, value); }
+                                ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                            }
+                            Text { text: "COLOR MIXER"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            Rectangle {
+                                min-height: 198px;
+                                border-radius: 7px;
+                                border-width: 1px;
+                                border-color: Theme.border-subtle;
+                                background: Theme.raised;
+                                HorizontalLayout {
+                                    padding: 12px;
+                                    spacing: 8px;
+                                    ColorChannel { choice-id: root.red-choice-id; label: "RED"; channel-color: #ef5a5a; value: root.red-value; ownership: root.red-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
+                                    ColorChannel { choice-id: root.green-choice-id; label: "GREEN"; channel-color: #49c77a; value: root.green-value; ownership: root.green-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
+                                    ColorChannel { choice-id: root.blue-choice-id; label: "BLUE"; channel-color: #4fa5de; value: root.blue-value; ownership: root.blue-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
+                                    ColorChannel { choice-id: root.white-choice-id; label: "WHITE"; channel-color: #ece6d4; value: root.white-value; ownership: root.white-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
+                                    ColorChannel { choice-id: root.amber-choice-id; label: "AMBER"; channel-color: #f0a34a; value: root.amber-value; ownership: root.amber-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
+                                }
+                            }
+                            Text { text: "POSITION & BEAM"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                XYPad {
+                                    horizontal-stretch: 3;
+                                    pan-choice-id: root.pan-choice-id;
+                                    tilt-choice-id: root.tilt-choice-id;
+                                    pan: root.pan-value;
+                                    tilt: root.tilt-value;
+                                    ownership: root.position-ownership;
+                                    enabled: root.can-edit;
+                                    value-changed(id, value) => { root.control-value-changed(id, value); }
+                                    ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                                }
+                                FaderCard {
+                                    horizontal-stretch: 2;
+                                    choice-id: root.focus-choice-id;
+                                    title: "Focus";
+                                    detail: "Beam sharpness";
+                                    value: root.focus-value;
+                                    ownership: root.focus-ownership;
+                                    enabled: root.can-edit;
+                                    value-changed(id, value) => { root.control-value-changed(id, value); }
+                                    ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                                }
+                            }
+                            Text { text: "GOBO & PROFILE CHOICES"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                for item in root.choice-items: ChoiceTile {
+                                    item: item;
+                                    selected(id) => { root.select-choice(id); }
+                                }
+                            }
+                            Rectangle { height: 16px; background: #00000000; }
+                        }
+                    }
+                }
+            }
+            Hairline { width: 1px; }
+            Rectangle {
+                width: root.looks-width;
+                background: Theme.panel;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+                    SectionTitle { title: "Static Looks"; detail: "Reusable scenes with explicit property ownership"; }
+                    LineEdit {
+                        text <=> root.look-search;
+                        placeholder-text: "Search Looks, target or property";
+                        edited => { root.look-search-changed(self.text); }
+                    }
+                    HorizontalLayout {
+                        height: 34px;
+                        spacing: 6px;
+                        Button { text: "New Look"; primary: true; clicked => { root.create-look(); } }
+                        Button { text: "Categories"; }
+                    }
+                    Text { text: "LOOK LIBRARY"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: 6px;
+                            for item in root.look-items: LibraryRow {
+                                item: item;
+                                selected(id) => { root.select-look(id); }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 92px;
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+                        background: Theme.raised;
+                        VerticalLayout {
+                            padding: 10px;
+                            spacing: 5px;
+                            Text { text: "WHAT OWNS OUTPUT?"; color: Theme.text-muted; font-size: 9px; font-weight: 700; }
+                            Text { text: "Release"; color: Theme.text; font-size: 11px; font-weight: 600; }
+                            Text { text: "Lower Track Script or Autoloop continues."; color: Theme.text-muted; font-size: 10px; }
+                            Text { text: "Set and Force zero are explicit Look ownership."; color: Theme.text-secondary; font-size: 10px; }
+                        }
+                    }
+                }
+            }
+        }
+        Hairline { }
+        Rectangle {
+            height: 28px;
+            background: Theme.chrome;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 10px;
+                alignment: center;
+                Text { text: root.workspace-message; color: Theme.text-muted; font-size: 10px; overflow: elide; }
+                Rectangle { horizontal-stretch: 1; background: #00000000; }
+                Text { text: "Slint 1.17.1 LAB  •  not a product preview"; color: Theme.warn; font-size: 9px; font-weight: 700; }
+            }
+        }
+    }
+
+    if root.advanced-open: Rectangle {
+        x: parent.width - self.width;
+        y: root.header-height + 1px;
+        width: 420px;
+        height: parent.height - root.header-height - 29px;
+        background: #14191deF;
+        border-width: 1px;
+        border-color: Theme.border;
+        drop-shadow-blur: 18px;
+        drop-shadow-color: #00000088;
+        drop-shadow-offset-x: -6px;
+        accessible-role: AccessibleRole.groupbox;
+        accessible-label: "Advanced fixture diagnostics drawer";
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            HorizontalLayout {
+                Text { text: "Advanced fixture diagnostics"; color: Theme.text; font-size: 16px; font-weight: 650; }
+                Rectangle { horizontal-stretch: 1; background: #00000000; }
+                Button { text: "Close"; clicked => { root.advanced-open = false; root.open-advanced(); } }
+            }
+            Rectangle {
+                height: 58px;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: #725328;
+                background: #2b2417;
+                Text {
+                    x: 10px;
+                    y: 8px;
+                    width: parent.width - 20px;
+                    height: parent.height - 16px;
+                    text: "Raw DMX is evidence, not the ordinary authoring vocabulary. Changes here belong to profile editing, testing, or troubleshooting.";
+                    color: Theme.warn;
+                    font-size: 10px;
+                    wrap: word-wrap;
+                }
+            }
+            Text { text: "PROFILE PROVENANCE"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+            Rectangle {
+                height: 96px;
+                border-radius: 6px;
+                background: Theme.panel;
+                border-width: 1px;
+                border-color: Theme.border-subtle;
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 5px;
+                    Text { text: "Ember Test Visual Mover • 11 channel"; color: Theme.text; font-size: 11px; font-weight: 600; }
+                    Text { text: "Source: Local editable  •  revision shell-v1"; color: Theme.text-muted; font-size: 10px; }
+                    Text { text: "Patch: U1:001 and U1:021  •  footprint 11"; color: Theme.text-muted; font-size: 10px; }
+                    Text { text: "Validation: exact profile-backed mapping"; color: Theme.good; font-size: 10px; }
+                }
+            }
+            Text { text: "SELECTED CONTROL DIAGNOSTICS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+            ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 6px;
+                    for label in [
+                        "Intensity  •  Ch 1  •  Linear8  •  0–255",
+                        "Red  •  Ch 2  •  Linear8  •  0–255",
+                        "Green  •  Ch 3  •  Linear8  •  0–255",
+                        "Blue  •  Ch 4  •  Linear8  •  0–255",
+                        "Pan  •  Ch 7  •  Linear8  •  0–255",
+                        "Tilt  •  Ch 8  •  Linear8  •  0–255",
+                        "Gobo / Dots  •  Ch 9  •  range 32–63"
+                    ]: Rectangle {
+                        height: 44px;
+                        border-radius: 5px;
+                        background: Theme.panel;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+                        Text { x: 10px; width: parent.width - 20px; height: parent.height; text: label; color: Theme.text-secondary; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                    }
+                }
+            }
+            HorizontalLayout {
+                height: 36px;
+                spacing: 8px;
+                Button { text: "Open profile editor"; }
+                Button { text: "Copy diagnostics"; }
+            }
+        }
+    }
+}

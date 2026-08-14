@@ -18,6 +18,8 @@ Build a lightweight modular interface platform in which:
 
 **UI course correction (2026-08-14):** the current Win32 shell is now a frozen transitional/Safe bridge, not EmberLights Default. Previews 98–100 proved reusable authoring and fixture-control models but did not prove acceptable product UI. New product presentation begins with the renderer-neutral Fixtures + Static Looks acceptance slice in `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`; raw DMX and the legacy Fixture Control Inspector are Advanced diagnostics, not the ordinary workflow.
 
+**Replacement-shell implementation checkpoint (2026-08-14):** `45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md` records the first real issue #37 surface. Slint 1.17.1 is pinned for this lab only. The markup and C++ adapter are source-green, the renderer-neutral model is native-test-green, and the lab invokes existing Static Look authoring functions without opening output. Windows/DPI/accessibility/performance/deployment evidence, a WinUI comparison, the Safe baseline, persistence, physical preview, and toolkit acceptance remain open.
+
 **Issue #38 / `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the immediate P0.**
 
 Broad Default/Reference implementation waits for:
@@ -134,9 +136,9 @@ The registry policy applies to every user-visible feature change, even when the 
 
 ## Current implementation checkpoint
 
-`44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md` is the active UI checkpoint. It preserves the registry/domain foundations, freezes legacy Win32 growth, defines the first product-shaped Fixtures + Static Looks slice, and makes the next installer bar explicit. `36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` remains historical evidence for preview 88's bounded bridge and toolkit/resource audit.
+`45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md` is the active implementation checkpoint under the binding direction in `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`. It preserves the registry/domain foundations, keeps the legacy Win32 freeze intact, and implements the first product-shaped Fixtures + Static Looks lab without claiming toolkit or product acceptance. `36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` remains historical evidence for preview 88's bounded bridge and toolkit/resource audit.
 
-This checkpoint adds no domain behavior or callbacks and does not accept a production toolkit, `.emberskin` runtime, Safe surface, or Reference skin.
+This checkpoint adds a renderer adapter and lab-only callbacks over existing domain behavior. It does not accept a production toolkit, `.emberskin` runtime, Safe surface, product installer, or Reference skin.
 
 ## Immediate implementation order after the core gate
 

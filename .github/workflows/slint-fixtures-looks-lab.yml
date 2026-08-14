@@ -1,0 +1,64 @@
+name: Slint Fixtures + Static Looks lab (non-product)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-lab:
+    name: Windows x64 lab artifact
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+
+      - name: Download and verify Slint 1.17.1
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Url = "https://github.com/slint-ui/slint/releases/download/v1.17.1/Slint-cpp-1.17.1-win64-MSVC-AMD64.exe"
+          $Installer = Join-Path $env:RUNNER_TEMP "Slint-cpp-1.17.1-win64-MSVC-AMD64.exe"
+          Invoke-WebRequest -Uri $Url -OutFile $Installer
+          $Expected = "f5b537da448c1e3d72a24a774e19518ae412b9706b8ef49bdee64b62b878fe56"
+          $Actual = (Get-FileHash -Path $Installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($Actual -ne $Expected) {
+            throw "Slint installer digest mismatch: $Actual"
+          }
+          "SLINT_INSTALLER=$Installer" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install pinned Slint package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Prefix = Join-Path $env:RUNNER_TEMP "slint-1.17.1"
+          $Process = Start-Process `
+            -FilePath $env:SLINT_INSTALLER `
+            -ArgumentList @("/S", "/D=$Prefix") `
+            -Wait `
+            -PassThru
+          if ($Process.ExitCode -ne 0) {
+            throw "Slint installer failed with exit code $($Process.ExitCode)"
+          }
+          if (-not (Get-ChildItem -Path $Prefix -Filter "SlintConfig.cmake" -File -Recurse)) {
+            throw "Pinned Slint CMake package was not installed beneath $Prefix"
+          }
+          "SLINT_PREFIX=$Prefix" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build, smoke, and package isolated lab
+        shell: pwsh
+        run: |
+          ./native-core/slint-lab/build_windows_lab.ps1 `
+            -SlintPrefix $env:SLINT_PREFIX `
+            -BuildDirectory "${{ runner.temp }}/emberlights-slint-lab-build"
+
+      - name: Upload non-product lab ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmberLights-Fixtures-Looks-Slint-Lab-win-x64
+          path: ${{ runner.temp }}/emberlights-slint-lab-build/EmberLights-Fixtures-Looks-Slint-Lab-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14

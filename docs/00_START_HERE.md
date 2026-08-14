@@ -9,6 +9,7 @@ This is not a generic DMX console and not a Wolfmix clone.
 ## Current state
 
 - **UI course correction (2026-08-14):** the reusable models and contracts from Previews 98–100 remain, but their Win32 forms/Inspector are transitional adapters—not accepted Default 2.2/2.3/2.4 product UI. The legacy shell is frozen against new editors/property forms. Product UI now proceeds through a measured replacement-shell gate, beginning with the product-shaped Fixtures + Static Looks slice and task-facing `ember.fixtureControlSurface`; raw DMX stays behind Advanced. See `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md` and D-091.
+- **First replacement-shell implementation checkpoint (2026-08-14):** the renderer-neutral Fixtures + Static Looks shell model, native tests, and an opt-in Slint 1.17.1 product-shaped lab now exist. The lab presents profile provenance, patch targets, visual fixture controls, Static Look ownership, search, create/duplicate/edit, preview simulation, and Advanced-only raw diagnostics through existing domain mutations. It is not installed, opens no output, persists no edits, and does not select Slint as the production toolkit. See `45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md` and D-092.
 - The original `Build Custom Lighting Software` conversation was reviewed in full on 2026-08-08.
 - Later research superseded the initial suggestion to fork QLC+ wholesale.
 - Joshua confirmed a hybrid QLC+ strategy is acceptable if the result remains uniquely ours.

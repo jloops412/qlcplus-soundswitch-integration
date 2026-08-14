@@ -47,6 +47,7 @@ add_library(showcore STATIC
     src/fixture_capabilities.cpp
     src/fixture_control_action.cpp
     src/fixture_control_surface.cpp
+    src/fixtures_looks_shell.cpp
     src/fixture_controller_binding.cpp
     src/fixture_function_component.cpp
     src/fixture_library.cpp
@@ -121,6 +122,26 @@ target_link_libraries(showcore PUBLIC Threads::Threads)
 target_compile_definitions(showcore PUBLIC
     EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}"
     EMBERLIGHTS_COMMIT="${EMBERLIGHTS_COMMIT}")
+
+# D-091 keeps this product-shaped Slint surface isolated as an issue #37 lab.
+# It is never installed or substituted for the legacy bridge by this option.
+# An accepted toolkit and a product activation decision remain separate gates.
+option(EMBERLIGHTS_BUILD_SLINT_LAB
+    "Build the non-product Fixtures + Static Looks Slint evaluation lab" OFF)
+if(EMBERLIGHTS_BUILD_SLINT_LAB)
+    if(CMAKE_VERSION VERSION_LESS 3.21)
+        message(FATAL_ERROR
+            "The Slint 1.17.1 C++ integration requires CMake 3.21 or newer")
+    endif()
+    find_package(Slint 1.17.1 EXACT CONFIG REQUIRED)
+    add_executable(EmberLightsSlintLab
+        slint-lab/fixtures_looks_lab.cpp)
+    target_link_libraries(EmberLightsSlintLab PRIVATE showcore Slint::Slint)
+    slint_target_sources(EmberLightsSlintLab
+        slint-lab/fixtures_looks_lab.slint)
+    set_target_properties(EmberLightsSlintLab PROPERTIES
+        OUTPUT_NAME "EmberLights-Fixtures-Looks-Lab")
+endif()
 
 if(MSVC)
     # C4324 reports the deliberate cache-line padding in the lock-free SPSC
@@ -242,6 +263,10 @@ target_link_libraries(fixture_function_component_tests PRIVATE showcore)
 add_executable(fixture_control_surface_tests
     tests/test_fixture_control_surface.cpp)
 target_link_libraries(fixture_control_surface_tests PRIVATE showcore)
+
+add_executable(fixtures_looks_shell_tests
+    tests/test_fixtures_looks_shell.cpp)
+target_link_libraries(fixtures_looks_shell_tests PRIVATE showcore)
 
 add_executable(studio_authoring_tests
     tests/test_studio_authoring.cpp)
@@ -468,8 +493,18 @@ find_package(Python3 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME ui_direction_tests
         COMMAND "${Python3_EXECUTABLE}" tests/test_ui_direction.py)
+    add_test(NAME slint_lab_contract_tests
+        COMMAND "${Python3_EXECUTABLE}" tests/test_slint_lab_contract.py)
     set_tests_properties(ui_direction_tests PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(slint_lab_contract_tests PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+if(EMBERLIGHTS_BUILD_SLINT_LAB)
+    add_test(NAME slint_fixtures_looks_lab_model_smoke
+        COMMAND EmberLightsSlintLab --model-smoke)
+    set_tests_properties(slint_fixtures_looks_lab_model_smoke PROPERTIES
+        TIMEOUT 20)
 endif()
 if(WIN32)
     add_test(NAME windows_gui_startup COMMAND EmberLights --startup-smoke)
@@ -504,6 +539,7 @@ add_test(NAME fixture_controller_binding_tests
 add_test(NAME fixture_function_component_tests
     COMMAND fixture_function_component_tests)
 add_test(NAME fixture_control_surface_tests COMMAND fixture_control_surface_tests)
+add_test(NAME fixtures_looks_shell_tests COMMAND fixtures_looks_shell_tests)
 add_test(NAME studio_authoring_tests COMMAND studio_authoring_tests)
 add_test(NAME ember_action_foundation_tests COMMAND ember_action_foundation_tests)
 set_tests_properties(ember_action_foundation_tests PROPERTIES

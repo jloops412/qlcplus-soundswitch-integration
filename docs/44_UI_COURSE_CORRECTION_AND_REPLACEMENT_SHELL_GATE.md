@@ -78,6 +78,11 @@ The slice must work at 1366×768 and 1920×1080, with keyboard-visible focus,
 usable touch/pointer targets, clear empty/error/read-only states, and no
 separate modeless Inspector required to finish the workflow.
 
+The first implementation checkpoint is recorded in
+`45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md`. It adds a renderer-neutral shell
+composition model and an opt-in pinned Slint lab while preserving every gate
+in this document. It is implementation evidence, not toolkit acceptance.
+
 ## Replacement-shell gate
 
 The dependency order remains:
@@ -114,6 +119,11 @@ This correction is enforced by:
 - the generated registry entry for `ember.fixtureControlSurface`;
 - `fixture_control_surface_tests`, which prove visual grouping, stable
   semantics, availability, safety, and Advanced hiding;
+- `fixtures_looks_shell_tests`, which prove the first slice across profile,
+  target, Static Look, ownership, responsive, stale, read-only, and empty states;
+- `test_slint_lab_contract.py`, which proves the lab/product boundary, source
+  workflows, minimum viewport, accessibility declarations, Advanced-only raw
+  diagnostics, existing-domain mutation path, and optional exact-compiler check;
 - `test_ui_direction.py`, which prevents new legacy top-level/form growth and
   verifies the first-slice composition and installer policy;
 - normal registry compatibility, generated-artifact, warning-fatal build, and
