@@ -111,6 +111,14 @@ network response.
   stale-selection, capacity, collision, persistence, and renderer tests remain
   green.
 
+The contract-tested unsigned Windows x64 installer is
+`0.1.0-preview.99.0`, built from exact feature source
+`9e3da847ae425bdab015e3a982ab70c417b2272c` at SHA-256
+`345e97f23f209b4aa86708e4a7bb2cabc6dcc80b7c0bd87e0033685f399361cc`.
+Its 20-file payload manifest SHA-256 is
+`3f841357b2cb52ff193f651fd346c73e9331e8708e121786275b2202d68d3718`.
+Native Windows install/lifecycle and physical behavior remain deferred evidence.
+
 ## Next bounded fixture passes
 
 1. Add a searchable virtualized attribute browser/Inspector with category tabs,
