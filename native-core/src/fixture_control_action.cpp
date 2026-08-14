@@ -267,7 +267,7 @@ constexpr float kChoiceValueTolerance = 0.000001F;
     root.emplace("compatibility", json_object(std::move(compatibility)));
     root.emplace(
         "description",
-        json_string("Generated exact fixture-function Live set/release action."));
+        json_string("Generated exact Fixture Attribute Live set/release action."));
     root.emplace("entryPoints", json_object(std::move(entry_points)));
     root.emplace("feedback", json_object({}));
     root.emplace("id", json_string(plan.action_id));
@@ -300,7 +300,7 @@ FixtureControlActionPlan plan_fixture_control_action(
         options.catalog_position < 0.0F || options.catalog_position > 1.0F) {
         return fail_plan(
             std::move(plan), FixtureControlActionError::InvalidSelection,
-            "The fixture-function Action selection is incomplete or outside its bounded position.");
+            "The Fixture Attribute Action selection is incomplete or outside its bounded position.");
     }
     if (choice.access == showcore::ChannelCapabilityAccess::Protected) {
         return fail_plan(
@@ -332,12 +332,12 @@ FixtureControlActionPlan plan_fixture_control_action(
     if (selected == catalog.choices.end()) {
         return fail_plan(
             std::move(plan), FixtureControlActionError::ChoiceNotFound,
-            "The named fixture function is unavailable for this target.");
+            "The Fixture Attribute is unavailable for this target.");
     }
     if (!same_choice(choice, *selected)) {
         return fail_plan(
             std::move(plan), FixtureControlActionError::StaleChoice,
-            "The fixture profile or target changed after this function was selected.");
+            "The fixture profile or target changed after this attribute was selected.");
     }
     if (selected->safety_gated() && !options.allow_safety_gated) {
         return fail_plan(
@@ -366,7 +366,7 @@ FixtureControlActionPlan plan_fixture_control_action(
             return fail_plan(
                 std::move(plan),
                 FixtureControlActionError::FixtureNotLiveCompatible,
-                "The fixture function does not resolve to one exact Live semantic value.");
+                "The Fixture Attribute does not resolve to one exact Live semantic value.");
         }
     } else {
         const auto& first_profile = selected->values.front().profile_id;
@@ -413,7 +413,7 @@ FixtureControlActionPlan plan_fixture_control_action(
         plan.diagnostics = std::move(prepared.diagnostics);
         return fail_plan(
             std::move(plan), FixtureControlActionError::CompilationFailed,
-            "The generated fixture-function source failed Ember Action preparation.");
+            "The generated Fixture Attribute source failed Ember Action preparation.");
     }
     plan.prepared = std::move(prepared.prepared);
     plan.content_hash = plan.prepared->content_hash;
@@ -424,7 +424,7 @@ FixtureControlActionPlan plan_fixture_control_action(
         plan.diagnostics = std::move(foundation.diagnostics);
         return fail_plan(
             std::move(plan), FixtureControlActionError::CompilationFailed,
-            "The generated fixture-function source failed native Action resolution.");
+            "The generated Fixture Attribute source failed native Action resolution.");
     }
     plan.foundation = std::move(foundation.ir);
 
@@ -434,7 +434,7 @@ FixtureControlActionPlan plan_fixture_control_action(
         plan.diagnostics = std::move(executable.diagnostics);
         return fail_plan(
             std::move(plan), FixtureControlActionError::CompilationFailed,
-            "The generated fixture-function source is outside the executable Action subset.");
+            "The generated Fixture Attribute source is outside the executable Action subset.");
     }
     plan.executable = std::move(executable.ir);
 

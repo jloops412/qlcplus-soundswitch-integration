@@ -61,7 +61,7 @@ int failures = 0;
     profile.name = profile.model + " " + profile.mode;
     profile.source = showcore::FixtureProfileSource::Local;
     profile.source_revision = three_colors ? "3" : "2";
-    profile.footprint = 2U;
+    profile.footprint = 4U;
 
     emberlights::ChannelDefinition wheel;
     wheel.property = showcore::Property::Count;
@@ -116,7 +116,18 @@ int failures = 0;
         showcore::ChannelCapabilityBehavior::Continuous,
         showcore::ChannelCapabilityAccess::SafetyGated));
 
-    profile.channels = {std::move(wheel), std::move(shutter)};
+    emberlights::ChannelDefinition intensity;
+    intensity.property = showcore::Property::Intensity;
+    intensity.coarse_offset = 2U;
+    intensity.fine_offset = 3;
+    intensity.encoding = showcore::ChannelEncoding::Linear16;
+    intensity.default_value = 0U;
+    intensity.blackout_value = 0U;
+    intensity.highlight_value = 65535U;
+    intensity.owner = "fixture";
+
+    profile.channels = {
+        std::move(wheel), std::move(shutter), std::move(intensity)};
     return profile;
 }
 
@@ -173,10 +184,10 @@ void test_search_filter_order_and_bounds() {
     CHECK(model.state == emberlights::FixtureFunctionComponentState::Ready);
     CHECK(model.target_kind == emberlights::FixtureFunctionTargetKind::Group);
     CHECK(model.target_complete);
-    CHECK(model.source_choice_count == 5U);
-    CHECK(model.matching_choice_count == 5U);
-    CHECK(model.rows.size() == 5U);
-    CHECK(model.categories.size() == 2U);
+    CHECK(model.source_choice_count == 6U);
+    CHECK(model.matching_choice_count == 6U);
+    CHECK(model.rows.size() == 6U);
+    CHECK(model.categories.size() == 3U);
     CHECK(std::is_sorted(
         model.rows.begin(), model.rows.end(),
         [](const auto& first, const auto& second) {
@@ -244,7 +255,7 @@ void test_search_filter_order_and_bounds() {
         emberlights::build_fixture_function_component(project, bounded);
     CHECK(limited.rows.size() == 2U);
     CHECK(limited.rows_truncated);
-    CHECK(limited.matching_choice_count == 5U);
+    CHECK(limited.matching_choice_count == 6U);
 
     std::string long_query(
         emberlights::kFixtureFunctionComponentMaximumSearchBytes + 20U, 'x');
@@ -263,13 +274,36 @@ void test_mixed_profile_rows_diagnostics_and_accessibility() {
     const auto* blue = find_row(model, "blue");
     const auto* open = find_row(model, "open");
     const auto* strobe = find_row(model, "strobe-slow-fast");
+    const auto* intensity = find_row(model, "direct.intensity");
     CHECK(green != nullptr);
     CHECK(blue != nullptr);
     CHECK(open != nullptr);
     CHECK(strobe != nullptr);
+    CHECK(intensity != nullptr);
     if (green == nullptr || blue == nullptr || open == nullptr ||
         strobe == nullptr) {
         return;
+    }
+
+    if (intensity != nullptr) {
+        CHECK(intensity->kind ==
+              emberlights::FixtureControlChoiceKind::DirectAttribute);
+        CHECK(intensity->control_kind ==
+              emberlights::FixtureParameterControlKind::Level);
+        CHECK(intensity->enabled);
+        CHECK(intensity->coverage.exact());
+        CHECK(intensity->diagnostics.size() == 2U);
+        for (const auto& diagnostic : intensity->diagnostics) {
+            CHECK(diagnostic.encoding ==
+                  showcore::ChannelEncoding::Linear16);
+            CHECK(diagnostic.channel == 3U);
+            CHECK(diagnostic.fine_channel == 4U);
+            CHECK(diagnostic.raw_value == 64U);
+            CHECK(diagnostic.raw_fine_value == 0U);
+            CHECK(diagnostic.highlight_value == 65535U);
+            CHECK(diagnostic.accessibility_label.find("fine channel 4") !=
+                  std::string::npos);
+        }
     }
 
     CHECK(green->coverage.supported_fixture_count == 1U);
@@ -331,7 +365,9 @@ void test_exact_fixture_and_group_invocations() {
     const auto fixture =
         emberlights::build_fixture_function_component(project, fixture_query);
     const auto* blue = find_row(fixture, "blue");
+    const auto* intensity = find_row(fixture, "direct.intensity");
     CHECK(blue != nullptr);
+    CHECK(intensity != nullptr);
     if (blue == nullptr) {
         return;
     }
@@ -368,6 +404,22 @@ void test_exact_fixture_and_group_invocations() {
         CHECK(fixture_release.invocation->property ==
               showcore::Property::ColorWheel);
         CHECK(fixture_release.invocation->number_value == 0.0);
+    }
+
+    if (intensity != nullptr) {
+        const auto direct_set =
+            emberlights::build_fixture_function_invocation(
+                project,
+                fixture,
+                {intensity->choice_id,
+                 emberlights::FixtureFunctionCommandAction::Set});
+        CHECK(direct_set);
+        if (direct_set.invocation.has_value()) {
+            CHECK(direct_set.invocation->property ==
+                  showcore::Property::Intensity);
+            CHECK(std::fabs(direct_set.invocation->number_value - 0.5F) <
+                  0.000001F);
+        }
     }
 
     const auto group = group_model(project);

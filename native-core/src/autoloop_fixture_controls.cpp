@@ -154,7 +154,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::StaleGeneration,
-            "The Autoloop source changed after this fixture-function edit began.");
+            "The Autoloop source changed after this Fixture Attribute edit began.");
     }
     if (request.program_id.empty() || request.target_id.empty() ||
         request.choice_id.empty() || request.stable_id_prefix.empty() ||
@@ -163,7 +163,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::InvalidRequest,
-            "The fixture-function request is incomplete or outside its bounded values.");
+            "The Fixture Attribute request is incomplete or outside its bounded values.");
     }
 
     const auto source_program = find_by_id(
@@ -179,7 +179,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::InvalidRequest,
-            "The fixture-function event needs a valid half-open range inside the program.");
+            "The Fixture Attribute event needs a valid half-open range inside the program.");
     }
 
     const auto catalog = fixture_control_choices(
@@ -205,19 +205,19 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::ChoiceNotFound,
-            "The named fixture function is missing or no longer supported.");
+            "The Fixture Attribute is missing or no longer supported.");
     }
     if (selected->safety_gated()) {
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::SafetyGateRequired,
-            "Safety-gated fixture functions require a future explicit safety-authoring contract.");
+            "Safety-gated Fixture Attributes require a future explicit safety-authoring contract.");
     }
     if (selected->values.size() > request.maximum_fixture_writes) {
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::CapacityExceeded,
-            "The named fixture function exceeds this authoring gesture's write budget.");
+            "The Fixture Attribute exceeds this authoring gesture's write budget.");
     }
 
     std::unordered_set<std::string_view> fixture_ids;
@@ -230,7 +230,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
             return proposal_result(
                 snapshot, request,
                 AutoloopFixtureControlResult::ValidationFailed,
-                "The resolved fixture-function values are not a unique normalized semantic set.");
+                "The resolved Fixture Attribute values are not a unique normalized semantic set.");
         }
     }
 
@@ -254,7 +254,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
         return proposal_result(
             snapshot, request,
             AutoloopFixtureControlResult::CapacityExceeded,
-            "The Autoloop source cannot accept the expanded fixture-function records.");
+            "The Autoloop source cannot accept the expanded Fixture Attribute records.");
     }
 
     AutoloopFixtureControlProposal proposal;
@@ -291,7 +291,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
             return proposal_result(
                 snapshot, request,
                 AutoloopFixtureControlResult::InvalidRequest,
-                "Derived fixture-function record IDs exceed the source identifier limit.");
+                "Derived Fixture Attribute record IDs exceed the source identifier limit.");
         }
         if (find_by_id(source_program->targets, write.target_id) !=
                 source_program->targets.end() ||
@@ -302,7 +302,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
             return proposal_result(
                 snapshot, request,
                 AutoloopFixtureControlResult::IdentifierCollision,
-                "A derived fixture-function record ID already exists in the program.");
+                "A derived Fixture Attribute record ID already exists in the program.");
         }
         proposal.writes.push_back(std::move(write));
     }
@@ -384,7 +384,7 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
     if (!proposal.validation.ok()) {
         proposal.result = AutoloopFixtureControlResult::ValidationFailed;
         proposal.message =
-            "The expanded fixture-function source candidate failed validation.";
+            "The expanded Fixture Attribute source candidate failed validation.";
         proposal.candidate = {};
         return proposal;
     }
@@ -392,19 +392,19 @@ AutoloopFixtureControlProposal plan_autoloop_fixture_control(
     if (canonical.empty()) {
         proposal.result = AutoloopFixtureControlResult::ValidationFailed;
         proposal.message =
-            "The expanded fixture-function source candidate could not be canonicalized.";
+            "The expanded Fixture Attribute source candidate could not be canonicalized.";
         proposal.candidate = {};
         return proposal;
     }
     if (canonical.size() > compile_limits.maximum_canonical_bytes) {
         proposal.result = AutoloopFixtureControlResult::CapacityExceeded;
         proposal.message =
-            "The expanded fixture-function source exceeds the compiled canonical-byte arena.";
+            "The expanded Fixture Attribute source exceeds the compiled canonical-byte arena.";
         proposal.candidate = {};
         return proposal;
     }
     proposal.message =
-        "The named fixture function is ready as exact per-fixture semantic events.";
+        "The Fixture Attribute is ready as exact per-fixture semantic events.";
     return proposal;
 }
 

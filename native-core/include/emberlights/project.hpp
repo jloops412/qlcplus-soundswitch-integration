@@ -219,7 +219,7 @@ struct MidiMappingDefinition {
     bool soft_takeover{false};
     float takeover_tolerance{0.025F};
     // Optional authoring provenance for mappings planned from the shared
-    // named fixture-function catalog. This is the stable
+    // profile-backed Fixture Attribute catalog. This is the stable
     // FixtureControlChoice ID, not a display label or a raw DMX value.
     std::string fixture_control_binding_id;
 };

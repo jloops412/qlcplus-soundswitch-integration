@@ -107,7 +107,7 @@ struct StaticLookDependencyReport {
 
 // Applies one human-readable profile function through its exact per-fixture
 // semantic realizations. This is the Static Look counterpart to choosing a
-// named function in Live or a future skin/controller picker; no raw DMX value
+// profile-backed attribute in Live or a future skin/controller picker; no raw DMX value
 // enters the authored Look.
 [[nodiscard]] StaticLookAuthoringOutcome apply_static_look_control_choice(
     StaticLookDraft& draft,

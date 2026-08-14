@@ -436,7 +436,7 @@ void test_generated_registry_adapter_and_ir_foundation() {
     CHECK(compiled.ir->cache_key.registry_digest == emberlights::kUiRegistryDigest);
     CHECK(compiled.ir->cache_key.dependency_digest.starts_with("sha256:"));
     CHECK(compiled.ir->cache_key.cache_digest ==
-        "sha256:e46a4ce5c1428d62c3812145dab804bf58d60bf3e3d7ba013ae6a0e1fd500749");
+        "sha256:04108325c57591a56fb0d76ab0eac83ca6755a5cb0697a3b98ea412663619f29");
 
     const auto repeated = emberlights::compile_ember_action_ir_foundation(
         prepared.prepared, registry);

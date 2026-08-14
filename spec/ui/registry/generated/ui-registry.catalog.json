@@ -1386,9 +1386,9 @@
       "accessibilityRole": "listbox",
       "callable": false,
       "classification": "nativeComplex",
-      "contractVersion": "0.1.0",
+      "contractVersion": "0.2.0",
       "deprecated": false,
-      "description": "Browses stable profile-backed fixture functions and constructs exact existing fixture/group override commands without exposing raw protected DMX ranges.",
+      "description": "Browses one stable profile-backed catalog containing direct fixture channels and selectable named DMX capabilities, with exact fixture/group override construction and protected ranges excluded.",
       "events": [],
       "failureBehavior": "safeFallback",
       "id": "ember.fixtureFunctionBrowser",
@@ -1398,7 +1398,7 @@
         "touch"
       ],
       "introducedGeneration": 2,
-      "label": "Fixture Function Browser",
+      "label": "Fixture Attribute Browser",
       "optionalCapabilities": [],
       "performanceClass": "snapshotBounded",
       "properties": {
@@ -1577,7 +1577,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.3.0",
+  "registrySetVersion": "1.4.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -1721,7 +1721,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "a3edd0e488a49bbd15b2655be4fb2ee36506dd23a98498874e2bddbb46b790de",
+  "sourceDigest": "3f44d8129607601db67f462b3710b52bf4c889d6238cebc10a7f4a2a957cf659",
   "states": [
     {
       "authority": "runnerScheduler",

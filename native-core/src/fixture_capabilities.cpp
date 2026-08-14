@@ -84,6 +84,53 @@ void append_fixture(
         "|occurrence:" + std::to_string(occurrence);
 }
 
+[[nodiscard]] std::string direct_choice_capability_id(
+    showcore::Property property) {
+    return "direct." + std::string(parameter_id(property));
+}
+
+[[nodiscard]] std::string direct_control_choice_key(
+    const ChannelDefinition& channel,
+    std::size_t occurrence) {
+    return channel.owner + "\x1f" + std::string(parameter_id(channel.property)) +
+        "\x1f" + direct_choice_capability_id(channel.property) +
+        "\x1f" + std::to_string(occurrence);
+}
+
+[[nodiscard]] std::string direct_control_choice_id(
+    std::string_view target_id,
+    const ChannelDefinition& channel,
+    std::size_t occurrence) {
+    return "target:" + std::string(target_id) +
+        "|owner:" + channel.owner +
+        "|parameter:" + std::string(parameter_id(channel.property)) +
+        "|function:direct" +
+        "|occurrence:" + std::to_string(occurrence);
+}
+
+[[nodiscard]] std::uint16_t encode_direct_value(
+    const ChannelDefinition& channel,
+    float position) noexcept {
+    if (channel.encoding == showcore::ChannelEncoding::Linear16) {
+        return static_cast<std::uint16_t>(std::lround(position * 65535.0F));
+    }
+    if (channel.encoding == showcore::ChannelEncoding::Ranged8 &&
+        position <= 0.0F) {
+        return channel.default_value;
+    }
+    return static_cast<std::uint16_t>(std::lround(
+        static_cast<float>(channel.dmx_min) + position *
+            static_cast<float>(channel.dmx_max - channel.dmx_min)));
+}
+
+[[nodiscard]] showcore::ChannelCapabilityAccess direct_choice_access(
+    showcore::Property property) noexcept {
+    const auto* descriptor = fixture_parameter_descriptor(property);
+    return descriptor != nullptr && descriptor->safety_restricted()
+        ? showcore::ChannelCapabilityAccess::SafetyGated
+        : showcore::ChannelCapabilityAccess::Selectable;
+}
+
 [[nodiscard]] int parameter_category_rank(showcore::Property property) noexcept {
     const auto* descriptor = fixture_parameter_descriptor(property);
     return descriptor == nullptr
@@ -302,6 +349,76 @@ FixtureControlChoiceCatalog fixture_control_choices(
         for (const auto& channel : profile->channels) {
             const auto one_based_channel = static_cast<std::uint16_t>(
                 static_cast<std::size_t>(channel.coarse_offset) + 1U);
+            if (channel.encoding != showcore::ChannelEncoding::Constant8 &&
+                channel.property < showcore::Property::Count &&
+                channel.capabilities.empty()) {
+                const auto occurrence_base = channel.owner + "\x1f" +
+                    std::string(parameter_id(channel.property)) +
+                    "\x1f" + std::string("direct");
+                const auto occurrence = occurrences[occurrence_base]++;
+                const auto key = direct_control_choice_key(channel, occurrence);
+                auto found = std::find_if(
+                    accumulated.begin(), accumulated.end(),
+                    [&key](const auto& candidate) {
+                        return candidate.key == key;
+                    });
+                if (found == accumulated.end()) {
+                    AccumulatedChoice entry;
+                    entry.key = key;
+                    entry.choice.id = direct_control_choice_id(
+                        target_id, channel, occurrence);
+                    entry.choice.capability_id =
+                        direct_choice_capability_id(channel.property);
+                    const auto* descriptor =
+                        fixture_parameter_descriptor(channel.property);
+                    entry.choice.name = descriptor == nullptr
+                        ? std::string(property_name(channel.property))
+                        : std::string(descriptor->display_name);
+                    entry.choice.owner = channel.owner;
+                    entry.choice.kind =
+                        FixtureControlChoiceKind::DirectAttribute;
+                    entry.choice.property = channel.property;
+                    entry.choice.behavior =
+                        showcore::ChannelCapabilityBehavior::Continuous;
+                    entry.choice.access = direct_choice_access(channel.property);
+                    entry.choice.role = FixtureChannelCapabilityRole::Function;
+                    accumulated.push_back(std::move(entry));
+                    found = std::prev(accumulated.end());
+                } else if (direct_choice_access(channel.property) ==
+                           showcore::ChannelCapabilityAccess::SafetyGated) {
+                    found->choice.access =
+                        showcore::ChannelCapabilityAccess::SafetyGated;
+                }
+
+                const auto encoded = encode_direct_value(channel, position);
+                FixtureControlChoiceValue value;
+                value.fixture_id = std::string(fixture.fixture_id);
+                value.profile_id = profile->id;
+                value.binding_id = profile->id + "/ch" +
+                    std::to_string(one_based_channel) + "/direct." +
+                    std::string(parameter_id(channel.property));
+                value.channel = one_based_channel;
+                value.property = channel.property;
+                value.normalized_value = position;
+                value.raw_value = channel.encoding ==
+                        showcore::ChannelEncoding::Linear16
+                    ? static_cast<std::uint8_t>((encoded >> 8U) & 0xFFU)
+                    : static_cast<std::uint8_t>(encoded & 0xFFU);
+                value.dmx_min = channel.dmx_min;
+                value.dmx_max = channel.dmx_max;
+                value.encoding = channel.encoding;
+                if (channel.encoding == showcore::ChannelEncoding::Linear16 &&
+                    channel.fine_offset >= 0) {
+                    value.fine_channel = static_cast<std::uint16_t>(
+                        static_cast<std::size_t>(channel.fine_offset) + 1U);
+                    value.raw_fine_value =
+                        static_cast<std::uint8_t>(encoded & 0xFFU);
+                }
+                value.default_value = channel.default_value;
+                value.blackout_value = channel.blackout_value;
+                value.highlight_value = channel.highlight_value;
+                found->choice.values.push_back(std::move(value));
+            }
             for (const auto& capability : channel.capabilities) {
                 if (capability.access ==
                         showcore::ChannelCapabilityAccess::Protected ||
@@ -339,6 +456,8 @@ FixtureControlChoiceCatalog fixture_control_choices(
                     entry.choice.capability_id = capability.id;
                     entry.choice.name = capability.name;
                     entry.choice.owner = channel.owner;
+                    entry.choice.kind =
+                        FixtureControlChoiceKind::NamedCapability;
                     entry.choice.property = capability.property;
                     entry.choice.behavior = capability.behavior;
                     entry.choice.access = capability.access;
@@ -357,16 +476,21 @@ FixtureControlChoiceCatalog fixture_control_choices(
                             showcore::ChannelCapabilityAccess::SafetyGated;
                     }
                 }
-                found->choice.values.push_back({
-                    std::string(fixture.fixture_id),
-                    profile->id,
-                    selection.binding_id,
-                    one_based_channel,
-                    selection.property,
-                    selection.normalized_value,
-                    selection.raw_value,
-                    capability.dmx_min,
-                    capability.dmx_max});
+                FixtureControlChoiceValue value;
+                value.fixture_id = std::string(fixture.fixture_id);
+                value.profile_id = profile->id;
+                value.binding_id = selection.binding_id;
+                value.channel = one_based_channel;
+                value.property = selection.property;
+                value.normalized_value = selection.normalized_value;
+                value.raw_value = selection.raw_value;
+                value.dmx_min = capability.dmx_min;
+                value.dmx_max = capability.dmx_max;
+                value.encoding = channel.encoding;
+                value.default_value = channel.default_value;
+                value.blackout_value = channel.blackout_value;
+                value.highlight_value = channel.highlight_value;
+                found->choice.values.push_back(std::move(value));
             }
         }
     }
@@ -394,12 +518,14 @@ FixtureControlChoiceCatalog fixture_control_choices(
             return std::tuple{
                        parameter_category_rank(first.property),
                        static_cast<std::size_t>(first.property),
+                       static_cast<unsigned int>(first.kind),
                        first.owner,
                        first.name,
                        first.id} <
                 std::tuple{
                        parameter_category_rank(second.property),
                        static_cast<std::size_t>(second.property),
+                       static_cast<unsigned int>(second.kind),
                        second.owner,
                        second.name,
                        second.id};

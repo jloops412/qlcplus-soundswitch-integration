@@ -57,7 +57,7 @@ int failures = 0;
     profile.name = profile.model + " " + profile.mode;
     profile.source = showcore::FixtureProfileSource::Local;
     profile.source_revision = "1";
-    profile.footprint = 2U;
+    profile.footprint = 4U;
 
     emberlights::ChannelDefinition wheel;
     wheel.property = showcore::Property::Count;
@@ -97,7 +97,14 @@ int failures = 0;
         200U, 220U, 210U,
         showcore::ChannelCapabilityBehavior::Slot,
         showcore::ChannelCapabilityAccess::Protected));
-    profile.channels = {std::move(wheel), std::move(shutter)};
+    emberlights::ChannelDefinition intensity;
+    intensity.property = showcore::Property::Intensity;
+    intensity.coarse_offset = 2U;
+    intensity.fine_offset = 3;
+    intensity.encoding = showcore::ChannelEncoding::Linear16;
+    intensity.highlight_value = 65535U;
+    profile.channels = {
+        std::move(wheel), std::move(shutter), std::move(intensity)};
     return profile;
 }
 
@@ -195,6 +202,28 @@ void test_fixture_slot_and_homogeneous_group() {
         CHECK(mapping.target_ref == "wheel-group");
         CHECK(mapping.output_min == mapping.output_max);
         CHECK(std::fabs(mapping.output_min - 0.5F) < 0.0001F);
+    }
+
+
+    const auto group_intensity = emberlights::plan_fixture_controller_binding(
+        project,
+        "wheel-group",
+        choice_id(project, "wheel-group", "direct.intensity"),
+        prototype);
+    CHECK(group_intensity);
+    CHECK(group_intensity.group);
+    CHECK(!group_intensity.expanded_to_fixtures);
+    CHECK(group_intensity.mappings.size() == 1U);
+    if (!group_intensity.mappings.empty()) {
+        const auto& mapping = group_intensity.mappings.front();
+        CHECK(mapping.action.type == showcore::ActionType::SetGroupProperty);
+        CHECK(mapping.action.property == showcore::Property::Intensity);
+        CHECK(mapping.target_ref == "wheel-group");
+        CHECK(std::fabs(mapping.output_min) < 0.0001F);
+        CHECK(std::fabs(mapping.output_max - 1.0F) < 0.0001F);
+        CHECK(mapping.soft_takeover);
+        CHECK(mapping.fixture_control_binding_id.find(
+                  "|function:direct|") != std::string::npos);
     }
 }
 

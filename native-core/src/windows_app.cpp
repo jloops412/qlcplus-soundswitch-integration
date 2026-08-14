@@ -913,13 +913,29 @@ void set_multiline_control_text_preserving_view(
 [[nodiscard]] std::string fixture_control_choice_label(
     const emberlights::FixtureControlChoice& choice) {
     std::ostringstream label;
-    label << fixture_parameter_label(choice.property) << " • " << choice.name;
+    label << fixture_parameter_label(choice.property);
+    if (choice.kind ==
+        emberlights::FixtureControlChoiceKind::NamedCapability) {
+        label << " • " << choice.name;
+    } else {
+        label << " • profile channel";
+    }
     if (choice.values.size() == 1U) {
         const auto& value = choice.values.front();
-        label << " • CH" << value.channel << " DMX "
-              << static_cast<unsigned int>(value.dmx_min) << "–"
-              << static_cast<unsigned int>(value.dmx_max);
-        if (choice.behavior == showcore::ChannelCapabilityBehavior::Slot) {
+        label << " • CH" << value.channel;
+        if (value.fine_channel != 0U) {
+            label << "+CH" << value.fine_channel;
+        }
+        label << " " << emberlights::channel_encoding_name(value.encoding);
+        if (value.encoding == showcore::ChannelEncoding::Linear16) {
+            label << " 0–65535";
+        } else {
+            label << " DMX " << static_cast<unsigned int>(value.dmx_min)
+                  << "–" << static_cast<unsigned int>(value.dmx_max);
+        }
+        if (choice.kind ==
+                emberlights::FixtureControlChoiceKind::NamedCapability &&
+            choice.behavior == showcore::ChannelCapabilityBehavior::Slot) {
             label << " → " << static_cast<unsigned int>(value.raw_value);
         }
     } else {
@@ -960,7 +976,7 @@ void set_multiline_control_text_preserving_view(
     std::string_view binding_id) {
     const auto authored_target = fixture_control_binding_target(binding_id);
     if (authored_target.empty()) {
-        return "Named fixture function";
+        return "Fixture attribute";
     }
     const auto catalog = emberlights::fixture_control_choices(
         project, authored_target);
@@ -970,7 +986,7 @@ void set_multiline_control_text_preserving_view(
             return candidate.id == binding_id;
         });
     return choice == catalog.choices.end()
-        ? "Named fixture function"
+        ? "Fixture attribute"
         : choice->name;
 }
 
@@ -2945,17 +2961,17 @@ void Application::create_pages() {
     ::SendMessageW(title, WM_SETFONT, reinterpret_cast<WPARAM>(title_font_), TRUE);
     add_label(
         page,
-        L"Immediate fixture/property controls. Overrides are transient, sit above Looks and Autoloops, "
+        L"Immediate fixture-attribute controls. Overrides are transient, sit above Looks and Autoloops, "
         L"and remain subject to the Runner's safety limits. They never edit the project.",
         IdOverridesHelp);
     add_label(page, L"Active fixture or group", 0);
     add_listbox(page, IdOverridesFixture);
-    add_label(page, L"Property", 0);
+    add_label(page, L"Advanced semantic fallback", 0);
     add_combo(page, IdOverridesProperty);
     add_label(page, L"Level / range position (0–100)", 0);
     add_edit(page, IdOverridesValue);
     add_button(page, L"Apply Override", IdOverridesApply);
-    add_button(page, L"Release Property", IdOverridesRelease);
+    add_button(page, L"Release Attribute", IdOverridesRelease);
     add_button(page, L"Release All Overrides", IdOverridesReleaseAll);
     add_label(page, L"", IdOverridesActiveCount);
     add_label(page, L"", IdOverridesMessage);
@@ -2964,9 +2980,9 @@ void Application::create_pages() {
     add_button(page, L"25%", IdOverridesQuarter);
     add_button(page, L"50%", IdOverridesHalf);
     add_button(page, L"100%", IdOverridesFull);
-    add_label(page, L"Named function from active profile", IdOverridesNamedLabel);
+    add_label(page, L"Fixture Attribute • from active profile", IdOverridesNamedLabel);
     add_combo(page, IdOverridesNamedChoice);
-    add_button(page, L"Apply Named Function", IdOverridesApplyNamed);
+    add_button(page, L"Apply Fixture Attribute", IdOverridesApplyNamed);
 
     page = pages_[static_cast<std::size_t>(Page::Profiles)];
     title = add_label(page, L"STUDIO • Fixture Profiles", IdProfileTitle);
@@ -2990,7 +3006,7 @@ void Application::create_pages() {
     add_label(page, L"Channel map • select a row to edit", 0);
     auto profile_channels = add_listview(page, IdProfileChannels);
     add_listview_column(profile_channels, 0, 54, L"CH");
-    add_listview_column(profile_channels, 1, 132, L"Property");
+    add_listview_column(profile_channels, 1, 132, L"Attribute / function");
     add_listview_column(profile_channels, 2, 112, L"Encoding");
     add_listview_column(profile_channels, 3, 76, L"DMX range");
     add_listview_column(profile_channels, 4, 64, L"Default");
@@ -3000,7 +3016,7 @@ void Application::create_pages() {
     add_button(page, L"Restore Verified IR-4 6CH + 10CH", IdProfileEnsureIr4);
     add_label(page, L"Channel", 0);
     add_edit(page, IdProfileMappingChannel);
-    add_label(page, L"Property", 0);
+    add_label(page, L"Semantic attribute", 0);
     add_combo(page, IdProfileMappingProperty);
     add_label(page, L"Encoding", 0);
     add_combo(page, IdProfileMappingEncoding);
@@ -3128,15 +3144,15 @@ void Application::create_pages() {
     add_button(page, L"Amber", IdLookSwatchAmber);
     add_button(page, L"UV", IdLookSwatchUv);
     add_button(page, L"Black", IdLookSwatchBlack);
-    add_label(page, L"Property", 0);
+    add_label(page, L"Advanced semantic fallback", 0);
     add_combo(page, IdLookProperty);
     add_label(page, L"Ownership", 0);
     add_combo(page, IdLookOwnership);
     add_label(page, L"Level / range position %", 0);
     add_edit(page, IdLookValue);
-    add_button(page, L"Apply Property", IdLookApplyProperty);
+    add_button(page, L"Apply Attribute", IdLookApplyProperty);
     add_button(page, L"Remove from Look", IdLookRemoveProperty);
-    add_label(page, L"Included fixture properties", 0);
+    add_label(page, L"Included fixture attributes", 0);
     add_edit(page, IdLookAssignments, true, true);
     add_button(page, L"Build Exact Offline DMX Preview", IdLookPreview);
     add_edit(page, IdLookPreviewText, true, true);
@@ -3156,9 +3172,9 @@ void Application::create_pages() {
         page,
         L"PHYSICAL PREVIEW OFF • Live must be stopped",
         IdLookPhysicalStatus);
-    add_label(page, L"Named function from fixture profile", IdLookNamedLabel);
+    add_label(page, L"Fixture Attribute • profile-backed", IdLookNamedLabel);
     add_combo(page, IdLookNamedChoice);
-    add_button(page, L"Use Named Function", IdLookApplyNamed);
+    add_button(page, L"Use Fixture Attribute", IdLookApplyNamed);
 
     page = pages_[static_cast<std::size_t>(Page::Autoloops)];
     title = add_label(page, L"STUDIO • Autoloops", IdAutoloopTitle);
@@ -3242,7 +3258,7 @@ void Application::create_pages() {
     add_combo(page, IdAutoscriptFunctionPlacement);
     add_label(page, L"Target", 0);
     add_combo(page, IdAutoscriptFunctionTarget);
-    add_label(page, L"Named function", 0);
+    add_label(page, L"Fixture Attribute", 0);
     add_combo(page, IdAutoscriptFunctionChoice);
     add_label(page, L"Start beat", 0);
     add_edit(page, IdAutoscriptFunctionStart);
@@ -3295,7 +3311,7 @@ void Application::create_pages() {
     add_combo(page, IdMidiAction);
     add_label(page, L"Target", 0);
     add_combo(page, IdMidiTarget);
-    add_label(page, L"Property", 0);
+    add_label(page, L"Advanced semantic attribute", 0);
     add_combo(page, IdMidiProperty);
     add_label(page, L"Behavior", 0);
     add_combo(page, IdMidiBehavior);
@@ -3303,7 +3319,7 @@ void Application::create_pages() {
     add_button(page, L"Learn Next MIDI Control", IdMidiLearn);
     add_button(page, L"Delete Mapping", IdMidiDelete);
     add_label(page, L"", IdMidiMessage);
-    add_label(page, L"Named fixture function (optional)", 0);
+    add_label(page, L"Fixture Attribute • profile-backed (recommended)", 0);
     add_combo(page, IdMidiNamedChoice);
 
     page = pages_[static_cast<std::size_t>(Page::Connections)];
@@ -4619,7 +4635,7 @@ void listview_select_data(HWND list, std::int32_t data) {
 [[nodiscard]] std::string action_name(showcore::ActionType action) {
     switch (action) {
     case showcore::ActionType::None: return "None";
-    case showcore::ActionType::SetProperty: return "Set fixture property";
+    case showcore::ActionType::SetProperty: return "Set fixture attribute";
     case showcore::ActionType::Blackout: return "Blackout";
     case showcore::ActionType::TriggerLook: return "Trigger Static Look";
     case showcore::ActionType::TriggerAutoloop: return "Trigger Autoloop";
@@ -4636,7 +4652,7 @@ void listview_select_data(HWND list, std::int32_t data) {
     case showcore::ActionType::TriggerTrackScript: return "Start Track Script";
     case showcore::ActionType::ClearTrackScript: return "Clear Track Script";
     case showcore::ActionType::ClearManualOverrides: return "Release All Manual Overrides";
-    case showcore::ActionType::SetGroupProperty: return "Set group property";
+    case showcore::ActionType::SetGroupProperty: return "Set group attribute";
     case showcore::ActionType::SelectAutoloopBank: return "Select Autoloop Bank";
     case showcore::ActionType::SelectAllAutoloopBanks: return "Select All Autoloop Banks";
     case showcore::ActionType::SetAutoloopBankEnabled: return "Set Autoloop Bank Enabled";
@@ -4764,7 +4780,7 @@ void set_static_look_color_controls(
     case emberlights::StaticLookAuthoringResult::Applied:
         message << action << " updated " << outcome.fixtures_modified << " of "
                 << outcome.fixtures_considered << " target fixtures ("
-                << outcome.assignments_written << " owned properties).";
+                << outcome.assignments_written << " owned attributes).";
         break;
     case emberlights::StaticLookAuthoringResult::NoChange:
         message << action << " already matches this draft.";
@@ -4774,7 +4790,7 @@ void set_static_look_color_controls(
     case emberlights::StaticLookAuthoringResult::EmptyTarget:
         return "The selected fixture group is empty.";
     case emberlights::StaticLookAuthoringResult::Unsupported:
-        return "The selected target does not support that property or direct color.";
+        return "The selected target does not support that fixture attribute or direct color.";
     case emberlights::StaticLookAuthoringResult::InvalidValue:
         return "Enter values from 0 through 100 percent.";
     }
@@ -5203,7 +5219,7 @@ void Application::refresh_live_status() {
     if (overrides_page != nullptr) {
         std::wostringstream override_count;
         override_count << L"Runner manual overrides: " << status.manual_override_count
-                       << (status.manual_override_count == 1U ? L" property" : L" properties");
+                       << (status.manual_override_count == 1U ? L" attribute" : L" attributes");
         static_cast<void>(::SetWindowTextW(
             ::GetDlgItem(overrides_page, IdOverridesActiveCount), override_count.str().c_str()));
         const bool can_override =
@@ -5308,8 +5324,8 @@ void Application::refresh_overrides() {
         live.fixtures.empty()
             ? "Patch at least one fixture before using Live Overrides."
             : (override_control_choices_.empty()
-                   ? "Select a target and property. Use the value presets or drag the slider; the slider applies when released."
-                   : "Choose a named profile function for exact shutter/wheel/effect behavior, or use the ordinary property level below. Continuous named ranges use the 0–100 position control."),
+                   ? "Select a target and advanced semantic attribute. Use the value presets or drag the slider; the slider applies when released."
+                   : "Choose one profile-backed Fixture Attribute for direct intensity/color/position/beam control or exact shutter/wheel/effect behavior. The 0–100 control sets continuous range position; advanced semantic fallback remains available above."),
         live.fixtures.empty());
 }
 
@@ -5370,7 +5386,7 @@ void Application::refresh_override_control_choices() {
     }
     override_control_choices_.clear();
     static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
-    combo_add(combo, L"Choose a named function…", -1);
+    combo_add(combo, L"Choose a profile-backed Fixture Attribute…", -1);
 
     const auto targets = ::GetDlgItem(page, IdOverridesFixture);
     const auto selected = static_cast<int>(::SendMessageW(
@@ -7001,7 +7017,7 @@ void Application::refresh_look_control_choices() {
     }
     look_control_choices_.clear();
     static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
-    combo_add(combo, L"Choose a named function…", -1);
+    combo_add(combo, L"Choose a profile-backed Fixture Attribute…", -1);
     const auto catalog = emberlights::fixture_control_choices(
         project_, selected_look_target_id());
     for (const auto& choice : catalog.choices) {
@@ -7396,7 +7412,7 @@ void Application::refresh_autoscript_summary(std::string_view message) {
         }
     }
     if (!autoscript_function_preview_summary_.empty()) {
-        summary << "\r\n\r\nLAST NAMED FUNCTION PREVIEW\r\n"
+        summary << "\r\n\r\nLAST FIXTURE ATTRIBUTE PREVIEW\r\n"
                 << autoscript_function_preview_summary_;
     }
     set_control_text(::GetDlgItem(page, IdAutoscriptSummary), summary.str());
@@ -8535,9 +8551,11 @@ void Application::handle_command(int id, int notification, HWND source) {
             set_page_message(
                 Page::Overrides,
                 IdOverridesMessage,
-                choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
-                    ? "Named continuous range selected. The 0–100 control now chooses a position inside that documented DMX range."
-                    : "Named slot selected. Apply Named Function will use the profile's exact preferred DMX value; the percentage control is ignored.");
+                choice.kind == emberlights::FixtureControlChoiceKind::DirectAttribute
+                    ? "Direct profile attribute selected. The 0–100 control spans the complete semantic channel; the profile owns channel order, encoding, and DMX realization."
+                    : (choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
+                           ? "Named capability range selected. The 0–100 control chooses a position inside its documented DMX range."
+                           : "Named capability slot selected. Apply Fixture Attribute uses the profile's exact preferred DMX value; the percentage control is ignored."));
         }
         return;
     }
@@ -8556,9 +8574,11 @@ void Application::handle_command(int id, int notification, HWND source) {
             set_page_message(
                 Page::Looks,
                 IdLookMessage,
-                choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
-                    ? "Named continuous range selected. Level / range position chooses 0–100 inside the profile's documented range."
-                    : "Named slot selected. Use Named Function writes the exact profile-backed selection; the percentage field is ignored.");
+                choice.kind == emberlights::FixtureControlChoiceKind::DirectAttribute
+                    ? "Direct profile attribute selected. Level spans the complete semantic channel and preserves the profile's exact DMX realization."
+                    : (choice.behavior == showcore::ChannelCapabilityBehavior::Continuous
+                           ? "Named capability range selected. Level / range position chooses 0–100 inside the documented range."
+                           : "Named capability slot selected. Use Fixture Attribute writes the exact profile-backed selection; the percentage field is ignored."));
         }
         return;
     }
@@ -8584,10 +8604,12 @@ void Application::handle_command(int id, int notification, HWND source) {
             set_page_message(
                 Page::Midi,
                 IdMidiMessage,
-                choice.behavior ==
-                        showcore::ChannelCapabilityBehavior::Continuous
-                    ? "Named profile range selected. MIDI Learn will preserve the exact normalized endpoints and stable capability identity."
-                    : "Named profile slot selected. MIDI Learn will bind the exact profile-backed function value, not a guessed raw channel.");
+                choice.kind == emberlights::FixtureControlChoiceKind::DirectAttribute
+                    ? "Direct profile attribute selected. MIDI Learn preserves 0–100 semantic endpoints, scaling/curve settings, soft takeover, and stable profile identity."
+                    : (choice.behavior ==
+                               showcore::ChannelCapabilityBehavior::Continuous
+                           ? "Named profile range selected. MIDI Learn preserves the exact normalized endpoints and stable capability identity."
+                           : "Named profile slot selected. MIDI Learn binds the exact profile-backed function value, not a guessed raw channel."));
         }
         return;
     }
@@ -10320,13 +10342,13 @@ void Application::apply_fixture_override(bool active) {
         std::ostringstream error;
         error << "Override rejected: "
               << emberlights::ui_invocation_result_name(result)
-              << ". The target may not support this property, the show may be stopped, "
+              << ". The target may not support this attribute, the show may be stopped, "
                  "or a safety gate may be active.";
         set_page_message(Page::Overrides, IdOverridesMessage, error.str(), true);
         return;
     }
     std::ostringstream message;
-    message << (active ? "Override queued: " : "Property release queued: ")
+    message << (active ? "Override queued: " : "Attribute release queued: ")
             << target_name << " — " << fixture_parameter_label(property);
     if (active) {
         message << " at " << percentage << "%";
@@ -10345,7 +10367,7 @@ void Application::apply_named_fixture_override() {
         set_page_message(
             Page::Overrides,
             IdOverridesMessage,
-            "Choose a named function from the active fixture profile first.",
+            "Choose a profile-backed Fixture Attribute first.",
             true);
         return;
     }
@@ -10396,7 +10418,7 @@ void Application::apply_named_fixture_override() {
             resolved->property, live_view_model_.safety())) {
         set_page_message(
             Page::Overrides, IdOverridesMessage,
-            "That named function cannot be represented by one safe Live group value. "
+            "That Fixture Attribute cannot be represented by one safe Live group value. "
             "Use a fixture target or author it in a Static Look.", true);
         return;
     }
@@ -10418,7 +10440,7 @@ void Application::apply_named_fixture_override() {
         set_page_message(
             Page::Overrides,
             IdOverridesMessage,
-            "Named function rejected: " +
+            "Fixture Attribute rejected: " +
                 std::string(emberlights::ui_invocation_result_name(result)) +
                 ". Runner availability and all normal safety gates still apply.",
             true);
@@ -11573,7 +11595,7 @@ void Application::new_look() {
     refresh_look_draft_view();
     ::EnableWindow(::GetDlgItem(page, IdLookDelete), FALSE);
     set_page_message(Page::Looks, IdLookMessage,
-                     "Choose a target, then apply a full color or explicit property ownership.");
+                     "Choose a target, then apply a full color or explicit attribute ownership.");
     restore_authoring_collection_selection(Page::Looks);
     capture_authoring_editor_baseline(Page::Looks);
 }
@@ -11618,7 +11640,7 @@ void Application::save_look() {
         set_page_message(
             Page::Looks,
             IdLookMessage,
-            "Apply a full color or a property before saving this Static Look.",
+            "Apply a full color or an attribute before saving this Static Look.",
             true);
         return;
     }
@@ -11800,7 +11822,7 @@ void Application::apply_static_look_property() {
     if (property_data < 0) {
         set_page_message(
             Page::Looks, IdLookMessage,
-            "The selected target has no supported properties.", true);
+            "The selected target has no supported attributes.", true);
         return;
     }
     const auto property = static_cast<showcore::Property>(property_data);
@@ -11830,7 +11852,7 @@ void Application::apply_static_look_property() {
     set_page_message(
         Page::Looks,
         IdLookMessage,
-        static_look_outcome_text("Property ownership", outcome),
+        static_look_outcome_text("Attribute ownership", outcome),
         !outcome);
     if (outcome) {
         update_physical_static_look_preview_if_active();
@@ -11848,7 +11870,7 @@ void Application::apply_static_look_control_choice() {
         static_cast<std::size_t>(selected) >= look_control_choices_.size()) {
         set_page_message(
             Page::Looks, IdLookMessage,
-            "Choose a named function from the selected fixture profile first.",
+            "Choose a profile-backed Fixture Attribute first.",
             true);
         return;
     }
@@ -11881,7 +11903,7 @@ void Application::apply_static_look_control_choice() {
     set_page_message(
         Page::Looks,
         IdLookMessage,
-        static_look_outcome_text("Named function • " + choice.name, outcome),
+        static_look_outcome_text("Fixture Attribute • " + choice.name, outcome),
         !outcome);
     if (outcome) {
         update_physical_static_look_preview_if_active();
@@ -11906,7 +11928,7 @@ void Application::remove_static_look_property() {
     set_page_message(
         Page::Looks,
         IdLookMessage,
-        static_look_outcome_text("Property removal", outcome),
+        static_look_outcome_text("Attribute removal", outcome),
         !outcome);
     if (outcome) {
         update_physical_static_look_preview_if_active();
@@ -11919,7 +11941,7 @@ bool Application::read_static_look_preview_draft(
     const auto page = pages_[static_cast<std::size_t>(Page::Looks)];
     if (!look_draft_.has_value() || look_draft_->look.assignments.empty()) {
         error_message =
-            "Apply at least one color or property before starting a preview.";
+            "Apply at least one color or attribute before starting a preview.";
         return false;
     }
     draft = *look_draft_;
@@ -12658,7 +12680,7 @@ void Application::apply_autoscript_fixture_function() {
         static_cast<std::size_t>(choice_index) >=
             autoscript_function_choices_.size()) {
         refresh_autoscript_summary(
-            "Select a committed V2 placement, fixture/group, and named function first.");
+            "Select a committed V2 placement, fixture/group, and Fixture Attribute first.");
         return;
     }
 
@@ -12685,7 +12707,7 @@ void Application::apply_autoscript_fixture_function() {
     const auto persisted = emberlights::inspect_persisted_autoloop_source(project_);
     if (!persisted || !persisted.stamp.present) {
         refresh_autoscript_summary(
-            "Create and commit a V2 Autoloop before adding a fixture function.");
+            "Create and commit a V2 Autoloop before adding a Fixture Attribute.");
         return;
     }
     const auto& placement_id = autoscript_function_placement_ids_[
@@ -12777,7 +12799,7 @@ void Application::apply_autoscript_fixture_function() {
     if (!prepared) {
         refresh_autoscript_summary(
             proposal.message.empty()
-                ? std::string("Named function rejected: ") +
+                ? std::string("Fixture Attribute rejected: ") +
                     emberlights::autoloop_fixture_control_result_name(
                         proposal.result)
                 : proposal.message);
@@ -12789,7 +12811,7 @@ void Application::apply_autoscript_fixture_function() {
     if (!applied) {
         refresh_autoscript_summary(
             applied.message.empty()
-                ? std::string("Named function rejected: ") +
+                ? std::string("Fixture Attribute rejected: ") +
                     emberlights::autoloop_fixture_control_result_name(
                         applied.result)
                 : applied.message);
@@ -12908,7 +12930,7 @@ void Application::apply_autoscript_fixture_function() {
     refresh_autoscript();
     std::ostringstream message;
     message << "Added " << applied.writes.size()
-            << " exact profile-backed fixture function"
+            << " exact profile-backed Fixture Attribute"
             << (applied.writes.size() == 1U ? "" : "s")
             << " after an output-disabled production preview. Save the project to keep this V2 source transaction.";
     refresh_autoscript_summary(message.str());
@@ -13479,7 +13501,7 @@ void Application::refresh_midi_named_choices() {
     }
     midi_named_choices_.clear();
     static_cast<void>(::SendMessageW(combo, CB_RESETCONTENT, 0, 0));
-    combo_add(combo, L"Use the selected generic property", -1);
+    combo_add(combo, L"Use the advanced semantic attribute", -1);
 
     const auto action = static_cast<showcore::ActionType>(combo_selected_data(
         ::GetDlgItem(page, IdMidiAction),
@@ -13661,7 +13683,7 @@ void Application::finish_midi_learn(const showcore::MidiMessage& message) {
                 Page::Midi,
                 IdMidiMessage,
                 plan.message.empty()
-                    ? "The named fixture-function binding was rejected."
+                    ? "The profile-backed Fixture Attribute binding was rejected."
                     : plan.message,
                 true);
             return;

@@ -94,7 +94,7 @@ struct AutoloopFixtureControlOutcome {
     }
 };
 
-// Pure proposal builder over one immutable authoring snapshot. Named functions
+// Pure proposal builder over one immutable authoring snapshot. Fixture attributes
 // come only from fixture_control_choices. Group functions always expand to
 // per-fixture targets so profile-specific normalized values remain exact.
 [[nodiscard]] AutoloopFixtureControlProposal

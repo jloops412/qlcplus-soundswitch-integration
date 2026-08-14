@@ -288,6 +288,12 @@ struct CanonicalTarget {
     diagnostic.raw_value = value.raw_value;
     diagnostic.dmx_min = value.dmx_min;
     diagnostic.dmx_max = value.dmx_max;
+    diagnostic.encoding = value.encoding;
+    diagnostic.fine_channel = value.fine_channel;
+    diagnostic.raw_fine_value = value.raw_fine_value;
+    diagnostic.default_value = value.default_value;
+    diagnostic.blackout_value = value.blackout_value;
+    diagnostic.highlight_value = value.highlight_value;
     if (const auto* fixture = find_fixture(project, value.fixture_id);
         fixture != nullptr) {
         diagnostic.fixture_name = fixture->name;
@@ -305,8 +311,15 @@ struct CanonicalTarget {
         : diagnostic.profile_name;
     diagnostic.accessibility_label =
         fixture_label + ", profile " + profile_label + ", channel " +
-        std::to_string(diagnostic.channel) + ", DMX " +
+        std::to_string(diagnostic.channel) + ", " +
+        std::string(channel_encoding_name(diagnostic.encoding)) + ", DMX " +
         std::to_string(static_cast<unsigned int>(diagnostic.raw_value)) +
+        (diagnostic.fine_channel == 0U
+             ? std::string{}
+             : ", fine channel " +
+                   std::to_string(diagnostic.fine_channel) + ", DMX " +
+                   std::to_string(static_cast<unsigned int>(
+                       diagnostic.raw_fine_value))) +
         ", documented range " +
         std::to_string(static_cast<unsigned int>(diagnostic.dmx_min)) +
         " to " +
@@ -325,6 +338,9 @@ struct CanonicalTarget {
         [&first](const auto& diagnostic) {
             return diagnostic.channel != first.channel ||
                 diagnostic.raw_value != first.raw_value ||
+                diagnostic.encoding != first.encoding ||
+                diagnostic.fine_channel != first.fine_channel ||
+                diagnostic.raw_fine_value != first.raw_fine_value ||
                 diagnostic.dmx_min != first.dmx_min ||
                 diagnostic.dmx_max != first.dmx_max;
         });
@@ -339,6 +355,7 @@ struct CanonicalTarget {
     row.capability_id = choice.capability_id;
     row.name = choice.name.empty() ? choice.capability_id : choice.name;
     row.owner = choice.owner;
+    row.kind = choice.kind;
     row.category = choice_category(choice);
     row.category_label = fixture_parameter_category_name(row.category);
     row.property = choice.property;
@@ -346,6 +363,11 @@ struct CanonicalTarget {
     row.property_label = descriptor == nullptr
         ? std::string(property_name(choice.property))
         : std::string(descriptor->display_name);
+    row.control_kind = descriptor == nullptr
+        ? FixtureParameterControlKind::Custom
+        : descriptor->control_kind;
+    row.control_kind_label = fixture_parameter_control_kind_name(
+        row.control_kind);
     row.behavior = choice.behavior;
     row.access = choice.access;
     row.role = choice.role;
@@ -398,7 +420,10 @@ struct CanonicalTarget {
     row.reason_text = unavailable_reason_text(
         row.reason, row.coverage, safety_label);
     row.accessibility_label = row.name + ", " + row.property_label +
-        " fixture function, " + row.category_label + ".";
+        (row.kind == FixtureControlChoiceKind::DirectAttribute
+             ? " direct fixture attribute, "
+             : " named fixture capability, ") +
+        row.category_label + ", " + row.control_kind_label + ".";
     row.accessibility_description = coverage_text(row.coverage) + " " +
         row.reason_text + " " +
         std::to_string(row.diagnostics.size()) +
@@ -425,6 +450,7 @@ void append_warning(
     if (row.choice_id != choice.id ||
         row.capability_id != choice.capability_id ||
         row.name != expected_name || row.owner != choice.owner ||
+        row.kind != choice.kind ||
         row.property != choice.property || row.behavior != choice.behavior ||
         row.access != choice.access || row.role != choice.role ||
         row.coverage.supported_fixture_count !=
@@ -446,6 +472,12 @@ void append_warning(
                     value.channel == diagnostic.channel &&
                     value.property == diagnostic.property &&
                     value.raw_value == diagnostic.raw_value &&
+                    value.encoding == diagnostic.encoding &&
+                    value.fine_channel == diagnostic.fine_channel &&
+                    value.raw_fine_value == diagnostic.raw_fine_value &&
+                    value.default_value == diagnostic.default_value &&
+                    value.blackout_value == diagnostic.blackout_value &&
+                    value.highlight_value == diagnostic.highlight_value &&
                     value.dmx_min == diagnostic.dmx_min &&
                     value.dmx_max == diagnostic.dmx_max &&
                     same_value(
@@ -492,7 +524,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
         model.state = FixtureFunctionComponentState::Unavailable;
         model.reason = FixtureFunctionReason::TargetNotFound;
         model.message = "The fixture or group target no longer exists.";
-        model.accessibility_label = "Fixture functions unavailable: target missing.";
+        model.accessibility_label = "Fixture attributes unavailable: target missing.";
         return model;
     }
 
@@ -507,7 +539,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
     if (model.search_truncated) {
         append_warning(
             model,
-            "Fixture-function search was limited to the first " +
+            "Fixture-attribute search was limited to the first " +
                 std::to_string(kFixtureFunctionComponentMaximumSearchBytes) +
                 " bytes.");
     }
@@ -517,7 +549,7 @@ FixtureFunctionComponentModel build_fixture_function_component(
         model.reason = FixtureFunctionReason::TargetIncomplete;
         model.message = "The target is missing a patched fixture profile.";
         model.accessibility_label =
-            model.target_name + ", fixture functions unavailable: incomplete target.";
+            model.target_name + ", fixture attributes unavailable: incomplete target.";
         return model;
     }
     if (catalog.target_fixture_count == 0U) {
@@ -589,12 +621,12 @@ FixtureFunctionComponentModel build_fixture_function_component(
             ? FixtureFunctionReason::NoFunctions
             : FixtureFunctionReason::TargetIncomplete;
         model.message = target.complete
-            ? "No selectable named fixture functions are defined for this target."
+            ? "No selectable profile-backed fixture attributes are defined for this target."
             : "The target is missing a fixture or fixture profile.";
     } else if (model.rows.empty()) {
         model.state = FixtureFunctionComponentState::Empty;
         model.reason = FixtureFunctionReason::NoMatches;
-        model.message = "No named fixture functions match the current search and category filter.";
+        model.message = "No fixture attributes match the current search and category filter.";
     } else {
         const bool any_enabled = std::any_of(
             model.rows.begin(), model.rows.end(),
@@ -604,19 +636,19 @@ FixtureFunctionComponentModel build_fixture_function_component(
             : FixtureFunctionComponentState::Degraded;
         if (!any_enabled) {
             model.reason = FixtureFunctionReason::NoLiveCompatibleFunctions;
-            model.message = "Matching profile functions are visible for diagnosis but none can form one exact Live override command.";
+            model.message = "Matching profile attributes are visible for diagnosis but none can form one exact Live override command.";
         } else if (model.rows_truncated) {
             model.reason = FixtureFunctionReason::RowLimitReached;
-            model.message = "Exact fixture functions are available; refine the search to see results beyond the bounded row limit.";
+            model.message = "Exact fixture attributes are available; refine the search to see results beyond the bounded row limit.";
         } else {
             model.reason = FixtureFunctionReason::None;
-            model.message = "Exact fixture functions are ready for typed Live override command construction.";
+            model.message = "Exact fixture attributes are ready for typed Live override command construction.";
         }
     }
 
     std::ostringstream accessibility;
     accessibility << model.target_name << ", " << model.rows.size()
-                  << " fixture function";
+                  << " fixture attribute";
     if (model.rows.size() != 1U) {
         accessibility << 's';
     }
@@ -639,12 +671,12 @@ FixtureFunctionCommandBuildResult build_fixture_function_invocation(
         request.action != FixtureFunctionCommandAction::Release) {
         return command_failure(
             FixtureFunctionReason::InvalidAction,
-            "The fixture-function command action is invalid.");
+            "The fixture-attribute command action is invalid.");
     }
     if (request.choice_id.empty()) {
         return command_failure(
             FixtureFunctionReason::SelectionMissing,
-            "No stable fixture-function choice ID was supplied.");
+            "No stable fixture-attribute choice ID was supplied.");
     }
     const auto matching_rows = static_cast<std::size_t>(std::count_if(
         snapshot.rows.begin(), snapshot.rows.end(),
@@ -654,7 +686,7 @@ FixtureFunctionCommandBuildResult build_fixture_function_invocation(
     if (matching_rows != 1U) {
         return command_failure(
             FixtureFunctionReason::SelectionMissing,
-            "The stable fixture-function choice is not present exactly once in this component snapshot.");
+            "The stable fixture-attribute choice is not present exactly once in this component snapshot.");
     }
     const auto snapshot_row = std::find_if(
         snapshot.rows.begin(), snapshot.rows.end(),
@@ -694,14 +726,14 @@ FixtureFunctionCommandBuildResult build_fixture_function_invocation(
         fresh_choice->access == showcore::ChannelCapabilityAccess::Protected) {
         return command_failure(
             FixtureFunctionReason::SelectionStale,
-            "The selected fixture function is missing, protected, or no longer supported by this target.");
+            "The selected fixture attribute is missing, protected, or no longer supported by this target.");
     }
     if (catalog.target_fixture_count != snapshot.target_fixture_count ||
         target.complete != snapshot.target_complete ||
         !same_choice_snapshot(*snapshot_row, *fresh_choice)) {
         return command_failure(
             FixtureFunctionReason::SelectionStale,
-            "The selected fixture function changed after the component snapshot was built; refresh before invoking it.");
+            "The selected fixture attribute changed after the component snapshot was built; refresh before invoking it.");
     }
 
     const auto fresh_row = make_row(project, *fresh_choice, target.complete);

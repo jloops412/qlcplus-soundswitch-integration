@@ -211,6 +211,54 @@ void test_capability_inventory_and_color_authoring() {
     CHECK(assignment(draft.look, "ir4-10", showcore::Property::Intensity)->value.value == 0.5F);
 }
 
+void test_direct_fixture_attribute_choices() {
+    const auto project = make_ir4_authoring_project();
+    const auto catalog = emberlights::fixture_control_choices(
+        project, "ir4-pair", 0.25F);
+    const auto red = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "direct.red";
+        });
+    CHECK(red != catalog.choices.end());
+    if (red == catalog.choices.end()) {
+        return;
+    }
+    CHECK(red->kind ==
+          emberlights::FixtureControlChoiceKind::DirectAttribute);
+    CHECK(red->behavior ==
+          showcore::ChannelCapabilityBehavior::Continuous);
+    CHECK(red->common());
+    CHECK(red->shared_value);
+    CHECK(red->live_override_compatible());
+    CHECK(red->values.size() == 2U);
+    for (const auto& value : red->values) {
+        CHECK(value.property == showcore::Property::Red);
+        CHECK(std::fabs(value.normalized_value - 0.25F) < 0.0001F);
+        CHECK(value.raw_value == 64U);
+        CHECK(value.encoding == showcore::ChannelEncoding::Linear8);
+        CHECK(value.binding_id.find("/direct.red") != std::string::npos);
+    }
+
+    auto draft = emberlights::make_static_look_draft(
+        1U, "direct-red", "Direct Red");
+    const auto applied = emberlights::apply_static_look_control_choice(
+        draft, project, "ir4-pair", red->id, 0.25F);
+    CHECK(applied);
+    CHECK(applied.fixtures_modified == 2U);
+    CHECK(applied.assignments_written == 2U);
+    for (const auto fixture_id :
+         {std::string_view{"ir4-6"}, std::string_view{"ir4-10"}}) {
+        const auto* value = assignment(
+            draft.look, fixture_id, showcore::Property::Red);
+        CHECK(value != nullptr);
+        if (value != nullptr) {
+            CHECK(value->value.mode == showcore::ValueMode::Set);
+            CHECK(std::fabs(value->value.value - 0.25F) < 0.0001F);
+        }
+    }
+}
+
 void test_ir4_exact_offline_frames() {
     auto project = make_ir4_authoring_project();
     auto draft = emberlights::make_static_look_draft(1U, "look-red", "IR-4 Red");
@@ -536,6 +584,7 @@ void test_limits_dependencies_and_hex() {
 
 int main() {
     test_capability_inventory_and_color_authoring();
+    test_direct_fixture_attribute_choices();
     test_ir4_exact_offline_frames();
     test_master_closed_and_unsupported_validation();
     test_named_fixture_control_choices();

@@ -142,9 +142,10 @@
     },
     {
       "id": "ember.fixtureFunctionBrowser",
-      "label": "Fixture Function Browser",
-      "description": "Browses stable profile-backed fixture functions and constructs exact existing fixture/group override commands without exposing raw protected DMX ranges.",
+      "label": "Fixture Attribute Browser",
+      "description": "Browses one stable profile-backed catalog containing direct fixture channels and selectable named DMX capabilities, with exact fixture/group override construction and protected ranges excluded.",
       "status": "bridged",
+      "contractVersion": "0.2.0",
       "supportedWorkspaces": ["live", "studio"],
       "supportedVariants": ["compact", "default"],
       "properties": {

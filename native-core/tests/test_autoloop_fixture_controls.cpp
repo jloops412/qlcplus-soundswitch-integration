@@ -62,7 +62,7 @@ template <typename Collection>
         profile.model = "Wheel";
         profile.mode = three_wheel_slots ? "Three" : "Two";
         profile.name = profile.model + " " + profile.mode;
-        profile.footprint = 2U;
+        profile.footprint = 3U;
 
         emberlights::ChannelDefinition wheel;
         wheel.property = showcore::Property::Count;
@@ -102,6 +102,12 @@ template <typename Collection>
         strobe.behavior = showcore::ChannelCapabilityBehavior::Continuous;
         shutter.capabilities.push_back(std::move(strobe));
         profile.channels.push_back(std::move(shutter));
+
+        emberlights::ChannelDefinition intensity;
+        intensity.property = showcore::Property::Intensity;
+        intensity.coarse_offset = 2U;
+        intensity.encoding = showcore::ChannelEncoding::Linear8;
+        profile.channels.push_back(std::move(intensity));
         return profile;
     };
 
@@ -242,6 +248,30 @@ void test_exact_mixed_profile_plan_and_atomic_apply() {
     const auto undone = service.undo(service.generation());
     CHECK(undone.result == emberlights::AutoloopAuthoringResult::Applied);
     CHECK(service.snapshot().source_digest == initial.source_digest);
+}
+
+void test_direct_profile_attribute_plan() {
+    const auto project = make_project();
+    emberlights::AutoloopAuthoringService service(make_source());
+    const auto direct_id = choice_id(project, "direct.intensity");
+    CHECK(!direct_id.empty());
+    auto request = request_for(service, direct_id, "gesture.intensity");
+    request.position = 0.75F;
+
+    const auto proposal = emberlights::plan_autoloop_fixture_control(
+        service.snapshot(), project, request);
+    CHECK(proposal);
+    CHECK(proposal.writes.size() == 2U);
+    CHECK(std::all_of(
+        proposal.writes.begin(), proposal.writes.end(),
+        [](const auto& write) {
+            return write.property == showcore::Property::Intensity &&
+                std::fabs(write.normalized_value - 0.75F) < 0.0001F;
+        }));
+    const auto applied = emberlights::apply_autoloop_fixture_control(
+        service, project, request);
+    CHECK(applied);
+    CHECK(applied.writes.size() == 2U);
 }
 
 void test_fail_closed_requests_do_not_mutate() {
@@ -427,6 +457,7 @@ void test_identifier_ownership_and_half_open_collisions() {
 
 int main() {
     test_exact_mixed_profile_plan_and_atomic_apply();
+    test_direct_profile_attribute_plan();
     test_fail_closed_requests_do_not_mutate();
     test_identifier_ownership_and_half_open_collisions();
     if (failures != 0) {

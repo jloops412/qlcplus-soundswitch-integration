@@ -42,7 +42,7 @@ struct FixtureControllerBindingPlan {
     }
 };
 
-// Plans an atomic, persistent controller mapping from one named fixture
+// Plans an atomic, persistent controller mapping from one profile-backed fixture
 // function. The prototype supplies only the input device/gesture/transform
 // contract; target, action, property, semantic range, and stable authoring
 // provenance are derived from the shared fixture-control catalog.

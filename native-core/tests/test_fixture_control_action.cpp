@@ -57,7 +57,7 @@ int g_failures = 0;
     profile.name = profile.model + " " + profile.mode;
     profile.source = showcore::FixtureProfileSource::Local;
     profile.source_revision = "1";
-    profile.footprint = 2U;
+    profile.footprint = 3U;
 
     emberlights::ChannelDefinition wheel;
     wheel.property = showcore::Property::Count;
@@ -97,7 +97,12 @@ int g_failures = 0;
         showcore::ChannelCapabilityBehavior::Slot,
         showcore::ChannelCapabilityAccess::Protected));
 
-    profile.channels = {std::move(wheel), std::move(shutter)};
+    emberlights::ChannelDefinition intensity;
+    intensity.property = showcore::Property::Intensity;
+    intensity.coarse_offset = 2U;
+    intensity.encoding = showcore::ChannelEncoding::Linear8;
+    profile.channels = {
+        std::move(wheel), std::move(shutter), std::move(intensity)};
     return profile;
 }
 
@@ -265,11 +270,11 @@ void test_exact_fixture_action_and_determinism() {
           "com.emberlights.action.fixture-control."
           "a31c570277ab8a85943c843aa9d0c14b033e3f15fefaf3285f2eb6c755ca7775");
     CHECK(first.content_hash ==
-          "sha256:159ac43cbe855f8d9dd064b7c2c52ba2ba2527e978cd643420a8dbb966b6f469");
+          "sha256:5588051ac4c79ad7dc7213789e75584809e6a63178c0b66c81933fed87a61315");
     CHECK(first.foundation->cache_key.cache_digest ==
-          "sha256:e863b19f6205c812fb0a093dfe600e13a81da95a0622c625efe862d735689a84");
+          "sha256:80e33b9f3a71f5c5053e44584179938f3b33bdc4c1b21924db9a21d163ea2cc5");
     CHECK(first.executable->execution_digest ==
-          "sha256:74639aab274e58a1fe0bb76bdfd1a3a4ed1f5b0cef71d811847b0ab1bf901e20");
+          "sha256:4e5dc3843d4db8734d6c19c46da3c3152f1d9c35afda9347fa844010efefae14");
     CHECK(first.prepared->normalized_json == first.canonical_source);
     CHECK(first.prepared->content_hash == first.content_hash);
     CHECK(first.foundation->cache_key.cache_digest ==
@@ -313,6 +318,27 @@ void test_exact_fixture_action_and_determinism() {
     CHECK(release.command ==
           emberlights::UiCommandId::FixtureOverridePropertyRelease);
     CHECK(release.argument("value") == nullptr);
+
+    const auto* intensity = find_choice(catalog, "direct.intensity");
+    CHECK(intensity != nullptr);
+    if (intensity != nullptr) {
+        CHECK(intensity->kind ==
+              emberlights::FixtureControlChoiceKind::DirectAttribute);
+        const auto direct = emberlights::plan_fixture_control_action(
+            project, "fixture-a", *intensity, registry);
+        CHECK(direct);
+        CHECK(direct.continuous_fixed_position);
+        CHECK(std::fabs(direct.normalized_value - 0.5F) < 0.000001F);
+        RecordingControl direct_set;
+        const auto direct_result = execute(
+            direct, emberlights::EmberActionEntryPoint::OnValue, direct_set);
+        CHECK(direct_result.status ==
+              emberlights::EmberActionExecutionStatus::Completed);
+        CHECK(direct_set.command ==
+              emberlights::UiCommandId::FixtureOverridePropertySet);
+        check_set_arguments(
+            direct_set, "fixtureId", "fixture-a", "intensity", 0.5);
+    }
     CHECK(emberlights::serialize_project(project) == before);
 }
 

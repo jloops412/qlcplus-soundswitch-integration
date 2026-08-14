@@ -14,11 +14,13 @@
 namespace emberlights {
 
 // This is a toolkit-neutral snapshot/controller boundary for future native
-// EmberSkin controls. It deliberately stays smaller than the fixture-function
-// catalog and never owns command dispatch or live state.
+// EmberSkin controls. The stable type ID is retained for compatibility even
+// though v2 presents the complete Fixture Attribute catalog (direct channels
+// plus named compound-channel capabilities). It never owns command dispatch or
+// live state.
 inline constexpr std::string_view kFixtureFunctionComponentType =
     "ember.fixtureFunctionBrowser";
-inline constexpr std::uint16_t kFixtureFunctionComponentVersion = 1U;
+inline constexpr std::uint16_t kFixtureFunctionComponentVersion = 2U;
 inline constexpr std::size_t kFixtureFunctionComponentDefaultRowLimit = 128U;
 inline constexpr std::size_t kFixtureFunctionComponentMaximumRowLimit = 512U;
 inline constexpr std::size_t kFixtureFunctionComponentMaximumSearchBytes = 128U;
@@ -83,7 +85,7 @@ struct FixtureFunctionCoverage {
     }
 };
 
-// Raw bytes are inspection evidence for the selected profile function. They
+// Raw bytes are inspection evidence for the selected profile attribute. They
 // are never copied into UiCommandInvocation; commands retain semantic property
 // and normalized-value arguments only.
 struct FixtureFunctionDmxDiagnostic {
@@ -99,6 +101,12 @@ struct FixtureFunctionDmxDiagnostic {
     std::uint8_t raw_value{0U};
     std::uint8_t dmx_min{0U};
     std::uint8_t dmx_max{0U};
+    showcore::ChannelEncoding encoding{showcore::ChannelEncoding::Linear8};
+    std::uint16_t fine_channel{0U};
+    std::uint8_t raw_fine_value{0U};
+    std::uint16_t default_value{0U};
+    std::uint16_t blackout_value{0U};
+    std::uint16_t highlight_value{255U};
     std::string accessibility_label;
 };
 
@@ -108,10 +116,13 @@ struct FixtureFunctionRow {
     std::string capability_id;
     std::string name;
     std::string owner;
+    FixtureControlChoiceKind kind{FixtureControlChoiceKind::NamedCapability};
     FixtureParameterCategory category{FixtureParameterCategory::Custom};
     std::string category_label;
     showcore::Property property{showcore::Property::Count};
     std::string property_label;
+    FixtureParameterControlKind control_kind{FixtureParameterControlKind::Custom};
+    std::string control_kind_label;
     showcore::ChannelCapabilityBehavior behavior{
         showcore::ChannelCapabilityBehavior::Slot};
     showcore::ChannelCapabilityAccess access{

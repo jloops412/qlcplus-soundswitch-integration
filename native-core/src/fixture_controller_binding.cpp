@@ -131,7 +131,7 @@ FixtureControllerBindingPlan plan_fixture_controller_binding(
         prototype.behavior == showcore::MappingBehavior::Relative) {
         return failed_plan(
             std::move(plan), FixtureControllerBindingError::UnsupportedPrototype,
-            "Relative controller input cannot remain inside one named fixture-function range.");
+            "Relative controller input cannot remain inside one bounded Fixture Attribute range.");
     }
 
     const auto* middle = find_choice(
@@ -139,12 +139,12 @@ FixtureControllerBindingPlan plan_fixture_controller_binding(
     if (middle == nullptr) {
         return failed_plan(
             std::move(plan), FixtureControllerBindingError::ChoiceNotFound,
-            "The named fixture function is unavailable for this target.");
+            "The Fixture Attribute is unavailable for this target.");
     }
     if (middle->safety_gated() && !options.allow_safety_gated) {
         return failed_plan(
             std::move(plan), FixtureControllerBindingError::SafetyGateRequired,
-            "This named fixture function requires an explicit safety-gated authoring confirmation.");
+            "This Fixture Attribute requires an explicit safety-gated authoring confirmation.");
     }
 
     const FixtureControlChoice* low = middle;
@@ -164,7 +164,7 @@ FixtureControllerBindingPlan plan_fixture_controller_binding(
             return failed_plan(
                 std::move(plan),
                 FixtureControllerBindingError::InconsistentChoice,
-                "The named fixture function changed while resolving its semantic endpoints.");
+                "The Fixture Attribute changed while resolving its semantic endpoints.");
         }
     }
 
@@ -181,7 +181,7 @@ FixtureControllerBindingPlan plan_fixture_controller_binding(
             return failed_plan(
                 std::move(plan),
                 FixtureControllerBindingError::InconsistentChoice,
-                "The named fixture function produced an invalid semantic range.");
+                "The Fixture Attribute produced an invalid semantic range.");
         }
         plan.mappings.push_back(planned_mapping(
             prototype,
@@ -206,7 +206,7 @@ FixtureControllerBindingPlan plan_fixture_controller_binding(
                 return failed_plan(
                     std::move(plan),
                     FixtureControllerBindingError::InconsistentChoice,
-                    "A mixed-profile group could not resolve the named function for every supported fixture.");
+                    "A mixed-profile group could not resolve the Fixture Attribute for every supported fixture.");
             }
             plan.mappings.push_back(planned_mapping(
                 prototype,
@@ -219,33 +219,33 @@ FixtureControllerBindingPlan plan_fixture_controller_binding(
         }
         if (middle->partial()) {
             plan.warnings.push_back(
-                "The named fixture function is unsupported by part of the group; only exact supporting fixtures were planned.");
+                "The Fixture Attribute is unsupported by part of the group; only exact supporting fixtures were planned.");
         }
     }
 
     if (plan.mappings.empty()) {
         return failed_plan(
             std::move(plan), FixtureControllerBindingError::InconsistentChoice,
-            "The named fixture function produced no exact controller mappings.");
+            "The Fixture Attribute produced no exact controller mappings.");
     }
     if (project.midi_mappings.size() + plan.mappings.size() >
         showcore::kMaxMidiMappings) {
         return failed_plan(
             std::move(plan),
             FixtureControllerBindingError::ProjectCapacityExceeded,
-            "Adding the complete named-function binding would exceed project MIDI mapping capacity.");
+            "Adding the complete Fixture Attribute binding would exceed project MIDI mapping capacity.");
     }
     if (existing_gesture_fanout(project, prototype) + plan.mappings.size() >
         showcore::kMaxMidiActionsPerMessage) {
         return failed_plan(
             std::move(plan),
             FixtureControllerBindingError::GestureFanoutExceeded,
-            "The complete named-function binding would exceed the bounded actions-per-message limit.");
+            "The complete Fixture Attribute binding would exceed the bounded actions-per-message limit.");
     }
 
     plan.message = plan.expanded_to_fixtures
         ? "The mixed-profile group was planned as exact per-fixture semantic mappings."
-        : "The named fixture function was planned through one semantic controller mapping.";
+        : "The Fixture Attribute was planned through one semantic controller mapping.";
     return plan;
 }
 

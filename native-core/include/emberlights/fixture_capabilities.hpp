@@ -68,10 +68,18 @@ struct FixtureTargetCapabilities {
         showcore::Property property) const noexcept;
 };
 
-// One exact, profile-backed fixture function resolved into the ordinary
-// semantic property/value contract. The raw byte is diagnostic evidence only;
-// callers continue to invoke Static Look/Live/controller behavior through the
-// semantic property and normalized value.
+enum class FixtureControlChoiceKind : std::uint8_t {
+    // An ordinary profile channel such as Intensity, Red, Pan, Tilt, or Zoom.
+    // Its semantic value spans the complete authored channel mapping.
+    DirectAttribute,
+    // One named range or slot on a compound channel such as Shutter Open,
+    // Gobo 4, Prism Insert, or Strobe Slow-to-Fast.
+    NamedCapability
+};
+
+// One exact, profile-backed fixture attribute realization. Raw DMX values are
+// inspection evidence only; callers continue to invoke Static Look, Live,
+// Autoloop, and controller behavior through the semantic property/value pair.
 struct FixtureControlChoiceValue {
     std::string fixture_id;
     std::string profile_id;
@@ -82,18 +90,25 @@ struct FixtureControlChoiceValue {
     std::uint8_t raw_value{0U};
     std::uint8_t dmx_min{0U};
     std::uint8_t dmx_max{0U};
+    showcore::ChannelEncoding encoding{showcore::ChannelEncoding::Linear8};
+    std::uint16_t fine_channel{0U};
+    std::uint8_t raw_fine_value{0U};
+    std::uint16_t default_value{0U};
+    std::uint16_t blackout_value{0U};
+    std::uint16_t highlight_value{255U};
 };
 
-// A target-facing named function such as "Shutter open", "Gobo 4", or
-// "Strobe slow to fast". Group choices retain one exact realization per
-// supporting fixture. A Live group command can use the choice only when every
-// supporting profile resolves to the same semantic value; Static Look
-// authoring may always write the per-fixture values transactionally.
+// A target-facing fixture attribute. Direct channels and named compound-channel
+// functions share one stable identity/value contract. Group choices retain one
+// exact realization per supporting fixture. A Live group command can use the
+// choice only when every supporting profile resolves to the same semantic
+// value; Static Look/Autoloop authoring may preserve per-fixture values.
 struct FixtureControlChoice {
     std::string id;
     std::string capability_id;
     std::string name;
     std::string owner;
+    FixtureControlChoiceKind kind{FixtureControlChoiceKind::NamedCapability};
     showcore::Property property{showcore::Property::Count};
     showcore::ChannelCapabilityBehavior behavior{
         showcore::ChannelCapabilityBehavior::Slot};
@@ -151,10 +166,11 @@ struct FixtureControlChoiceCatalog {
     const ProjectDocument& project,
     std::string_view target_id);
 
-// Builds deterministic, toolkit-neutral named choices for one patched fixture
-// or group. Continuous capabilities use `position` within their documented
-// DMX range; slots ignore it and use the documented preferred byte. Protected
-// reset/service/custom ranges never enter the catalog.
+// Builds deterministic, toolkit-neutral fixture attributes for one patched
+// fixture or group. Ordinary direct mappings and selectable named ranges share
+// this catalog. Continuous controls use `position`; named slots ignore it and
+// use the documented preferred byte. Protected reset/service/custom ranges
+// never enter the catalog.
 [[nodiscard]] FixtureControlChoiceCatalog fixture_control_choices(
     const ProjectDocument& project,
     std::string_view target_id,

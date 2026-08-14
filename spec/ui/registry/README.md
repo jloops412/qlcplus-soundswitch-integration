@@ -18,7 +18,7 @@ spec/ui/registry/source/
 ```
 
 The source integrates the exact 29 native commands and 39 native Live state
-definitions, plus five planned non-callable Runtime/Safe component contracts,
+definitions, plus eight non-callable Runtime/Safe component contracts,
 one accepted non-callable content capability, eleven reusable value contracts,
 thirteen explicit invocation results, and five interactions. Explicit native
 ordinals preserve the existing command/state/result ABI. General source JSON is
@@ -36,18 +36,20 @@ python3 native-core/tools/generate_ui_registry.py diff \
   --expect compatibleAdditive
 ```
 
-Generation 2 is registry set `1.1.0`, generator `1.1.0`. Against the frozen v1
-baseline it adds 17 definitions (5 components, 1 capability, 11 values) and
+Generation 2 is registry set `1.4.0`, generator `1.1.0`. Against the frozen v1
+baseline it adds 20 definitions (8 components, 1 capability, 11 values) and
 enriches 13 result definitions with labels/descriptions while preserving their
 IDs, terminal semantics, and exact ten-entry native ABI. The compatibility diff
 must report zero breaking changes and zero removals.
 
 ## Generation-2 bounded contract families
 
-- Components: `ember.activeLayers`, `ember.autoloopMatrix`,
-  `ember.connectionPanel`, `ember.diagnostics`, and
-  `ember.staticLookMatrix`. They are metadata-only `planned` contracts with
-  `callable: false`; no toolkit or skin runtime implementation is implied.
+- Components: `ember.activeLayers`, `ember.authoringWorkbench`,
+  `ember.autoloopMatrix`, `ember.connectionPanel`, `ember.diagnostics`,
+  `ember.fixtureFunctionBrowser` (displayed as Fixture Attribute Browser),
+  `ember.fixtureProfileEditor`, and `ember.staticLookMatrix`. Bridged contracts
+  describe toolkit-neutral native seams; all remain `callable: false`, so no
+  production skin-runtime activation is implied.
 - Capability: `content.staticLooks`, the exact ID already used by the accepted
   Ember Action contract. It describes existing stable-ID Static Look behavior;
   it is not a new command or dynamic capability service.
