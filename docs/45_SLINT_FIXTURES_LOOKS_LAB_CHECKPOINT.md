@@ -10,7 +10,10 @@ The first replacement-shell slice now exists as working source rather than
 another Win32 property form or a decorative mockup. It combines fixture profile
 provenance, patch/group targets, Static Look selection, profile-backed visual
 controls, explicit ownership, validation, and Advanced diagnostics in one
-product-shaped Slint surface.
+product-shaped Slint surface. The second source pass removes the lab's original
+Intensity/RGBWA/Pan/Tilt/Focus allowlist: category navigation, bounded search,
+and every ordinary control now project from the selected target's complete
+profile-backed catalog under D-095.
 
 The legacy Win32 presentation remains frozen under D-091. The lab is opt-in,
 is not installed by CMake, does not replace `EmberLights.exe`, opens no output
@@ -25,11 +28,11 @@ the project must still configure an output and Live must remain stopped.
 
 | Layer | New artifact | Authority |
 | --- | --- | --- |
-| Renderer-neutral composition | `FixturesLooksShellModel` | Joins existing profile, patch, Static Look, validation, fixture-function, and control-surface snapshots with stable IDs |
+| Renderer-neutral composition | `FixturesLooksShellModel` v2 | Joins existing profile, patch, Static Look, validation, fixture-function, and control-surface snapshots; projects stable category navigation, bounded parameter search, counts, control kinds, coverage, safety, values, and ownership without a renderer allowlist |
 | Domain mutation | Existing Static Look authoring functions and `StudioDocumentService` | Applies/removes properties and exact profile choices, then commits one generation-checked Undo transaction; Slint owns no lighting semantics or document state |
 | Lab presentation | `fixtures_looks_lab.slint` | Layout, styling, accessibility declarations, task controls, responsive center workspace, and Advanced drawer |
 | Renderer adapter | `fixtures_looks_lab.cpp` | Projects immutable model snapshots, forwards typed user intent, and refreshes the lab |
-| Preview command boundary | Registry `1.8.0`, `UiCommandFacade`, and `StaticLookPreviewCoordinator` | Runs compilation/output work off the UI thread, coalesces draft updates, publishes one coherent status snapshot, and excludes preview from MIDI/keyboard/Actions |
+| Preview command boundary | Registry `1.9.0` (preview contract retained from `1.8.0`), `UiCommandFacade`, and `StaticLookPreviewCoordinator` | Runs compilation/output work off the UI thread, coalesces draft updates, publishes one coherent status snapshot, and excludes preview from MIDI/keyboard/Actions |
 | Physical authority | Existing `StaticLookPhysicalPreviewService` | Owns the production-Runner lease, selected-target isolation, 35% cap, hazard rejection, 30-second timeout, faults, and terminal blackout; the renderer cannot replace it |
 | Build boundary | `EMBERLIGHTS_BUILD_SLINT_LAB=OFF` by default | Finds Slint 1.17.1 exactly and builds a separate non-installed executable only when requested |
 
@@ -45,21 +48,29 @@ The lab currently supports:
 2. profile search plus fixture/group patch-target selection;
 3. Static Look search, selection, draft creation, and duplication with guarded
    selection changes;
-4. master intensity with `Release`, `Set`, and `Force zero` ownership;
-5. independent RGBWA emitter controls rather than a hard-coded repair action;
-6. a Pan/Tilt XY pad, Focus fader, and profile-backed Gobo choice tiles;
-7. target coverage, unavailable/mixed state, validation, read-only, stale, and
+4. profile-derived Intensity, Color, Position, Beam, Image, Effect,
+   Atmosphere, and Advanced-only Custom category navigation with stable IDs and
+   bounded cross-field search;
+5. dynamic faders for every direct or continuous profile parameter, a
+   horizontally scalable emitter mixer for RGBWAUV/CMY/Lime/Indigo, and a
+   Pan/Tilt XY pad when both axes are present;
+6. exact profile function/range choices plus explicit `Release`, `Set`, and
+   `Force zero` ownership for both continuous and selector properties;
+7. position-aware authoring for continuous named ranges and exact per-profile
+   value preservation for selector choices, without raw DMX entering the Look;
+8. target coverage, unavailable/mixed state, validation, read-only, stale, and
    explicit empty-state projection in the renderer-neutral model;
-8. asynchronous offline **Simulate** with frame digest and no adapter output;
-9. explicitly armed **Preview fixtures** with visible mode, lifecycle, cap,
+9. asynchronous offline **Simulate** with frame digest and no adapter output;
+10. explicitly armed **Preview fixtures** with visible mode, lifecycle, cap,
    countdown, fixture count, exact fault token, coalesced edits, and one
    **Blackout & stop** exit;
-10. raw channel/range evidence only inside the nonmodal Advanced drawer;
-11. persistent stable choice IDs from the same catalog used by Static Looks,
+11. raw channel/range evidence and unclassified controls only behind explicit
+    Advanced disclosure;
+12. persistent stable choice IDs from the same catalog used by Static Looks,
     Live, Autoloops, mappings, Ember Actions, migration, and future skins;
-12. `Save Look` as one generation-checked Studio Undo transaction, draft-aware
+13. `Save Look` as one generation-checked Studio Undo transaction, draft-aware
     Undo/Redo controls, and visible generation/history counts;
-13. `Save Project` through `save_project_atomic`, followed by an exact-generation
+14. `Save Project` through `save_project_atomic`, followed by an exact-generation
     durable-baseline acknowledgement only after the write succeeds.
 
 The renderer receives booleans, labels, immutable projections, and callbacks.
@@ -73,17 +84,22 @@ workflow without adding a file dialog to the toolkit evaluation.
 Passed on the source host:
 
 - warning-fatal native compile and `fixtures_looks_shell_tests`;
+- shell-model v2 tests for stable category IDs, profile-parameter search,
+  category projection, complete control reachability, and named-choice/direct
+  attribute distinction;
 - warning-fatal `static_look_preview_coordinator_tests` covering asynchronous
   simulation/update/stop, latest-wins edits, explicit physical arming,
   cap/countdown, timeout/restart isolation, and stop-to-black Runner release;
-- registry `1.8.0` generation/check, V1 compatible-additive diff, facade tests,
+- registry `1.9.0` generation/check, V1 compatible-additive diff, facade tests,
   and Ember Action exclusion tests;
 - `test_ui_direction.py`;
 - all seven `test_slint_lab_contract.py` checks;
 - warning-free Slint markup compilation with official
   `slint-compiler 1.17.1` and embedded Fluent resources;
 - warning-fatal C++20 compilation of the adapter against the generated 1.17.1
-  header and official C++ headers.
+  header and official C++ headers;
+- preview telemetry polling no longer rebuilds the profile/library/control
+  projection at 10 Hz when its coherent status token has not changed.
 
 The host lacks Slint's Linux `libinput.so.10` runtime dependency, so a linked
 Linux window/model-smoke executable was not claimed. That does not substitute
@@ -134,8 +150,9 @@ activate an accepted replacement-shell slice or remain withheld under D-091.
 
 ## Next bounded pass
 
-Run and capture Windows evidence for the now-wired Studio document/history and
-bounded-preview paths, including default output lock, explicit arming, edit
-coalescing, timeout/fault, and terminal blackout. Build the WinUI comparison
-from the same model/query/preview command fixture so the toolkit decision is
-measured on equal workflows.
+Run and capture Windows evidence for the now-wired profile-driven parameter
+deck, Studio document/history, and bounded-preview paths, including long
+fixture profiles, every category, search, mixed groups, default output lock,
+explicit arming, edit coalescing, timeout/fault, and terminal blackout. Build
+the WinUI comparison from the same model/query/preview command fixture so the
+toolkit decision is measured on equal workflows.

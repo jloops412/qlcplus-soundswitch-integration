@@ -179,7 +179,7 @@ int failures = 0;
 }
 
 void test_search_filter_order_and_bounds() {
-    CHECK(emberlights::kFixtureFunctionComponentVersion == 3U);
+    CHECK(emberlights::kFixtureFunctionComponentVersion == 4U);
     const auto project = make_project();
     const auto model = group_model(project);
     CHECK(model.state == emberlights::FixtureFunctionComponentState::Ready);
@@ -325,6 +325,13 @@ void test_mixed_profile_rows_diagnostics_and_accessibility() {
         CHECK(std::fabs(
             blue->diagnostics[0].normalized_value -
             blue->diagnostics[1].normalized_value) > 0.01F);
+        CHECK(std::fabs(blue->diagnostics[0].semantic_min - 0.5F) <
+              0.0001F);
+        CHECK(std::fabs(
+            blue->diagnostics[1].semantic_min - (2.0F / 3.0F)) <
+              0.0001F);
+        CHECK(blue->diagnostics[0].semantic_max == 1.0F);
+        CHECK(blue->diagnostics[1].semantic_max == 1.0F);
     }
 
     CHECK(open->coverage.exact());

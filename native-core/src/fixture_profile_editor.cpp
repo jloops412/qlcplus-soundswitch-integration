@@ -1261,6 +1261,10 @@ FixtureChannelCapabilitySelection resolve_fixture_channel_capability(
     result.error = FixtureChannelCapabilityEditorError::None;
     result.found = true;
     result.property = selected->property;
+    result.semantic_min = static_cast<float>(selected_segment) /
+        static_cast<float>(matching_count);
+    result.semantic_max = static_cast<float>(selected_segment + 1U) /
+        static_cast<float>(matching_count);
     result.normalized_value =
         (static_cast<float>(selected_segment) + local) /
         static_cast<float>(matching_count);

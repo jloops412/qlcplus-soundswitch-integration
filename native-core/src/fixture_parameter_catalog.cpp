@@ -149,6 +149,34 @@ std::string_view fixture_parameter_category_name(
     return "Unknown";
 }
 
+std::string_view fixture_parameter_category_stable_id(
+    FixtureParameterCategory category) noexcept {
+    switch (category) {
+    case FixtureParameterCategory::Intensity: return "intensity";
+    case FixtureParameterCategory::Color: return "color";
+    case FixtureParameterCategory::Position: return "position";
+    case FixtureParameterCategory::Beam: return "beam";
+    case FixtureParameterCategory::Image: return "image";
+    case FixtureParameterCategory::Effect: return "effect";
+    case FixtureParameterCategory::Atmosphere: return "atmosphere";
+    case FixtureParameterCategory::Custom: return "custom";
+    }
+    return "custom";
+}
+
+std::optional<FixtureParameterCategory>
+fixture_parameter_category_from_stable_id(std::string_view stable_id) noexcept {
+    for (std::size_t index = 0U;
+         index <= static_cast<std::size_t>(FixtureParameterCategory::Custom);
+         ++index) {
+        const auto category = static_cast<FixtureParameterCategory>(index);
+        if (fixture_parameter_category_stable_id(category) == stable_id) {
+            return category;
+        }
+    }
+    return std::nullopt;
+}
+
 std::string_view fixture_parameter_control_kind_name(
     FixtureParameterControlKind kind) noexcept {
     switch (kind) {

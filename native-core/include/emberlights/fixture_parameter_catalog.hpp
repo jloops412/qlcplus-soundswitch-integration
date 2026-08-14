@@ -3,6 +3,7 @@
 #include "showcore/types.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -86,6 +87,14 @@ fixture_parameter_catalog() noexcept;
 
 [[nodiscard]] std::string_view fixture_parameter_category_name(
     FixtureParameterCategory category) noexcept;
+
+// Stable category IDs are adapter/skin contracts; display names remain free to
+// evolve. "all" is a presentation filter and intentionally is not a category.
+[[nodiscard]] std::string_view fixture_parameter_category_stable_id(
+    FixtureParameterCategory category) noexcept;
+
+[[nodiscard]] std::optional<FixtureParameterCategory>
+fixture_parameter_category_from_stable_id(std::string_view stable_id) noexcept;
 
 [[nodiscard]] std::string_view fixture_parameter_control_kind_name(
     FixtureParameterControlKind kind) noexcept;

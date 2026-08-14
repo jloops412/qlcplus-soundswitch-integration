@@ -400,6 +400,8 @@ FixtureControlChoiceCatalog fixture_control_choices(
                 value.channel = one_based_channel;
                 value.property = channel.property;
                 value.normalized_value = position;
+                value.semantic_min = 0.0F;
+                value.semantic_max = 1.0F;
                 value.raw_value = channel.encoding ==
                         showcore::ChannelEncoding::Linear16
                     ? static_cast<std::uint8_t>((encoded >> 8U) & 0xFFU)
@@ -483,6 +485,8 @@ FixtureControlChoiceCatalog fixture_control_choices(
                 value.channel = one_based_channel;
                 value.property = selection.property;
                 value.normalized_value = selection.normalized_value;
+                value.semantic_min = selection.semantic_min;
+                value.semantic_max = selection.semantic_max;
                 value.raw_value = selection.raw_value;
                 value.dmx_min = capability.dmx_min;
                 value.dmx_max = capability.dmx_max;

@@ -187,6 +187,39 @@ fixtureLibrary.quarantineCount
 profile.selected.*
 ```
 
+## 2A. Fixture Control Surface
+
+Component type:
+
+```text
+ember.fixtureControlSurface
+```
+
+### Jobs
+
+- project every ordinary direct attribute and named profile function supported
+  by the selected fixture/group; never maintain a renderer-side property
+  allowlist;
+- provide stable Intensity, Color, Position, Beam, Image, Effect, Atmosphere,
+  and Advanced-only Custom navigation plus bounded cross-field search;
+- choose an appropriate control from catalog metadata: level/rate/position,
+  color mixer, Pan/Tilt XY, slot/range choice, or safety-gated trigger;
+- show target coverage, availability, mixed values, safety restriction, and
+  explicit `RELEASE`, `SET`, or `FORCE_ZERO` ownership;
+- retain the catalog's stable parameter and choice IDs across Default,
+  Reference, user skins, Static Looks, Autoloops, Live, mappings, Actions, and
+  migration.
+
+Continuous named ranges submit the stable choice ID plus normalized range
+position so exact per-profile values are retained. Selector choices submit the
+stable choice ID. Direct controls submit the semantic property/value. Raw DMX,
+profile channel order, and protected ranges are diagnostics/profile-authoring
+evidence and are not an alternate ordinary-control API.
+
+Renderers may specialize Color and Pan/Tilt visually, but specialization must
+not make any other surfaced binding unreachable. Closing Advanced removes
+Custom controls from the ordinary projection.
+
 ## 3. Venue and Patch View
 
 Component type:

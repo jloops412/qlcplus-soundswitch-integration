@@ -20,6 +20,12 @@ struct OwnershipSummary {
     bool value_mixed{false};
 };
 
+struct ChoicePositionSummary {
+    bool active{false};
+    bool mixed{false};
+    float position{0.5F};
+};
+
 [[nodiscard]] std::string_view profile_source_label(
     showcore::FixtureProfileSource source) noexcept {
     switch (source) {
@@ -265,6 +271,60 @@ struct OwnershipSummary {
     return compared != 0U;
 }
 
+[[nodiscard]] ChoicePositionSummary summarize_choice_position(
+    const LookDefinition* look,
+    const FixtureTargetCapabilities& target,
+    const FixtureFunctionRow* row) noexcept {
+    ChoicePositionSummary result;
+    if (look == nullptr || row == nullptr ||
+        row->kind != FixtureControlChoiceKind::NamedCapability ||
+        !row->accepts_position) {
+        return result;
+    }
+
+    bool first = true;
+    float first_position = 0.5F;
+    for (const auto& fixture : target.fixtures) {
+        if (row->property >= showcore::Property::Count ||
+            !fixture.properties[static_cast<std::size_t>(row->property)]) {
+            continue;
+        }
+        const auto diagnostic = std::find_if(
+            row->diagnostics.begin(), row->diagnostics.end(),
+            [&](const auto& value) {
+                return value.fixture_id == fixture.fixture_id;
+            });
+        if (diagnostic == row->diagnostics.end() ||
+            diagnostic->semantic_max <= diagnostic->semantic_min) {
+            return result;
+        }
+        const auto assignment = assignment_value(
+            look, fixture.fixture_id, row->property);
+        if (!assignment.has_value() ||
+            assignment->mode != showcore::ValueMode::Set ||
+            assignment->value < diagnostic->semantic_min - 0.0001F ||
+            assignment->value > diagnostic->semantic_max + 0.0001F) {
+            return result;
+        }
+        const auto position = std::clamp(
+            (assignment->value - diagnostic->semantic_min) /
+                (diagnostic->semantic_max - diagnostic->semantic_min),
+            0.0F, 1.0F);
+        if (first) {
+            first = false;
+            first_position = position;
+        } else if (!same_normalized(position, first_position)) {
+            result.mixed = true;
+        }
+    }
+    if (first) {
+        return result;
+    }
+    result.active = true;
+    result.position = first_position;
+    return result;
+}
+
 [[nodiscard]] std::string ownership_text(const OwnershipSummary& summary) {
     if (summary.ownership == StaticLookOwnershipState::Mixed) {
         return "Mixed ownership";
@@ -292,27 +352,47 @@ void append_control_bindings(
                 const auto summary = summarize_ownership(
                     look, target, binding.property, binding.normalized_value);
                 const auto* row = find_catalog_row(catalog, binding.choice_id);
+                const auto choice_position = summarize_choice_position(
+                    look, target, row);
+                const auto position_control = row != nullptr &&
+                    row->kind == FixtureControlChoiceKind::NamedCapability &&
+                    row->accepts_position;
                 std::string accessibility = binding.accessibility_label;
                 if (!accessibility.empty()) {
                     accessibility += " ";
                 }
                 accessibility += ownership_text(summary);
+                const auto* descriptor = fixture_parameter_descriptor(
+                    binding.property);
                 model.controls.push_back({
                     widget.stable_id,
                     binding.choice_id,
                     section.label,
                     widget.label,
                     std::string(fixture_control_widget_kind_name(widget.kind)),
+                    section.category,
+                    descriptor == nullptr
+                        ? std::string(property_name(binding.property))
+                        : std::string(descriptor->stable_id),
                     binding.property,
                     binding.label,
                     summary.ownership,
-                    summary.normalized_value,
+                    position_control
+                        ? (choice_position.active
+                              ? choice_position.position
+                              : 0.5F)
+                        : summary.normalized_value,
                     summary.assigned_fixture_count,
                     summary.target_fixture_count,
-                    summary.value_mixed,
-                    authored_value_matches_choice(look, target, row),
+                    summary.value_mixed || choice_position.mixed,
+                    position_control
+                        ? choice_position.active
+                        : authored_value_matches_choice(look, target, row),
                     !selected_choice_id.empty() &&
                         binding.choice_id == selected_choice_id,
+                    binding.accepts_value,
+                    row != nullptr &&
+                        row->kind == FixtureControlChoiceKind::NamedCapability,
                     binding.enabled && !model.read_only,
                     binding.safety_restricted,
                     binding.availability_text,
@@ -320,6 +400,114 @@ void append_control_bindings(
                     std::move(accessibility)});
             }
         }
+    }
+}
+
+void append_control_categories(
+    FixturesLooksShellModel& model,
+    const FixtureFunctionComponentModel& catalog,
+    bool include_advanced,
+    std::optional<FixtureParameterCategory> selected_category) {
+    std::size_t total_count = 0U;
+    std::size_t search_match_count = 0U;
+    std::size_t visible_count = 0U;
+    for (const auto& category : catalog.categories) {
+        if (category.category == FixtureParameterCategory::Custom &&
+            !include_advanced) {
+            continue;
+        }
+        total_count += category.total_count;
+        search_match_count += category.search_match_count;
+        visible_count += category.visible_count;
+    }
+
+    model.control_total_count = total_count;
+    model.control_search_match_count = search_match_count;
+    model.control_categories.push_back({
+        "all",
+        "All",
+        total_count,
+        search_match_count,
+        selected_category.has_value() ? 0U : visible_count,
+        !selected_category.has_value(),
+        false,
+        "All fixture parameters, " + std::to_string(search_match_count) +
+            " matching of " + std::to_string(total_count) + "."});
+
+    for (const auto& category : catalog.categories) {
+        if (category.category == FixtureParameterCategory::Custom &&
+            !include_advanced) {
+            continue;
+        }
+        const auto stable_id = fixture_parameter_category_stable_id(
+            category.category);
+        const auto selected = selected_category.has_value() &&
+            *selected_category == category.category;
+        model.control_categories.push_back({
+            std::string(stable_id),
+            category.label,
+            category.total_count,
+            category.search_match_count,
+            category.visible_count,
+            selected,
+            category.category == FixtureParameterCategory::Custom,
+            category.label + " fixture parameters, " +
+                std::to_string(category.search_match_count) + " matching of " +
+                std::to_string(category.total_count) + "."});
+    }
+}
+
+void append_control_diagnostics(
+    FixturesLooksShellModel& model,
+    const FixtureFunctionComponentModel& catalog,
+    std::string_view selected_choice_id) {
+    if (selected_choice_id.empty()) {
+        return;
+    }
+    const auto row = std::find_if(
+        catalog.rows.begin(), catalog.rows.end(),
+        [selected_choice_id](const auto& candidate) {
+            return candidate.choice_id == selected_choice_id;
+        });
+    if (row == catalog.rows.end()) {
+        return;
+    }
+    model.control_diagnostics.reserve(row->diagnostics.size());
+    for (const auto& diagnostic : row->diagnostics) {
+        const auto fixture_label = diagnostic.fixture_name.empty()
+            ? diagnostic.fixture_id
+            : diagnostic.fixture_name;
+        const auto profile_label = diagnostic.profile_name.empty()
+            ? diagnostic.profile_id
+            : diagnostic.profile_name;
+        auto detail = "Ch " + std::to_string(diagnostic.channel) + " • " +
+            std::string(channel_encoding_name(diagnostic.encoding)) +
+            " • DMX " +
+            std::to_string(static_cast<unsigned int>(diagnostic.raw_value));
+        if (diagnostic.fine_channel != 0U) {
+            detail += "/" + std::to_string(
+                static_cast<unsigned int>(diagnostic.raw_fine_value)) +
+                " fine Ch " + std::to_string(diagnostic.fine_channel);
+        }
+        detail += " • range " +
+            std::to_string(static_cast<unsigned int>(diagnostic.dmx_min)) +
+            "–" +
+            std::to_string(static_cast<unsigned int>(diagnostic.dmx_max));
+        const auto provenance = profile_label + " • revision " +
+            (diagnostic.profile_revision.empty()
+                 ? std::string("unknown")
+                 : diagnostic.profile_revision) +
+            " • " + diagnostic.binding_id;
+        model.control_diagnostics.push_back({
+            row->choice_id + "|" + diagnostic.binding_id + "|" +
+                diagnostic.fixture_id,
+            row->choice_id,
+            row->name + " • " + fixture_label,
+            std::move(detail),
+            provenance,
+            true,
+            row->safety_restricted || !row->enabled,
+            diagnostic.accessibility_label});
     }
 }
 
@@ -358,6 +546,11 @@ FixturesLooksShellModel build_fixtures_looks_shell_model(
     model.read_only = query.read_only;
     model.live_running = query.live_running;
     model.advanced_open = query.advanced_open;
+    auto selected_control_category = query.control_category;
+    if (selected_control_category == FixtureParameterCategory::Custom &&
+        !query.include_advanced) {
+        selected_control_category.reset();
+    }
 
     const auto validation = validate_project(project);
     model.validation_error_count = validation.error_count();
@@ -500,14 +693,36 @@ FixturesLooksShellModel build_fixtures_looks_shell_model(
         FixtureFunctionComponentQuery component_query;
         component_query.target_id = target.target_id;
         component_query.surface = FixtureParameterSurface::StaticLook;
+        component_query.search = query.control_search;
+        component_query.category = selected_control_category;
         component_query.selected_choice_id = query.selected_choice_id;
         component_query.row_limit = kFixtureFunctionComponentMaximumRowLimit;
-        const auto catalog = build_fixture_function_component(
+        auto catalog = build_fixture_function_component(
             project, component_query);
+        if (selected_control_category.has_value() &&
+            std::none_of(
+                catalog.categories.begin(), catalog.categories.end(),
+                [selected_control_category](const auto& category) {
+                    return category.category == *selected_control_category;
+                })) {
+            selected_control_category.reset();
+            component_query.category.reset();
+            catalog = build_fixture_function_component(
+                project, component_query);
+        }
+        model.control_search = catalog.search_query;
+        model.control_search_truncated = catalog.search_truncated;
+        model.controls_truncated = catalog.rows_truncated;
+        model.selected_control_category_id = selected_control_category.has_value()
+            ? std::string(fixture_parameter_category_stable_id(
+                  *selected_control_category))
+            : std::string("all");
+        append_control_categories(
+            model, catalog, query.include_advanced,
+            selected_control_category);
         model.control_surface = build_fixture_control_surface(
             catalog, query.include_advanced);
-        model.advanced_available = model.control_surface.diagnostics_available ||
-            model.control_surface.hidden_advanced_count != 0U;
+        model.advanced_available = catalog.source_choice_count != 0U;
         model.state = !model.minimum_viewport_supported ||
                 model.control_surface.state == FixtureFunctionComponentState::Degraded ||
                 model.validation_error_count != 0U
@@ -525,6 +740,35 @@ FixturesLooksShellModel build_fixtures_looks_shell_model(
                         : model.control_surface.message));
         append_control_bindings(
             model, look, target, catalog, query.selected_choice_id);
+        const auto selected_control = std::find_if(
+            model.controls.begin(), model.controls.end(),
+            [&](const auto& control) {
+                return !query.selected_choice_id.empty() &&
+                    control.choice_id == query.selected_choice_id;
+            });
+        if (selected_control != model.controls.end() &&
+            !selected_control->value_mixed) {
+            if (selected_control->accepts_value) {
+                auto diagnostic_query = component_query;
+                diagnostic_query.position = selected_control->normalized_value;
+                const auto diagnostic_catalog =
+                    build_fixture_function_component(project, diagnostic_query);
+                append_control_diagnostics(
+                    model, diagnostic_catalog, query.selected_choice_id);
+            } else {
+                append_control_diagnostics(
+                    model, catalog, query.selected_choice_id);
+            }
+        }
+        model.control_visible_count = model.controls.size();
+        std::ostringstream control_summary;
+        control_summary << model.control_visible_count << " shown • "
+                        << model.control_search_match_count << " matching • "
+                        << model.control_total_count << " profile parameters";
+        if (model.controls_truncated) {
+            control_summary << " • refine search for remaining controls";
+        }
+        model.control_summary = control_summary.str();
     }
 
     model.can_edit = !model.read_only &&

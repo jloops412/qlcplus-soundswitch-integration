@@ -428,6 +428,8 @@ void test_named_channel_capabilities_and_bindings() {
     CHECK(static_cast<bool>(strobe_binding));
     CHECK(strobe_binding.property == showcore::Property::Strobe);
     CHECK(strobe_binding.raw_value == 199U);
+    CHECK(strobe_binding.semantic_min == 0.0F);
+    CHECK(strobe_binding.semantic_max == 1.0F);
 
     const auto protected_binding =
         emberlights::resolve_fixture_channel_capability(

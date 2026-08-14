@@ -13,12 +13,36 @@ export struct ShellListItem {
 
 export struct ChoiceTileItem {
     choice-id: string,
+    parameter-id: string,
     title: string,
     detail: string,
+    ownership: string,
     active: bool,
     selected: bool,
     enabled: bool,
     safety-restricted: bool,
+}
+
+export struct ControlGroupItem {
+    stable-id: string,
+    title: string,
+    count-label: string,
+    selected: bool,
+    advanced: bool,
+}
+
+export struct ParameterControlItem {
+    choice-id: string,
+    parameter-id: string,
+    section-label: string,
+    title: string,
+    detail: string,
+    kind: string,
+    ownership: string,
+    value: float,
+    enabled: bool,
+    safety-restricted: bool,
+    mixed: bool,
 }
 
 global Theme {
@@ -188,6 +212,42 @@ component LibraryRow inherits Rectangle {
     touch := TouchArea { clicked => { root.selected(item.stable-id); } }
 }
 
+component ControlGroupChip inherits Rectangle {
+    in property <ControlGroupItem> item;
+    callback selected(string);
+    height: 42px;
+    min-width: 92px;
+    border-radius: 6px;
+    border-width: item.selected ? 1px : 0px;
+    border-color: item.selected ? Theme.brand : #00000000;
+    background: item.selected ? Theme.brand-soft : touch.has-hover ? Theme.control-hover : Theme.control;
+    accessible-role: radio-button;
+    accessible-label: item.title + ", " + item.count-label;
+    accessible-checked: item.selected;
+
+    VerticalLayout {
+        padding-left: 9px;
+        padding-right: 9px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        spacing: 1px;
+        Text {
+            text: item.title;
+            color: item.selected ? Theme.text : Theme.text-secondary;
+            font-size: 11px;
+            font-weight: item.selected ? 650 : 500;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: item.count-label;
+            color: item.advanced ? Theme.warn : Theme.text-muted;
+            font-size: 9px;
+            horizontal-alignment: center;
+        }
+    }
+    touch := TouchArea { clicked => { root.selected(item.stable-id); } }
+}
+
 component OwnerSegment inherits Rectangle {
     in property <string> label;
     in property <string> value;
@@ -210,6 +270,37 @@ component OwnerSegment inherits Rectangle {
         color: value == segment-value ? Theme.text : Theme.text-secondary;
         font-size: 11px;
         font-weight: value == segment-value ? 600 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.selected(root.segment-value); }
+    }
+}
+
+component MiniOwnerSegment inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> segment-value;
+    in property <bool> enabled: true;
+    callback selected(string);
+    height: 24px;
+    min-width: 20px;
+    border-radius: 4px;
+    border-width: value == segment-value ? 1px : 0px;
+    border-color: value == segment-value ? Theme.brand : #00000000;
+    background: value == segment-value ? Theme.brand-soft : touch.has-hover ? Theme.control-hover : Theme.control;
+    opacity: root.enabled ? 1 : 0.45;
+    accessible-role: radio-button;
+    accessible-label: label;
+    accessible-checked: value == segment-value;
+    accessible-enabled: root.enabled;
+    Text {
+        text: root.label;
+        color: value == segment-value ? Theme.text : Theme.text-muted;
+        font-size: 8px;
+        font-weight: value == segment-value ? 650 : 500;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -308,6 +399,39 @@ component FaderCard inherits Rectangle {
     }
 }
 
+component OwnershipCard inherits Rectangle {
+    in property <ParameterControlItem> item;
+    callback ownership-changed(string, string);
+    min-height: 104px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: item.safety-restricted ? Theme.warn : Theme.border-subtle;
+    background: Theme.panel;
+    accessible-role: AccessibleRole.groupbox;
+    accessible-label: item.title + ". " + item.detail;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 7px;
+        HorizontalLayout {
+            Text { text: item.title; color: Theme.text; font-size: 13px; font-weight: 600; }
+            Text {
+                text: item.mixed ? "MIXED" : item.ownership == "forceZero" ? "OFF" : item.ownership == "set" ? "SET" : "RELEASED";
+                color: item.mixed ? Theme.warn : item.ownership == "set" ? Theme.good : Theme.text-muted;
+                font-size: 10px;
+                font-weight: 650;
+                horizontal-alignment: right;
+            }
+        }
+        Text { text: item.detail; color: item.safety-restricted ? Theme.warn : Theme.text-muted; font-size: 10px; overflow: elide; }
+        OwnershipStrip {
+            value: item.ownership;
+            enabled: item.enabled;
+            selected(value) => { root.ownership-changed(item.choice-id, value); }
+        }
+    }
+}
+
 component ColorChannel inherits Rectangle {
     in property <string> choice-id;
     in property <string> label;
@@ -318,7 +442,7 @@ component ColorChannel inherits Rectangle {
     callback value-changed(string, float);
     callback ownership-changed(string, string);
     min-width: 74px;
-    height: 174px;
+    height: 198px;
     border-radius: 7px;
     border-width: 1px;
     border-color: ownership == "set" ? channel-color : Theme.border-subtle;
@@ -357,17 +481,17 @@ component ColorChannel inherits Rectangle {
             }
         }
         Text {
-            text: root.ownership == "forceZero" ? "OFF" : root.ownership == "release" ? "REL" : round(root.value * 100) + "%";
+            text: root.ownership == "forceZero" ? "OFF" : root.ownership == "release" ? "RELEASED" : round(root.value * 100) + "%";
             color: root.ownership == "set" ? root.channel-color : Theme.text-muted;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 600;
             horizontal-alignment: center;
         }
-    }
-    touch := TouchArea {
-        enabled: root.enabled;
-        clicked => {
-            root.ownership-changed(root.choice-id, root.ownership == "set" ? "release" : "set");
+        HorizontalLayout {
+            spacing: 2px;
+            MiniOwnerSegment { label: "REL"; value: root.ownership; segment-value: "release"; enabled: root.enabled; selected(value) => { root.ownership-changed(root.choice-id, value); } }
+            MiniOwnerSegment { label: "SET"; value: root.ownership; segment-value: "set"; enabled: root.enabled; selected(value) => { root.ownership-changed(root.choice-id, value); } }
+            MiniOwnerSegment { label: "0"; value: root.ownership; segment-value: "forceZero"; enabled: root.enabled; selected(value) => { root.ownership-changed(root.choice-id, value); } }
         }
     }
 }
@@ -447,7 +571,7 @@ component XYPad inherits Rectangle {
 component ChoiceTile inherits Rectangle {
     in property <ChoiceTileItem> item;
     callback selected(string);
-    height: 64px;
+    height: 72px;
     min-width: 112px;
     border-radius: 6px;
     border-width: item.active || item.selected ? 2px : 1px;
@@ -469,7 +593,7 @@ component ChoiceTile inherits Rectangle {
             overflow: elide;
         }
         Text {
-            text: item.safety-restricted ? "Safety confirmation" : item.detail;
+            text: item.safety-restricted ? "Safety-limited • " + item.detail : item.detail;
             color: item.safety-restricted ? Theme.warn : Theme.text-muted;
             font-size: 9px;
             overflow: elide;
@@ -512,6 +636,7 @@ export component FixturesLooksLab inherits Window {
     in property <bool> can-save-project: false;
     in property <bool> can-undo: false;
     in property <bool> can-redo: false;
+    in property <bool> advanced-available: false;
     in property <bool> preview-active: false;
     in property <int> preview-remaining-seconds: 0;
     in property <int> preview-output-cap-percent: 0;
@@ -521,37 +646,33 @@ export component FixturesLooksLab inherits Window {
     in-out property <bool> advanced-open: false;
     in-out property <string> profile-search;
     in-out property <string> look-search;
+    in-out property <string> parameter-search;
     in property <[ShellListItem]> profile-items;
     in property <[ShellListItem]> target-items;
     in property <[ShellListItem]> look-items;
+    in property <[ShellListItem]> diagnostic-items;
+    in property <[ControlGroupItem]> control-group-items;
+    in property <[ParameterControlItem]> parameter-items;
+    in property <[ParameterControlItem]> color-items;
+    in property <[ParameterControlItem]> ownership-items;
     in property <[ChoiceTileItem]> choice-items;
-
-    in property <string> intensity-choice-id;
-    in property <float> intensity-value: 0.72;
-    in property <string> intensity-ownership: "set";
-    in property <string> red-choice-id;
-    in property <float> red-value: 0.92;
-    in property <string> red-ownership: "set";
-    in property <string> green-choice-id;
-    in property <float> green-value: 0.42;
-    in property <string> green-ownership: "set";
-    in property <string> blue-choice-id;
-    in property <float> blue-value: 0.12;
-    in property <string> blue-ownership: "set";
-    in property <string> white-choice-id;
-    in property <float> white-value: 0.16;
-    in property <string> white-ownership: "set";
-    in property <string> amber-choice-id;
-    in property <float> amber-value: 0.28;
-    in property <string> amber-ownership: "set";
+    in property <string> control-summary;
+    in property <string> advanced-profile-title;
+    in property <string> advanced-profile-detail;
+    in property <string> advanced-patch-detail;
+    in property <string> selected-control-group: "all";
+    in property <int> visible-control-count: 0;
+    in property <int> parameter-item-count: 0;
+    in property <int> color-item-count: 0;
+    in property <int> ownership-item-count: 0;
+    in property <int> choice-item-count: 0;
+    in property <int> diagnostic-item-count: 0;
+    in property <bool> xy-visible: false;
     in property <string> pan-choice-id;
     in property <float> pan-value: 0.5;
     in property <string> tilt-choice-id;
     in property <float> tilt-value: 0.58;
     in property <string> position-ownership: "set";
-    in property <string> focus-choice-id;
-    in property <float> focus-value: 0.64;
-    in property <string> focus-ownership: "release";
 
     callback select-profile(string);
     callback select-target(string);
@@ -559,6 +680,8 @@ export component FixturesLooksLab inherits Window {
     callback select-choice(string);
     callback profile-search-changed(string);
     callback look-search-changed(string);
+    callback parameter-search-changed(string);
+    callback select-control-group(string);
     callback control-value-changed(string, float);
     callback control-ownership-changed(string, string);
     callback preview-simulate();
@@ -624,6 +747,7 @@ export component FixturesLooksLab inherits Window {
                 Button { text: "Command Explorer"; }
                 Button {
                     text: root.advanced-open ? "Close Advanced" : "Advanced";
+                    enabled: root.advanced-available;
                     clicked => {
                         root.advanced-open = !root.advanced-open;
                         root.open-advanced();
@@ -785,66 +909,104 @@ export component FixturesLooksLab inherits Window {
                         vertical-stretch: 1;
                         VerticalLayout {
                             spacing: 14px;
-                            Text { text: "INTENSITY & OWNERSHIP"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            FaderCard {
-                                choice-id: root.intensity-choice-id;
-                                title: "Master intensity";
-                                detail: "Fixture master • Static Look owns only when Set";
-                                value: root.intensity-value;
-                                ownership: root.intensity-ownership;
-                                enabled: root.can-edit;
-                                value-changed(id, value) => { root.control-value-changed(id, value); }
-                                ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                            HorizontalLayout {
+                                Text { text: "FIXTURE PARAMETERS"; color: Theme.text; font-size: 13px; font-weight: 700; }
+                                Text { text: root.control-summary; color: Theme.text-muted; font-size: 10px; horizontal-alignment: right; overflow: elide; }
                             }
-                            Text { text: "COLOR MIXER"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            Rectangle {
-                                min-height: 198px;
+                            Text {
+                                text: "Profile-backed controls • stable across Static Looks, Autoloops, Live, mappings and future skins";
+                                color: Theme.text-muted;
+                                font-size: 10px;
+                                overflow: elide;
+                            }
+                            LineEdit {
+                                text <=> root.parameter-search;
+                                placeholder-text: "Search fixture parameters, functions or profile ranges";
+                                edited => { root.parameter-search-changed(self.text); }
+                            }
+                            ScrollView {
+                                height: 48px;
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    for item in root.control-group-items: ControlGroupChip {
+                                        item: item;
+                                        selected(id) => { root.select-control-group(id); }
+                                    }
+                                }
+                            }
+                            if root.visible-control-count == 0: Rectangle {
+                                height: 92px;
+                                border-radius: 7px;
+                                border-width: 1px;
+                                border-color: Theme.border-subtle;
+                                background: Theme.panel;
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 5px;
+                                    Text { text: "No matching fixture parameters"; color: Theme.text; font-size: 13px; font-weight: 600; }
+                                    Text { text: "Choose All, select another attribute group, clear search, or repair the fixture profile."; color: Theme.text-muted; font-size: 10px; }
+                                }
+                            }
+                            if root.color-item-count > 0: Text { text: "COLOR EMITTERS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            if root.color-item-count > 0: Rectangle {
+                                min-height: 224px;
                                 border-radius: 7px;
                                 border-width: 1px;
                                 border-color: Theme.border-subtle;
                                 background: Theme.raised;
+                                ScrollView {
+                                    HorizontalLayout {
+                                        padding: 12px;
+                                        spacing: 8px;
+                                        for item in root.color-items: ColorChannel {
+                                            choice-id: item.choice-id;
+                                            label: item.title;
+                                            channel-color: item.parameter-id == "red" ? #ef5a5a : item.parameter-id == "green" ? #49c77a : item.parameter-id == "blue" ? #4fa5de : item.parameter-id == "amber" ? #f0a34a : item.parameter-id == "uv" || item.parameter-id == "indigo" ? #9674e8 : item.parameter-id == "cyan" ? #44cfd0 : item.parameter-id == "magenta" ? #dc65bb : item.parameter-id == "yellow" ? #dfd35a : item.parameter-id == "lime" ? #9bd65a : #ece6d4;
+                                            value: item.value;
+                                            ownership: item.ownership;
+                                            enabled: root.can-edit && item.enabled;
+                                            value-changed(id, value) => { root.control-value-changed(id, value); }
+                                            ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                                        }
+                                    }
+                                }
+                            }
+                            if root.xy-visible: Text { text: "POSITION"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            if root.xy-visible: XYPad {
+                                pan-choice-id: root.pan-choice-id;
+                                tilt-choice-id: root.tilt-choice-id;
+                                pan: root.pan-value;
+                                tilt: root.tilt-value;
+                                ownership: root.position-ownership;
+                                enabled: root.can-edit;
+                                value-changed(id, value) => { root.control-value-changed(id, value); }
+                                ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                            }
+                            if root.parameter-item-count > 0: Text { text: "CONTINUOUS PARAMETERS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            for item in root.parameter-items: FaderCard {
+                                choice-id: item.choice-id;
+                                title: item.title;
+                                detail: item.detail;
+                                value: item.value;
+                                ownership: item.ownership;
+                                enabled: root.can-edit && item.enabled;
+                                value-changed(id, value) => { root.control-value-changed(id, value); }
+                                ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                            }
+                            if root.ownership-item-count > 0: Text { text: "SELECTOR OWNERSHIP"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            for item in root.ownership-items: OwnershipCard {
+                                item: item;
+                                ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
+                            }
+                            if root.choice-item-count > 0: Text { text: "PROFILE FUNCTIONS & RANGES"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            if root.choice-item-count > 0: ScrollView {
+                                height: 84px;
                                 HorizontalLayout {
-                                    padding: 12px;
                                     spacing: 8px;
-                                    ColorChannel { choice-id: root.red-choice-id; label: "RED"; channel-color: #ef5a5a; value: root.red-value; ownership: root.red-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
-                                    ColorChannel { choice-id: root.green-choice-id; label: "GREEN"; channel-color: #49c77a; value: root.green-value; ownership: root.green-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
-                                    ColorChannel { choice-id: root.blue-choice-id; label: "BLUE"; channel-color: #4fa5de; value: root.blue-value; ownership: root.blue-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
-                                    ColorChannel { choice-id: root.white-choice-id; label: "WHITE"; channel-color: #ece6d4; value: root.white-value; ownership: root.white-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
-                                    ColorChannel { choice-id: root.amber-choice-id; label: "AMBER"; channel-color: #f0a34a; value: root.amber-value; ownership: root.amber-ownership; enabled: root.can-edit; value-changed(id, value) => { root.control-value-changed(id, value); } ownership-changed(id, value) => { root.control-ownership-changed(id, value); } }
-                                }
-                            }
-                            Text { text: "POSITION & BEAM"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            HorizontalLayout {
-                                spacing: 12px;
-                                XYPad {
-                                    horizontal-stretch: 3;
-                                    pan-choice-id: root.pan-choice-id;
-                                    tilt-choice-id: root.tilt-choice-id;
-                                    pan: root.pan-value;
-                                    tilt: root.tilt-value;
-                                    ownership: root.position-ownership;
-                                    enabled: root.can-edit;
-                                    value-changed(id, value) => { root.control-value-changed(id, value); }
-                                    ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
-                                }
-                                FaderCard {
-                                    horizontal-stretch: 2;
-                                    choice-id: root.focus-choice-id;
-                                    title: "Focus";
-                                    detail: "Beam sharpness";
-                                    value: root.focus-value;
-                                    ownership: root.focus-ownership;
-                                    enabled: root.can-edit;
-                                    value-changed(id, value) => { root.control-value-changed(id, value); }
-                                    ownership-changed(id, value) => { root.control-ownership-changed(id, value); }
-                                }
-                            }
-                            Text { text: "GOBO & PROFILE CHOICES"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
-                            HorizontalLayout {
-                                spacing: 8px;
-                                for item in root.choice-items: ChoiceTile {
-                                    item: item;
-                                    selected(id) => { root.select-choice(id); }
+                                    for item in root.choice-items: ChoiceTile {
+                                        item: item;
+                                        selected(id) => { root.select-choice(id); }
+                                    }
                                 }
                             }
                             Rectangle { height: 16px; background: #00000000; }
@@ -965,9 +1127,9 @@ export component FixturesLooksLab inherits Window {
                 VerticalLayout {
                     padding: 10px;
                     spacing: 5px;
-                    Text { text: "Ember Test Visual Mover • 11 channel"; color: Theme.text; font-size: 11px; font-weight: 600; }
-                    Text { text: "Source: Local editable  •  revision shell-v1"; color: Theme.text-muted; font-size: 10px; }
-                    Text { text: "Patch: U1:001 and U1:021  •  footprint 11"; color: Theme.text-muted; font-size: 10px; }
+                    Text { text: root.advanced-profile-title; color: Theme.text; font-size: 11px; font-weight: 600; overflow: elide; }
+                    Text { text: root.advanced-profile-detail; color: Theme.text-muted; font-size: 10px; overflow: elide; }
+                    Text { text: root.advanced-patch-detail; color: Theme.text-muted; font-size: 10px; overflow: elide; }
                     Text { text: "Validation: exact profile-backed mapping"; color: Theme.good; font-size: 10px; }
                 }
             }
@@ -976,29 +1138,35 @@ export component FixturesLooksLab inherits Window {
                 vertical-stretch: 1;
                 VerticalLayout {
                     spacing: 6px;
-                    for label in [
-                        "Intensity  •  Ch 1  •  Linear8  •  0–255",
-                        "Red  •  Ch 2  •  Linear8  •  0–255",
-                        "Green  •  Ch 3  •  Linear8  •  0–255",
-                        "Blue  •  Ch 4  •  Linear8  •  0–255",
-                        "Pan  •  Ch 7  •  Linear8  •  0–255",
-                        "Tilt  •  Ch 8  •  Linear8  •  0–255",
-                        "Gobo / Dots  •  Ch 9  •  range 32–63"
-                    ]: Rectangle {
-                        height: 44px;
+                    if root.diagnostic-item-count == 0: Rectangle {
+                        height: 72px;
                         border-radius: 5px;
                         background: Theme.panel;
                         border-width: 1px;
                         border-color: Theme.border-subtle;
-                        Text { x: 10px; width: parent.width - 20px; height: parent.height; text: label; color: Theme.text-secondary; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                        Text { x: 10px; width: parent.width - 20px; height: parent.height; text: "Adjust a continuous control or choose a profile function to inspect its exact per-fixture realization."; color: Theme.text-muted; font-size: 10px; wrap: word-wrap; vertical-alignment: center; }
+                    }
+                    for item in root.diagnostic-items: Rectangle {
+                        height: 72px;
+                        border-radius: 5px;
+                        background: Theme.panel;
+                        border-width: 1px;
+                        border-color: item.warning ? Theme.warn : Theme.border-subtle;
+                        VerticalLayout {
+                            padding: 9px;
+                            spacing: 3px;
+                            Text { text: item.title; color: Theme.text; font-size: 10px; font-weight: 600; overflow: elide; }
+                            Text { text: item.detail; color: item.warning ? Theme.warn : Theme.text-secondary; font-size: 10px; overflow: elide; }
+                            Text { text: item.badge; color: Theme.text-muted; font-size: 9px; overflow: elide; }
+                        }
                     }
                 }
             }
             HorizontalLayout {
                 height: 36px;
                 spacing: 8px;
-                Button { text: "Open profile editor"; }
-                Button { text: "Copy diagnostics"; }
+                Button { text: "Profile editor • not wired"; enabled: false; }
+                Button { text: "Copy • not wired"; enabled: false; }
             }
         }
     }

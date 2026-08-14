@@ -11,6 +11,13 @@ It opens no hardware or network DMX output. A default launch uses an unsaved
 sample; `--project <file>` opens an existing project or gives that sample a path
 for atomic save, restore-history, and Undo/Redo evaluation.
 
+Fixture controls are not a fixed Slint property list. The renderer-neutral
+shell query drives stable category tabs and bounded search over the selected
+target's complete profile-backed catalog. Slint specializes color emitters and
+Pan/Tilt visually, renders all remaining continuous parameters dynamically,
+and preserves exact named-range choices plus explicit ownership. Custom or
+unclassified parameters remain behind Advanced disclosure.
+
 `Save Look` commits the current draft as one Studio Undo transaction. The
 `Save Project` control is enabled only when a project path exists and the
 document is dirty; the durable baseline advances only after

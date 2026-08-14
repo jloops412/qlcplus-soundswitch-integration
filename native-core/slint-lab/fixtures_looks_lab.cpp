@@ -47,6 +47,9 @@ struct LabState {
     std::string selected_choice_id;
     std::string profile_search;
     std::string look_search;
+    std::string control_search;
+    std::optional<emberlights::FixtureParameterCategory> control_category;
+    std::string preview_status_token;
     std::string operation_message;
     bool draft_dirty{false};
     unsigned int created_look_count{0U};
@@ -74,11 +77,11 @@ struct LabState {
     profile.id = "local.visual.mover";
     profile.manufacturer = "Ember Test";
     profile.model = "Visual Mover";
-    profile.mode = "11 channel";
-    profile.name = "Ember Test Visual Mover (11 channel)";
+    profile.mode = "12 channel";
+    profile.name = "Ember Test Visual Mover (12 channel)";
     profile.source = showcore::FixtureProfileSource::Local;
     profile.source_revision = "shell-v1";
-    profile.footprint = 11U;
+    profile.footprint = 12U;
     profile.channels = {
         direct_channel(showcore::Property::Intensity, 0U),
         direct_channel(showcore::Property::Red, 1U),
@@ -114,6 +117,23 @@ struct LabState {
     dots.preferred_value = 48U;
     gobo.capabilities.push_back(std::move(dots));
     profile.channels.insert(profile.channels.begin() + 8, std::move(gobo));
+
+    emberlights::ChannelDefinition strobe;
+    strobe.property = showcore::Property::Count;
+    strobe.coarse_offset = 11U;
+    strobe.encoding = showcore::ChannelEncoding::Discrete8;
+    strobe.owner = "shutter";
+    emberlights::ChannelCapabilityDefinition slow_fast;
+    slow_fast.id = "slow-fast";
+    slow_fast.name = "Slow to fast";
+    slow_fast.property = showcore::Property::Strobe;
+    slow_fast.dmx_min = 32U;
+    slow_fast.dmx_max = 127U;
+    slow_fast.preferred_value = 80U;
+    slow_fast.behavior = showcore::ChannelCapabilityBehavior::Continuous;
+    slow_fast.access = showcore::ChannelCapabilityAccess::Selectable;
+    strobe.capabilities.push_back(std::move(slow_fast));
+    profile.channels.push_back(std::move(strobe));
     project.fixture_profiles.push_back(std::move(profile));
 
     project.fixtures.push_back({
@@ -150,6 +170,9 @@ struct LabState {
         ceremony.assignments.push_back({
             std::string(fixture), showcore::Property::Amber,
             showcore::PropertyValue::set(0.28F)});
+        ceremony.assignments.push_back({
+            std::string(fixture), showcore::Property::Strobe,
+            showcore::PropertyValue::set(0.75F)});
         ceremony.assignments.push_back({
             std::string(fixture), showcore::Property::Pan,
             showcore::PropertyValue::set(0.50F)});
@@ -381,6 +404,18 @@ private:
     return "Simulation ready • bounded fixture preview: 35% max, 30s, selected target only";
 }
 
+[[nodiscard]] std::string preview_status_token(
+    const emberlights::StaticLookPreviewCoordinatorStatus& status) {
+    return std::string(
+               emberlights::static_look_preview_coordinator_state_name(
+                   status.state)) + "|" +
+        emberlights::static_look_preview_mode_name(status.mode) + "|" +
+        std::to_string((status.remaining_ms + 999U) / 1'000U) + "|" +
+        std::to_string(status.sequence) + "|" +
+        std::to_string(status.update_count) + "|" + status.frame_sha256 + "|" +
+        status.error;
+}
+
 [[nodiscard]] bool reload_selected_look_draft(LabState& state) {
     const auto snapshot = state.document.snapshot();
     const auto index = look_index_for(snapshot.document, state.selected_look_id);
@@ -460,12 +495,60 @@ void select_available_look(LabState& state) {
     const emberlights::FixturesLooksControlBinding& control) {
     ChoiceTileItem item;
     item.choice_id = shared_string(control.choice_id);
-    item.title = shared_string(control.property_label);
-    item.detail = shared_string(control.availability_text);
+    item.parameter_id = shared_string(control.parameter_id);
+    item.title = shared_string(control.widget_label.empty()
+        ? std::string_view(control.property_label)
+        : std::string_view(control.widget_label));
+    item.detail = shared_string(
+        control.property_label + " • " + control.ownership_text + " • " +
+        control.availability_text);
+    item.ownership = shared_string(
+        emberlights::static_look_ownership_state_name(control.ownership));
     item.active = control.value_matches_choice;
     item.selected = control.selected;
     item.enabled = control.enabled;
     item.safety_restricted = control.safety_restricted;
+    return item;
+}
+
+[[nodiscard]] ControlGroupItem control_group_item(
+    const emberlights::FixturesLooksControlCategoryItem& category,
+    bool search_active) {
+    ControlGroupItem item;
+    item.stable_id = shared_string(category.stable_id);
+    item.title = shared_string(category.label);
+    item.count_label = shared_string(
+        std::to_string(search_active
+                ? category.search_match_count
+                : category.total_count) +
+        (search_active ? " match" : " total"));
+    item.selected = category.selected;
+    item.advanced = category.advanced;
+    return item;
+}
+
+[[nodiscard]] ParameterControlItem parameter_control_item(
+    const emberlights::FixturesLooksControlBinding& control) {
+    ParameterControlItem item;
+    item.choice_id = shared_string(control.choice_id);
+    item.parameter_id = shared_string(control.parameter_id);
+    item.section_label = shared_string(control.section_label);
+    item.title = shared_string(control.widget_label.empty()
+        ? std::string_view(control.property_label)
+        : std::string_view(control.widget_label));
+    const auto coverage = std::to_string(control.assigned_fixture_count) +
+        " of " + std::to_string(control.target_fixture_count) + " owned";
+    item.detail = shared_string(
+        control.section_label + " • " + control.control_kind + " • " +
+        coverage + " • " + control.availability_text +
+        (control.safety_restricted ? " • safety-limited" : ""));
+    item.kind = shared_string(control.control_kind);
+    item.ownership = shared_string(
+        emberlights::static_look_ownership_state_name(control.ownership));
+    item.value = control.normalized_value;
+    item.enabled = control.enabled;
+    item.safety_restricted = control.safety_restricted;
+    item.mixed = control.value_mixed;
     return item;
 }
 
@@ -479,7 +562,9 @@ void select_available_look(LabState& state) {
     query.selected_target_id = state.selected_target_id;
     query.selected_static_look_id = state.selected_look_id;
     query.selected_choice_id = state.selected_choice_id;
-    query.include_advanced = true;
+    query.control_search = state.control_search;
+    query.control_category = state.control_category;
+    query.include_advanced = advanced_open;
     query.advanced_open = advanced_open;
     query.viewport_width = 1366;
     query.viewport_height = 768;
@@ -518,25 +603,15 @@ void select_available_look(LabState& state) {
     return control == nullptr ? fallback : control->normalized_value;
 }
 
-void set_control(
-    const FixturesLooksLab& ui,
-    const emberlights::FixturesLooksControlBinding* control,
-    void (FixturesLooksLab::*set_id)(const slint::SharedString&) const,
-    void (FixturesLooksLab::*set_value)(const float&) const,
-    void (FixturesLooksLab::*set_ownership)(const slint::SharedString&) const,
-    float fallback = 0.0F) {
-    (ui.*set_id)(shared_string(
-        control == nullptr ? std::string_view{} : control->choice_id));
-    const auto value = control_value(control, fallback);
-    (ui.*set_value)(value);
-    (ui.*set_ownership)(shared_string(ownership_name(control)));
-}
-
 void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     const auto snapshot = state.document.snapshot();
     const auto project = project_for_presentation(state);
     const auto model = emberlights::build_fixtures_looks_shell_model(
         project, query_from(state, ui.get_advanced_open()));
+    if (model.selected_control_category_id == "all" &&
+        state.control_category.has_value()) {
+        state.control_category.reset();
+    }
     const auto modified = snapshot.dirty || state.draft_dirty;
     const auto save_state = std::string(modified ? "Modified • " : "Saved • ") +
         path_label(state);
@@ -553,6 +628,7 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
             preview.error = "status-unavailable";
         }
     }
+    state.preview_status_token = preview_status_token(preview);
     const auto output_configured =
         emberlights::static_look_physical_preview_output_configured(
             project.connections);
@@ -603,10 +679,17 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
         state.project_path.has_value() && modified);
     ui.set_can_undo(state.draft_dirty || snapshot.can_undo);
     ui.set_can_redo(!state.draft_dirty && snapshot.can_redo);
+    ui.set_advanced_available(model.advanced_available);
     ui.set_history_state(shared_string(history_state));
     ui.set_live_running(model.live_running);
     ui.set_profile_search(shared_string(state.profile_search));
     ui.set_look_search(shared_string(state.look_search));
+    ui.set_parameter_search(shared_string(state.control_search));
+    ui.set_control_summary(shared_string(model.control_summary));
+    ui.set_selected_control_group(shared_string(
+        model.selected_control_category_id));
+    ui.set_visible_control_count(static_cast<int>(
+        model.control_visible_count));
 
     std::vector<ShellListItem> profile_items;
     profile_items.reserve(model.profiles.size());
@@ -675,64 +758,113 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
         model.selected_static_look_name.empty()
             ? std::string_view("Select or create a Static Look")
             : std::string_view(model.selected_static_look_name)));
+    if (const auto* selected_profile = emberlights::find_fixture_profile(
+            project, model.selected_profile_id)) {
+        ui.set_advanced_profile_title(shared_string(
+            selected_profile->manufacturer + " • " + selected_profile->model +
+            " • " + selected_profile->mode));
+        ui.set_advanced_profile_detail(shared_string(
+            selected_profile->name + " • revision " +
+            (selected_profile->source_revision.empty()
+                 ? std::string("unknown")
+                 : selected_profile->source_revision) + " • " +
+            std::to_string(selected_profile->footprint) + " channels"));
+    } else {
+        ui.set_advanced_profile_title("No fixture profile selected");
+        ui.set_advanced_profile_detail("Select or repair a profile to inspect provenance.");
+    }
+    ui.set_advanced_patch_detail(shared_string(
+        selected_target == model.targets.end()
+            ? std::string("No patch target selected")
+            : selected_target->name + " • " + selected_target->detail));
 
-    set_control(
-        ui, control_for(model, showcore::Property::Intensity),
-        &FixturesLooksLab::set_intensity_choice_id,
-        &FixturesLooksLab::set_intensity_value,
-        &FixturesLooksLab::set_intensity_ownership);
-    set_control(
-        ui, control_for(model, showcore::Property::Red),
-        &FixturesLooksLab::set_red_choice_id,
-        &FixturesLooksLab::set_red_value,
-        &FixturesLooksLab::set_red_ownership);
-    set_control(
-        ui, control_for(model, showcore::Property::Green),
-        &FixturesLooksLab::set_green_choice_id,
-        &FixturesLooksLab::set_green_value,
-        &FixturesLooksLab::set_green_ownership);
-    set_control(
-        ui, control_for(model, showcore::Property::Blue),
-        &FixturesLooksLab::set_blue_choice_id,
-        &FixturesLooksLab::set_blue_value,
-        &FixturesLooksLab::set_blue_ownership);
-    set_control(
-        ui, control_for(model, showcore::Property::White),
-        &FixturesLooksLab::set_white_choice_id,
-        &FixturesLooksLab::set_white_value,
-        &FixturesLooksLab::set_white_ownership);
-    set_control(
-        ui, control_for(model, showcore::Property::Amber),
-        &FixturesLooksLab::set_amber_choice_id,
-        &FixturesLooksLab::set_amber_value,
-        &FixturesLooksLab::set_amber_ownership);
-    set_control(
-        ui, control_for(model, showcore::Property::Focus),
-        &FixturesLooksLab::set_focus_choice_id,
-        &FixturesLooksLab::set_focus_value,
-        &FixturesLooksLab::set_focus_ownership,
-        0.5F);
+    std::vector<ShellListItem> diagnostic_items;
+    diagnostic_items.reserve(model.control_diagnostics.size());
+    for (const auto& diagnostic : model.control_diagnostics) {
+        diagnostic_items.push_back(shell_list_item(
+            diagnostic.stable_id,
+            diagnostic.title,
+            diagnostic.detail,
+            diagnostic.provenance,
+            diagnostic.selected,
+            diagnostic.warning));
+    }
+    ui.set_diagnostic_item_count(static_cast<int>(diagnostic_items.size()));
+    ui.set_diagnostic_items(
+        std::make_shared<slint::VectorModel<ShellListItem>>(
+            std::move(diagnostic_items)));
+
+    std::vector<ControlGroupItem> control_group_items;
+    control_group_items.reserve(model.control_categories.size());
+    for (const auto& category : model.control_categories) {
+        control_group_items.push_back(control_group_item(
+            category, !model.control_search.empty()));
+    }
+    ui.set_control_group_items(
+        std::make_shared<slint::VectorModel<ControlGroupItem>>(
+            std::move(control_group_items)));
 
     const auto* pan = control_for(model, showcore::Property::Pan);
     const auto* tilt = control_for(model, showcore::Property::Tilt);
+    const auto xy_visible = pan != nullptr && tilt != nullptr &&
+        pan->control_kind == "XY position pad" &&
+        tilt->control_kind == "XY position pad";
+    ui.set_xy_visible(xy_visible);
     ui.set_pan_choice_id(shared_string(
-        pan == nullptr ? std::string_view{} : pan->choice_id));
+        !xy_visible ? std::string_view{} : std::string_view(pan->choice_id)));
     ui.set_pan_value(control_value(pan, 0.5F));
     ui.set_tilt_choice_id(shared_string(
-        tilt == nullptr ? std::string_view{} : tilt->choice_id));
+        !xy_visible ? std::string_view{} : std::string_view(tilt->choice_id)));
     ui.set_tilt_value(control_value(tilt, 0.5F));
     ui.set_position_ownership(shared_string(
-        pan != nullptr && tilt != nullptr && pan->ownership == tilt->ownership
+        xy_visible && pan->ownership == tilt->ownership
             ? ownership_name(pan)
             : std::string("mixed")));
 
+    std::vector<ParameterControlItem> parameter_items;
+    std::vector<ParameterControlItem> color_items;
+    std::vector<ParameterControlItem> ownership_items;
     std::vector<ChoiceTileItem> choice_items;
+    std::vector<showcore::Property> ownership_properties;
     for (const auto& control : model.controls) {
-        if (control.control_kind != "visual choice tiles") {
+        if (control.control_kind == "color mixer") {
+            color_items.push_back(parameter_control_item(control));
+            continue;
+        }
+        if (control.control_kind == "XY position pad") {
+            continue;
+        }
+        if (control.accepts_value) {
+            parameter_items.push_back(parameter_control_item(control));
             continue;
         }
         choice_items.push_back(choice_tile_item(control));
+        if (std::find(
+                ownership_properties.begin(), ownership_properties.end(),
+                control.property) == ownership_properties.end()) {
+            ownership_properties.push_back(control.property);
+            auto ownership_item = parameter_control_item(control);
+            ownership_item.title = shared_string(
+                control.property_label + " ownership");
+            ownership_item.detail = shared_string(
+                "Choose a profile function below • Set defaults to " +
+                control.widget_label + " • " + control.availability_text);
+            ownership_items.push_back(std::move(ownership_item));
+        }
     }
+    ui.set_parameter_item_count(static_cast<int>(parameter_items.size()));
+    ui.set_color_item_count(static_cast<int>(color_items.size()));
+    ui.set_ownership_item_count(static_cast<int>(ownership_items.size()));
+    ui.set_choice_item_count(static_cast<int>(choice_items.size()));
+    ui.set_parameter_items(
+        std::make_shared<slint::VectorModel<ParameterControlItem>>(
+            std::move(parameter_items)));
+    ui.set_color_items(
+        std::make_shared<slint::VectorModel<ParameterControlItem>>(
+            std::move(color_items)));
+    ui.set_ownership_items(
+        std::make_shared<slint::VectorModel<ParameterControlItem>>(
+            std::move(ownership_items)));
     ui.set_choice_items(
         std::make_shared<slint::VectorModel<ChoiceTileItem>>(
             std::move(choice_items)));
@@ -950,6 +1082,10 @@ void stop_preview(const FixturesLooksLab& ui, LabState& state) {
     const auto has_position =
         control_for(model, showcore::Property::Pan) != nullptr &&
         control_for(model, showcore::Property::Tilt) != nullptr;
+    const auto has_profile_driven_zoom = std::any_of(
+        model.controls.begin(), model.controls.end(), [](const auto& control) {
+            return control.parameter_id == "zoom" && control.accepts_value;
+        });
     const auto has_profile_choice = std::any_of(
         model.controls.begin(), model.controls.end(),
         [](const auto& control) {
@@ -957,7 +1093,8 @@ void stop_preview(const FixturesLooksLab& ui, LabState& state) {
         });
     if (model.state != emberlights::FixturesLooksShellState::Ready ||
         !model.minimum_viewport_supported || !model.can_edit ||
-        !has_intensity || !has_position || !has_profile_choice) {
+        !has_intensity || !has_position || !has_profile_choice ||
+        !has_profile_driven_zoom || model.control_categories.size() < 5U) {
         std::cerr << "Fixtures/Looks Slint lab model smoke failed\n";
         return EXIT_FAILURE;
     }
@@ -1141,6 +1278,31 @@ int main(int argc, char** argv) {
             refresh_ui(component, state);
         });
     });
+    ui->on_parameter_search_changed(
+        [with_ui](const slint::SharedString& value) {
+            with_ui([&](const auto& component, auto& state) {
+                state.control_search = string_from(value);
+                refresh_ui(component, state);
+            });
+        });
+    ui->on_select_control_group([with_ui](const slint::SharedString& id) {
+        with_ui([&](const auto& component, auto& state) {
+            const auto stable_id = string_from(id);
+            if (stable_id == "all") {
+                state.control_category.reset();
+                state.operation_message.clear();
+            } else if (const auto category =
+                           emberlights::fixture_parameter_category_from_stable_id(
+                               stable_id)) {
+                state.control_category = *category;
+                state.operation_message.clear();
+            } else {
+                state.operation_message =
+                    "That fixture-parameter category is no longer available.";
+            }
+            refresh_ui(component, state);
+        });
+    });
     ui->on_select_choice([with_ui](const slint::SharedString& id) {
         with_ui([&](const auto& component, auto& state) {
             state.selected_choice_id = string_from(id);
@@ -1154,6 +1316,7 @@ int main(int argc, char** argv) {
     ui->on_control_value_changed(
         [with_ui](const slint::SharedString& id, float value) {
             with_ui([&](const auto& component, auto& state) {
+                state.selected_choice_id = string_from(id);
                 const auto project = project_for_presentation(state);
                 const auto model = emberlights::build_fixtures_looks_shell_model(
                     project,
@@ -1165,6 +1328,11 @@ int main(int argc, char** argv) {
                     return;
                 }
                 mutate_selected_look(component, state, [&](auto& draft, const auto& active_project) {
+                    if (control->profile_function) {
+                        return emberlights::apply_static_look_control_choice(
+                            draft, active_project, state.selected_target_id,
+                            control->choice_id, value);
+                    }
                     return emberlights::apply_static_look_property(
                         draft, active_project, state.selected_target_id,
                         control->property, showcore::PropertyValue::set(value));
@@ -1175,6 +1343,7 @@ int main(int argc, char** argv) {
         [with_ui](const slint::SharedString& id,
                   const slint::SharedString& ownership) {
             with_ui([&](const auto& component, auto& state) {
+                state.selected_choice_id = string_from(id);
                 const auto project = project_for_presentation(state);
                 const auto model = emberlights::build_fixtures_looks_shell_model(
                     project,
@@ -1191,6 +1360,16 @@ int main(int argc, char** argv) {
                         return emberlights::remove_static_look_property(
                             draft, active_project, state.selected_target_id,
                             control->property);
+                    }
+                    if (mode == "set" && control->profile_function) {
+                        if (control->accepts_value) {
+                            return emberlights::apply_static_look_control_choice(
+                                draft, active_project, state.selected_target_id,
+                                control->choice_id, control->normalized_value);
+                        }
+                        return emberlights::apply_static_look_control_choice(
+                            draft, active_project, state.selected_target_id,
+                            control->choice_id);
                     }
                     const auto value = mode == "forceZero"
                         ? showcore::PropertyValue::force_zero()
@@ -1317,6 +1496,11 @@ int main(int argc, char** argv) {
     });
     ui->on_open_advanced([with_ui]() {
         with_ui([](const auto& component, auto& state) {
+            if (!component.get_advanced_open() &&
+                state.control_category ==
+                    emberlights::FixtureParameterCategory::Custom) {
+                state.control_category.reset();
+            }
             refresh_ui(component, state);
         });
     });
@@ -1326,6 +1510,21 @@ int main(int argc, char** argv) {
         slint::TimerMode::Repeated,
         std::chrono::milliseconds(100),
         [weak_ui, state] {
+            if (state->preview_host == nullptr) {
+                return;
+            }
+            try {
+                const auto status = state->preview_host->status();
+                if (preview_status_token(status) ==
+                    state->preview_status_token) {
+                    return;
+                }
+            } catch (...) {
+                if (state->preview_status_token.find("status-unavailable") !=
+                    std::string::npos) {
+                    return;
+                }
+            }
             if (const auto locked = weak_ui.lock()) {
                 refresh_ui(**locked, *state);
             }

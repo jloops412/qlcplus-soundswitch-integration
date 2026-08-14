@@ -21,7 +21,7 @@ namespace emberlights {
 // for a future reusable authored cue built from these lower-level controls.
 inline constexpr std::string_view kFixtureFunctionComponentType =
     "ember.fixtureFunctionBrowser";
-inline constexpr std::uint16_t kFixtureFunctionComponentVersion = 3U;
+inline constexpr std::uint16_t kFixtureFunctionComponentVersion = 4U;
 inline constexpr std::size_t kFixtureFunctionComponentDefaultRowLimit = 128U;
 inline constexpr std::size_t kFixtureFunctionComponentMaximumRowLimit = 512U;
 inline constexpr std::size_t kFixtureFunctionComponentMaximumSearchBytes = 128U;
@@ -104,6 +104,8 @@ struct FixtureFunctionDmxDiagnostic {
     std::uint16_t channel{0U};
     showcore::Property property{showcore::Property::Count};
     float normalized_value{0.0F};
+    float semantic_min{0.0F};
+    float semantic_max{1.0F};
     std::uint8_t raw_value{0U};
     std::uint8_t dmx_min{0U};
     std::uint8_t dmx_max{0U};

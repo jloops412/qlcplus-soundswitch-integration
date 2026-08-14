@@ -162,6 +162,8 @@
                         "properties": {
                           "category": "all",
                           "includeAdvanced": false,
+                          "query": "",
+                          "selectedControlId": "",
                           "showDiagnostics": false,
                           "surface": "staticLook"
                         }

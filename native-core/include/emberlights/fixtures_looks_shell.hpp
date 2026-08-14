@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -18,7 +19,7 @@ namespace emberlights {
 // project this detached snapshot differently while retaining stable IDs.
 inline constexpr std::string_view kFixturesLooksShellSliceId =
     "studio.fixtures-static-looks";
-inline constexpr std::uint16_t kFixturesLooksShellModelVersion = 1U;
+inline constexpr std::uint16_t kFixturesLooksShellModelVersion = 2U;
 inline constexpr std::int32_t kFixturesLooksMinimumWidth = 1366;
 inline constexpr std::int32_t kFixturesLooksMinimumHeight = 768;
 
@@ -84,6 +85,8 @@ struct FixturesLooksControlBinding {
     std::string section_label;
     std::string widget_label;
     std::string control_kind;
+    FixtureParameterCategory category{FixtureParameterCategory::Custom};
+    std::string parameter_id;
     showcore::Property property{showcore::Property::Count};
     std::string property_label;
     StaticLookOwnershipState ownership{StaticLookOwnershipState::Release};
@@ -93,10 +96,40 @@ struct FixturesLooksControlBinding {
     bool value_mixed{false};
     bool value_matches_choice{false};
     bool selected{false};
+    bool accepts_value{false};
+    bool profile_function{false};
     bool enabled{false};
     bool safety_restricted{false};
     std::string availability_text;
     std::string ownership_text;
+    std::string accessibility_label;
+};
+
+// Category navigation is derived from the same profile-backed control
+// catalog as the bindings below. The pseudo-category "all" is always first;
+// renderer adapters return stable_id rather than a localized label or index.
+struct FixturesLooksControlCategoryItem {
+    std::string stable_id;
+    std::string label;
+    std::size_t total_count{0U};
+    std::size_t search_match_count{0U};
+    std::size_t visible_count{0U};
+    bool selected{false};
+    bool advanced{false};
+    std::string accessibility_label;
+};
+
+// Read-only profile realization evidence for explicit Advanced presentation.
+// Ordinary controls never consume raw_value/channel fields or construct edits
+// from them; stable semantic choice/property IDs remain the mutation boundary.
+struct FixturesLooksControlDiagnosticItem {
+    std::string stable_id;
+    std::string choice_id;
+    std::string title;
+    std::string detail;
+    std::string provenance;
+    bool selected{false};
+    bool warning{false};
     std::string accessibility_label;
 };
 
@@ -107,6 +140,8 @@ struct FixturesLooksShellQuery {
     std::string_view selected_target_id;
     std::string_view selected_static_look_id;
     std::string_view selected_choice_id;
+    std::string_view control_search;
+    std::optional<FixtureParameterCategory> control_category;
     bool include_advanced{false};
     bool advanced_open{false};
     bool live_running{false};
@@ -127,12 +162,17 @@ struct FixturesLooksShellModel {
     std::vector<FixturesLooksProfileItem> profiles;
     std::vector<FixturesLooksTargetItem> targets;
     std::vector<FixturesLooksStaticLookItem> static_looks;
+    std::vector<FixturesLooksControlCategoryItem> control_categories;
     std::vector<FixturesLooksControlBinding> controls;
+    std::vector<FixturesLooksControlDiagnosticItem> control_diagnostics;
     FixtureControlSurfaceModel control_surface;
     std::size_t profile_total_count{0U};
     std::size_t static_look_total_count{0U};
     std::size_t validation_error_count{0U};
     std::size_t validation_warning_count{0U};
+    std::size_t control_total_count{0U};
+    std::size_t control_search_match_count{0U};
+    std::size_t control_visible_count{0U};
     bool minimum_viewport_supported{false};
     bool read_only{false};
     bool can_edit{false};
@@ -140,6 +180,11 @@ struct FixturesLooksShellModel {
     bool live_running{false};
     bool advanced_open{false};
     bool advanced_available{false};
+    bool control_search_truncated{false};
+    bool controls_truncated{false};
+    std::string control_search;
+    std::string selected_control_category_id{"all"};
+    std::string control_summary;
     std::string profile_summary;
     std::string static_look_summary;
     std::string preview_status;

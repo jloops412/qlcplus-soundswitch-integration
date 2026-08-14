@@ -81,6 +81,8 @@ class UiDirectionTests(unittest.TestCase):
         by_component = {node["componentType"]: node for node in native_nodes}
         primary = by_component["ember.fixtureControlSurface"]
         self.assertFalse(primary["properties"]["includeAdvanced"])
+        self.assertEqual(primary["properties"]["query"], "")
+        self.assertEqual(primary["properties"]["selectedControlId"], "")
         self.assertFalse(primary["properties"]["showDiagnostics"])
         self.assertEqual(primary["properties"]["surface"], "staticLook")
         self.assertFalse(by_component["ember.fixtureProfileEditor"]["properties"]["showDiagnostics"])

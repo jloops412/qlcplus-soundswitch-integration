@@ -43,15 +43,18 @@ class SlintLabContractTests(unittest.TestCase):
             'text: "Undo"',
             'text: "Redo"',
             "Duplicate",
-            "INTENSITY & OWNERSHIP",
-            "COLOR MIXER",
-            "POSITION & BEAM",
-            "GOBO & PROFILE CHOICES",
+            "FIXTURE PARAMETERS",
+            "COLOR EMITTERS",
+            "CONTINUOUS PARAMETERS",
+            "SELECTOR OWNERSHIP",
+            "PROFILE FUNCTIONS & RANGES",
             'label: "Release"',
             'label: "Set"',
             'label: "Force zero"',
             "profile-search-changed",
             "look-search-changed",
+            "parameter-search-changed",
+            "select-control-group",
             "preview-simulate",
             "preview-physical",
             "preview-stop",
@@ -60,6 +63,12 @@ class SlintLabContractTests(unittest.TestCase):
         )
         for text in required:
             self.assertIn(text, self.surface, text)
+        for obsolete in (
+            "intensity-choice-id",
+            "red-choice-id",
+            "focus-choice-id",
+        ):
+            self.assertNotIn(obsolete, self.surface, obsolete)
 
     def test_raw_dmx_is_advanced_evidence_not_ordinary_authoring(self):
         advanced = self.surface.index("if root.advanced-open")
@@ -67,6 +76,9 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertGreater(raw_dmx, advanced)
         ordinary = self.surface[:advanced]
         self.assertNotIn("Raw DMX", ordinary)
+        self.assertIn("diagnostic-items", self.surface[advanced:])
+        self.assertIn("control_diagnostics", self.adapter)
+        self.assertNotIn("Gobo / Dots  •  Ch 9", self.surface)
 
     def test_minimum_viewport_and_accessibility_contract_are_present(self):
         self.assertIn("preferred-width: 1366px", self.surface)

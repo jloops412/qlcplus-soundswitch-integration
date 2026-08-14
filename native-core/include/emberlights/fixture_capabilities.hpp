@@ -87,6 +87,8 @@ struct FixtureControlChoiceValue {
     std::uint16_t channel{0U};
     showcore::Property property{showcore::Property::Count};
     float normalized_value{0.0F};
+    float semantic_min{0.0F};
+    float semantic_max{1.0F};
     std::uint8_t raw_value{0U};
     std::uint8_t dmx_min{0U};
     std::uint8_t dmx_max{0U};

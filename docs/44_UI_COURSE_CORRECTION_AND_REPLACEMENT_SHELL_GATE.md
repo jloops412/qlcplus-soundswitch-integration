@@ -82,6 +82,10 @@ The first implementation checkpoint is recorded in
 `45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md`. It adds a renderer-neutral shell
 composition model and an opt-in pinned Slint lab while preserving every gate
 in this document. It is implementation evidence, not toolkit acceptance.
+The shell model's second source pass applies D-095: category/search/control
+projection comes from the complete selected-target profile catalog, so the
+renderer cannot quietly regress to an Intensity/RGB/position allowlist as new
+fixture parameters, named ranges, skins, or controller surfaces are added.
 
 ## Replacement-shell gate
 

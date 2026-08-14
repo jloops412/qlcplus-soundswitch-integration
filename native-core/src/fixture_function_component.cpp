@@ -303,6 +303,8 @@ struct CanonicalTarget {
     diagnostic.channel = value.channel;
     diagnostic.property = value.property;
     diagnostic.normalized_value = value.normalized_value;
+    diagnostic.semantic_min = value.semantic_min;
+    diagnostic.semantic_max = value.semantic_max;
     diagnostic.raw_value = value.raw_value;
     diagnostic.dmx_min = value.dmx_min;
     diagnostic.dmx_max = value.dmx_max;
@@ -523,6 +525,8 @@ void append_warning(
                     value.binding_id == diagnostic.binding_id &&
                     value.channel == diagnostic.channel &&
                     value.property == diagnostic.property &&
+                    same_value(value.semantic_min, diagnostic.semantic_min) &&
+                    same_value(value.semantic_max, diagnostic.semantic_max) &&
                     value.raw_value == diagnostic.raw_value &&
                     value.encoding == diagnostic.encoding &&
                     value.fine_channel == diagnostic.fine_channel &&

@@ -203,6 +203,8 @@ struct FixtureChannelCapabilitySelection {
     bool found{false};
     showcore::Property property{showcore::Property::Count};
     float normalized_value{0.0F};
+    float semantic_min{0.0F};
+    float semantic_max{1.0F};
     std::uint8_t raw_value{0U};
     std::string binding_id;
     std::string message;

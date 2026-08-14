@@ -17,9 +17,9 @@ spec/ui/registry/source/
   -> docs/generated/ui-registry/REFERENCE.md
 ```
 
-The source integrates the exact 29 native commands and 39 native Live state
-definitions, plus eight non-callable Runtime/Safe component contracts,
-one accepted non-callable content capability, eleven reusable value contracts,
+The source integrates the exact 31 native commands and 54 native state
+definitions, plus ten non-callable Runtime/Safe component contracts,
+two non-callable content capabilities, eleven reusable value contracts,
 thirteen explicit invocation results, and five interactions. Explicit native
 ordinals preserve the existing command/state/result ABI. General source JSON is
 never parsed by Runner or the DMX scheduler.
@@ -36,7 +36,7 @@ python3 native-core/tools/generate_ui_registry.py diff \
   --expect compatibleAdditive
 ```
 
-Generation 2 is currently registry set `1.8.0`, generator `1.2.0`. Against the
+Generation 2 is currently registry set `1.9.0`, generator `1.2.0`. Against the
 frozen v1 baseline it remains compatible-additive with 31 native commands, 54
 states, 10 components, 2 capabilities, and 11 reusable values. The generator
 now carries explicit MIDI, keyboard, and Ember Action bindability so trusted
@@ -48,6 +48,7 @@ changes and zero removals.
 
 - Components: `ember.activeLayers`, `ember.authoringWorkbench`,
   `ember.autoloopMatrix`, `ember.connectionPanel`, `ember.diagnostics`,
+  `ember.fixtureControlSurface`,
   `ember.fixtureFunctionBrowser` (displayed as Fixture Control Inspector),
   `ember.fixtureProfileEditor`, `ember.staticLookMatrix`, and
   `ember.staticLookPreview`. Bridged/planned contracts
@@ -57,7 +58,7 @@ changes and zero removals.
   `content.staticLookPreview` describes asynchronous offline and explicitly
   armed bounded Studio preview. Both are non-callable capability metadata.
 - Values: `value.adapterState`, `value.fixtureProperty`, the `bpm`, `beats`, and
-  `normalized` units, and every target kind currently referenced by the 29/39
+  `normalized` units, and every target kind currently referenced by the
   31-command/54-state corpus.
 - Results: ten existing native outcomes retain ordinals 0–9. `missingTarget`,
   `cancelled`, and `startedAsync` remain reserved catalog-only outcomes.

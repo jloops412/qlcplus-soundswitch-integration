@@ -272,9 +272,9 @@ void test_exact_fixture_action_and_determinism() {
     CHECK(first.content_hash ==
           "sha256:5588051ac4c79ad7dc7213789e75584809e6a63178c0b66c81933fed87a61315");
     CHECK(first.foundation->cache_key.cache_digest ==
-          "sha256:ccad03f39b106af8a0bcfb89531340a4aeb7f2d2275fd85f8f32179395fac27c");
+          "sha256:de54c9068e36bb3f622c938b35c23019acd4472255170e4cba3e24fcfe7c0b07");
     CHECK(first.executable->execution_digest ==
-          "sha256:156d7898f614c6b76954a8b5f1371cb14aa01fa530aefe64dbdadcf510508116");
+          "sha256:11471b8bba7197e065242bd1a0d7573088c5095ec4ea48cea3ac6c1b2485aee5");
     CHECK(first.prepared->normalized_json == first.canonical_source);
     CHECK(first.prepared->content_hash == first.content_hash);
     CHECK(first.foundation->cache_key.cache_digest ==

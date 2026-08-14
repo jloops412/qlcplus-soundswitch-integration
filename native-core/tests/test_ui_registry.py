@@ -90,7 +90,7 @@ class UiRegistryTests(unittest.TestCase):
     def test_current_native_ordinals_and_ids_are_exact(self):
         manifest, collections, digest = registry.load_registry()
         self.assertEqual(manifest["nativeMode"], "integrated")
-        self.assertEqual(manifest["registrySetVersion"], "1.8.0")
+        self.assertEqual(manifest["registrySetVersion"], "1.9.0")
         self.assertEqual(manifest["registryGeneration"], 2)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         commands = sorted(collections["commands"], key=lambda item: item["nativeOrdinal"])

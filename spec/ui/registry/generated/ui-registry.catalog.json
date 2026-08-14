@@ -1550,11 +1550,12 @@
       "accessibilityRole": "group",
       "callable": false,
       "classification": "nativeComplex",
-      "contractVersion": "0.1.0",
+      "contractVersion": "0.2.0",
       "deprecated": false,
-      "description": "Presents stable profile-backed fixture parameters as task-facing visual controls such as color mixers, XY position pads, faders, rate controls, slot choices, and safety-gated triggers; raw DMX diagnostics and unclassified channels require explicit Advanced disclosure.",
+      "description": "Projects the complete selected-target profile catalog through stable category navigation, bounded search, task-facing visual controls, explicit ownership, coverage, availability, and safety state; raw DMX diagnostics and unclassified channels require explicit Advanced disclosure.",
       "events": [
         "favoriteToggled",
+        "ownershipChanged",
         "releaseRequested",
         "selectionChanged",
         "valueChanged"
@@ -1587,6 +1588,14 @@
         },
         "includeAdvanced": {
           "type": "boolean"
+        },
+        "query": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "selectedControlId": {
+          "maxLength": 512,
+          "type": "string"
         },
         "showDiagnostics": {
           "type": "boolean"
@@ -1916,7 +1925,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.8.0",
+  "registrySetVersion": "1.9.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -2060,7 +2069,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "e63bf41dd8548a26e2c83c38ab8c98f209096ac1c15b84f225b3831c3d000ed6",
+  "sourceDigest": "5fd185e0d3fc8beb42954e71c24de8b5758bbd6e2b416280f57a1feefd713bcc",
   "states": [
     {
       "authority": "runnerScheduler",
