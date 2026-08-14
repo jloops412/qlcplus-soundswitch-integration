@@ -985,6 +985,25 @@ def compatibility_key(kind: str, definition: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in definition.items() if key not in ignored}
 
 
+def contract_change_is_compatible(
+    kind: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> bool:
+    before_key = compatibility_key(kind, before)
+    after_key = compatibility_key(kind, after)
+    if kind == "commands":
+        before_feedback = before_key.pop("feedback", [])
+        after_feedback = after_key.pop("feedback", [])
+        if not (
+            isinstance(before_feedback, list)
+            and isinstance(after_feedback, list)
+            and set(before_feedback).issubset(after_feedback)
+        ):
+            return False
+    return before_key == after_key
+
+
 def lifecycle_change_is_compatible(before: str | None, after: str | None) -> bool:
     return (before, after) in {
         ("planned", "bridged"),
@@ -1038,13 +1057,16 @@ def registry_diff(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[s
                     lifecycle_change_is_compatible(
                         before[identifier].get("status"), after[identifier].get("status")
                     )
-                    and compatibility_key(kind, before[identifier])
-                    == compatibility_key(kind, after[identifier])
+                    and contract_change_is_compatible(
+                        kind, before[identifier], after[identifier]
+                    )
                 ):
                     detail["changedCompatible"].append(identifier)
                 else:
                     detail["changedBreaking"].append(identifier)
-            elif compatibility_key(kind, before[identifier]) == compatibility_key(kind, after[identifier]):
+            elif contract_change_is_compatible(
+                kind, before[identifier], after[identifier]
+            ):
                 detail["changedCompatible"].append(identifier)
             else:
                 detail["changedBreaking"].append(identifier)

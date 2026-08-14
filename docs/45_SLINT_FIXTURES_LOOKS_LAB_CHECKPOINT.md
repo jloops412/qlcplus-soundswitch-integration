@@ -14,14 +14,17 @@ product-shaped Slint surface.
 
 The legacy Win32 presentation remains frozen under D-091. The lab is opt-in,
 is not installed by CMake, does not replace `EmberLights.exe`, opens no output,
-and keeps all edits in memory. D-092 pins Slint 1.17.1 for this experiment only.
+and defaults to an unsaved sample. Passing `--project <file>` opens an existing
+project or assigns a path to the sample so the lab can exercise the existing
+atomic Studio save/history path. D-092 pins Slint 1.17.1 for this experiment
+only.
 
 ## Architecture
 
 | Layer | New artifact | Authority |
 | --- | --- | --- |
 | Renderer-neutral composition | `FixturesLooksShellModel` | Joins existing profile, patch, Static Look, validation, fixture-function, and control-surface snapshots with stable IDs |
-| Domain mutation | Existing Static Look authoring functions | Applies/removes properties and exact profile choices; Slint owns no lighting semantics |
+| Domain mutation | Existing Static Look authoring functions and `StudioDocumentService` | Applies/removes properties and exact profile choices, then commits one generation-checked Undo transaction; Slint owns no lighting semantics or document state |
 | Lab presentation | `fixtures_looks_lab.slint` | Layout, styling, accessibility declarations, task controls, responsive center workspace, and Advanced drawer |
 | Renderer adapter | `fixtures_looks_lab.cpp` | Projects immutable model snapshots, forwards typed user intent, and refreshes the lab |
 | Build boundary | `EMBERLIGHTS_BUILD_SLINT_LAB=OFF` by default | Finds Slint 1.17.1 exactly and builds a separate non-installed executable only when requested |
@@ -36,7 +39,8 @@ The lab currently supports:
 
 1. fixture-profile browsing with maker/model/mode, footprint, source, and revision;
 2. profile search plus fixture/group patch-target selection;
-3. Static Look search, selection, creation, and duplication in memory;
+3. Static Look search, selection, draft creation, and duplication with guarded
+   selection changes;
 4. master intensity with `Release`, `Set`, and `Force zero` ownership;
 5. independent RGBWA emitter controls rather than a hard-coded repair action;
 6. a Pan/Tilt XY pad, Focus fader, and profile-backed Gobo choice tiles;
@@ -45,11 +49,17 @@ The lab currently supports:
 8. bounded preview simulation with an explicit start/stop state and no output;
 9. raw channel/range evidence only inside the nonmodal Advanced drawer;
 10. persistent stable choice IDs from the same catalog used by Static Looks,
-    Live, Autoloops, mappings, Ember Actions, migration, and future skins.
+    Live, Autoloops, mappings, Ember Actions, migration, and future skins;
+11. `Save Look` as one generation-checked Studio Undo transaction, draft-aware
+    Undo/Redo controls, and visible generation/history counts;
+12. `Save Project` through `save_project_atomic`, followed by an exact-generation
+    durable-baseline acknowledgement only after the write succeeds.
 
-The visible Save action deliberately acknowledges only in-memory lab state. It
-does not pretend that project persistence, history, or atomic save has been
-wired.
+The renderer receives booleans, labels, immutable projections, and callbacks.
+It never owns a `ProjectDocument`, filesystem path, history stack, Runner,
+scheduler, or output backend. A default launch remains an unsaved sample and
+honestly disables `Save Project`; `--project <file>` enables the bounded durable
+workflow without adding a file dialog to the toolkit evaluation.
 
 ## Local verification
 
@@ -95,8 +105,8 @@ still requires:
 - complete keyboard traversal, visible focus, UI Automation, and Narrator;
 - cold start, idle memory, resize/repaint, long-list, software-renderer,
   scheduler-jitter, and packaged-size measurements;
-- durable Studio project save/history/undo, validation/fault UX, read-only
-  behavior, and bounded physical preview while Live is stopped;
+- Windows evidence for Studio save/history/undo plus complete validation/fault
+  UX, read-only behavior, and bounded physical preview while Live is stopped;
 - Safe/Runner independence and skin activation/failure continuity;
 - measured WinUI 3 control comparison and Direct2D/Win32 Safe baseline;
 - explicit dependency/license/attribution and installer servicing decisions;
@@ -111,9 +121,8 @@ activate an accepted replacement-shell slice or remain withheld under D-091.
 
 ## Next bounded pass
 
-Run and capture the Windows lab evidence first. Then wire durable Studio
-document/history mutation and the existing bounded Static Look physical-preview
-authority through typed adapter commands, without giving the renderer direct
-filesystem, Runner, scheduler, or output ownership. Build the WinUI comparison
-from the same model/query fixture so the toolkit decision is measured on equal
-workflows.
+Run and capture Windows evidence for the now-wired Studio document/history path.
+Then wire the existing bounded Static Look physical-preview authority through a
+typed adapter command, without giving the renderer direct Runner, scheduler, or
+output ownership. Build the WinUI comparison from the same model/query fixture
+so the toolkit decision is measured on equal workflows.

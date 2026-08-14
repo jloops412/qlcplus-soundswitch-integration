@@ -503,8 +503,13 @@ export component FixturesLooksLab inherits Window {
     in property <string> selected-target-detail;
     in property <bool> can-edit: true;
     in property <bool> can-preview: true;
+    in property <bool> can-save-look: false;
+    in property <bool> can-save-project: false;
+    in property <bool> can-undo: false;
+    in property <bool> can-redo: false;
     in property <bool> preview-active: false;
     in property <bool> live-running: false;
+    in property <string> history-state;
     in-out property <bool> advanced-open: false;
     in-out property <string> profile-search;
     in-out property <string> look-search;
@@ -551,6 +556,9 @@ export component FixturesLooksLab inherits Window {
     callback preview-start();
     callback preview-stop();
     callback save-look();
+    callback save-project();
+    callback undo();
+    callback redo();
     callback create-look();
     callback duplicate-look();
     callback open-advanced();
@@ -702,8 +710,11 @@ export component FixturesLooksLab inherits Window {
                                 Text { text: root.selected-target-name + "  •  " + root.selected-target-detail; color: Theme.text-muted; font-size: 11px; overflow: elide; }
                             }
                             Rectangle { horizontal-stretch: 1; background: #00000000; }
-                            Button { text: "Duplicate"; enabled: root.can-edit; clicked => { root.duplicate-look(); } }
-                            Button { text: "Save Look"; primary: true; enabled: root.can-edit; clicked => { root.save-look(); } }
+                            Button { text: "Undo"; enabled: root.can-undo; clicked => { root.undo(); } }
+                            Button { text: "Redo"; enabled: root.can-redo; clicked => { root.redo(); } }
+                            Button { text: "Save Project"; enabled: root.can-save-project; clicked => { root.save-project(); } }
+                            Button { text: "Duplicate"; enabled: root.can-edit && !root.can-save-look; clicked => { root.duplicate-look(); } }
+                            Button { text: "Save Look"; primary: true; enabled: root.can-edit && root.can-save-look; clicked => { root.save-look(); } }
                         }
                     }
                     Rectangle {
@@ -820,7 +831,7 @@ export component FixturesLooksLab inherits Window {
                     HorizontalLayout {
                         height: 34px;
                         spacing: 6px;
-                        Button { text: "New Look"; primary: true; clicked => { root.create-look(); } }
+                        Button { text: "New Look"; primary: true; enabled: root.can-edit && !root.can-save-look; clicked => { root.create-look(); } }
                         Button { text: "Categories"; }
                     }
                     Text { text: "LOOK LIBRARY"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
@@ -863,6 +874,7 @@ export component FixturesLooksLab inherits Window {
                 alignment: center;
                 Text { text: root.workspace-message; color: Theme.text-muted; font-size: 10px; overflow: elide; }
                 Rectangle { horizontal-stretch: 1; background: #00000000; }
+                Text { text: root.history-state; color: Theme.text-secondary; font-size: 9px; }
                 Text { text: "Slint 1.17.1 LAB  •  not a product preview"; color: Theme.warn; font-size: 9px; font-weight: 700; }
             }
         }

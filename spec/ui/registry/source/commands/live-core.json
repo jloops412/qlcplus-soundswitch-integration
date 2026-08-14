@@ -106,7 +106,16 @@
       "category": "staticLook",
       "parameters": {"lookId": {"type": "id", "required": true, "targetKind": "staticLook"}},
       "availability": "runner.state == 'running' && staticLook.exists(lookId)",
-      "feedback": ["staticLook.active.id"]
+      "feedback": [
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
+      ]
     },
     {
       "nativeName": "StaticLookToggle", "nativeOrdinal": 13, "id": "staticLook.toggle",
@@ -114,24 +123,51 @@
       "category": "staticLook", "interaction": "toggle",
       "parameters": {"lookId": {"type": "id", "required": true, "targetKind": "staticLook"}},
       "availability": "runner.state == 'running' && staticLook.exists(lookId)",
-      "feedback": ["staticLook.active.id"]
+      "feedback": [
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
+      ]
     },
     {
       "nativeName": "StaticLookHold", "nativeOrdinal": 14, "id": "staticLook.hold",
-      "label": "Hold Static Look", "description": "Activates or releases one Static Look through the transitional hold facade.",
-      "category": "staticLook", "status": "bridged", "interaction": "momentary",
+      "label": "Hold Static Look", "description": "Activates or generation-safely releases one Static Look for a trusted binding owner.",
+      "category": "staticLook", "interaction": "momentary",
       "parameters": {
         "lookId": {"type": "id", "required": true, "targetKind": "staticLook"},
         "active": {"type": "boolean", "required": true}
       },
       "availability": "runner.state == 'running' && staticLook.exists(lookId)",
-      "feedback": ["staticLook.active.id"],
-      "notes": "Cross-surface qualification waits for generation-safe stale-release ownership."
+      "feedback": [
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
+      ],
+      "notes": "Trusted binding services supply the opaque feedback key and echo the observed package/activation generations on release."
     },
     {
       "nativeName": "StaticLookClear", "nativeOrdinal": 15, "id": "staticLook.clear",
       "label": "Clear Static Look", "description": "Clears the active Static Look without resetting unrelated layers.",
-      "category": "staticLook", "feedback": ["staticLook.active.id"]
+      "category": "staticLook", "feedback": [
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
+      ]
     },
     {
       "nativeName": "AutoloopLaunch", "nativeOrdinal": 16, "id": "autoloop.launch",

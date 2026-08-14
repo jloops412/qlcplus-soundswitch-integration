@@ -79,6 +79,16 @@ int main() {
     CHECK(state.runner == emberlights::RunnerState::Stopped);
     CHECK(state.blackout);
     CHECK(state.control_one == emberlights::AdapterState::Disabled);
+    CHECK(state.static_look.status ==
+          emberlights::StaticLookActivationStatus::None);
+
+    CHECK(std::string_view(emberlights::static_look_owner_kind_name(
+              emberlights::StaticLookOwnerKind::Controller)) == "controller");
+    CHECK(std::string_view(emberlights::static_look_behavior_name(
+              emberlights::StaticLookBehavior::Hold)) == "hold");
+    CHECK(std::string_view(emberlights::static_look_activation_status_name(
+              emberlights::StaticLookActivationStatus::Releasing)) ==
+          "releasing");
 
     CHECK(std::string_view(emberlights::ui_invocation_result_name(
               emberlights::UiInvocationResult::QueueFull)) == "queueFull");

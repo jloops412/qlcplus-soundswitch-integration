@@ -6,8 +6,15 @@ not installed by the normal package, and not evidence that Slint has been
 accepted. The legacy Win32 app remains only the frozen transitional bridge.
 
 The lab projects the renderer-neutral `FixturesLooksShellModel` and invokes the
-existing Static Look authoring functions. It opens no hardware or network DMX
-output. Its sample project and edits remain in memory.
+existing Static Look authoring and generation-checked Studio document services.
+It opens no hardware or network DMX output. A default launch uses an unsaved
+sample; `--project <file>` opens an existing project or gives that sample a path
+for atomic save, restore-history, and Undo/Redo evaluation.
+
+`Save Look` commits the current draft as one Studio Undo transaction. The
+`Save Project` control is enabled only when a project path exists and the
+document is dirty; the durable baseline advances only after
+`save_project_atomic` succeeds.
 
 ## Pinned dependency
 
@@ -56,7 +63,8 @@ The toolkit gate remains open until the Windows/MSVC lab records:
 - 1366x768 and 1920x1080 screenshots at 100%, 125%, 150%, and 200% scaling;
 - keyboard traversal, focus visibility, UI Automation, and Narrator results;
 - cold start, idle memory, resize/repaint, list scaling, and software renderer;
-- adapter coverage for durable project save, physical preview, undo/history,
-  validation errors, read-only state, and Runner/Live coexistence;
+- Windows evidence for durable project save and undo/history, plus adapter
+  coverage for physical preview, validation errors, read-only state, and
+  Runner/Live coexistence;
 - installer/runtime-size delta and the required license/attribution decision;
 - a measured comparison against the Direct2D Safe baseline and the WinUI lab.

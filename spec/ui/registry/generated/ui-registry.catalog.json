@@ -816,7 +816,14 @@
       "deprecated": false,
       "description": "Activates one compiled Static Look resolved by stable ID.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.activate",
       "interaction": "trigger",
@@ -853,7 +860,14 @@
       "deprecated": false,
       "description": "Clears the active Static Look without resetting unrelated layers.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.clear",
       "interaction": "trigger",
@@ -882,9 +896,16 @@
       "availability": "runner.state == 'running' && staticLook.exists(lookId)",
       "category": "staticLook",
       "deprecated": false,
-      "description": "Activates or releases one Static Look through the transitional hold facade.",
+      "description": "Activates or generation-safely releases one Static Look for a trusted binding owner.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.hold",
       "interaction": "momentary",
@@ -894,7 +915,7 @@
       "midiBindable": true,
       "nativeName": "StaticLookHold",
       "nativeOrdinal": 14,
-      "notes": "Cross-surface qualification waits for generation-safe stale-release ownership.",
+      "notes": "Trusted binding services supply the opaque feedback key and echo the observed package/activation generations on release.",
       "parameters": {
         "active": {
           "required": true,
@@ -917,7 +938,7 @@
         "controller",
         "external"
       ],
-      "status": "bridged",
+      "status": "implemented",
       "undoable": false
     },
     {
@@ -926,7 +947,14 @@
       "deprecated": false,
       "description": "Atomically toggles one compiled Static Look resolved by stable ID.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.toggle",
       "interaction": "toggle",
@@ -1135,7 +1163,10 @@
         "output.blackout",
         "output.workLight",
         "override.activePropertyCount",
+        "staticLook.active.behavior",
         "staticLook.active.id",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress",
         "trackScript.active.id",
         "trackScript.elapsedBeat"
       ],
@@ -1622,7 +1653,14 @@
         "staticLook.toggle"
       ],
       "requiredStates": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "slots": [],
       "status": "planned",
@@ -1687,7 +1725,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.6.0",
+  "registrySetVersion": "1.7.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -1831,7 +1869,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "cd168a55b5e9b686efd530933731570af326f5907d481a8e5032565ca23cffa3",
+  "sourceDigest": "a5d3ed5cc0f60c8caaa756c63d848dcb961d1d87c9761b3897a73ef28b010a3b",
   "states": [
     {
       "authority": "runnerScheduler",
@@ -2562,6 +2600,57 @@
       "authority": "runnerScheduler",
       "category": "staticLook",
       "deprecated": false,
+      "description": "Monotonic activation generation used with the owner key to reject stale Hold releases.",
+      "id": "staticLook.active.activationGeneration",
+      "introducedGeneration": 1,
+      "label": "Static Look activation generation",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 40,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Authoritative activation behavior shared by software, keyboard, MIDI, controller, and external surfaces.",
+      "id": "staticLook.active.behavior",
+      "introducedGeneration": 1,
+      "label": "Static Look activation behavior",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 43,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "latch",
+          "hold",
+          "explicit"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
       "description": "Current native Live core state definition.",
       "id": "staticLook.active.id",
       "introducedGeneration": 1,
@@ -2579,6 +2668,138 @@
       "value": {
         "targetKind": "staticLook",
         "type": "id"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Opaque non-sensitive owner key used for held-by-this-control feedback; it is not a project or skin argument.",
+      "id": "staticLook.active.ownerFeedbackKey",
+      "introducedGeneration": 1,
+      "label": "Static Look owner feedback key",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 42,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "format": "uint64Decimal",
+        "maxLength": 20,
+        "type": "string"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Trusted surface category that owns the current activation.",
+      "id": "staticLook.active.ownerKind",
+      "introducedGeneration": 1,
+      "label": "Static Look owner kind",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 41,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "ui",
+          "keyboard",
+          "midi",
+          "controller",
+          "moment",
+          "external",
+          "test"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Runner package generation that owns the current Static Look activation.",
+      "id": "staticLook.active.packageGeneration",
+      "introducedGeneration": 1,
+      "label": "Static Look package generation",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 39,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Authoritative inactive, activating, active, or releasing state.",
+      "id": "staticLook.active.status",
+      "introducedGeneration": 1,
+      "label": "Static Look activation status",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 44,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "activating",
+          "active",
+          "releasing"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Runner-owned progress for the current activation or release transition; presentation is not timing authority.",
+      "id": "staticLook.active.transitionProgress",
+      "introducedGeneration": 1,
+      "label": "Static Look transition progress",
+      "maximumPublishHz": 30,
+      "nativeOrdinal": 45,
+      "nativeUpdateClass": "Realtime",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "progress",
+      "value": {
+        "maximum": 1,
+        "minimum": 0,
+        "type": "number",
+        "unit": "normalized"
       }
     },
     {

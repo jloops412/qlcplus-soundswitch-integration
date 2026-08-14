@@ -186,6 +186,14 @@ void test_live_view_model(const emberlights::ProjectDocument& project) {
     status.package_generation = 42U;
     status.frames = 99U;
     status.active_look = 0;
+    status.static_look.look_index = 0;
+    status.static_look.package_generation = 42U;
+    status.static_look.activation_generation = 17U;
+    status.static_look.owner_kind = emberlights::StaticLookOwnerKind::Controller;
+    status.static_look.owner_feedback_token = 0x5151U;
+    status.static_look.behavior = emberlights::StaticLookBehavior::Hold;
+    status.static_look.status = emberlights::StaticLookActivationStatus::Activating;
+    status.static_look.transition_progress = 0.4F;
     status.active_autoloop = {2U, 5U};
     status.active_autoloop_repeat = showcore::AutoloopRepeat::Infinite;
     status.active_autoloop_progress = 0.5F;
@@ -200,6 +208,16 @@ void test_live_view_model(const emberlights::ProjectDocument& project) {
     CHECK(view.state().generation == 42U);
     CHECK(view.state().frames == 99U);
     CHECK(view.static_looks()[0].active);
+    CHECK(view.static_looks()[0].behavior ==
+          emberlights::StaticLookBehavior::Hold);
+    CHECK(view.static_looks()[0].status ==
+          emberlights::StaticLookActivationStatus::Activating);
+    CHECK(view.static_looks()[0].owner_kind ==
+          emberlights::StaticLookOwnerKind::Controller);
+    CHECK(view.static_looks()[0].owner_feedback_token == 0x5151U);
+    CHECK(view.static_looks()[0].package_generation == 42U);
+    CHECK(view.static_looks()[0].activation_generation == 17U);
+    CHECK(std::abs(view.static_looks()[0].transition_progress - 0.4F) < 0.001F);
     CHECK(view.track_scripts()[0].active);
     const auto& pad = view.autoloop_pads()[5U];
     CHECK(pad.populated);
@@ -211,6 +229,18 @@ void test_live_view_model(const emberlights::ProjectDocument& project) {
     CHECK(view.autoloop_bank_window()[2U].contains_active);
     CHECK(view.autoloop_bank_window()[2U].enabled_by_filter);
     CHECK(view.active_content().static_look_id == "look.blue");
+    CHECK(view.active_content().static_look_behavior ==
+          emberlights::StaticLookBehavior::Hold);
+    CHECK(view.active_content().static_look_status ==
+          emberlights::StaticLookActivationStatus::Activating);
+    CHECK(view.active_content().static_look_owner_kind ==
+          emberlights::StaticLookOwnerKind::Controller);
+    CHECK(view.active_content().static_look_owner_feedback_token == 0x5151U);
+    CHECK(view.active_content().static_look_package_generation == 42U);
+    CHECK(view.active_content().static_look_activation_generation == 17U);
+    CHECK(std::abs(
+              view.active_content().static_look_transition_progress - 0.4F) <
+          0.001F);
     CHECK(view.active_content().autoloop_id == "loop.blue");
     CHECK(view.active_content().track_script_id == "track.script");
 
@@ -286,6 +316,18 @@ void test_live_commands(emberlights::ProjectDocument project) {
     }));
     const auto held_b = runner.status().static_look;
     CHECK(held_b.activation_generation > held_a.activation_generation);
+    const auto held_b_ui = emberlights::make_live_core_ui_state(runner.status());
+    CHECK(held_b_ui.static_look.package_generation ==
+          held_b.package_generation);
+    CHECK(held_b_ui.static_look.activation_generation ==
+          held_b.activation_generation);
+    CHECK(held_b_ui.static_look.owner_kind ==
+          emberlights::StaticLookOwnerKind::Ui);
+    CHECK(held_b_ui.static_look.owner_feedback_token == 0x202U);
+    CHECK(held_b_ui.static_look.behavior ==
+          emberlights::StaticLookBehavior::Hold);
+    CHECK(held_b_ui.static_look.status !=
+          emberlights::StaticLookActivationStatus::None);
 
     hold_a.bool_value = false;
     hold_a.static_look_owner.expected_package_generation =

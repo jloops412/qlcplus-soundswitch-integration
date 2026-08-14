@@ -55,6 +55,10 @@ EXPECTED_STATE_IDS = [
     "trackScript.active.id", "trackScript.elapsedBeat",
     "trackScript.consumedCueCount", "override.activePropertyCount",
     "output.controlOne.status", "output.controlOne.experimental",
+    "staticLook.active.packageGeneration",
+    "staticLook.active.activationGeneration", "staticLook.active.ownerKind",
+    "staticLook.active.ownerFeedbackKey", "staticLook.active.behavior",
+    "staticLook.active.status", "staticLook.active.transitionProgress",
 ]
 
 EXPECTED_COMPONENT_IDS = [
@@ -81,7 +85,7 @@ class UiRegistryTests(unittest.TestCase):
     def test_current_native_ordinals_and_ids_are_exact(self):
         manifest, collections, digest = registry.load_registry()
         self.assertEqual(manifest["nativeMode"], "integrated")
-        self.assertEqual(manifest["registrySetVersion"], "1.6.0")
+        self.assertEqual(manifest["registrySetVersion"], "1.7.0")
         self.assertEqual(manifest["registryGeneration"], 2)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         commands = sorted(collections["commands"], key=lambda item: item["nativeOrdinal"])
@@ -89,7 +93,7 @@ class UiRegistryTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in commands], EXPECTED_COMMAND_IDS)
         self.assertEqual([item["nativeOrdinal"] for item in commands], list(range(29)))
         self.assertEqual([item["id"] for item in states], EXPECTED_STATE_IDS)
-        self.assertEqual([item["nativeOrdinal"] for item in states], list(range(39)))
+        self.assertEqual([item["nativeOrdinal"] for item in states], list(range(46)))
         self.assertEqual([item["id"] for item in collections["components"]], EXPECTED_COMPONENT_IDS)
         self.assertEqual([item["id"] for item in collections["capabilities"]], EXPECTED_CAPABILITY_IDS)
         self.assertEqual([item["id"] for item in collections["values"]], EXPECTED_VALUE_IDS)
@@ -194,6 +198,19 @@ class UiRegistryTests(unittest.TestCase):
         with self.assertRaises(registry.RegistryError):
             registry.validate_replacement_graph(mismatch["kind"], mismatch["definitions"])
 
+    def test_command_feedback_addition_is_compatible_but_removal_is_breaking(self):
+        baseline = load_fixture("diff-baseline.json")
+        candidate = copy.deepcopy(baseline)
+        candidate["commands"][0]["feedback"] = ["state.original", "state.added"]
+        baseline["commands"][0]["feedback"] = ["state.original"]
+        report = registry.registry_diff(baseline, candidate)
+        self.assertEqual(report["classification"], "compatibleAdditive")
+
+        removed = copy.deepcopy(candidate)
+        removed["commands"][0]["feedback"] = []
+        report = registry.registry_diff(candidate, removed)
+        self.assertEqual(report["classification"], "breaking")
+
     def test_generation_two_is_compatible_additive_against_v1(self):
         manifest, collections, digest = registry.load_registry()
         baseline = json.loads(
@@ -203,8 +220,8 @@ class UiRegistryTests(unittest.TestCase):
             baseline, registry.generate_catalog(manifest, collections, digest)
         )
         self.assertEqual(report["classification"], "compatibleAdditive")
-        self.assertEqual(report["summary"]["added"], 21)
-        self.assertEqual(report["summary"]["changedCompatible"], 13)
+        self.assertEqual(report["summary"]["added"], 28)
+        self.assertEqual(report["summary"]["changedCompatible"], 17)
         self.assertEqual(report["summary"]["changedBreaking"], 0)
         self.assertEqual(report["summary"]["removed"], 0)
         self.assertFalse(report["manualActionRequired"])

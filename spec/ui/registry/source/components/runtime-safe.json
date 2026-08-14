@@ -59,7 +59,10 @@
         "output.blackout",
         "output.workLight",
         "override.activePropertyCount",
+        "staticLook.active.behavior",
         "staticLook.active.id",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress",
         "trackScript.active.id",
         "trackScript.elapsedBeat"
       ],
@@ -220,7 +223,16 @@
         "staticLook.hold",
         "staticLook.toggle"
       ],
-      "requiredStates": ["staticLook.active.id"],
+      "requiredStates": [
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
+      ],
       "requiredCapabilities": ["content.staticLooks"],
       "accessibilityRole": "grid",
       "performanceClass": "virtualized"

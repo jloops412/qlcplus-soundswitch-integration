@@ -1,5 +1,7 @@
 #include "emberlights/fixtures_looks_shell.hpp"
+#include "emberlights/project_io.hpp"
 #include "emberlights/static_look_authoring.hpp"
+#include "emberlights/studio_document.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -18,8 +20,11 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,7 +33,9 @@
 namespace {
 
 struct LabState {
-    emberlights::ProjectDocument project;
+    emberlights::StudioDocumentService document;
+    std::optional<emberlights::StaticLookDraft> selected_look_draft;
+    std::optional<std::filesystem::path> project_path;
     std::string selected_profile_id{"local.visual.mover"};
     std::string selected_target_id{"group.movers"};
     std::string selected_look_id{"look.ceremony"};
@@ -36,7 +43,7 @@ struct LabState {
     std::string profile_search;
     std::string look_search;
     std::string operation_message;
-    bool dirty{false};
+    bool draft_dirty{false};
     bool preview_active{false};
     unsigned int created_look_count{0U};
 };
@@ -155,6 +162,90 @@ struct LabState {
     return project;
 }
 
+[[nodiscard]] std::optional<std::size_t> look_index_for(
+    const emberlights::ProjectDocument& project,
+    std::string_view look_id) noexcept {
+    const auto found = std::find_if(
+        project.looks.begin(), project.looks.end(),
+        [look_id](const auto& look) { return look.id == look_id; });
+    if (found == project.looks.end()) {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(
+        std::distance(project.looks.begin(), found));
+}
+
+[[nodiscard]] emberlights::ProjectDocument project_for_presentation(
+    const LabState& state) {
+    auto snapshot = state.document.snapshot();
+    auto project = std::move(snapshot.document);
+    if (!state.selected_look_draft.has_value() ||
+        state.selected_look_draft->base_generation != snapshot.generation) {
+        return project;
+    }
+
+    const auto& draft = *state.selected_look_draft;
+    if (draft.source_index.has_value()) {
+        if (*draft.source_index < project.looks.size() &&
+            project.looks[*draft.source_index].id == draft.look.id) {
+            project.looks[*draft.source_index] = draft.look;
+        }
+    } else {
+        project.looks.push_back(draft.look);
+    }
+    return project;
+}
+
+[[nodiscard]] bool reload_selected_look_draft(LabState& state) {
+    const auto snapshot = state.document.snapshot();
+    const auto index = look_index_for(snapshot.document, state.selected_look_id);
+    if (!index.has_value()) {
+        state.selected_look_draft.reset();
+        return false;
+    }
+    state.selected_look_draft = emberlights::load_static_look_draft(
+        snapshot, *index);
+    state.draft_dirty = false;
+    return state.selected_look_draft.has_value();
+}
+
+void select_available_look(LabState& state) {
+    const auto snapshot = state.document.snapshot();
+    if (!look_index_for(snapshot.document, state.selected_look_id).has_value()) {
+        state.selected_look_id = snapshot.document.looks.empty()
+            ? std::string{}
+            : snapshot.document.looks.front().id;
+    }
+    static_cast<void>(reload_selected_look_draft(state));
+}
+
+[[nodiscard]] bool activate_project(
+    LabState& state,
+    emberlights::ProjectDocument project,
+    emberlights::StudioDocumentBoundary boundary,
+    std::optional<std::filesystem::path> project_path) {
+    const auto outcome = state.document.replace_document(
+        state.document.generation(), std::move(project), boundary);
+    if (!outcome) {
+        state.operation_message = outcome.message;
+        return false;
+    }
+    state.project_path = std::move(project_path);
+    state.selected_choice_id.clear();
+    state.draft_dirty = false;
+    select_available_look(state);
+    state.operation_message = outcome.message;
+    return true;
+}
+
+[[nodiscard]] std::string path_label(const LabState& state) {
+    if (!state.project_path.has_value()) {
+        return "unsaved lab document";
+    }
+    const auto filename = state.project_path->filename().string();
+    return filename.empty() ? state.project_path->string() : filename;
+}
+
 [[nodiscard]] std::string string_from(const slint::SharedString& value) {
     return std::string(std::string_view(value));
 }
@@ -228,14 +319,6 @@ struct LabState {
     return found == model.controls.end() ? nullptr : &*found;
 }
 
-[[nodiscard]] emberlights::LookDefinition* selected_look(
-    LabState& state) noexcept {
-    const auto found = std::find_if(
-        state.project.looks.begin(), state.project.looks.end(),
-        [&](const auto& look) { return look.id == state.selected_look_id; });
-    return found == state.project.looks.end() ? nullptr : &*found;
-}
-
 [[nodiscard]] std::string ownership_name(
     const emberlights::FixturesLooksControlBinding* control) {
     return control == nullptr
@@ -265,11 +348,20 @@ void set_control(
 }
 
 void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
+    const auto snapshot = state.document.snapshot();
+    const auto project = project_for_presentation(state);
     const auto model = emberlights::build_fixtures_looks_shell_model(
-        state.project, query_from(state, ui.get_advanced_open()));
+        project, query_from(state, ui.get_advanced_open()));
+    const auto modified = snapshot.dirty || state.draft_dirty;
+    const auto save_state = std::string(modified ? "Modified • " : "Saved • ") +
+        path_label(state);
+    const auto history_state =
+        "Generation " + std::to_string(snapshot.generation) + " • " +
+        std::to_string(snapshot.undo_count) + " undo • " +
+        std::to_string(snapshot.redo_count) + " redo";
 
     ui.set_project_name(shared_string(model.project_name));
-    ui.set_save_state(state.dirty ? "Modified • memory only" : "Lab • memory only");
+    ui.set_save_state(shared_string(save_state));
     ui.set_validation_state(shared_string(model.validation_status));
     ui.set_dj_state("Not connected");
     ui.set_output_state("No output");
@@ -282,6 +374,12 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     ui.set_preview_active(state.preview_active);
     ui.set_can_edit(model.can_edit);
     ui.set_can_preview(model.can_preview && !state.preview_active);
+    ui.set_can_save_look(state.draft_dirty);
+    ui.set_can_save_project(
+        state.project_path.has_value() && modified);
+    ui.set_can_undo(state.draft_dirty || snapshot.can_undo);
+    ui.set_can_redo(!state.draft_dirty && snapshot.can_redo);
+    ui.set_history_state(shared_string(history_state));
     ui.set_live_running(model.live_running);
     ui.set_profile_search(shared_string(state.profile_search));
     ui.set_look_search(shared_string(state.look_search));
@@ -421,25 +519,30 @@ void mutate_selected_look(
     const FixturesLooksLab& ui,
     LabState& state,
     Mutation mutation) {
-    auto* look = selected_look(state);
-    if (look == nullptr) {
+    if (!state.selected_look_draft.has_value() &&
+        !reload_selected_look_draft(state)) {
         state.operation_message = "Select a Static Look before editing.";
         refresh_ui(ui, state);
         return;
     }
-    emberlights::StaticLookDraft draft;
-    draft.look = *look;
-    const auto outcome = mutation(draft);
+    const auto snapshot = state.document.snapshot();
+    if (state.selected_look_draft->base_generation != snapshot.generation) {
+        state.operation_message =
+            "The Studio document changed. Reload the Static Look before editing.";
+        refresh_ui(ui, state);
+        return;
+    }
+    const auto outcome = mutation(
+        *state.selected_look_draft, snapshot.document);
     if (!outcome) {
         state.operation_message = "That control is unavailable for the selected target.";
         refresh_ui(ui, state);
         return;
     }
     if (outcome.result == emberlights::StaticLookAuthoringResult::Applied) {
-        *look = std::move(draft.look);
-        state.dirty = true;
+        state.draft_dirty = true;
         state.operation_message = outcome.warnings.empty()
-            ? "Static Look updated in the in-memory Slint lab."
+            ? "Static Look draft updated. Save Look commits one Undo transaction."
             : outcome.warnings.front();
     } else {
         state.operation_message = outcome.warnings.empty()
@@ -449,8 +552,109 @@ void mutate_selected_look(
     refresh_ui(ui, state);
 }
 
+[[nodiscard]] emberlights::StudioMutationOutcome commit_selected_look(
+    LabState& state) {
+    const auto snapshot = state.document.snapshot();
+    if (!state.selected_look_draft.has_value()) {
+        return {
+            emberlights::StudioMutationResult::InvalidCandidate,
+            snapshot.generation,
+            emberlights::validate_project(snapshot.document),
+            "Select a Static Look before saving."};
+    }
+    if (!state.draft_dirty) {
+        return {
+            emberlights::StudioMutationResult::NoChange,
+            snapshot.generation,
+            emberlights::validate_project(snapshot.document),
+            "The selected Static Look has no uncommitted changes."};
+    }
+
+    auto outcome = emberlights::commit_static_look_draft(
+        state.document, *state.selected_look_draft);
+    if (outcome) {
+        state.draft_dirty = false;
+        state.selected_look_id = state.selected_look_draft->look.id;
+        static_cast<void>(reload_selected_look_draft(state));
+    }
+    return outcome;
+}
+
+void undo_studio_edit(LabState& state) {
+    if (state.draft_dirty) {
+        const auto was_new = state.selected_look_draft.has_value() &&
+            !state.selected_look_draft->source_index.has_value();
+        state.draft_dirty = false;
+        if (was_new) {
+            state.selected_look_draft.reset();
+            state.selected_look_id.clear();
+            select_available_look(state);
+        } else {
+            static_cast<void>(reload_selected_look_draft(state));
+        }
+        state.operation_message = "Discarded the uncommitted Static Look draft.";
+        return;
+    }
+
+    const auto outcome = state.document.undo(state.document.generation());
+    state.operation_message = outcome.message;
+    if (outcome) {
+        select_available_look(state);
+    }
+}
+
+void redo_studio_edit(LabState& state) {
+    if (state.draft_dirty) {
+        state.operation_message =
+            "Save or undo the Static Look draft before using Redo.";
+        return;
+    }
+    const auto outcome = state.document.redo(state.document.generation());
+    state.operation_message = outcome.message;
+    if (outcome) {
+        select_available_look(state);
+    }
+}
+
+void save_studio_project(LabState& state) {
+    if (!state.project_path.has_value()) {
+        state.operation_message =
+            "This sample has no project path. Launch with --project <file> to test atomic save/history.";
+        return;
+    }
+    if (state.draft_dirty) {
+        const auto committed = commit_selected_look(state);
+        if (!committed) {
+            state.operation_message = committed.message;
+            return;
+        }
+    }
+
+    const auto snapshot = state.document.snapshot();
+    const auto saved = emberlights::save_project_atomic(
+        *state.project_path, snapshot.document, true);
+    if (!saved) {
+        state.operation_message = "Project save failed: " + saved.message;
+        return;
+    }
+    const auto acknowledged = state.document.acknowledge_saved(
+        snapshot.generation);
+    state.operation_message = acknowledged
+        ? "Project saved atomically to " + state.project_path->string() + "."
+        : acknowledged.message;
+}
+
 [[nodiscard]] int model_smoke() {
-    const auto project = make_lab_project();
+    LabState state;
+    if (!activate_project(
+            state,
+            make_lab_project(),
+            emberlights::StudioDocumentBoundary::NewDocument,
+            std::nullopt)) {
+        std::cerr << "Fixtures/Looks Slint lab document smoke failed\n";
+        return EXIT_FAILURE;
+    }
+    const auto project = project_for_presentation(state);
     emberlights::FixturesLooksShellQuery query;
     query.selected_profile_id = "local.visual.mover";
     query.selected_target_id = "group.movers";
@@ -476,6 +680,24 @@ void mutate_selected_look(
         std::cerr << "Fixtures/Looks Slint lab model smoke failed\n";
         return EXIT_FAILURE;
     }
+    const auto before = state.document.snapshot();
+    const auto edited = emberlights::apply_static_look_property(
+        *state.selected_look_draft,
+        before.document,
+        state.selected_target_id,
+        showcore::Property::Intensity,
+        showcore::PropertyValue::set(0.5F));
+    state.draft_dirty = edited.result ==
+        emberlights::StaticLookAuthoringResult::Applied;
+    const auto committed = commit_selected_look(state);
+    const auto after_commit = state.document.snapshot();
+    const auto undone = state.document.undo(after_commit.generation);
+    const auto after_undo = state.document.snapshot();
+    const auto redone = state.document.redo(after_undo.generation);
+    if (!edited || !committed || !after_commit.can_undo || !undone || !redone) {
+        std::cerr << "Fixtures/Looks Slint lab history smoke failed\n";
+        return EXIT_FAILURE;
+    }
     std::cout << "Fixtures/Looks Slint lab model smoke passed\n";
     return EXIT_SUCCESS;
 }
@@ -487,8 +709,79 @@ int main(int argc, char** argv) {
         return model_smoke();
     }
 
+    std::optional<std::filesystem::path> requested_project_path;
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view argument(argv[index]);
+        if (argument == "--project" && index + 1 < argc) {
+            requested_project_path = std::filesystem::path(argv[++index]);
+        } else if (argument == "--help") {
+            std::cout
+                << "Usage: EmberLights-Fixtures-Looks-Lab [--project <file>]\n"
+                << "A missing --project file starts the sample as a new document; "
+                   "Save Project creates it atomically.\n";
+            return EXIT_SUCCESS;
+        } else {
+            std::cerr << "Unknown or incomplete argument: " << argument << '\n';
+            return EXIT_FAILURE;
+        }
+    }
+
     auto state = std::make_shared<LabState>();
-    state->project = make_lab_project();
+    if (requested_project_path.has_value()) {
+        std::error_code filesystem_error;
+        const auto exists = std::filesystem::exists(
+            *requested_project_path, filesystem_error);
+        if (filesystem_error) {
+            std::cerr << "Unable to inspect the requested project path: "
+                      << filesystem_error.message() << '\n';
+            return EXIT_FAILURE;
+        }
+        if (exists) {
+            emberlights::ProjectDocument loaded;
+            const auto load_result = emberlights::load_project(
+                *requested_project_path, loaded, true);
+            if (!load_result ||
+                !activate_project(
+                    *state,
+                    std::move(loaded),
+                    load_result.recovered_from_backup
+                        ? emberlights::StudioDocumentBoundary::NewDocument
+                        : emberlights::StudioDocumentBoundary::OpenedDocument,
+                    requested_project_path)) {
+                std::cerr << "Unable to open the requested project: "
+                          << (load_result
+                                  ? state->operation_message
+                                  : load_result.message)
+                          << '\n';
+                return EXIT_FAILURE;
+            }
+            state->operation_message = load_result.recovered_from_backup
+                ? "Recovered the project backup. Save Project repairs the primary file."
+                : "Opened the project as the durable Studio baseline.";
+        } else if (!activate_project(
+                       *state,
+                       make_lab_project(),
+                       emberlights::StudioDocumentBoundary::NewDocument,
+                       requested_project_path)) {
+            std::cerr << "Unable to create the new lab document: "
+                      << state->operation_message << '\n';
+            return EXIT_FAILURE;
+        } else {
+            state->operation_message =
+                "New unsaved project. Save Project creates it atomically with restore history.";
+        }
+    } else if (!activate_project(
+                   *state,
+                   make_lab_project(),
+                   emberlights::StudioDocumentBoundary::NewDocument,
+                   std::nullopt)) {
+        std::cerr << "Unable to initialize the lab document: "
+                  << state->operation_message << '\n';
+        return EXIT_FAILURE;
+    } else {
+        state->operation_message =
+            "Output-disabled sample. Launch with --project <file> to test durable save/history.";
+    }
     auto ui = FixturesLooksLab::create();
     const slint::ComponentWeakHandle<FixturesLooksLab> weak_ui(ui);
 
@@ -514,9 +807,18 @@ int main(int argc, char** argv) {
     });
     ui->on_select_look([with_ui](const slint::SharedString& id) {
         with_ui([&](const auto& component, auto& state) {
-            state.selected_look_id = string_from(id);
+            const auto requested = string_from(id);
+            if (state.draft_dirty && requested != state.selected_look_id) {
+                state.operation_message =
+                    "Save or undo the current Static Look draft before changing selection.";
+                refresh_ui(component, state);
+                return;
+            }
+            state.selected_look_id = requested;
             state.selected_choice_id.clear();
-            state.operation_message.clear();
+            state.operation_message = reload_selected_look_draft(state)
+                ? std::string{}
+                : std::string("The selected Static Look is no longer available.");
             refresh_ui(component, state);
         });
     });
@@ -535,9 +837,9 @@ int main(int argc, char** argv) {
     ui->on_select_choice([with_ui](const slint::SharedString& id) {
         with_ui([&](const auto& component, auto& state) {
             state.selected_choice_id = string_from(id);
-            mutate_selected_look(component, state, [&](auto& draft) {
+            mutate_selected_look(component, state, [&](auto& draft, const auto& project) {
                 return emberlights::apply_static_look_control_choice(
-                    draft, state.project, state.selected_target_id,
+                    draft, project, state.selected_target_id,
                     state.selected_choice_id);
             });
         });
@@ -545,8 +847,9 @@ int main(int argc, char** argv) {
     ui->on_control_value_changed(
         [with_ui](const slint::SharedString& id, float value) {
             with_ui([&](const auto& component, auto& state) {
+                const auto project = project_for_presentation(state);
                 const auto model = emberlights::build_fixtures_looks_shell_model(
-                    state.project,
+                    project,
                     query_from(state, component.get_advanced_open()));
                 const auto* control = control_for(model, string_from(id));
                 if (control == nullptr) {
@@ -554,9 +857,9 @@ int main(int argc, char** argv) {
                     refresh_ui(component, state);
                     return;
                 }
-                mutate_selected_look(component, state, [&](auto& draft) {
+                mutate_selected_look(component, state, [&](auto& draft, const auto& active_project) {
                     return emberlights::apply_static_look_property(
-                        draft, state.project, state.selected_target_id,
+                        draft, active_project, state.selected_target_id,
                         control->property, showcore::PropertyValue::set(value));
                 });
             });
@@ -565,8 +868,9 @@ int main(int argc, char** argv) {
         [with_ui](const slint::SharedString& id,
                   const slint::SharedString& ownership) {
             with_ui([&](const auto& component, auto& state) {
+                const auto project = project_for_presentation(state);
                 const auto model = emberlights::build_fixtures_looks_shell_model(
-                    state.project,
+                    project,
                     query_from(state, component.get_advanced_open()));
                 const auto* control = control_for(model, string_from(id));
                 if (control == nullptr) {
@@ -575,17 +879,17 @@ int main(int argc, char** argv) {
                     return;
                 }
                 const auto mode = string_from(ownership);
-                mutate_selected_look(component, state, [&](auto& draft) {
+                mutate_selected_look(component, state, [&](auto& draft, const auto& active_project) {
                     if (mode == "release") {
                         return emberlights::remove_static_look_property(
-                            draft, state.project, state.selected_target_id,
+                            draft, active_project, state.selected_target_id,
                             control->property);
                     }
                     const auto value = mode == "forceZero"
                         ? showcore::PropertyValue::force_zero()
                         : showcore::PropertyValue::set(control->normalized_value);
                     return emberlights::apply_static_look_property(
-                        draft, state.project, state.selected_target_id,
+                        draft, active_project, state.selected_target_id,
                         control->property, value);
                 });
             });
@@ -607,45 +911,88 @@ int main(int argc, char** argv) {
     });
     ui->on_save_look([with_ui]() {
         with_ui([](const auto& component, auto& state) {
-            state.dirty = false;
-            state.operation_message =
-                "Lab state acknowledged in memory; project persistence is not wired yet.";
+            const auto outcome = commit_selected_look(state);
+            state.operation_message = outcome.result ==
+                    emberlights::StudioMutationResult::Applied
+                ? "Static Look committed as one generation-checked Undo transaction."
+                : outcome.message;
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_save_project([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            save_studio_project(state);
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_undo([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            undo_studio_edit(state);
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_redo([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            redo_studio_edit(state);
             refresh_ui(component, state);
         });
     });
     ui->on_create_look([with_ui]() {
         with_ui([](const auto& component, auto& state) {
-            ++state.created_look_count;
-            auto draft = emberlights::make_static_look_draft(
-                0U,
-                "look.lab." + std::to_string(state.created_look_count),
+            if (state.draft_dirty) {
+                state.operation_message =
+                    "Save or undo the current Static Look draft before creating another.";
+                refresh_ui(component, state);
+                return;
+            }
+            const auto snapshot = state.document.snapshot();
+            std::string stable_id;
+            do {
+                ++state.created_look_count;
+                stable_id =
+                    "look.lab." + std::to_string(state.created_look_count);
+            } while (look_index_for(snapshot.document, stable_id).has_value());
+            state.selected_look_draft = emberlights::make_static_look_draft(
+                snapshot.generation,
+                stable_id,
                 "New Static Look " + std::to_string(state.created_look_count));
-            state.selected_look_id = draft.look.id;
-            state.project.looks.push_back(std::move(draft.look));
-            state.dirty = true;
-            state.operation_message = "Created an in-memory Static Look.";
+            state.selected_look_id = state.selected_look_draft->look.id;
+            state.draft_dirty = true;
+            state.operation_message =
+                "New Static Look draft ready. Save Look commits it to project history.";
             refresh_ui(component, state);
         });
     });
     ui->on_duplicate_look([with_ui]() {
         with_ui([](const auto& component, auto& state) {
-            const auto* source = selected_look(state);
-            if (source == nullptr) {
+            if (state.draft_dirty) {
+                state.operation_message =
+                    "Save or undo the current Static Look draft before duplicating.";
+                refresh_ui(component, state);
+                return;
+            }
+            if (!state.selected_look_draft.has_value() &&
+                !reload_selected_look_draft(state)) {
                 state.operation_message = "Select a Static Look to duplicate.";
                 refresh_ui(component, state);
                 return;
             }
-            ++state.created_look_count;
-            emberlights::StaticLookDraft source_draft;
-            source_draft.look = *source;
-            auto duplicate = emberlights::duplicate_static_look_draft(
-                source_draft,
-                "look.lab.copy." + std::to_string(state.created_look_count),
-                source->name + " Copy");
-            state.selected_look_id = duplicate.look.id;
-            state.project.looks.push_back(std::move(duplicate.look));
-            state.dirty = true;
-            state.operation_message = "Duplicated the Static Look in memory.";
+            const auto snapshot = state.document.snapshot();
+            std::string stable_id;
+            do {
+                ++state.created_look_count;
+                stable_id = "look.lab.copy." +
+                    std::to_string(state.created_look_count);
+            } while (look_index_for(snapshot.document, stable_id).has_value());
+            state.selected_look_draft =
+                emberlights::duplicate_static_look_draft(
+                    *state.selected_look_draft,
+                    stable_id,
+                    state.selected_look_draft->look.name + " Copy");
+            state.selected_look_id = state.selected_look_draft->look.id;
+            state.draft_dirty = true;
+            state.operation_message =
+                "Duplicated Static Look draft ready. Save Look commits it to history.";
             refresh_ui(component, state);
         });
     });

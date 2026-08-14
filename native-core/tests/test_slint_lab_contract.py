@@ -39,6 +39,9 @@ class SlintLabContractTests(unittest.TestCase):
             "Static Looks",
             "New Look",
             "Save Look",
+            "Save Project",
+            'text: "Undo"',
+            'text: "Redo"',
             "Duplicate",
             "INTENSITY & OWNERSHIP",
             "COLOR MIXER",
@@ -77,10 +80,18 @@ class SlintLabContractTests(unittest.TestCase):
             "remove_static_look_property",
             "apply_static_look_control_choice",
             "duplicate_static_look_draft",
+            "StudioDocumentService",
+            "commit_static_look_draft",
+            "save_project_atomic",
+            "acknowledge_saved",
         ):
             self.assertIn(function, self.adapter)
         self.assertIn("--model-smoke", self.adapter)
+        self.assertIn("--project", self.adapter)
+        self.assertIn("state.document.undo", self.adapter)
+        self.assertIn("state.document.redo", self.adapter)
         self.assertIn("no DMX output", self.adapter)
+        self.assertNotIn("state.project.looks.push_back", self.adapter)
         self.assertNotIn("OutputBackend", self.adapter)
         self.assertNotIn("start_output", self.adapter)
 

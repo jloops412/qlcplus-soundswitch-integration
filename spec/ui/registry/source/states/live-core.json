@@ -202,6 +202,47 @@
       "nativeOrdinal": 38, "id": "output.controlOne.experimental", "label": "Control One experimental opt-in", "category": "output",
       "description": "Explicit project opt-in; does not imply physical or gig qualification.", "value": {"type": "boolean"},
       "scope": "projectDocument", "authority": "projectDocument", "snapshotGroup": "outputs", "persisted": true
+    },
+    {
+      "nativeOrdinal": 39, "id": "staticLook.active.packageGeneration", "label": "Static Look package generation", "category": "staticLook",
+      "description": "Runner package generation that owns the current Static Look activation.",
+      "value": {"type": "integer", "minimum": 0}, "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 40, "id": "staticLook.active.activationGeneration", "label": "Static Look activation generation", "category": "staticLook",
+      "description": "Monotonic activation generation used with the owner key to reject stale Hold releases.",
+      "value": {"type": "integer", "minimum": 0}, "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 41, "id": "staticLook.active.ownerKind", "label": "Static Look owner kind", "category": "staticLook",
+      "description": "Trusted surface category that owns the current activation.",
+      "value": {"type": "enum", "enumValues": ["none", "ui", "keyboard", "midi", "controller", "moment", "external", "test"]},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 42, "id": "staticLook.active.ownerFeedbackKey", "label": "Static Look owner feedback key", "category": "staticLook",
+      "description": "Opaque non-sensitive owner key used for held-by-this-control feedback; it is not a project or skin argument.",
+      "value": {"type": "string", "maxLength": 20, "format": "uint64Decimal"},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 43, "id": "staticLook.active.behavior", "label": "Static Look activation behavior", "category": "staticLook",
+      "description": "Authoritative activation behavior shared by software, keyboard, MIDI, controller, and external surfaces.",
+      "value": {"type": "enum", "enumValues": ["none", "latch", "hold", "explicit"]},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 44, "id": "staticLook.active.status", "label": "Static Look activation status", "category": "staticLook",
+      "description": "Authoritative inactive, activating, active, or releasing state.",
+      "value": {"type": "enum", "enumValues": ["none", "activating", "active", "releasing"]},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 45, "id": "staticLook.active.transitionProgress", "label": "Static Look transition progress", "category": "staticLook",
+      "description": "Runner-owned progress for the current activation or release transition; presentation is not timing authority.",
+      "value": {"type": "number", "minimum": 0, "maximum": 1, "unit": "normalized"},
+      "updateClass": "progress", "nativeUpdateClass": "Realtime", "maximumPublishHz": 30,
+      "snapshotGroup": "staticLookActive"
     }
   ]
 }
