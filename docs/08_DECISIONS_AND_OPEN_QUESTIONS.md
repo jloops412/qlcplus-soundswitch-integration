@@ -1,6 +1,6 @@
 # Decisions and Open Questions
 
-Last updated: 2026-08-13.
+Last updated: 2026-08-14.
 
 ## Accepted decisions
 
@@ -96,6 +96,7 @@ Last updated: 2026-08-13.
 | D-088 | Direct profile channels and named compound-channel ranges are one operator-facing Fixture Attribute catalog across Profiles, Static Looks, Autoloops, Live, MIDI/controllers, Ember Actions, and skins. | Professional fixture control cannot make Intensity/RGB/Pan/Zoom a generic fallback while Gobo/Prism/Shutter use a separate browser. Both resolve through the same stable semantic property/value spine while the profile retains channel order, encoding, range, coarse/fine, default, blackout, highlight, owner/head/cell, and provenance. Protected ranges remain absent, safety remains Runner-owned, mixed groups retain exact per-fixture authoring values, and Live permits only one exact atomic semantic command. Raw DMX remains inspection evidence rather than a second automation API. |
 | D-089 | The base profile-backed catalog is operator-facing **Fixture Controls**; **Attribute Cue** is reserved for a reusable authored asset above that catalog. Stable internal type and choice IDs remain compatible. | SoundSwitch explicitly uses Attribute Cues for reusable special-function settings referenced by scripts/Autoloops while basic Intensity, Color, Pan/Tilt, and Strobe use control tracks. Calling every DMX channel an Attribute Cue would erase the asset/reference boundary required for faithful import and global updates. Future migration maps fixture channels/functions first, then preserves Attribute Cue assets and placements above them. |
 | D-090 | Fixture Control availability is evaluated per destination surface from one stable catalog, not from one universal Live rule or per-widget guesses. | Live groups require one complete exact atomic semantic command. Static Looks, Autoloops, and controller mappings may retain bounded per-fixture values and explicit partial coverage under their own safety contracts. A toolkit-neutral snapshot carries the surface, coverage, reason, stable selection, favorites, value semantics, and raw-DMX diagnostics; adapters and skins cannot weaken those rules. |
+| D-091 | The current Win32 presentation is a frozen transitional/Safe bridge, and Previews 98–100 are model/contract checkpoints rather than accepted EmberLights Default versions. | The reusable authoring, fixture-control, command/state, safety, and registry models remain valid, but growing modeless Inspectors and property forms moves away from the accepted modular skin platform and professional operator workflow. Only safety, defect, accessibility, and bridge-removal changes may expand the legacy adapter. Product UI proceeds through the issue #37 measured replacement-shell spike, issue #32 runtime/Safe gate, then Default/Reference skins. The first product-shaped slice is Fixtures + Static Looks with visual categorized controls and raw DMX behind Advanced. D-091 supersedes D-076 wherever D-076 permitted further product-facing Win32 modernization. |
 
 ## Superseded recommendations
 

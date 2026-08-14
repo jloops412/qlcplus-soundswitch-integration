@@ -46,6 +46,7 @@ add_library(showcore STATIC
     src/fixture.cpp
     src/fixture_capabilities.cpp
     src/fixture_control_action.cpp
+    src/fixture_control_surface.cpp
     src/fixture_controller_binding.cpp
     src/fixture_function_component.cpp
     src/fixture_library.cpp
@@ -237,6 +238,10 @@ target_link_libraries(fixture_controller_binding_tests PRIVATE showcore)
 add_executable(fixture_function_component_tests
     tests/test_fixture_function_component.cpp)
 target_link_libraries(fixture_function_component_tests PRIVATE showcore)
+
+add_executable(fixture_control_surface_tests
+    tests/test_fixture_control_surface.cpp)
+target_link_libraries(fixture_control_surface_tests PRIVATE showcore)
 
 add_executable(studio_authoring_tests
     tests/test_studio_authoring.cpp)
@@ -459,6 +464,13 @@ else()
 endif()
 
 enable_testing()
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME ui_direction_tests
+        COMMAND "${Python3_EXECUTABLE}" tests/test_ui_direction.py)
+    set_tests_properties(ui_direction_tests PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
 if(WIN32)
     add_test(NAME windows_gui_startup COMMAND EmberLights --startup-smoke)
     set_tests_properties(windows_gui_startup PROPERTIES TIMEOUT 20)
@@ -491,6 +503,7 @@ add_test(NAME fixture_controller_binding_tests
     COMMAND fixture_controller_binding_tests)
 add_test(NAME fixture_function_component_tests
     COMMAND fixture_function_component_tests)
+add_test(NAME fixture_control_surface_tests COMMAND fixture_control_surface_tests)
 add_test(NAME studio_authoring_tests COMMAND studio_authoring_tests)
 add_test(NAME ember_action_foundation_tests COMMAND ember_action_foundation_tests)
 set_tests_properties(ember_action_foundation_tests PROPERTIES

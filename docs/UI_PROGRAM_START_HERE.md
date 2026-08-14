@@ -16,6 +16,8 @@ Build a lightweight modular interface platform in which:
 
 ## Current gate
 
+**UI course correction (2026-08-14):** the current Win32 shell is now a frozen transitional/Safe bridge, not EmberLights Default. Previews 98–100 proved reusable authoring and fixture-control models but did not prove acceptable product UI. New product presentation begins with the renderer-neutral Fixtures + Static Looks acceptance slice in `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`; raw DMX and the legacy Fixture Control Inspector are Advanced diagnostics, not the ordinary workflow.
+
 **Issue #38 / `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the immediate P0.**
 
 Broad Default/Reference implementation waits for:
@@ -132,14 +134,14 @@ The registry policy applies to every user-visible feature change, even when the 
 
 ## Current implementation checkpoint
 
-`36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` records preview 88's bounded bridge: toolkit-neutral semantic visual tokens/navigation/layout metadata, a persistent gig-health strip, Windows Fluent/MDL2 icon fallback, modern list/active-state rendering, and card hierarchy. It also records the resource audit that keeps Slint first for issue #37, QLC+ as an Apache-2.0 workflow/selective-reuse reference, Fluent UI System Icons as the future MIT vector source, and Qt/WinUI as measured fallbacks rather than assumed dependencies.
+`44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md` is the active UI checkpoint. It preserves the registry/domain foundations, freezes legacy Win32 growth, defines the first product-shaped Fixtures + Static Looks slice, and makes the next installer bar explicit. `36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` remains historical evidence for preview 88's bounded bridge and toolkit/resource audit.
 
 This checkpoint adds no domain behavior or callbacks and does not accept a production toolkit, `.emberskin` runtime, Safe surface, or Reference skin.
 
 ## Immediate implementation order after the core gate
 
-1. Complete/reconcile #31 command/state facade and #64 registry authority without changing lighting behavior.
-2. Complete #37 equivalent toolkit measurements and decision.
+1. Keep the D-091 Win32 freeze green and complete/reconcile #31 command/state facade and #64 registry authority without changing lighting behavior.
+2. Complete #37 equivalent toolkit measurements using the real Fixtures + Static Looks slice—not placeholder counters or another form—and record the decision.
 3. Implement #32 package/runtime/Safe surface.
 4. Build #33 Default journeys.
 5. Finish #30 Tier A evidence and build #34 Reference parity skin.

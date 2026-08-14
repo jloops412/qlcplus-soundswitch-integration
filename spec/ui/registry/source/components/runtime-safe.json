@@ -141,6 +141,26 @@
       "performanceClass": "virtualized"
     },
     {
+      "id": "ember.fixtureControlSurface",
+      "label": "Fixture Control Surface",
+      "description": "Presents stable profile-backed fixture parameters as task-facing visual controls such as color mixers, XY position pads, faders, rate controls, slot choices, and safety-gated triggers; raw DMX diagnostics and unclassified channels require explicit Advanced disclosure.",
+      "status": "planned",
+      "contractVersion": "0.1.0",
+      "supportedWorkspaces": ["live", "studio"],
+      "supportedVariants": ["compact", "default", "wide", "touch"],
+      "properties": {
+        "category": {"type": "enum", "enumValues": ["all", "atmosphere", "beam", "color", "custom", "effect", "image", "intensity", "position"]},
+        "includeAdvanced": {"type": "boolean"},
+        "showDiagnostics": {"type": "boolean"},
+        "surface": {"type": "enum", "enumValues": ["autoloop", "controller", "liveOverride", "staticLook"]}
+      },
+      "events": ["favoriteToggled", "releaseRequested", "selectionChanged", "valueChanged"],
+      "requiredStates": ["override.activePropertyCount"],
+      "accessibilityRole": "group",
+      "performanceClass": "snapshotBounded",
+      "failureBehavior": "safeFallback"
+    },
+    {
       "id": "ember.fixtureFunctionBrowser",
       "label": "Fixture Control Inspector",
       "description": "Searches and diagnoses one stable profile-backed catalog containing direct fixture channels and named DMX functions, with surface-aware availability for Live, Static Looks, Autoloops, and controller mappings; protected ranges remain excluded.",

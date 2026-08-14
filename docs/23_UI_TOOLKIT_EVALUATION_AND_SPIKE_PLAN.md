@@ -2,6 +2,12 @@
 
 Status: binding decision process. No production UI toolkit is accepted until this spike produces measured evidence.
 
+UI course correction (2026-08-14): issue #37 must now implement the binding
+Fixtures + Static Looks acceptance slice from
+`44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`. A dashboard,
+placeholder counter demo, or recreation of the legacy property forms is not an
+equivalent product-shaped spike.
+
 Related:
 
 - `03_ARCHITECTURE.md`
@@ -230,16 +236,24 @@ Build a disposable but production-shaped `emberlights_ui_spike` target. It must 
    - different layout over the identical command/state data;
    - page/panel switching and responsive collapse.
 
-4. **Studio skeleton**
+4. **Fixtures + Static Looks Studio slice**
+   - fixture-profile Library search/import/provenance and useful empty/error/read-only states;
+   - ordered channel grid with 8/16-bit encoding and named DMX ranges;
+   - fixture/group and Static Look selection;
+   - color mixer, XY position, faders, rate controls, slot choices, and safety-gated triggers driven by `ember.fixtureControlSurface`;
+   - explicit `RELEASE`/`SET`/`FORCE_ZERO` ownership;
+   - bounded preview state that is clearly unavailable while Live is running;
+   - raw DMX diagnostics only in an explicit Advanced drawer;
+   - completion of the workflow at both 1366×768 and 1920×1080 without a separate modeless Inspector.
+
+5. **Dense Studio stress surface**
    - library tree with at least 10,000 synthetic rows;
    - track hierarchy with 256 synthetic tracks;
    - timeline canvas with dense cue blocks/curves;
    - waveform placeholder/custom draw surface;
-   - contextual Inspector;
-   - split/dock resizing;
-   - Autoloop and Static Look editor components.
+   - split/dock resizing.
 
-5. **Skin failure**
+6. **Skin failure**
    - invalid package load;
    - failed reload while the current skin remains active;
    - Safe fallback first-load behavior.

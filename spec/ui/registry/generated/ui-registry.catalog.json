@@ -1383,6 +1383,79 @@
       ]
     },
     {
+      "accessibilityRole": "group",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents stable profile-backed fixture parameters as task-facing visual controls such as color mixers, XY position pads, faders, rate controls, slot choices, and safety-gated triggers; raw DMX diagnostics and unclassified channels require explicit Advanced disclosure.",
+      "events": [
+        "favoriteToggled",
+        "releaseRequested",
+        "selectionChanged",
+        "valueChanged"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.fixtureControlSurface",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Fixture Control Surface",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {
+        "category": {
+          "enumValues": [
+            "all",
+            "atmosphere",
+            "beam",
+            "color",
+            "custom",
+            "effect",
+            "image",
+            "intensity",
+            "position"
+          ],
+          "type": "enum"
+        },
+        "includeAdvanced": {
+          "type": "boolean"
+        },
+        "showDiagnostics": {
+          "type": "boolean"
+        },
+        "surface": {
+          "enumValues": [
+            "autoloop",
+            "controller",
+            "liveOverride",
+            "staticLook"
+          ],
+          "type": "enum"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [
+        "override.activePropertyCount"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "compact",
+        "default",
+        "wide",
+        "touch"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
       "accessibilityRole": "listbox",
       "callable": false,
       "classification": "nativeComplex",
@@ -1614,7 +1687,7 @@
     }
   ],
   "registryGeneration": 2,
-  "registrySetVersion": "1.5.0",
+  "registrySetVersion": "1.6.0",
   "results": [
     {
       "description": "The command request was accepted by its authoritative service.",
@@ -1758,7 +1831,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "7e22086416145ec19d10d309e492d64eb60e96d3e8a8a59b2f81ffdbadc7026f",
+  "sourceDigest": "cd168a55b5e9b686efd530933731570af326f5907d481a8e5032565ca23cffa3",
   "states": [
     {
       "authority": "runnerScheduler",

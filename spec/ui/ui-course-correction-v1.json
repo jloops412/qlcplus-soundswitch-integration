@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "decisionId": "D-091",
+  "effectiveDate": "2026-08-14",
+  "status": "binding",
+  "legacyShell": {
+    "classification": "frozenBridge",
+    "source": "native-core/src/windows_app.cpp",
+    "maximumCreateWindowExWCallSites": 6,
+    "maximumToolWindowCallSites": 3,
+    "maximumBrowseControlsEntrypoints": 4,
+    "allowedChangeClasses": [
+      "accessibility",
+      "defect",
+      "migrationRemoval",
+      "safety"
+    ],
+    "forbiddenChangeClasses": [
+      "newFeatureOnlyInWin32",
+      "newPropertyForm",
+      "newTopLevelEditor",
+      "productSkinClaim"
+    ]
+  },
+  "replacementShellGate": {
+    "order": [
+      "registryFacade",
+      "toolkitEvidence",
+      "skinRuntimeSafe",
+      "defaultSkin",
+      "referenceSkin"
+    ],
+    "toolkitSpikeIssue": 37,
+    "productionGateIssue": 38,
+    "toolkitCandidates": ["slint", "winui3", "direct2dSafeBaseline"],
+    "toolkitSelected": false
+  },
+  "firstProductSlice": {
+    "id": "studio.fixtures-static-looks",
+    "layoutFixture": "spec/ui/examples/default-studio-fixtures-looks-standard.layout.json",
+    "requiredViewports": ["1366x768", "1920x1080"],
+    "workflows": [
+      "fixtureProfileSearchImportAndProvenance",
+      "profileChannelGridAndNamedRangeEditing",
+      "visualCategorizedFixtureControls",
+      "staticLookOwnershipReleaseSetForceZero",
+      "boundedPreviewOnlyWhileLiveStopped",
+      "explicitAdvancedRawDiagnostics"
+    ],
+    "primaryControlTypes": [
+      "colorMixer",
+      "fader",
+      "rateControl",
+      "safetyTrigger",
+      "slotTiles",
+      "xyPad"
+    ],
+    "primarySurfaceProhibitions": [
+      "modelessFixtureInspector",
+      "rawDmxAsOrdinaryControl",
+      "skinOwnedBehavior"
+    ]
+  },
+  "installerPolicy": {
+    "modelOnlyChangesAdvancePreview": false,
+    "nextUiPreviewRequirement": "Activates the product-shaped first slice in a replacement-shell toolkit, or is labeled explicitly as a non-product lab build."
+  }
+}

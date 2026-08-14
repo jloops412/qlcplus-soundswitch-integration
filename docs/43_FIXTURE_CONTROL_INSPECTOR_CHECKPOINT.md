@@ -1,8 +1,13 @@
 # Fixture Control Inspector checkpoint
 
-Status: contract-packaged Default 2.4 operator/control-foundation pass for
-issues #52 and #66 on the open integration branch. Installed-Windows and
-physical-hardware evidence remain pending.
+> UI course correction (2026-08-14): the surface-aware fixture-control model
+> remains valid, but the modeless Win32 Inspector presentation is rejected as
+> the product direction. This is not Default 2.4 or professional UI. The
+> Inspector is frozen as an Advanced diagnostic bridge while ordinary control
+> moves to `ember.fixtureControlSurface` in the replacement shell.
+
+Status: contract-packaged fixture-control model and historical legacy-adapter
+checkpoint for issues #52 and #66 on the open integration branch.
 
 ## Outcome
 

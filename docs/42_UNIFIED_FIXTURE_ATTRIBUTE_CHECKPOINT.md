@@ -1,6 +1,10 @@
 # Unified Fixture Attribute checkpoint
 
-Status: source-complete Default 2.3 / fixture-truth checkpoint for issues #52,
+> UI course correction (2026-08-14): this is a fixture-domain contract
+> checkpoint, not an accepted Default 2.3 product UI. The unified catalog
+> remains authoritative; its legacy presentation does not.
+
+Status: source-complete fixture-truth contract checkpoint for issues #52,
 #33, and #66 on the open integration branch. It advances the shared fixture
 control contract; it is not physical-fixture qualification, a finished skin
 runtime, or completion of the fixture-library corpus.

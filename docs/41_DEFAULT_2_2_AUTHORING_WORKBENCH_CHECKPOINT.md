@@ -1,6 +1,11 @@
 # Default 2.2 authoring workbench checkpoint
 
-Status: source-complete bounded Default UI/UX checkpoint for issue #33 and the open integration branch. This is a reusable authoring-pattern implementation over the existing project services; it is not completion of the `.emberskin` runtime, acceptance of a production toolkit, or a change to Runner/output behavior.
+> UI course correction (2026-08-14): this is a reusable authoring-model
+> checkpoint with a legacy Win32 adapter, not an accepted Default 2.2 product
+> UI. The model remains; further product presentation moves to the replacement
+> shell defined in `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`.
+
+Status: source-complete bounded authoring-model checkpoint for issue #33 and the open integration branch. This is a reusable authoring-pattern implementation over the existing project services; it is not completion of the `.emberskin` runtime, acceptance of a production toolkit, or a change to Runner/output behavior.
 
 ## Outcome
 
