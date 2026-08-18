@@ -8,19 +8,22 @@ Read `docs/00_START_HERE.md` before changing code or scope.
 
 **Skins platform lane:** when the assigned work touches skins, UI commands/state, components, capabilities, bindings, keyboard/MIDI/controller mappings, custom controls, overlays, Ember Actions, the visual Skin Designer, skin/mapping migration, or package compatibility, read issue #63, `docs/SKINS_PLATFORM_V2_START_HERE.md`, and the smallest matching route it names. The registry lifecycle policy is mandatory for every user-visible feature agent, not only skin agents. Do not add hard-coded surface behavior without registered command/state/capability/component reconciliation, and do not create an arbitrary script VM or a second lighting engine. This lane coordinates with #31/#32/#34/#37/#39 and remains subordinate to open core-ready gates for broad rollout.
 
+**OS2L / VirtualDJ reliability lane:** when assigned work touches OS2L discovery, listener/client lifecycle, VirtualDJ startup/reconnect, song-transition behavior, Blackout/Work Light/Look/Autoloop feedback, external DJ commands, or OS2L diagnostics, read issue #89 and `docs/46_OS2L_RELIABILITY_AND_VDJ_CONTROL_CHECKPOINT.md` before editing. Treat OS2L as an application-owned transport service over the canonical command/state model: listener/discovery lifetime is not owned by Runner or song transport; socket connection and beat/sync state are separate facts; outbound feedback is authoritative shared-state feedback, not a VDJ shadow state; and network/discovery/feedback work never runs on the DMX scheduler. The inert `EmberLights Keepalive` may remain a compatibility fallback but is not accepted as routine connection management.
+
 ## Authority order
 
 1. Direct, current instructions from Joshua.
 2. `docs/handoffs/CORE_RECOVERY_BUILD_AGENT_HANDOFF_2026-08-11.md` for the scheduled core build slice.
 3. `docs/21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` while its recovery gates remain open.
-4. `docs/23_FIXTURE_LIBRARY_INGESTION_AND_PROFILE_QUALIFICATION_PLAN.md` for fixture source, profile, patch, provenance, and hardware-qualification work.
-5. `docs/24_OWNED_FIXTURE_SOURCE_INVENTORY_AND_FIRST_BENCH_PLAN.md` for the first owned-fixture bench slice.
-6. `docs/28_STUDIO_V1_AUTHORING_MIGRATION_AND_SOURCE_COMPATIBILITY_PLAN.md` and `docs/29_STUDIO_V1_BUILD_HANDOFF.md` for work explicitly assigned to the Studio lane under issue #46.
-7. `docs/SKINS_PLATFORM_V2_START_HERE.md`, ADR 0006, and the linked contracts for work assigned to issue #63 or any user-visible surface/registry change.
-8. `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md` entries marked **Accepted**.
-9. `soundswitch-replacement-product-ledger.md`.
-10. The remaining handoff documents.
-11. Implementation details and provisional recommendations.
+4. `docs/46_OS2L_RELIABILITY_AND_VDJ_CONTROL_CHECKPOINT.md` and issue #89 for OS2L/VirtualDJ connection, feedback, capture, diagnostics, and external-command work.
+5. `docs/23_FIXTURE_LIBRARY_INGESTION_AND_PROFILE_QUALIFICATION_PLAN.md` for fixture source, profile, patch, provenance, and hardware-qualification work.
+6. `docs/24_OWNED_FIXTURE_SOURCE_INVENTORY_AND_FIRST_BENCH_PLAN.md` for the first owned-fixture bench slice.
+7. `docs/28_STUDIO_V1_AUTHORING_MIGRATION_AND_SOURCE_COMPATIBILITY_PLAN.md` and `docs/29_STUDIO_V1_BUILD_HANDOFF.md` for work explicitly assigned to the Studio lane under issue #46.
+8. `docs/SKINS_PLATFORM_V2_START_HERE.md`, ADR 0006, and the linked contracts for work assigned to issue #63 or any user-visible surface/registry change.
+9. `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md` entries marked **Accepted**.
+10. `soundswitch-replacement-product-ledger.md`.
+11. The remaining handoff documents.
+12. Implementation details and provisional recommendations.
 
 `docs/24_FIXTURE_LIBRARY_AND_PROFILE_QUALIFICATION_PLAN.md` is useful supporting research created concurrently. It does not supersede the active fixture authority above; where the first bench target differs, use the newer manufacturer-backed IR-4 6-channel plan.
 
@@ -42,6 +45,9 @@ When sources conflict, later accepted decisions supersede earlier research. Impo
 - Skins are presentation/binding packages over one engine; Default, SoundSwitch Reference, Safe, user skins, mappings, and remotes do not get private domain behavior.
 - Ember Actions are typed bounded compositions over registered commands/state, not arbitrary JavaScript/Lua/WASM/native code and not a show-timing engine.
 - Adding, removing, renaming, or changing a user-visible feature requires registry, generated-artifact, bundled-skin, mapping/action, schema, test, deprecation, and migration reconciliation in the same bounded work.
+- OS2L listener/discovery lifetime is application/connection-layer ownership; play/stop/load/sync changes must not own or tear down the listener.
+- OS2L TCP client state and transport beat/sync state are independently observable and must never be conflated in Live or Diagnostics.
+- Stateful VirtualDJ controls consume authoritative EmberLights feedback; VDJ variables and keepalive actions are compatibility aids, not lighting-state authority.
 
 ## Required engineering behavior
 
@@ -60,7 +66,7 @@ When sources conflict, later accepted decisions supersede earlier research. Impo
 - Invalidate profile/patch qualification when behavior-affecting data changes.
 - Keep every active hardware test bounded and fail to blackout.
 - Keep SoundSwitch migration source evidence, editable Studio data, and compiled Runner packages as separate representations.
-- Keep source/library indexing, audio analysis, waveform generation, migration decoding, skin designing, package import, action compilation, and asset processing off the Runner and DMX scheduler.
+- Keep source/library indexing, audio analysis, waveform generation, migration decoding, skin designing, package import, action compilation, asset processing, OS2L discovery, socket I/O, feedback serialization, and OS2L diagnostics formatting off the Runner and DMX scheduler.
 - Route new user-callable behavior through canonical registered commands and publish authoritative registered state/result feedback; no new untracked UI/controller callback bypass.
 - Treat skins, overlays, actions, mappings, profiles, and migration inputs as untrusted bounded data with no direct device/file/network/state access.
 - Keep the lean Perform path limited to validated compiled View Graph, Action IR, Binding Tables, native component adapters, and bounded state subscriptions.
@@ -73,14 +79,14 @@ The immediate order is:
 2. Reusable Micro adapter/session and reconnect hardening.
 3. Rendered-frame inspection and one exact fixture/profile/address proof using the fixture qualification plan.
 4. Visible and truthful Connections persistence/apply behavior.
-5. Deterministic VirtualDJ/OS2L startup and reconnection.
-6. Static Look Toggle/Hold ownership and Autoloop override/return semantics.
+5. Persistent application-owned VirtualDJ/OS2L discovery, startup/reconnection, connection-vs-sync diagnostics, raw capture, and authoritative outbound feedback per #89/doc 46.
+6. Static Look Toggle/Hold ownership and Autoloop override/return semantics, including external feedback where qualified.
 7. Reliable timing/output and adapter-service extraction.
 8. Minimal gig UI.
 9. Studio authoring, migration, searchable fixture-library, and modular skin expansion.
 10. Advanced automation and event-aware features.
 
-Parallel work explicitly assigned by Joshua may proceed in isolated lanes when it does not alter or delay the active core. For Studio, follow issue #46 and docs 28/29, reserve shared files, and stop the first slice at the document-service/source-manifest/migration-IR foundation. For the skins platform, follow issue #63 and `docs/SKINS_PLATFORM_V2_START_HERE.md`, coordinate registry names with #31/#64, and do not begin broad visual rollout before its runtime/toolkit/core dependencies.
+Parallel work explicitly assigned by Joshua may proceed in isolated lanes when it does not alter or delay the active core. For Studio, follow issue #46 and docs 28/29, reserve shared files, and stop the first slice at the document-service/source-manifest/migration-IR foundation. For the skins platform, follow issue #63 and `docs/SKINS_PLATFORM_V2_START_HERE.md`, coordinate registry names with #31/#64, and do not begin broad visual rollout before its runtime/toolkit/core dependencies. For OS2L/VirtualDJ work, follow #89/doc 46 and preserve the canonical command/state surface, existing session-epoch ownership, non-droppable blackout authority, and scheduler isolation.
 
 Do not let a polished UI, AI feature, broad catalog, Wolfmix emulation, speculative fixture profile, or proprietary hardware experiment delay the gig-safe SoundSwitch replacement core.
 
