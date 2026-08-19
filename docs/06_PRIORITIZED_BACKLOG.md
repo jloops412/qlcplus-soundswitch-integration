@@ -2,6 +2,34 @@
 
 Priority is based on replacing SoundSwitch safely, not feature novelty.
 
+## Current execution override — 2026-08-19
+
+The granular backlog below remains the long-range product inventory, but it is **not the immediate agent execution order** while issue #87 Gate A is open. Read `handoffs/CURRENT_BUILD_EXECUTION_HANDOFF_2026-08-19.md` first.
+
+### NOW — blocking critical path
+
+1. **P0-A / #87 — Repository convergence.** Reconcile exact `main@86694f0` with PR #86 / `agent/backyard-party-v2@7efd0b0`; preserve current SoundSwitch evidence, broad implementation, generated contracts, and artifact history; publish one validated convergence PR/commit and make `main` unambiguous.
+2. **P0-B / #90 — Current SoundSwitch 2026 source adapter/import.** Implement a version-specific read-only bundle probe, exact project-local Venue map, placement/length parser, evidence-bearing A/B/Static Look records, V2 semantic reconciliation, output-disabled review/commit, and idempotent re-import. Begin with exactly `Medium / S1 / Red - Smooth Pulse`; no broad generated approximation.
+3. **P0-C / #89 — OS2L/VirtualDJ reliability.** Preserve the bounded Blackout-feedback code already present on PR #86, capture real installed VirtualDJ plain/on/off/keepalive and song-transition traffic, then finish application-owned listener/discovery/reconnect lifetime. Generic `os2l_cmd` waits for P0 proof.
+4. **P0-D / #52/#79 — Truthful testability and evidence.** Exact fixture qualification must not hard-block opening/importing/simulating/saving an output-disabled project. It still gates automatic output enablement, physical support claims, attestation, and gig qualification. Current destination rig is four IR-4 at U1 001/011/021/031 plus four BO-TUBE192 at U1 041/121/201/281; no duplicate generic destination uplights.
+5. **P1-A / #37/#32/#33 — Replacement shell and first product slice.** Finish the measured Slint/WinUI/Safe comparison, select the production path, activate one installed product-shaped Fixtures + Static Looks workflow, and stop expanding product-facing Win32 forms.
+6. **P1-B / #88 — Perceptual fade quality.** Improve transition/easing/dimmer/color smoothness at the engine/profile layer after source timing/target correctness is separated from rendering quality.
+
+### Work already present on the integration lineage—inspect before rebuilding
+
+- raw hardware/Runner frame evidence and qualification foundations;
+- profile-backed fixture controls and Static Look authoring/preview;
+- canonical UI/action registry foundations and UI course correction;
+- Autoloops V2 source/compiler, authoring, 128-placement original starter pack, persistence, deterministic AutoScript, Studio bridge, palette realization, preview, director/runtime/Runner;
+- first bounded OS2L Blackout outbound-feedback software slice;
+- current SoundSwitch decoder research and failed/corrected pilot evidence.
+
+### Explicitly deferred behind the NOW queue
+
+WOLFMIX parsing, AI/model lighting, broad new default packs, another Autoloop/fixture/project/UI model, new product-facing Win32 editors, broad skin designer/marketplace/cloud work, proprietary Control One expansion, macOS, and new preview numbers without a meaningful validated operator slice.
+
+---
+
 ## Fixture truth and Static Look builder — issue #52
 
 The current implementation checkpoint is `32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md`. It keeps the persisted/runtime entity as `Look` while delivering the first capability-aware Static Scene/Look workflow. Software-complete items below still require merge/installed-Windows and physical-hardware evidence where noted.
@@ -21,9 +49,11 @@ The current implementation checkpoint is `32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILD
 - **FX-9 — P2:** Add revisioned, measured color calibration/gamma/white balance/emitter limits. Until then, the RGB picker controls RGB only and White/Amber/UV remain direct.
 - **FX-10 — P2:** Add multi-cell, multi-head, switching-channel, wheel, matrix, and richer 16-bit/function conformance coverage.
 
-## Immediate core recovery and hardware qualification gate
+## Immediate core recovery and hardware qualification gate — historical sequencing section
 
-`21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the binding implementation program until its core-ready acceptance definition passes on Joshua's owned Windows hardware. UI/skin expansion is subordinate to these gates.
+This section records the earlier core-recovery program. The current execution override above supersedes it as the universal first-work order. Remaining unclosed physical/support evidence still matters.
+
+`21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` was the binding implementation program until its core-ready acceptance definition. UI/skin expansion remains subordinate to safety/output truth, but branch convergence and current-project migration now precede rebuilding already-delivered foundations.
 
 - **CR-1 — P0:** Ship a safe standalone Hardware Test using the production SoundSwitch Micro session; prove raw channel output independently of projects and fixture profiles.
 - **CR-2 — P0:** Harden the Micro open/init/settle/blackout-warm-up/stream/reconnect/blackout-close lifecycle with exact stage telemetry and golden tests.
@@ -38,7 +68,7 @@ The current implementation checkpoint is `32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILD
 
 ## Cross-cutting UI/UX and skin spine
 
-Start UI work from `UI_PROGRAM_START_HERE.md`. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` and `21_UI_IMPLEMENTATION_PROGRAM.md` are binding. Planning, evidence capture, behavior-preserving command/state extraction, and bounded toolkit spikes may proceed beside the core gate; broad Default/Reference implementation waits for issue #38's core-ready acceptance.
+Start UI work from `UI_PROGRAM_START_HERE.md`. `18_UI_UX_MODULAR_SKIN_ARCHITECTURE.md` and `21_UI_IMPLEMENTATION_PROGRAM.md` are binding. Planning, evidence capture, behavior-preserving command/state extraction, and bounded toolkit spikes may proceed beside the current core/import gates; broad Default/Reference implementation waits for the replacement-shell/runtime acceptance path.
 
 - **U1 — P0 / #31:** Complete the current Win32 `Page`/`ControlId`/callback inventory and route existing behavior through stable typed command/state facades. Preserve the non-droppable blackout path and publish explicit invocation outcomes, state update classes, Command Explorer, State Explorer, and the legacy-bypass ledger.
 - **U2 — P1 / #31:** Route compatible keyboard, MIDI, controller, and external actions through the same command model; validate arguments, availability, safety, persistence, Undo behavior, feedback, conflicts, soft takeover, and reconnect/package changes.
@@ -52,6 +82,8 @@ Start UI work from `UI_PROGRAM_START_HERE.md`. `18_UI_UX_MODULAR_SKIN_ARCHITECTU
 - **U10 — P4:** Add approved layout overlays and later a full visual skin designer only after the two bundled skins, Safe runtime, compatibility rules, accessibility, signing/provenance, and qualification evidence are stable. Public sharing/marketplace remains a separate later product decision.
 
 ## P0 — Preserve the plan and prove the core
+
+The numbered inventory below records product foundations and later completeness work; it is not a claim that every item is still unimplemented.
 
 1. Maintain the decision ledger and handoff package.
 2. Define stable fixture, property, layer, transport, mapping, and package contracts.

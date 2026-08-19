@@ -1,84 +1,177 @@
 # Start Here
 
+## Mandatory current execution checkpoint — 2026-08-19
+
+Before changing code or scope, read:
+
+1. `handoffs/CURRENT_BUILD_EXECUTION_HANDOFF_2026-08-19.md`;
+2. `../AGENTS.md`;
+3. issue #87;
+4. the smallest owning issue/handoff for the assigned lane.
+
+## Repository state
+
+The protected pre-coordination implementation inputs are:
+
+- `main@86694f02d89ef856b06d846026fe558e39206f90` — current-2026 SoundSwitch decoder/pilot lineage plus a historical Preview 97 installer upload;
+- PR #86 / `agent/backyard-party-v2@7efd0b083cc7c42df3b2a5ee3e760687a15e390b` — broad implementation lineage: Autoloops V2, Studio/fixture/UI foundations, Preview 101 lineage, Slint Fixtures + Static Looks lab, qualification work, and the bounded OS2L Blackout-feedback software slice;
+- merge base `47bb45d6e84609a7a73358517ed77e492c29f882`.
+
+At review time PR #86 was 23 commits ahead, 7 behind, diverged, and non-mergeable.
+
+Once this coordination package lands, **the latest `main` head—not `86694f0` itself—is the convergence starting point**. Verify `86694f0` remains its ancestor, then integrate exact `7efd0b0`. Do not extend either protected implementation line independently and do not resolve the split with blanket `ours`/`theirs` or a tree that silently drops a parent.
+
+The immediate order is:
+
+1. #87 Gate A repository convergence;
+2. #90 current `2026.ssproj` source adapter/import vertical slice;
+3. #89 installed VirtualDJ capture plus OS2L lifecycle/feedback reliability;
+4. truthful fixture/physical evidence without blocking safe output-disabled import/project testing;
+5. #37 toolkit decision, #32 Safe/runtime, and #33's first product-shaped Fixtures + Static Looks Default slice;
+6. #88 perceptual fade quality, then broader Autoloops/Live/mapping/migration parity.
+
+Older documents that present raw Micro proof or Autoloops-foundation construction as the universal first coding task are historical sequencing inputs. Remaining support/physical gates still matter; they do not justify rebuilding completed foundations or ignoring the branch split.
+
+---
+
 ## Mission
 
-Create a uniquely owned, general-purpose, gig-ready replacement for SoundSwitch. The product must be usable by DJs and lighting operators with rigs unrelated to Love & Light Entertainment. It must eventually match every relevant SoundSwitch capability, then surpass it with open hardware, safer persistence, portable semantic scripts, SoundSwitch migration, event-aware workflows, and a fully user-extensible skins/control-surface platform.
+Create a uniquely owned, general-purpose, gig-ready replacement for SoundSwitch. It must work for DJs and lighting operators with rigs unrelated to Love & Light Entertainment, match relevant SoundSwitch capabilities, and then surpass them with open hardware, safer persistence, portable semantic scripts, evidence-backed migration, event-aware workflows, and user-extensible control surfaces.
 
-This is not a generic DMX console and not a Wolfmix clone.
+This is not a generic DMX console and not a WOLFMIX clone.
 
-## Current state
+> **Product statement:** A SoundSwitch-first, automation-first DJ/event lighting workstation with a lightweight offline Runner, capable Studio, open MIDI/DMX choices, first-class migration, reusable control surfaces, and no dependency on one user's fixtures or hardware.
 
-- The original `Build Custom Lighting Software` conversation was reviewed in full on 2026-08-08.
-- Later research superseded the initial suggestion to fork QLC+ wholesale.
-- Joshua confirmed a hybrid QLC+ strategy is acceptable if the result remains uniquely ours.
-- The handoff package now exists.
-- The compiled/tested native vertical slice and first end-to-end `runner_lab` exist.
-- EmberLights now has a versioned/checksummed project model and compiler, a deterministic service Runner, Art-Net, sACN, and initial ENTTEC DMX USB Pro serial output, WinMM MIDI/learn foundations, a bounded Studio-only QLC+ QXF fixture importer, a native Windows Studio/Live shell, and machine-readable production qualification/report foundations. Windows/Linux CI and installer packaging pass on the preceding merged checkpoint; searchable fixture-library distribution, VirtualDJ, MIDI, USB-DMX, broader output-hardware, eight-hour Windows soak, and live-event qualification remain active gates.
-- Joshua clarified on 2026-08-08 that his fixtures are later validation inputs, not the product scope, and that full SoundSwitch feature parity is the minimum finished-product bar.
-- `13_SOUNDSWITCH_PARITY_LEDGER.md` is the binding completeness checklist. Milestone exclusions sequence delivery; they do not remove features from the finished product.
-- The modular UI program defines Default, SoundSwitch Reference, Safe, and future user skins over one engine. The Skins Platform V2 program adds a visual Skin Designer, overlays, typed bounded Ember Actions, cross-source import/export, and mandatory registry/code-generation compatibility governance.
+---
 
-## Binding product statement
+## Current implementation truth
 
-> A general-purpose, SoundSwitch-first, automation-first DJ/event lighting workstation with a lightweight offline Runner, a capable Studio, open MIDI and DMX choices, first-class migration, user-extensible control surfaces, and no dependency on one user's fixtures or hardware.
+The integration lineage already contains substantial foundations that must be converged rather than rebuilt:
 
-## What is accepted
+- versioned/checksummed project model and deterministic compiler/Runner;
+- semantic ownership/layer resolution and fixed-frame two-universe rendering;
+- Art-Net, sACN, initial USB-DMX adapters, SoundSwitch Micro qualification tooling, frame attribution, diagnostics, Blackout, and recovery foundations;
+- WinMM MIDI/learn/mapping and session-safe ownership foundations;
+- Studio fixture/profile/patch/group services, structured channel-function models, capability-aware Static Look authoring, exact output-disabled preview, and bounded physical-preview foundations;
+- canonical UI/Ember Action registry/code-generation foundations;
+- a UI course correction freezing new product-facing Win32 forms and using one renderer-neutral Fixtures + Static Looks model plus an opt-in Slint lab;
+- Autoloops V2 semantic source/compiler, authoring, original 128-placement starter pack, persistence, deterministic AutoScript, Studio transaction bridge, Palette realization, preview, runtime/director, and Runner integration;
+- bounded OS2L Blackout-feedback software on PR #86, with installed VirtualDJ capture/lifecycle proof still open;
+- current SoundSwitch evidence for exact bank/placement/length metadata, project-local Venue target mapping, A/B timeline records, Static Look intensity/RGBWAUV data, and the invalid old-map Pilot 01.
 
-- Windows is the required launch platform; macOS follows later and cannot block Windows delivery.
-- Two DMX universes in V1.
-- VirtualDJ/OS2L first; Serato is the second direct DJ-integration priority after VirtualDJ is stable.
-- Predictive hold, then live-audio beat fallback, then tap tempo, then a safe unsynchronized look.
-- Control One first as MIDI; onboard DMX/OLED/storage are experimental.
-- Any MIDI controller can map to actions and parameters.
+Preview 101 is the latest identified installed legacy-shell test line. It is a deliberately small ownership-safety preview—not the replacement-shell product UI and not the current PR #86 source head.
+
+Hosted GitHub Actions is currently blocked before runner assignment by the account/repository Actions payment or spending-limit gate. Empty workflow jobs are not validation. The converged tree requires fresh complete local/Windows evidence before merge or publication.
+
+---
+
+## Immediate product truth
+
+### SoundSwitch migration
+
+SoundSwitch import is core. Current research is implementation-ready for proven fields, and issue #90 owns the first production vertical slice.
+
+Binding rules:
+
+- parse the exact source project/version and exact Venue hierarchy;
+- target IDs are project-local and never reused from another source lineage;
+- use decoded placement arrays rather than raw entry order;
+- retain source artifact/range evidence and unknown bytes;
+- never infer choreography from names;
+- never copy raw source DMX into unrelated profiles;
+- missing color context is explicit and never borrowed from another target;
+- production import targets Autoloops V2, not sampled format-1 helper-Look chunking;
+- imported content remains output-disabled until review;
+- exact fixture qualification must not block opening, inspecting, simulating, editing, saving, or re-importing an output-disabled project. It gates support claims and automatic output enablement.
+
+The first vertical slice is exactly `Medium / S1 / Red - Smooth Pulse`. Do not generate all 112 loops before that one slice proves its source map, evidence, preview, save/reopen, and idempotent re-import.
+
+### Current destination rig
+
+For the current migration/bench destination:
+
+- four Both Lighting IR-4, 10CH, U1 `001/011/021/031`;
+- four BO-TUBE192/360 Tubes, 80CH, U1 `041/121/201/281`;
+- no duplicate generic Both Lighting uplight destination fixtures.
+
+Source fixture identities are reconciled semantically to destination profile capabilities; they are not copied as duplicate destination fixtures or raw channels.
+
+### OS2L / VirtualDJ
+
+OS2L is an application-owned transport over canonical commands/state. Listener/discovery lifetime is separate from Runner/song transport; TCP connection and beat/sync are separate facts; authoritative EmberLights state drives outbound feedback; network work stays off the DMX scheduler.
+
+PR #86 already has the first bounded Blackout-feedback implementation. The next task is installed raw capture of plain/on/off/keepalive and song transitions, then the smallest service-lifetime fix. Generic `os2l_cmd` mapping waits until P0 behavior is proven.
+
+### UI direction
+
+Legacy Win32 is a transitional/Safe bridge. No new top-level Win32 editor/property form/product skin is accepted. #37 measures Slint/C++ against a bounded WinUI 3 comparison and Direct2D/Win32 Safe baseline using the same real Fixtures + Static Looks workflow. Public command/state/skin contracts remain renderer-neutral. Raw DMX stays Advanced.
+
+---
+
+## Accepted product invariants
+
+- Windows launches first; V1 exposes exactly two universes.
+- VirtualDJ/OS2L is first; Serato follows after VirtualDJ is stable.
+- Predictive hold, live-audio fallback, tap tempo, then safe unsynchronized behavior.
+- Control One is the first bundled MIDI profile; proprietary DMX/OLED/storage remain isolated experiments.
+- Any MIDI controller maps to canonical actions/parameters.
 - Same-PC and separate-PC modes are equal.
-- SoundSwitch import is core.
-- SoundSwitch workflow outranks Wolfmix ideas.
-- Original semantic/layered core; optional QLC+ output bridge, Studio-only QXF compatibility adapter, and selective audited reuse.
-- OFL enters through a versioned Studio adapter and quarantine boundary; Runner consumes only our stable compiled profile format.
-- Autoloops use a scalable 32-slot bank library; four banks are a controller/UI window, not an engine limit.
-- No AI in Runner's live output path.
-- The product name is EmberLights, and full-V1 Windows testing builds are distributed through an installer while qualification continues.
-- EmberLights Default, SoundSwitch Reference, Safe, user skins, keyboard, MIDI/controller profiles, DJ commands, Ember Actions, and future remotes invoke one shared versioned command/state/capability model.
-- Skins are validated presentation/binding packages, not alternate engines. User-created skins and overlays are authored visually and imported/exported through bounded contracts.
-- Ember Actions are typed bounded compositions over registered commands/state; arbitrary JavaScript/Lua/WASM/native plugins and UI-timer show scheduling are not accepted.
-- Every user-visible feature addition/removal/change must keep registries, generated artifacts, bundled skins, actions/mappings/profiles, schemas, compatibility/deprecation data, tests, and migration rules current.
+- SoundSwitch workflow/import outranks WOLFMIX ideas.
+- Original semantic/layered core; optional QLC+ output and Studio-only QXF/OFL compatibility boundaries.
+- OFL enters through a versioned Studio adapter/quarantine; Runner consumes immutable compiled profile snapshots.
+- Autoloops use scalable 32-slot banks; four banks are a controller/UI window, not an engine limit.
+- Runner contains no AI/model calls and stays deterministic/fixed-capacity.
+- Default, Reference, Safe, user skins, keyboard, MIDI/controllers, DJ commands, Ember Actions, and future remotes share one versioned command/state/capability model.
+- Skins are validated presentation/binding packages, not alternate engines.
+- Ember Actions are typed bounded compositions, not arbitrary code and not a show-timing engine.
+- User-visible changes reconcile registries, generated artifacts, surfaces, actions/mappings/profiles, schemas, compatibility/deprecation, tests, and migration.
+- Exact fixture qualification gates physical/support claims—not safe output-disabled testability.
 
-## What is not accepted yet
+---
 
-- Production implementation language and UI toolkit.
-- Exact native support for MyDMX Buddy; Control One DMX now has a
-  contract-tested Windows Runner transport and explicit experimental opt-in,
-  but still needs owned-device physical qualification before a support claim.
-- Default live-control takeover/return semantics.
-- Exact first-use balance between manual song scripting and AutoScripting.
-- Any claim that Control One DMX is physically verified or gig-qualified, or
-  that its OLED/storage functions are supported.
-- Final expert Ember Action Script grammar, designer-source container, signing/trust UX, and public distribution/marketplace policy; these cannot weaken the accepted typed/sandboxed architecture.
+## What remains open
+
+- one accepted implementation convergence tree on `main`;
+- production current-2026 SoundSwitch source adapter/import;
+- installed VirtualDJ packet/lifecycle evidence and application-owned OS2L reliability;
+- installed Windows, physical-output, soak, and gig qualification for claimed backends/profiles;
+- production toolkit/renderer and trusted Safe activation;
+- first installed product-shaped Fixtures + Static Looks Default journey;
+- exact SoundSwitch interpolation/unidentified packed-byte semantics and broader movement/effect/source-version coverage;
+- perceptual fade quality;
+- broader fixture corpus, track scripting, complete Studio/Live UX, mappings, Reference presentation, and full parity.
+
+---
 
 ## Required reading order
 
 1. This file.
-2. `01_PRODUCT_REQUIREMENTS.md`.
-3. `03_ARCHITECTURE.md`.
-4. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
-5. `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
-6. `09_BUILD_AND_TEST_STANDARDS.md`.
-7. The smallest route named by `AGENT_BOOTSTRAP_PROMPT.md` for the assigned lane.
-8. For any UI/user-visible behavior/skin/mapping/action/designer work, begin with `UI_PROGRAM_START_HERE.md`; issue #63 work additionally begins with `SKINS_PLATFORM_V2_START_HERE.md`.
-9. The remaining research/backlog files as needed.
+2. `handoffs/CURRENT_BUILD_EXECUTION_HANDOFF_2026-08-19.md`.
+3. `../AGENTS.md`.
+4. Issue #87 and the owning issue (#90, #89, #52/#79, #37/#32/#33, or #88).
+5. `01_PRODUCT_REQUIREMENTS.md`.
+6. `03_ARCHITECTURE.md`.
+7. `04_V1_SCOPE_AND_ACCEPTANCE.md`.
+8. Accepted entries in `08_DECISIONS_AND_OPEN_QUESTIONS.md`.
+9. `09_BUILD_AND_TEST_STANDARDS.md`.
+10. `13_SOUNDSWITCH_PARITY_LEDGER.md` and the smallest current handoff/checkpoint.
+11. For UI/user-visible behavior, `UI_PROGRAM_START_HERE.md`; for issue #63 work, `SKINS_PLATFORM_V2_START_HERE.md`.
+
+---
 
 ## Definition of progress
 
-Progress is measured by a working, testable replacement path:
+Progress means a working, testable replacement path:
 
-- exact inputs captured;
-- deterministic state produced;
-- correct DMX emitted;
-- failures handled safely;
-- footprint and latency measured;
-- real hardware and VirtualDJ verified;
-- user workflow tested;
-- user-visible behavior exposed through maintained versioned contracts rather than one-off surfaces;
-- skin/action/mapping compatibility validated and migration outcomes explicit.
+- one unambiguous source tree;
+- exact source identity/evidence;
+- deterministic editable state and compiled package;
+- correct semantic targets/profiles;
+- correct DMX only when explicitly enabled;
+- honest unknown/degraded/failure reporting;
+- read-only migration source and safe output defaults;
+- measured footprint/latency/scheduler isolation;
+- installed Windows, real VirtualDJ, physical hardware, and operator workflow tested at the correct claim level;
+- user-visible behavior exposed through maintained versioned contracts rather than one-off surfaces.
 
-Lines of code and mock screens are not milestones by themselves.
+Lines of code, stale issue checkboxes, structurally valid approximations, and polished mock screens are not milestones by themselves.
