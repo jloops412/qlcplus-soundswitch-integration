@@ -1,12 +1,13 @@
 #include "emberlights/soundswitch_v1.hpp"
 
+#include "emberlights/autoloop_content_pack.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/compiler.hpp"
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -25,18 +26,6 @@ namespace {
 
 using showcore::Property;
 using showcore::PropertyValue;
-
-constexpr std::array<std::string_view, 32> kDefaultAutoloopNames{{
-    "Medium", "Colorful", "Slow Dance", "Flashy", "Red - Smooth Pulse",
-    "Blue - Smooth", "Purp+Yelo - Square", "Blue - Pulse",
-    "Green+blu - Wave", "80s - Smooth", "Sunny - Smooth",
-    "teal+Pink - Square", "Teal & Magenta", "All Color Pass Thru",
-    "Bouncey", "Pastel Party", "NYC", "Red white pulse", "Dreamy Amber",
-    "Contrast", "Slow Dance", "Fire & Ice", "Shiny Berries",
-    "Dreamy Colors", "Color Pulse", "Neon Dream", "Dreamy Antique",
-    "Super Flashy", "Slow Dance 2", "Reggae Dream", "Peachy Keen",
-    "Vie En Rose"
-}};
 
 constexpr std::array<std::string_view, 4> kRequiredFixtureModels{{
     "6x18W RGBWA UV 6in1 Uplight (BO-S601)",
@@ -167,14 +156,6 @@ struct PaletteLook {
     return std::string(manifest.substr(first_quote + 1U, second_quote - first_quote - 1U));
 }
 
-[[nodiscard]] std::string lowercase(std::string_view value) {
-    std::string lowered(value);
-    std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return lowered;
-}
-
 [[nodiscard]] FixtureProfileDefinition make_profile(
     std::string id,
     std::string manufacturer,
@@ -260,99 +241,60 @@ void append_palette_look(ProjectDocument& project, const PaletteLook& definition
     project.looks.push_back(std::move(look));
 }
 
-[[nodiscard]] std::vector<std::string> normalized_autoloop_names(
-    const std::vector<std::string>& names) {
-    std::vector<std::string> result;
-    result.reserve(kDefaultAutoloopNames.size());
-    for (const auto& name : names) {
-        if (!name.empty() && result.size() < kDefaultAutoloopNames.size()) {
-            result.push_back(name);
+[[nodiscard]] AutoloopSourceDocument make_safe_color_rig_v2_source() {
+    auto source = make_emberlights_starter_autoloop_pack().source;
+    struct Target {
+        std::string_view suffix;
+        std::string_view stable_ref;
+        bool has_master;
+    };
+    constexpr std::array<Target, 4U> targets{{
+        {"uplights", "group.uplights", true},
+        {"tubes", "group.tubes", false},
+        {"wash", "group.wash", true},
+        {"ir4", "group.ir4", true},
+    }};
+    for (auto& program : source.programs) {
+        auto source_events = std::move(program.events);
+        program.targets.clear();
+        program.lanes.clear();
+        program.events.clear();
+        for (const auto& target : targets) {
+            const auto suffix = std::string(target.suffix);
+            const auto target_id = program.id + ".target." + suffix;
+            const auto intensity_lane_id =
+                program.id + ".lane." + suffix + ".intensity";
+            const auto color_lane_id =
+                program.id + ".lane." + suffix + ".color";
+            std::vector<Property> required{
+                Property::Red, Property::Green, Property::Blue};
+            if (target.has_master) {
+                required.insert(required.begin(), Property::Intensity);
+            }
+            program.targets.push_back({
+                target_id,
+                AutoloopTargetKind::Group,
+                std::string(target.stable_ref),
+                std::move(required)});
+            if (target.has_master) {
+                program.lanes.push_back({intensity_lane_id, target_id, 0U});
+            }
+            program.lanes.push_back({color_lane_id, target_id, 0U});
+            for (const auto& source_event : source_events) {
+                if (!target.has_master &&
+                    source_event.property == Property::Intensity) {
+                    continue;
+                }
+                auto event = source_event;
+                event.id += "." + suffix;
+                event.lane_id = event.property == Property::Intensity
+                    ? intensity_lane_id : color_lane_id;
+                program.events.push_back(std::move(event));
+            }
         }
     }
-    for (std::size_t index = result.size(); index < kDefaultAutoloopNames.size(); ++index) {
-        result.emplace_back(kDefaultAutoloopNames[index]);
-    }
-    return result;
-}
-
-void append_loop(
-    ProjectDocument& project,
-    std::size_t slot,
-    std::string name,
-    float length,
-    showcore::AutoloopTransition transition,
-    std::initializer_list<std::string_view> look_ids) {
-    AutoloopDefinition loop;
-    loop.id = "soundswitch-v1-loop-" + std::to_string(slot + 1U);
-    loop.name = std::move(name);
-    loop.bank = 0U;
-    loop.slot = static_cast<std::uint8_t>(slot);
-    loop.length_beats = length;
-    loop.repeat = showcore::AutoloopRepeat::Infinite;
-    const auto beat_step = length / static_cast<float>(look_ids.size());
-    std::size_t index = 0U;
-    for (const auto look_id : look_ids) {
-        loop.steps.push_back({beat_step * static_cast<float>(index++), std::string(look_id), transition});
-    }
-    project.autoloops.push_back(std::move(loop));
-}
-
-void append_named_loop(ProjectDocument& project, std::size_t slot, const std::string& name) {
-    const auto lowered = lowercase(name);
-    const bool smooth = lowered.find("smooth") != std::string::npos ||
-        lowered.find("slow") != std::string::npos ||
-        lowered.find("dreamy") != std::string::npos ||
-        lowered.find("wave") != std::string::npos;
-    const auto transition = smooth
-        ? showcore::AutoloopTransition::Linear
-        : showcore::AutoloopTransition::Cut;
-    if (lowered.find("red white") != std::string::npos) {
-        append_loop(project, slot, name, 4.0F, transition,
-                    {"look.red", "look.blackout", "look.white", "look.blackout"});
-    } else if (lowered.find("pulse") != std::string::npos) {
-        const auto color = lowered.find("red") != std::string::npos ? "look.red" :
-            lowered.find("blue") != std::string::npos ? "look.blue" : "look.colorful";
-        append_loop(project, slot, name, 4.0F, transition,
-                    {color, "look.blackout", color, "look.blackout"});
-    } else if (lowered.find("purp") != std::string::npos ||
-               lowered.find("yellow") != std::string::npos) {
-        append_loop(project, slot, name, 4.0F, transition,
-                    {"look.purple-yellow", "look.yellow"});
-    } else if (lowered.find("teal") != std::string::npos ||
-               lowered.find("magenta") != std::string::npos ||
-               lowered.find("pink") != std::string::npos) {
-        append_loop(project, slot, name, smooth ? 8.0F : 4.0F, transition,
-                    {"look.teal-magenta", "look.rose"});
-    } else if (lowered.find("green") != std::string::npos ||
-               lowered.find("reggae") != std::string::npos) {
-        append_loop(project, slot, name, 4.0F, transition,
-                    {"look.green-blue", "look.amber", "look.red", "look.green"});
-    } else if (lowered.find("fire") != std::string::npos ||
-               lowered.find("ice") != std::string::npos) {
-        append_loop(project, slot, name, 8.0F, transition,
-                    {"look.fire-ice", "look.amber", "look.blue", "look.white"});
-    } else if (lowered.find("pastel") != std::string::npos ||
-               lowered.find("berries") != std::string::npos) {
-        append_loop(project, slot, name, 8.0F, transition,
-                    {"look.pastel", "look.rose", "look.teal-magenta", "look.purple-yellow"});
-    } else if (lowered.find("amber") != std::string::npos ||
-               lowered.find("antique") != std::string::npos ||
-               lowered.find("sunny") != std::string::npos ||
-               lowered.find("peach") != std::string::npos) {
-        append_loop(project, slot, name, 8.0F, transition,
-                    {"look.warm", "look.amber", "look.antique", "look.rose"});
-    } else if (lowered.find("slow dance") != std::string::npos) {
-        append_loop(project, slot, name, 8.0F, showcore::AutoloopTransition::Linear,
-                    {"look.blue", "look.rose", "look.purple-yellow", "look.teal"});
-    } else if (lowered.find("flash") != std::string::npos ||
-               lowered.find("fast") != std::string::npos) {
-        append_loop(project, slot, name, 4.0F, showcore::AutoloopTransition::Cut,
-                    {"look.red", "look.blue", "look.green", "look.white",
-                     "look.magenta", "look.teal", "look.yellow", "look.colorful"});
-    } else {
-        append_loop(project, slot, name, smooth ? 8.0F : 4.0F, transition,
-                    {"look.colorful", "look.blue", "look.rose", "look.green-blue"});
-    }
+    normalize_autoloop_source(source);
+    return source;
 }
 
 [[nodiscard]] std::string json_escape(std::string_view value) {
@@ -380,6 +322,7 @@ void append_named_loop(ProjectDocument& project, std::size_t slot, const std::st
 
 ProjectDocument make_safe_color_rig_v1_template(
     const std::vector<std::string>& autoloop_names) {
+    static_cast<void>(autoloop_names);
     auto project = make_starter_project();
     project.id = "emberlights-safe-color-rig-v1";
     project.name = "SoundSwitch 2026 Color Rig V1 - PATCH REVIEW REQUIRED";
@@ -519,9 +462,12 @@ ProjectDocument make_safe_color_rig_v1_template(
         append_palette_look(project, look);
     }
 
-    const auto loop_names = normalized_autoloop_names(autoloop_names);
-    for (std::size_t slot = 0U; slot < loop_names.size(); ++slot) {
-        append_named_loop(project, slot, loop_names[slot]);
+    const auto semantic_source = make_safe_color_rig_v2_source();
+    const auto persisted = upsert_persisted_autoloop_source(
+        project, semantic_source);
+    if (!persisted) {
+        project.unknown_records.push_back(
+            "EMBERLIGHTS_STARTER_AUTOLOOPS_UNAVAILABLE\tsemantic-v2-persistence-failed");
     }
     return project;
 }
@@ -583,7 +529,7 @@ SoundSwitchV1MigrationResult create_soundswitch_v1_project(
     result.project.unknown_records.push_back(
         "SOUNDSWITCH_SOURCE\t2.10.x\t" + result.manifest_id + "\t" +
         result.venue_sha256 + "\t" + result.autoloops_sha256 +
-        "\tsemantic-v1-safe-patch");
+        "\tsemantic-v2-safe-patch");
     const auto validation = validate_project(result.project);
     const auto compilation = compile_project(result.project);
     if (!validation.ok() || !compilation) {
@@ -597,18 +543,24 @@ SoundSwitchV1MigrationResult create_soundswitch_v1_project(
         "The staged IR-4 fixtures use the manufacturer-manual 10-channel profile. Confirm the fixture display is 10CH; if it is 6CH, explicitly select the built-in 6-channel profile and repatch before enabling output.",
         "The IR-4 manual calls the sixth emitter UV in its specifications and Purple in the DMX table; EmberLights uses semantic UV and keeps physical confirmation open.",
         "BO-S601, 360 Tube, and Wash FX Hex staged modes remain source-qualified approximations until each physical display and official DMX chart is checked.",
-        "The 32 active Autoloop names were retained; their native semantic patterns were rebuilt from the names rather than claimed as binary cue decoding.",
+        "The 32 active SoundSwitch Autoloop names are retained in the migration report only; choreography is never fabricated from names.",
+        "The project includes 128 original EmberLights semantic V2 Autoloops with independent intensity and RGB lanes, realized against the staged fixture groups.",
+        "SoundSwitch A-record intensity timelines and B-record color segments remain source evidence until the versioned decoder is qualified; they are not converted into helper Static Looks.",
         "Mover, GigBar, PartyBar, cold-spark, and purchased track-show payloads remain in the original archive and are not enabled in this first-pilot color rig.",
         "Keep SoundSwitch and the original export available as the rehearsed fallback for the first pilot."
     };
     result.message = "Created a validated, output-disabled first-pilot project with 4 uplights, "
         "4 x 16-cell tubes, 1 dance-floor wash, 2 IR-4 spotlights, 18 Static Looks, "
-        "and 32 named Autoloops.";
+        "and 128 original semantic V2 Autoloops. SoundSwitch loop names are evidence only, "
+        "not fabricated choreography.";
     return result;
 }
 
 std::string serialize_soundswitch_v1_migration_report(
     const SoundSwitchV1MigrationResult& migration) {
+    const auto persisted = inspect_persisted_autoloop_source(migration.project);
+    const auto semantic_autoloops = persisted && persisted.stamp.present
+        ? persisted.source.placements.size() : 0U;
     std::ostringstream output;
     output << "{\n"
            << "  \"format\": \"emberlights-soundswitch-v1-migration\",\n"
@@ -625,7 +577,8 @@ std::string serialize_soundswitch_v1_migration_report(
            << "\"fixtures\": " << migration.project.fixtures.size() << ", "
            << "\"groups\": " << migration.project.groups.size() << ", "
            << "\"looks\": " << migration.project.looks.size() << ", "
-           << "\"autoloops\": " << migration.project.autoloops.size() << "},\n"
+           << "\"legacyAutoloops\": " << migration.project.autoloops.size() << ", "
+           << "\"semanticAutoloops\": " << semantic_autoloops << "},\n"
            << "  \"recognizedFixtureModels\": [";
     for (std::size_t index = 0U; index < migration.recognized_fixture_models.size(); ++index) {
         output << (index == 0U ? "" : ", ") << "\""

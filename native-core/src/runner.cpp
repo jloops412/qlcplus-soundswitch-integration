@@ -425,6 +425,9 @@ bool RunnerService::start(
     os2l_connections_.store(0, std::memory_order_relaxed);
     os2l_messages_.store(0, std::memory_order_relaxed);
     os2l_decode_errors_.store(0, std::memory_order_relaxed);
+    os2l_feedback_messages_.store(0, std::memory_order_relaxed);
+    os2l_feedback_errors_.store(0, std::memory_order_relaxed);
+    os2l_blackout_feedback_synchronized_.store(false, std::memory_order_relaxed);
     os2l_listen_port_.store(0, std::memory_order_relaxed);
     os2l_last_error_.store(0, std::memory_order_relaxed);
     os2l_discovery_last_error_.store(0, std::memory_order_relaxed);
@@ -732,6 +735,12 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
     snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
     snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
+    snapshot.os2l_feedback_messages =
+        os2l_feedback_messages_.load(std::memory_order_relaxed);
+    snapshot.os2l_feedback_errors =
+        os2l_feedback_errors_.load(std::memory_order_relaxed);
+    snapshot.os2l_blackout_feedback_synchronized =
+        os2l_blackout_feedback_synchronized_.load(std::memory_order_relaxed);
     snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
     snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
     snapshot.os2l_discovery_last_error =
@@ -1115,11 +1124,18 @@ void RunnerService::run_input() noexcept {
             next_os2l_retry = now + std::chrono::seconds(2);
         }
         if (os2l_open) {
+            const auto blackout =
+                blackout_requested_.load(std::memory_order_acquire);
+            if (os2l.state() == showcore::Os2lServerState::ClientConnected) {
+                static_cast<void>(os2l.queue_blackout_feedback(blackout));
+            }
             const auto poll = os2l.poll(&RunnerService::os2l_callback, this, 2);
             if (poll == showcore::Os2lPollResult::ClientConnected) {
                 os2l_owner_session = next_owner_session();
                 os2l_owner_session_token_.store(
                     os2l_owner_session, std::memory_order_release);
+                static_cast<void>(os2l.queue_blackout_feedback(
+                    blackout_requested_.load(std::memory_order_acquire)));
             } else if (poll == showcore::Os2lPollResult::ClientDisconnected) {
                 queue_owner_loss(
                     StaticLookOwnerKind::External,
@@ -1140,6 +1156,8 @@ void RunnerService::run_input() noexcept {
                 os2l_owner_session_token_.store(0U, std::memory_order_release);
                 os2l.close();
                 os2l_open = false;
+                os2l_blackout_feedback_synchronized_.store(
+                    false, std::memory_order_relaxed);
                 os2l_listen_port_.store(0U, std::memory_order_relaxed);
                 os2l_last_error_.store(socket_error, std::memory_order_relaxed);
                 os2l_discovery_state_.store(
@@ -1165,6 +1183,14 @@ void RunnerService::run_input() noexcept {
             os2l_connections_.store(stats.connections, std::memory_order_relaxed);
             os2l_messages_.store(stats.messages, std::memory_order_relaxed);
             os2l_decode_errors_.store(stats.decode_errors, std::memory_order_relaxed);
+            os2l_feedback_messages_.store(
+                stats.feedback_messages, std::memory_order_relaxed);
+            os2l_feedback_errors_.store(
+                stats.feedback_errors, std::memory_order_relaxed);
+            os2l_blackout_feedback_synchronized_.store(
+                os2l.blackout_feedback_synchronized(
+                    blackout_requested_.load(std::memory_order_acquire)),
+                std::memory_order_relaxed);
         }
 
         if (now >= next_midi_retry) {
@@ -1228,6 +1254,7 @@ void RunnerService::run_input() noexcept {
     }
 
     os2l.close();
+    os2l_blackout_feedback_synchronized_.store(false, std::memory_order_relaxed);
     os2l_owner_session_token_.store(0U, std::memory_order_release);
     os2l_listen_port_.store(0U, std::memory_order_relaxed);
     os2l_discovery_state_.store(AdapterState::Disabled, std::memory_order_relaxed);

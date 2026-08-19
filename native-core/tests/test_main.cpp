@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
 #include "emberlights/project.hpp"
@@ -166,6 +167,38 @@ void cleanup_test_network() {}
         }
         sent_total += static_cast<std::size_t>(sent);
     }
+    return true;
+}
+
+[[nodiscard]] bool receive_once(
+    TestSocket socket,
+    std::string& bytes,
+    std::uint32_t timeout_ms = 1000U) {
+    fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(socket, &read_set);
+    timeval timeout{};
+    timeout.tv_sec = static_cast<long>(timeout_ms / 1000U);
+    timeout.tv_usec = static_cast<long>((timeout_ms % 1000U) * 1000U);
+#ifdef _WIN32
+    const auto selected = ::select(0, &read_set, nullptr, nullptr, &timeout);
+#else
+    const auto selected = ::select(socket + 1, &read_set, nullptr, nullptr, &timeout);
+#endif
+    if (selected != 1) {
+        return false;
+    }
+    std::array<char, 256U> buffer{};
+#ifdef _WIN32
+    const auto received = ::recv(
+        socket, buffer.data(), static_cast<int>(buffer.size()), 0);
+#else
+    const auto received = ::recv(socket, buffer.data(), buffer.size(), 0);
+#endif
+    if (received <= 0) {
+        return false;
+    }
+    bytes.assign(buffer.data(), static_cast<std::size_t>(received));
     return true;
 }
 
@@ -1241,6 +1274,26 @@ void test_os2l_server_lifecycle() {
         showcore::Os2lPollResult::ClientConnected);
     CHECK(server.state() == showcore::Os2lServerState::ClientConnected);
 
+    constexpr std::string_view feedback_off =
+        R"({"evt":"feedback","name":"blackout","state":"off"})";
+    constexpr std::string_view feedback_on =
+        R"({"evt":"feedback","name":"blackout","state":"on"})";
+    CHECK(server.queue_blackout_feedback(false));
+    CHECK(!server.blackout_feedback_synchronized(false));
+    CHECK(server.poll(&capture_os2l_event, nullptr, 1000) ==
+        showcore::Os2lPollResult::Idle);
+    std::string feedback;
+    CHECK(receive_once(client, feedback));
+    CHECK(feedback == feedback_off);
+    CHECK(server.blackout_feedback_synchronized(false));
+    CHECK(server.queue_blackout_feedback(false));
+    CHECK(server.queue_blackout_feedback(true));
+    CHECK(server.poll(&capture_os2l_event, nullptr, 1000) ==
+        showcore::Os2lPollResult::Idle);
+    CHECK(receive_once(client, feedback));
+    CHECK(feedback == feedback_on);
+    CHECK(server.blackout_feedback_synchronized(true));
+
     Os2lCapture capture{};
     constexpr std::string_view messages =
         R"({"evt":"beat","change":true,"pos":17,"bpm":124.5})"
@@ -1266,6 +1319,13 @@ void test_os2l_server_lifecycle() {
     CHECK(client != kInvalidTestSocket);
     CHECK(server.poll(&capture_os2l_event, &capture, 1000) ==
         showcore::Os2lPollResult::ClientConnected);
+    CHECK(!server.blackout_feedback_synchronized(true));
+    CHECK(server.queue_blackout_feedback(true));
+    CHECK(server.poll(&capture_os2l_event, &capture, 1000) ==
+        showcore::Os2lPollResult::Idle);
+    CHECK(receive_once(client, feedback));
+    CHECK(feedback == feedback_on);
+    CHECK(server.blackout_feedback_synchronized(true));
     constexpr std::string_view second =
         R"({"evt":"beat","change":true,"pos":18,"bpm":125.0})";
     CHECK(send_all(client, second));
@@ -1283,6 +1343,10 @@ void test_os2l_server_lifecycle() {
     CHECK(server.stats().messages == 3U);
     CHECK(server.stats().decode_errors == 0U);
     CHECK(server.stats().client_errors == 0U);
+    CHECK(server.stats().feedback_messages == 3U);
+    CHECK(server.stats().feedback_errors == 0U);
+    CHECK(server.stats().bytes_sent ==
+        feedback_off.size() + feedback_on.size() * 2U);
     server.close();
     CHECK(server.state() == showcore::Os2lServerState::Closed);
 }
@@ -2319,7 +2383,9 @@ void test_runner_os2l_startup_without_button_trigger() {
         const auto beat_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         status = runner.status();
         while ((status.os2l_messages < 1U ||
-                std::abs(status.bpm - 137.25) >= 0.01) &&
+                std::abs(status.bpm - 137.25) >= 0.01 ||
+                status.os2l_feedback_messages < 1U ||
+                !status.os2l_blackout_feedback_synchronized) &&
                std::chrono::steady_clock::now() < beat_deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             status = runner.status();
@@ -2328,6 +2394,9 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(status.os2l_connections == 1U);
         CHECK(status.os2l_messages == 1U);
         CHECK(status.os2l_decode_errors == 0U);
+        CHECK(status.os2l_feedback_messages >= 1U);
+        CHECK(status.os2l_feedback_errors == 0U);
+        CHECK(status.os2l_blackout_feedback_synchronized);
         CHECK(std::abs(status.bpm - 137.25) < 0.01);
         CHECK(status.clock_source == showcore::ClockSource::Os2l);
 
@@ -2385,13 +2454,37 @@ void test_runner_os2l_startup_without_button_trigger() {
             R"({"evt":"btn","name":"blackout","state":"off"})";
         CHECK(send_all(client, blackout_on));
         CHECK(wait_for_live_state(-1, {7U, 3U}, 11U));
-        CHECK(runner.status().blackout);
+        const auto feedback_on_deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((!status.blackout ||
+                !status.os2l_blackout_feedback_synchronized ||
+                status.os2l_feedback_messages < 2U) &&
+               std::chrono::steady_clock::now() < feedback_on_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.blackout);
+        CHECK(status.os2l_blackout_feedback_synchronized);
+        CHECK(status.os2l_feedback_messages >= 2U);
         CHECK(send_all(client, keepalive));
         CHECK(wait_for_live_state(-1, {7U, 3U}, 12U));
         CHECK(runner.status().blackout);
         CHECK(send_all(client, blackout_off));
         CHECK(wait_for_live_state(-1, {7U, 3U}, 13U));
-        CHECK(!runner.status().blackout);
+        const auto feedback_off_deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.blackout ||
+                !status.os2l_blackout_feedback_synchronized ||
+                status.os2l_feedback_messages < 3U) &&
+               std::chrono::steady_clock::now() < feedback_off_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(!status.blackout);
+        CHECK(status.os2l_blackout_feedback_synchronized);
+        CHECK(status.os2l_feedback_messages >= 3U);
         CHECK(send_all(client, red_on));
         CHECK(wait_for_live_state(0, {7U, 3U}, 14U));
         close_test_socket(client);
@@ -2420,6 +2513,17 @@ void test_runner_os2l_startup_without_button_trigger() {
                 status = runner.status();
             }
             CHECK(status.os2l_connections == 2U);
+            const auto feedback_reconnect_deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            while ((!status.os2l_blackout_feedback_synchronized ||
+                    status.os2l_feedback_messages < 4U) &&
+                   std::chrono::steady_clock::now() <
+                       feedback_reconnect_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.os2l_blackout_feedback_synchronized);
+            CHECK(status.os2l_feedback_messages >= 4U);
             CHECK(send_all(reconnect, red_on));
             close_test_socket(reconnect);
             const auto queued_disconnect_deadline =
@@ -3184,7 +3288,7 @@ void test_soundswitch_source_binding_audit() {
     project.unknown_records.push_back(
         "SOUNDSWITCH_SOURCE\t2.10.x\t{manifest}\t" +
         std::string(claimed_venue) + "\t" + std::string(claimed_loops) +
-        "\tsemantic-v1-safe-patch");
+        "\tsemantic-v2-safe-patch");
     emberlights::SoundSwitchInspection inspection;
     inspection.source_kind = emberlights::SoundSwitchSourceKind::ApplicationDataBackup;
     inspection.inventory_sha256 =
@@ -4184,7 +4288,16 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(migration.project.fixtures.size() == 71U);
     CHECK(migration.project.groups.size() == 9U);
     CHECK(migration.project.looks.size() == 18U);
-    CHECK(migration.project.autoloops.size() == 32U);
+    CHECK(migration.project.autoloops.empty());
+    const auto semantic_source =
+        emberlights::inspect_persisted_autoloop_source(migration.project);
+    CHECK(semantic_source);
+    CHECK(semantic_source.stamp.present);
+    CHECK(semantic_source.source.placements.size() == 128U);
+    CHECK(semantic_source.source.programs.size() == 128U);
+    CHECK(semantic_source.source.programs.front().targets.size() == 4U);
+    CHECK(semantic_source.source.programs.front().lanes.size() == 7U);
+    CHECK(semantic_source.source.programs.front().events.size() == 15U);
     const auto ir4_profile = std::find_if(
         migration.project.fixture_profiles.begin(),
         migration.project.fixture_profiles.end(),
@@ -4218,11 +4331,19 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(report.find("Test Loop 1") != std::string::npos);
     CHECK(report.find("Confirm the fixture display is 10CH") != std::string::npos);
     CHECK(report.find("source-qualified approximations") != std::string::npos);
+    CHECK(report.find("\"legacyAutoloops\": 0") != std::string::npos);
+    CHECK(report.find("\"semanticAutoloops\": 128") != std::string::npos);
+    CHECK(report.find("choreography is never fabricated from names") !=
+          std::string::npos);
     CHECK(emberlights::save_project_atomic(project_path, migration.project, false));
     emberlights::ProjectDocument loaded;
     CHECK(emberlights::load_project(project_path, loaded, false));
     CHECK(loaded.fixtures.size() == migration.project.fixtures.size());
     CHECK(loaded.autoloops.size() == migration.project.autoloops.size());
+    const auto loaded_semantic_source =
+        emberlights::inspect_persisted_autoloop_source(loaded);
+    CHECK(loaded_semantic_source);
+    CHECK(loaded_semantic_source.source.placements.size() == 128U);
 
     std::filesystem::remove_all(source, ignored);
     std::filesystem::remove(project_path, ignored);

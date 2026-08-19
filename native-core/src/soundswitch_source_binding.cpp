@@ -1,5 +1,6 @@
 #include "emberlights/soundswitch_source_binding.hpp"
 
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/file_identity.hpp"
 
 #include <algorithm>
@@ -152,7 +153,10 @@ void populate_migration_review(
     audit.review_action_codes.clear();
 
     const bool recognized_pilot = audit.project_claim.valid &&
-        audit.project_claim.conversion_strategy == "semantic-v1-safe-patch";
+        (audit.project_claim.conversion_strategy == "semantic-v1-safe-patch" ||
+         audit.project_claim.conversion_strategy == "semantic-v2-safe-patch");
+    const bool semantic_v2_pilot = audit.project_claim.valid &&
+        audit.project_claim.conversion_strategy == "semantic-v2-safe-patch";
     const auto venue_evidence = audit.available_venue_database_count;
     const auto autoloop_evidence = audit.available_autoloop_database_count +
         audit.available_autoloop_script_count;
@@ -214,7 +218,9 @@ void populate_migration_review(
         autoloop_evidence,
         audit.project_autoloop_count,
         autoloops_state == SoundSwitchMigrationAreaState::Approximated
-            ? "Active names were retained when available; patterns were rebuilt from names rather than decoded from SoundSwitch cues."
+            ? (semantic_v2_pilot
+                  ? "Source loop names are retained as evidence only. Project Autoloops are original EmberLights semantic V2 programs and are not claimed as decoded SoundSwitch choreography."
+                  : "Active names were retained when available; patterns were rebuilt from names rather than decoded from SoundSwitch cues.")
             : unqualified_detail(autoloops_state));
 
     const auto tracks_state = unqualified_area_state(
@@ -379,6 +385,11 @@ SoundSwitchSourceBindingAudit audit_soundswitch_source_binding(
     audit.project_fixture_count = project.fixtures.size();
     audit.project_look_count = project.looks.size();
     audit.project_autoloop_count = project.autoloops.size();
+    const auto persisted_autoloops = inspect_persisted_autoloop_source(project);
+    if (persisted_autoloops && persisted_autoloops.stamp.present) {
+        audit.project_autoloop_count +=
+            persisted_autoloops.source.placements.size();
+    }
     audit.project_track_script_count = project.track_scripts.size();
     audit.project_audio_asset_count = project.audio_assets.size();
     audit.project_midi_mapping_count = project.midi_mappings.size();

@@ -10660,13 +10660,18 @@ void Application::import_soundswitch_v1_dialog() {
         return;
     }
 
+    const auto semantic_source =
+        emberlights::inspect_persisted_autoloop_source(migration.project);
+    const auto semantic_autoloops =
+        semantic_source && semantic_source.stamp.present
+        ? semantic_source.source.placements.size() : 0U;
     std::wostringstream review;
     review << widen(migration.message) << L"\n\n"
            << L"OUTPUTS: disabled\n"
            << L"Profiles: " << migration.project.fixture_profiles.size()
            << L"    Fixtures: " << migration.project.fixtures.size()
            << L"    Static Looks: " << migration.project.looks.size()
-           << L"    Autoloops: " << migration.project.autoloops.size() << L"\n\n"
+           << L"    Semantic Autoloops: " << semantic_autoloops << L"\n\n"
            << L"Important review limits:\n";
     for (const auto& warning : migration.warnings) {
         review << L"• " << widen(warning) << L"\n";

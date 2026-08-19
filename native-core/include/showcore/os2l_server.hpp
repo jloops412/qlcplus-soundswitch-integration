@@ -2,6 +2,8 @@
 
 #include "showcore/os2l.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -40,6 +42,9 @@ struct Os2lServerStats {
     std::uint64_t messages{0};
     std::uint64_t decode_errors{0};
     std::uint64_t client_errors{0};
+    std::uint64_t bytes_sent{0};
+    std::uint64_t feedback_messages{0};
+    std::uint64_t feedback_errors{0};
 };
 
 class Os2lTcpServer {
@@ -58,6 +63,11 @@ public:
         Os2lStreamCallback callback,
         void* context,
         std::uint32_t timeout_ms = 0) noexcept;
+    // Queues the authoritative blackout state for the connected OS2L client.
+    // Socket writes remain owned by poll(); repeated identical states collapse
+    // and a newer state supersedes any not-yet-started follow-up message.
+    [[nodiscard]] bool queue_blackout_feedback(bool active) noexcept;
+    [[nodiscard]] bool blackout_feedback_synchronized(bool active) const noexcept;
 
     [[nodiscard]] Os2lServerState state() const noexcept { return state_; }
     [[nodiscard]] std::uint16_t bound_port() const noexcept { return bound_port_; }
@@ -72,6 +82,8 @@ public:
 
 private:
     void disconnect_client(bool error) noexcept;
+    [[nodiscard]] bool flush_feedback() noexcept;
+    void prepare_feedback(bool active) noexcept;
     void start_discovery(std::string_view bind_address) noexcept;
     void refresh_discovery() noexcept;
     void stop_discovery() noexcept;
@@ -85,6 +97,14 @@ private:
     int discovery_last_error_{0};
     Os2lServerStats stats_{};
     Os2lStreamDecoder decoder_{};
+    std::array<char, 64U> feedback_buffer_{};
+    std::size_t feedback_offset_{0U};
+    std::size_t feedback_size_{0U};
+    bool feedback_state_{false};
+    bool follow_up_pending_{false};
+    bool follow_up_state_{false};
+    bool last_feedback_valid_{false};
+    bool last_feedback_state_{false};
 #ifdef _WIN32
     bool winsock_started_{false};
     void* discovery_registration_{nullptr};

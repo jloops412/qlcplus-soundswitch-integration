@@ -283,6 +283,9 @@ struct RunnerStatus {
     std::uint64_t os2l_connections{0};
     std::uint64_t os2l_messages{0};
     std::uint64_t os2l_decode_errors{0};
+    std::uint64_t os2l_feedback_messages{0};
+    std::uint64_t os2l_feedback_errors{0};
+    bool os2l_blackout_feedback_synchronized{false};
     std::uint16_t os2l_listen_port{0};
     std::int32_t os2l_last_error{0};
     std::int32_t os2l_discovery_last_error{0};
@@ -565,6 +568,9 @@ private:
     std::atomic<std::uint64_t> os2l_connections_{0};
     std::atomic<std::uint64_t> os2l_messages_{0};
     std::atomic<std::uint64_t> os2l_decode_errors_{0};
+    std::atomic<std::uint64_t> os2l_feedback_messages_{0};
+    std::atomic<std::uint64_t> os2l_feedback_errors_{0};
+    std::atomic<bool> os2l_blackout_feedback_synchronized_{false};
     std::atomic<std::uint16_t> os2l_listen_port_{0};
     std::atomic<std::int32_t> os2l_last_error_{0};
     std::atomic<std::int32_t> os2l_discovery_last_error_{0};

@@ -656,7 +656,6 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     ui.set_project_name(shared_string(model.project_name));
     ui.set_save_state(shared_string(save_state));
     ui.set_validation_state(shared_string(model.validation_status));
-    ui.set_dj_state("Not connected");
     ui.set_output_state(shared_string(output_state));
     ui.set_workspace_message(shared_string(state.operation_message.empty()
         ? model.message
@@ -833,6 +832,41 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
             color_items.push_back(parameter_control_item(control));
         }
     }
+    const auto active_emitter_value = [&model](std::string_view parameter_id) {
+        const auto found = std::find_if(
+            model.controls.begin(), model.controls.end(),
+            [parameter_id](const auto& control) {
+                return control.control_kind == "color mixer" &&
+                    control.parameter_id == parameter_id &&
+                    control.ownership ==
+                        emberlights::StaticLookOwnershipState::Set;
+            });
+        return found == model.controls.end()
+            ? 0.0F
+            : std::clamp(found->normalized_value, 0.0F, 1.0F);
+    };
+    const auto red = active_emitter_value("red");
+    const auto green = active_emitter_value("green");
+    const auto blue = active_emitter_value("blue");
+    const auto white = active_emitter_value("white");
+    const auto amber = active_emitter_value("amber");
+    const auto supports_rgbwa_preview = std::any_of(
+        model.controls.begin(), model.controls.end(), [](const auto& control) {
+            return control.control_kind == "color mixer" &&
+                (control.parameter_id == "red" ||
+                 control.parameter_id == "green" ||
+                 control.parameter_id == "blue" ||
+                 control.parameter_id == "white" ||
+                 control.parameter_id == "amber");
+        });
+    ui.set_color_preview_visible(supports_rgbwa_preview);
+    ui.set_color_preview_red(red);
+    ui.set_color_preview_green(green);
+    ui.set_color_preview_blue(blue);
+    ui.set_color_preview_white(white);
+    ui.set_color_preview_amber(amber);
+    ui.set_color_preview_detail(shared_string(
+        "Read-only profile-backed preview • adjust each emitter below"));
 
     std::vector<ParameterFamilyItem> parameter_families;
     parameter_families.reserve(model.control_groups.size());

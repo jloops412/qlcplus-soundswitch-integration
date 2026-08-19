@@ -12,6 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SLINT = ROOT / "native-core/slint-lab/fixtures_looks_lab.slint"
+PRIMITIVES = ROOT / "native-core/slint-lab/ember_ui_primitives.slint"
 ADAPTER = ROOT / "native-core/slint-lab/fixtures_looks_lab.cpp"
 CMAKE = ROOT / "native-core/CMakeLists.txt"
 WORKFLOW = ROOT / ".github/workflows/slint-fixtures-looks-lab.yml"
@@ -21,6 +22,8 @@ class SlintLabContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.surface = SLINT.read_text(encoding="utf-8")
+        cls.primitives = PRIMITIVES.read_text(encoding="utf-8")
+        cls.markup = cls.surface + cls.primitives
         cls.adapter = ADAPTER.read_text(encoding="utf-8")
         cls.cmake = CMAKE.read_text(encoding="utf-8")
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
@@ -45,8 +48,13 @@ class SlintLabContractTests(unittest.TestCase):
             "Duplicate",
             "FIXTURE PARAMETERS",
             "COLOR EMITTERS",
+            "ColorMixerSummary",
+            "color-preview-visible",
+            "Profile-backed RGBWA emitter preview",
             "PARAMETER CARDS",
             "ParameterFamilyCard",
+            "StateBadge",
+            "ValueReadout",
             "value-controls",
             "choices",
             'label: "Release"',
@@ -63,7 +71,7 @@ class SlintLabContractTests(unittest.TestCase):
             "Blackout & stop",
         )
         for text in required:
-            self.assertIn(text, self.surface, text)
+            self.assertIn(text, self.markup, text)
         for obsolete in (
             "intensity-choice-id",
             "red-choice-id",
@@ -71,7 +79,7 @@ class SlintLabContractTests(unittest.TestCase):
             "SELECTOR OWNERSHIP",
             "PROFILE FUNCTIONS & RANGES",
         ):
-            self.assertNotIn(obsolete, self.surface, obsolete)
+            self.assertNotIn(obsolete, self.markup, obsolete)
 
     def test_parameter_families_keep_controls_choices_and_ownership_together(self):
         for text in (
@@ -81,7 +89,7 @@ class SlintLabContractTests(unittest.TestCase):
             "for choice in item.choices: ChoiceTile",
             "item.ownership-choice-id",
         ):
-            self.assertIn(text, self.surface, text)
+            self.assertIn(text, self.markup, text)
         for text in (
             "model.control_groups",
             "control.widget_id != group.stable_id",
@@ -108,6 +116,32 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertIn("min-height: 768px", self.surface)
         self.assertGreaterEqual(self.surface.count("accessible-role"), 6)
         self.assertGreaterEqual(self.surface.count("accessible-label"), 6)
+
+    def test_lab_chrome_does_not_advertise_unimplemented_workflows(self):
+        """The focused evaluation slice must not look like a fake full workstation."""
+        for inert_control in (
+            'Button { text: "Command Explorer"; }',
+            'Button { text: "Import OFL / QXF"; }',
+            'Button { text: "Categories"; }',
+            "WorkspaceRailButton",
+            "not wired",
+        ):
+            self.assertNotIn(inert_control, self.surface, inert_control)
+        self.assertIn('label: "Surface"; state: "Studio lab"', self.surface)
+        self.assertIn('"Blackout & stop"', self.surface)
+        self.assertIn("Profile-backed RGBWA emitter preview", self.surface)
+
+    def test_shared_visual_primitives_stay_outside_the_screen_composition(self):
+        self.assertIn('from "ember_ui_primitives.slint"', self.surface)
+        for primitive in (
+            "export global Theme",
+            "export component Hairline",
+            "export component StatusPill",
+            "export component SectionTitle",
+            "export component StateBadge",
+            "export component ValueReadout",
+        ):
+            self.assertIn(primitive, self.primitives, primitive)
 
     def test_adapter_uses_domain_commands_and_keeps_output_behind_explicit_authority(self):
         for function in (

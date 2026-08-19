@@ -764,6 +764,89 @@ void test_rich_evaluator_and_fail_closed_compilation() {
         showcore::AutoloopArenaKind::References));
 }
 
+void test_smoothstep_shape_repeat_continuity_and_quality_lint() {
+    auto smooth = make_rich_curve_source();
+    auto& program = smooth.programs.front();
+    program.events.resize(1U);
+    auto& curve = program.events.front();
+    curve.end_tick = program.length_ticks;
+    curve.interpolation = emberlights::AutoloopInterpolation::SmoothStep;
+    curve.curve_points = {
+        {0, showcore::PropertyValue::set(0.0F)},
+        {1920, showcore::PropertyValue::set(1.0F)},
+        {3840, showcore::PropertyValue::set(0.0F)}};
+    program.targets.front().required_properties = {
+        showcore::Property::Intensity};
+
+    std::array<std::uint16_t, 1U> fixture_ids{{0U}};
+    std::array<showcore::AutoloopTargetBinding, 1U> targets{{{
+        showcore::CompiledAutoloopTargetKind::Master,
+        {},
+        fixture_ids,
+        showcore::autoloop_property_mask(showcore::Property::Intensity)}}};
+    const auto compiled = showcore::compile_autoloop_programs(
+        smooth, {targets, {}});
+    CHECK(compiled.ok());
+    if (compiled) {
+        showcore::AutoloopProgramEvaluator evaluator;
+        showcore::LayerBuffer output;
+        constexpr std::array<std::int64_t, 9U> ticks{{
+            0, 480, 960, 1440, 1920, 2400, 2880, 3360, 3840}};
+        constexpr std::array<float, 9U> expected{{
+            0.0F, 0.15625F, 0.5F, 0.84375F, 1.0F,
+            0.84375F, 0.5F, 0.15625F, 0.0F}};
+        float previous = -1.0F;
+        for (std::size_t index = 0U; index < ticks.size(); ++index) {
+            CHECK(evaluator.evaluate(
+                *compiled.package, 0U, ticks[index], output));
+            const auto value = output.get(
+                0U, showcore::Property::Intensity);
+            CHECK(value.mode == showcore::ValueMode::Set);
+            CHECK(std::abs(value.value - expected[index]) < 0.00001F);
+            if (index > 0U && index <= 4U) {
+                CHECK(value.value >= previous);
+            }
+            if (index > 4U) {
+                CHECK(value.value <= previous);
+            }
+            previous = value.value;
+        }
+    }
+
+    auto large_linear = make_rich_curve_source();
+    const auto large_validation =
+        emberlights::validate_autoloop_source(large_linear);
+    CHECK(large_validation.ok());
+    CHECK(has_issue(
+        large_validation,
+        "autoloop.quality.intensityLargeLinearDelta"));
+
+    auto low_crawl = make_rich_curve_source();
+    low_crawl.programs.front().events.front().curve_points = {
+        {0, showcore::PropertyValue::set(0.05F)},
+        {1920, showcore::PropertyValue::set(0.15F)}};
+    const auto low_validation =
+        emberlights::validate_autoloop_source(low_crawl);
+    CHECK(low_validation.ok());
+    CHECK(has_issue(
+        low_validation,
+        "autoloop.quality.intensityLowLevelCrawl"));
+
+    auto compounded = make_rich_curve_source();
+    auto& compounded_program = compounded.programs.front();
+    compounded_program.events.resize(2U);
+    auto& emitter = compounded_program.events[1U];
+    emitter = compounded_program.events.front();
+    emitter.id = "rich-curve-emitter";
+    emitter.property = showcore::Property::Red;
+    const auto compounded_validation =
+        emberlights::validate_autoloop_source(compounded);
+    CHECK(compounded_validation.ok());
+    CHECK(has_issue(
+        compounded_validation,
+        "autoloop.quality.simultaneousMasterEmitterRamps"));
+}
+
 void test_generator_evaluator_and_version_gates() {
     auto source = emberlights::adapt_format1_autoloops(
         make_compiled_legacy_project());
@@ -849,6 +932,7 @@ int main() {
     test_compiled_used_content_and_determinism();
     test_compiled_legacy_equivalence_and_no_allocation();
     test_rich_evaluator_and_fail_closed_compilation();
+    test_smoothstep_shape_repeat_continuity_and_quality_lint();
     test_generator_evaluator_and_version_gates();
 
     if (failures != 0) {

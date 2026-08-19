@@ -60,6 +60,43 @@ struct ParsedRecord {
         finite_normalized(value.base_secondary);
 }
 
+[[nodiscard]] bool emitter_property(showcore::Property property) noexcept {
+    switch (property) {
+    case showcore::Property::Red:
+    case showcore::Property::Green:
+    case showcore::Property::Blue:
+    case showcore::Property::White:
+    case showcore::Property::Amber:
+    case showcore::Property::UV:
+    case showcore::Property::Cyan:
+    case showcore::Property::Magenta:
+    case showcore::Property::Yellow:
+    case showcore::Property::Lime:
+    case showcore::Property::Indigo:
+        return true;
+    default:
+        return false;
+    }
+}
+
+[[nodiscard]] bool curve_has_set_ramp(
+    const AutoloopEventDefinition& event) noexcept {
+    if (event.kind != AutoloopEventKind::PropertyCurve ||
+        event.curve_points.size() < 2U) {
+        return false;
+    }
+    for (std::size_t index = 1U; index < event.curve_points.size(); ++index) {
+        const auto& first = event.curve_points[index - 1U].value;
+        const auto& second = event.curve_points[index].value;
+        if (first.mode == showcore::ValueMode::Set &&
+            second.mode == showcore::ValueMode::Set &&
+            std::abs(first.value - second.value) > 0.0001F) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void add_issue(
     AutoloopSourceValidation& result,
     AutoloopSourceIssueSeverity severity,
@@ -730,6 +767,45 @@ AutoloopSourceValidation validate_autoloop_source(
                                   "autoloop.curve.endpoints", event.id,
                                   "Curve must explicitly define event start and end values.");
                     }
+                    if (event.property == showcore::Property::Intensity) {
+                        bool large_delta = false;
+                        bool low_level_crawl = false;
+                        for (std::size_t index = 1U;
+                             index < event.curve_points.size(); ++index) {
+                            const auto& first = event.curve_points[index - 1U];
+                            const auto& second = event.curve_points[index];
+                            if (first.value.mode != showcore::ValueMode::Set ||
+                                second.value.mode != showcore::ValueMode::Set) {
+                                continue;
+                            }
+                            const auto delta = std::abs(
+                                first.value.value - second.value.value);
+                            large_delta = large_delta || delta >= 0.35F;
+                            low_level_crawl = low_level_crawl || (
+                                event.interpolation ==
+                                    AutoloopInterpolation::Linear &&
+                                first.value.value <= 0.20F &&
+                                second.value.value <= 0.20F &&
+                                delta >= 0.02F &&
+                                second.tick - first.tick >=
+                                    2 * kMusicalTicksPerQuarter);
+                        }
+                        if (large_delta && event.interpolation ==
+                                AutoloopInterpolation::Linear) {
+                            add_issue(
+                                result, AutoloopSourceIssueSeverity::Warning,
+                                "autoloop.quality.intensityLargeLinearDelta",
+                                event.id,
+                                "A large linear intensity change may expose DMX stepping; prefer SmoothStep or add musically intentional control points.");
+                        }
+                        if (low_level_crawl) {
+                            add_issue(
+                                result, AutoloopSourceIssueSeverity::Warning,
+                                "autoloop.quality.intensityLowLevelCrawl",
+                                event.id,
+                                "A long low-level linear intensity crawl is likely to look stepped on real dimmers; use SmoothStep, a shorter transition, or fixture-qualified dimmer behavior.");
+                        }
+                    }
                 }
             } else if (!event.curve_points.empty()) {
                 add_issue(result, AutoloopSourceIssueSeverity::Error,
@@ -764,6 +840,19 @@ AutoloopSourceValidation validate_autoloop_source(
                     add_issue(result, AutoloopSourceIssueSeverity::Error,
                               "autoloop.event.ownershipConflict", first.id,
                               "Equal-priority overlapping ownership is ambiguous; assign explicit lane priorities.");
+                }
+                const bool master_emitter_pair =
+                    ((first.property == showcore::Property::Intensity &&
+                      emitter_property(second.property)) ||
+                     (second.property == showcore::Property::Intensity &&
+                      emitter_property(first.property))) &&
+                    curve_has_set_ramp(first) && curve_has_set_ramp(second);
+                if (master_emitter_pair) {
+                    add_issue(
+                        result, AutoloopSourceIssueSeverity::Warning,
+                        "autoloop.quality.simultaneousMasterEmitterRamps",
+                        first.id,
+                        "Overlapping master-intensity and emitter ramps can compound perceptual stepping; keep independent semantic lanes, then preview the combined curve on the target fixture.");
                 }
             }
         }

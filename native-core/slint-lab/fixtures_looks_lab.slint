@@ -1,4 +1,5 @@
 import { Button, LineEdit, ScrollView, Slider } from "std-widgets.slint";
+import { Hairline, SectionTitle, StateBadge, StatusPill, Theme, ValueReadout } from "ember_ui_primitives.slint";
 
 // Non-product issue #37 laboratory surface. Domain state is supplied by
 // FixturesLooksShellModel; this file owns presentation only.
@@ -63,126 +64,6 @@ export struct ParameterFamilyItem {
     enabled: bool,
     safety-restricted: bool,
     mixed: bool,
-}
-
-global Theme {
-    in property <brush> app: #111416;
-    in property <brush> chrome: #171b1e;
-    in property <brush> canvas: #131719;
-    in property <brush> panel: #1d2226;
-    in property <brush> raised: #252b30;
-    in property <brush> control: #293036;
-    in property <brush> control-hover: #333c43;
-    in property <brush> border: #414b53;
-    in property <brush> border-subtle: #30383e;
-    in property <brush> text: #eef1f3;
-    in property <brush> text-secondary: #b7c0c6;
-    in property <brush> text-muted: #7f8a92;
-    in property <brush> brand: #f08a3c;
-    in property <brush> brand-soft: #422a1b;
-    in property <brush> focus: #8bc8ff;
-    in property <brush> good: #49c77a;
-    in property <brush> warn: #e7b24a;
-    in property <brush> danger: #e05252;
-}
-
-component Hairline inherits Rectangle {
-    height: 1px;
-    background: Theme.border-subtle;
-}
-
-component StatusPill inherits Rectangle {
-    in property <string> label;
-    in property <string> state;
-    in property <brush> tone: Theme.text-muted;
-    height: 28px;
-    min-width: 96px;
-    border-radius: 14px;
-    border-width: 1px;
-    border-color: root.tone;
-    background: Theme.panel;
-    accessible-role: AccessibleRole.region;
-    accessible-label: root.label + ": " + root.state;
-
-    HorizontalLayout {
-        padding-left: 10px;
-        padding-right: 10px;
-        spacing: 7px;
-        alignment: center;
-        Rectangle {
-            width: 7px;
-            height: 7px;
-            border-radius: 4px;
-            background: root.tone;
-        }
-        Text {
-            text: root.label;
-            color: Theme.text-muted;
-            font-size: 11px;
-        }
-        Text {
-            text: root.state;
-            color: Theme.text;
-            font-size: 11px;
-            font-weight: 600;
-        }
-    }
-}
-
-component WorkspaceRailButton inherits Rectangle {
-    in property <string> glyph;
-    in property <string> label;
-    in property <bool> selected: false;
-    callback clicked();
-    width: 48px;
-    height: 52px;
-    border-radius: 6px;
-    background: root.selected ? Theme.brand-soft : touch.has-hover ? Theme.control : #00000000;
-    border-width: root.selected ? 1px : 0px;
-    border-color: root.selected ? Theme.brand : #00000000;
-    accessible-role: button;
-    accessible-label: root.label;
-    accessible-checked: root.selected;
-
-    VerticalLayout {
-        padding: 6px;
-        spacing: 2px;
-        alignment: center;
-        Text {
-            text: root.glyph;
-            color: root.selected ? Theme.brand : Theme.text-secondary;
-            font-size: 17px;
-            horizontal-alignment: center;
-        }
-        Text {
-            text: root.label;
-            color: root.selected ? Theme.text : Theme.text-muted;
-            font-size: 9px;
-            horizontal-alignment: center;
-        }
-    }
-    touch := TouchArea { clicked => { root.clicked(); } }
-}
-
-component SectionTitle inherits Rectangle {
-    in property <string> title;
-    in property <string> detail;
-    height: 42px;
-    VerticalLayout {
-        spacing: 2px;
-        Text {
-            text: root.title;
-            color: Theme.text;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        Text {
-            text: root.detail;
-            color: Theme.text-muted;
-            font-size: 11px;
-            overflow: elide;
-        }
-    }
 }
 
 component LibraryRow inherits Rectangle {
@@ -362,6 +243,58 @@ component OwnershipStrip inherits Rectangle {
     }
 }
 
+// A read-only summary of the selected Look's ordinary RGBWA emitter values.
+// The individual profile-backed controls below remain authoritative and keep
+// every additional emitter (UV, CMY, Lime, Indigo, and so on) reachable.
+component ColorMixerSummary inherits Rectangle {
+    in property <float> red: 0;
+    in property <float> green: 0;
+    in property <float> blue: 0;
+    in property <float> white: 0;
+    in property <float> amber: 0;
+    in property <string> detail;
+    height: 58px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+    background: Theme.canvas;
+    accessible-role: AccessibleRole.region;
+    accessible-label: "Profile-backed RGBWA emitter preview. " + root.detail;
+
+    Rectangle { background: #ef5a5a; opacity: root.red * 0.72; }
+    Rectangle { background: #49c77a; opacity: root.green * 0.72; }
+    Rectangle { background: #4fa5de; opacity: root.blue * 0.72; }
+    Rectangle { background: #f0a34a; opacity: root.amber * 0.62; }
+    Rectangle { background: #ece6d4; opacity: root.white * 0.62; }
+    Rectangle { background: #11141666; }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        alignment: center;
+        Rectangle {
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: Theme.text;
+            background: Theme.brand;
+        }
+        VerticalLayout {
+            spacing: 2px;
+            Text { text: "COLOR OUTPUT"; color: Theme.text; font-size: 10px; font-weight: 700; }
+            Text { text: root.detail; color: Theme.text-secondary; font-size: 10px; overflow: elide; }
+        }
+        Rectangle { horizontal-stretch: 1; background: #00000000; }
+        Text {
+            text: "R " + round(root.red * 100) + "  G " + round(root.green * 100) + "  B " + round(root.blue * 100);
+            color: Theme.text;
+            font-size: 10px;
+            font-weight: 600;
+        }
+    }
+}
+
 component ColorChannel inherits Rectangle {
     in property <string> choice-id;
     in property <string> label;
@@ -377,6 +310,10 @@ component ColorChannel inherits Rectangle {
     border-width: 1px;
     border-color: ownership == "set" ? channel-color : Theme.border-subtle;
     background: Theme.panel;
+    accessible-role: AccessibleRole.groupbox;
+    accessible-label: root.label + " emitter. " +
+        (root.ownership == "set" ? round(root.value * 100) + "% set" :
+         root.ownership == "forceZero" ? "forced zero" : "released");
 
     VerticalLayout {
         padding: 9px;
@@ -440,6 +377,9 @@ component XYPad inherits Rectangle {
     border-width: 1px;
     border-color: Theme.border-subtle;
     background: Theme.panel;
+    accessible-role: AccessibleRole.groupbox;
+    accessible-label: "Position. Pan " + round(root.pan * 100) +
+        " percent. Tilt " + round(root.tilt * 100) + " percent.";
 
     VerticalLayout {
         padding: 12px;
@@ -508,19 +448,27 @@ component ChoiceTile inherits Rectangle {
     border-color: item.safety-restricted ? Theme.warn : item.active ? Theme.good : item.selected ? Theme.brand : Theme.border-subtle;
     background: item.active ? #173225 : item.selected ? Theme.brand-soft : touch.has-hover ? Theme.control : Theme.panel;
     opacity: item.enabled ? 1 : 0.45;
-    accessible-role: button;
+    accessible-role: radio-button;
     accessible-label: item.title + ". " + item.detail;
     accessible-enabled: item.enabled;
     accessible-checked: item.active;
     VerticalLayout {
         padding: 8px;
         spacing: 3px;
-        Text {
-            text: item.title;
-            color: Theme.text;
-            font-size: 11px;
-            font-weight: 600;
-            overflow: elide;
+        HorizontalLayout {
+            spacing: 5px;
+            Text {
+                text: item.title;
+                color: Theme.text;
+                font-size: 11px;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Rectangle { horizontal-stretch: 1; background: #00000000; }
+            if item.active || item.selected || item.safety-restricted: StateBadge {
+                label: item.safety-restricted ? "LIMITED" : item.active ? "ACTIVE" : "SELECTED";
+                tone: item.safety-restricted ? Theme.warn : item.active ? Theme.good : Theme.brand;
+            }
         }
         Text {
             text: item.safety-restricted ? "Safety-limited • " + item.detail : item.detail;
@@ -562,12 +510,10 @@ component ParameterValueRow inherits Rectangle {
                 font-weight: 600;
                 overflow: elide;
             }
-            Text {
-                text: item.mixed ? "MIXED" : round(item.value * 100) + "%";
-                color: item.mixed ? Theme.warn : item.active ? Theme.good : Theme.text-secondary;
-                font-size: 10px;
-                font-weight: 650;
-                horizontal-alignment: right;
+            Rectangle { horizontal-stretch: 1; background: #00000000; }
+            ValueReadout {
+                label: item.mixed ? "MIXED" : round(item.value * 100) + "%";
+                tone: item.mixed ? Theme.warn : item.active ? Theme.good : Theme.text-secondary;
             }
         }
         Slider {
@@ -605,12 +551,10 @@ component ParameterFamilyCard inherits Rectangle {
                 Text { text: item.title; color: Theme.text; font-size: 13px; font-weight: 650; }
                 Text { text: item.section-label + " • " + item.kind; color: Theme.text-muted; font-size: 9px; }
             }
-            Text {
-                text: item.mixed ? "MIXED" : item.ownership == "forceZero" ? "OFF" : item.ownership == "set" ? "SET" : "RELEASED";
-                color: item.mixed ? Theme.warn : item.ownership == "set" ? Theme.good : Theme.text-muted;
-                font-size: 10px;
-                font-weight: 700;
-                horizontal-alignment: right;
+            Rectangle { horizontal-stretch: 1; background: #00000000; }
+            StateBadge {
+                label: item.mixed ? "MIXED" : item.ownership == "forceZero" ? "OFF" : item.ownership == "set" ? "SET" : "RELEASED";
+                tone: item.mixed ? Theme.warn : item.ownership == "set" ? Theme.good : Theme.text-muted;
             }
         }
         Text {
@@ -657,7 +601,6 @@ export component FixturesLooksLab inherits Window {
     in property <string> project-name: "Ballroom Rig";
     in property <string> save-state: "Saved";
     in property <string> validation-state: "Validated";
-    in property <string> dj-state: "Listening";
     in property <string> output-state: "Dry run";
     in property <string> workspace-message;
     in property <string> preview-status;
@@ -700,6 +643,13 @@ export component FixturesLooksLab inherits Window {
     in property <string> selected-control-group: "all";
     in property <int> visible-control-count: 0;
     in property <int> color-item-count: 0;
+    in property <bool> color-preview-visible: false;
+    in property <float> color-preview-red: 0;
+    in property <float> color-preview-green: 0;
+    in property <float> color-preview-blue: 0;
+    in property <float> color-preview-white: 0;
+    in property <float> color-preview-amber: 0;
+    in property <string> color-preview-detail;
     in property <int> parameter-family-count: 0;
     in property <int> diagnostic-item-count: 0;
     in property <bool> xy-visible: false;
@@ -730,7 +680,6 @@ export component FixturesLooksLab inherits Window {
     callback duplicate-look();
     callback open-advanced();
 
-    property <length> rail-width: 64px;
     property <length> library-width: 286px;
     property <length> looks-width: 310px;
     property <length> header-height: 64px;
@@ -747,7 +696,7 @@ export component FixturesLooksLab inherits Window {
                 spacing: 14px;
                 alignment: center;
                 HorizontalLayout {
-                    width: root.rail-width + root.library-width - 16px;
+                    width: root.library-width - 16px;
                     spacing: 10px;
                     alignment: center;
                     Rectangle {
@@ -772,14 +721,13 @@ export component FixturesLooksLab inherits Window {
                     }
                 }
                 StatusPill { label: "Project"; state: root.validation-state; tone: root.validation-state == "Validated" ? Theme.good : Theme.warn; }
-                StatusPill { label: "DJ"; state: root.dj-state; tone: Theme.warn; }
+                StatusPill { label: "Surface"; state: "Studio lab"; tone: Theme.brand; }
                 StatusPill {
                     label: "Output";
                     state: root.output-state;
                     tone: root.preview-mode == "physical" ? Theme.warn : root.preview-mode == "simulation" ? Theme.good : Theme.text-muted;
                 }
                 Rectangle { horizontal-stretch: 1; background: #00000000; }
-                Button { text: "Command Explorer"; }
                 Button {
                     text: root.advanced-open ? "Close Advanced" : "Advanced";
                     enabled: root.advanced-available;
@@ -788,35 +736,11 @@ export component FixturesLooksLab inherits Window {
                         root.open-advanced();
                     }
                 }
-                Button {
-                    text: root.preview-mode == "physical" && root.preview-active ? "BLACKOUT & STOP" : "BLACKOUT";
-                    enabled: root.preview-mode == "physical" && root.preview-active;
-                    clicked => { root.preview-stop(); }
-                }
             }
         }
         Hairline { }
         HorizontalLayout {
             spacing: 0px;
-            Rectangle {
-                width: root.rail-width;
-                background: Theme.chrome;
-                VerticalLayout {
-                    padding-top: 12px;
-                    padding-left: 8px;
-                    padding-right: 8px;
-                    spacing: 7px;
-                    WorkspaceRailButton { glyph: "▦"; label: "Home"; }
-                    WorkspaceRailButton { glyph: "◫"; label: "Fixtures"; selected: true; }
-                    WorkspaceRailButton { glyph: "◆"; label: "Looks"; selected: true; }
-                    WorkspaceRailButton { glyph: "◉"; label: "Loops"; }
-                    WorkspaceRailButton { glyph: "⌁"; label: "Mapping"; }
-                    Rectangle { vertical-stretch: 1; background: #00000000; }
-                    WorkspaceRailButton { glyph: "⚙"; label: "System"; }
-                    Text { text: "LAB"; color: Theme.warn; font-size: 9px; font-weight: 700; horizontal-alignment: center; }
-                }
-            }
-            Hairline { width: 1px; }
             Rectangle {
                 width: root.library-width;
                 background: Theme.panel;
@@ -828,12 +752,6 @@ export component FixturesLooksLab inherits Window {
                         text <=> root.profile-search;
                         placeholder-text: "Search profiles, maker, model or mode";
                         edited => { root.profile-search-changed(self.text); }
-                    }
-                    HorizontalLayout {
-                        height: 32px;
-                        spacing: 6px;
-                        Button { text: "Profiles"; primary: true; }
-                        Button { text: "Import OFL / QXF"; }
                     }
                     Text { text: "PROFILES"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
                     ScrollView {
@@ -983,6 +901,14 @@ export component FixturesLooksLab inherits Window {
                                 }
                             }
                             if root.color-item-count > 0: Text { text: "COLOR EMITTERS"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                            if root.color-preview-visible: ColorMixerSummary {
+                                red: root.color-preview-red;
+                                green: root.color-preview-green;
+                                blue: root.color-preview-blue;
+                                white: root.color-preview-white;
+                                amber: root.color-preview-amber;
+                                detail: root.color-preview-detail;
+                            }
                             if root.color-item-count > 0: Rectangle {
                                 min-height: 224px;
                                 border-radius: 7px;
@@ -1043,12 +969,7 @@ export component FixturesLooksLab inherits Window {
                         placeholder-text: "Search Looks, target or property";
                         edited => { root.look-search-changed(self.text); }
                     }
-                    HorizontalLayout {
-                        height: 34px;
-                        spacing: 6px;
-                        Button { text: "New Look"; primary: true; enabled: root.can-edit && !root.can-save-look; clicked => { root.create-look(); } }
-                        Button { text: "Categories"; }
-                    }
+                    Button { height: 34px; text: "New Look"; primary: true; enabled: root.can-edit && !root.can-save-look; clicked => { root.create-look(); } }
                     Text { text: "LOOK LIBRARY"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
                     ScrollView {
                         vertical-stretch: 1;
@@ -1178,11 +1099,11 @@ export component FixturesLooksLab inherits Window {
                     }
                 }
             }
-            HorizontalLayout {
-                height: 36px;
-                spacing: 8px;
-                Button { text: "Profile editor • not wired"; enabled: false; }
-                Button { text: "Copy • not wired"; enabled: false; }
+            Text {
+                text: "Profile editing stays outside this focused lab.";
+                color: Theme.text-muted;
+                font-size: 10px;
+                wrap: word-wrap;
             }
         }
     }

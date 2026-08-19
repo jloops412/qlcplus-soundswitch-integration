@@ -305,7 +305,8 @@ AutoloopContentPack make_emberlights_starter_autoloop_pack() {
         const auto launch_id = base + ".launch";
         const auto provenance_id = base + ".provenance";
         const auto target_id = program_id + ".target.master";
-        const auto lane_id = program_id + ".lane.master";
+        const auto intensity_lane_id = program_id + ".lane.intensity";
+        const auto color_lane_id = program_id + ".lane.color";
 
         AutoloopAssetDefinition asset;
         asset.id = asset_id;
@@ -343,30 +344,43 @@ AutoloopContentPack make_emberlights_starter_autoloop_pack() {
              showcore::Property::Red,
              showcore::Property::Green,
              showcore::Property::Blue}});
-        program.lanes.push_back({lane_id, target_id, 0U});
+        program.lanes.push_back({intensity_lane_id, target_id, 0U});
+        program.lanes.push_back({color_lane_id, target_id, 0U});
         const auto phase_ticks = program.length_ticks / 4;
-        for (std::size_t phase = 0U; phase < 4U; ++phase) {
-            const auto& color = kOriginalStarterColors[
-                (slot + phase * 3U + bank_index * 2U) %
-                kOriginalStarterColors.size()];
-            const auto pulse = phase % 2U == 0U ? 0.0F : 0.08F;
-            const auto intensity = std::min(1.0F, bank.energy + pulse);
-            for (const auto property : properties) {
-                AutoloopEventDefinition event;
-                event.id = program_id + ".event.p" +
-                    std::to_string(phase) + "." + property_suffix(property);
-                event.lane_id = lane_id;
+        for (const auto property : properties) {
+            AutoloopEventDefinition event;
+            event.id = program_id + ".event." + property_suffix(property);
+            event.lane_id = property == showcore::Property::Intensity
+                ? intensity_lane_id : color_lane_id;
+            event.start_tick = 0;
+            event.end_tick = program.length_ticks;
+            event.property = property;
+            if (property == showcore::Property::Intensity) {
                 event.kind = AutoloopEventKind::PropertyBlock;
-                event.start_tick = static_cast<MusicalTick>(phase) *
-                    phase_ticks;
-                event.end_tick = static_cast<MusicalTick>(phase + 1U) *
-                    phase_ticks;
-                event.property = property;
-                event.value = showcore::PropertyValue::set(
-                    color_value(color, property, intensity));
+                event.value = showcore::PropertyValue::set(bank.energy);
                 event.interpolation = AutoloopInterpolation::Hold;
-                program.events.push_back(std::move(event));
+            } else {
+                event.kind = AutoloopEventKind::PropertyCurve;
+                event.value = showcore::PropertyValue::release();
+                event.interpolation = AutoloopInterpolation::SmoothStep;
+                for (std::size_t phase = 0U; phase < 4U; ++phase) {
+                    const auto& color = kOriginalStarterColors[
+                        (slot + phase * 3U + bank_index * 2U) %
+                        kOriginalStarterColors.size()];
+                    event.curve_points.push_back({
+                        static_cast<MusicalTick>(phase) * phase_ticks,
+                        showcore::PropertyValue::set(
+                            color_value(color, property, bank.energy))});
+                }
+                const auto& first_color = kOriginalStarterColors[
+                    (slot + bank_index * 2U) %
+                    kOriginalStarterColors.size()];
+                event.curve_points.push_back({
+                    program.length_ticks,
+                    showcore::PropertyValue::set(
+                        color_value(first_color, property, bank.energy))});
             }
+            program.events.push_back(std::move(event));
         }
         pack.source.programs.push_back(std::move(program));
         pack.source.launch_profiles.push_back({
