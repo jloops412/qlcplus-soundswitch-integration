@@ -1,147 +1,161 @@
 # EmberLights Current Build Execution Handoff — 2026-08-19
 
-**Status:** Binding coordination document until issue #87 Gate A lands one accepted convergence anchor on `main`.
+**Status:** Binding coordination document until issue #87 Gate A lands one accepted implementation anchor on `main`.
 
-**Primary trackers:** #87 (product convergence), #90 (current SoundSwitch 2026 source adapter), #89 (OS2L/VirtualDJ reliability), #52/#79 (fixture and physical evidence), #37/#32/#33 (replacement shell and first product slice), #88 (perceptual fade quality).
+**Primary trackers:** #87 (convergence), #90 (current SoundSwitch 2026 source adapter), #89 (OS2L/VirtualDJ reliability), #52/#79 (fixture and physical evidence), #37/#32/#33 (replacement shell and first product slice), #88 (perceptual fade quality).
 
 **Read this before changing code, opening another implementation branch, expanding a feature, or generating another migration project.**
+
+## Dynamic-head note
+
+`86694f02d89ef856b06d846026fe558e39206f90` is the exact **pre-coordination implementation/evidence baseline** that was at `main` when this planning package began. Once this planning package lands, `main` will advance through documentation-only coordination commits.
+
+Therefore:
+
+- integration agents start from the **latest `main` coordination head**, not by resetting `main` back to `86694f0`;
+- they verify that `86694f0` remains an ancestor of that head;
+- they reconcile the exact implementation branch head `7efd0b083cc7c42df3b2a5ee3e760687a15e390b` into that latest `main` descendant;
+- no planning/documentation commit is treated as a substitute for implementation convergence.
+
+This note controls every later shorthand reference to `main@86694f0` in issues, comments, or historical handoffs.
 
 ---
 
 ## 1. Executive directive
 
-The immediate problem is no longer a lack of architecture, engines, models, or feature ideas. EmberLights now has a substantial amount of valuable implementation distributed across a diverged integration branch and a newer `main` history. The critical risk is **building on the wrong truth, reimplementing completed work, or extending another temporary path before the existing work is converged and proven**.
+EmberLights no longer lacks architecture, engine work, models, or ideas. It has substantial implementation distributed across a diverged integration branch and newer SoundSwitch research on the `main` lineage. The dominant risk is now **building on the wrong truth, reimplementing completed work, or extending a temporary path before existing work is converged and proven**.
 
-The next build session must therefore proceed in this order:
+The next build session proceeds in this order:
 
-1. **Converge repository truth.** Make one branch contain both the current `main` evidence and PR #86 implementation without silently dropping either history.
-2. **Turn the current SoundSwitch research into a real source adapter/import vertical slice.** Begin with one exact current-project Autoloop, not another hand-authored approximation.
-3. **Finish OS2L P0 through installed VirtualDJ evidence.** The integration branch already contains the bounded Blackout feedback software slice; the remaining work is capture, lifecycle truth, service ownership, and real launch/reconnect qualification.
-4. **Close only the physical/fixture gates that affect correctness and support claims.** Exact fixture qualification must not prevent the user from opening/importing/testing a project with outputs disabled and explicit unverified status.
+1. **Converge repository truth.** One branch must contain the latest `main` coordination/evidence lineage and PR #86 implementation without silently dropping either history.
+2. **Build the real SoundSwitch source adapter/import path.** Begin with one exact current-project Autoloop, not another hand-authored approximation.
+3. **Finish OS2L P0 through installed VirtualDJ evidence.** Preserve the existing bounded Blackout-feedback software slice, capture the real wire behavior, then finish listener/discovery/reconnect ownership.
+4. **Close only physical/fixture gates that affect correctness and support claims.** Exact fixture qualification must not prevent opening, importing, inspecting, simulating, saving, or re-importing an output-disabled project.
 5. **Finish the measured replacement-shell decision and activate one product-shaped Fixtures + Static Looks slice.** Do not add more product-facing Win32 forms.
-6. **Then improve perceptual fades, broader Autoloop content, Live workflow, mappings, and full parity.**
+6. **Then improve perceptual fades, broader Autoloop/Live quality, mappings, and full parity.**
 
-No agent should start a broad feature pass from current `main` or PR #86 independently while Gate A is unresolved.
+No broad feature agent should extend current `main` or PR #86 independently while Gate A is unresolved.
 
 ---
 
 ## 2. Exact repository truth at this checkpoint
 
-### Current refs
+### Protected implementation inputs
 
-| Ref | Exact head | Meaning |
+| Input | Exact identity | Meaning |
 |---|---|---|
-| `main` | `86694f02d89ef856b06d846026fe558e39206f90` | Newest SoundSwitch 2026 decoder/pilot evidence, plus the main-only Preview 97 installer upload history. It does **not** contain the large current integration implementation. |
-| PR #86 / `agent/backyard-party-v2` | `7efd0b083cc7c42df3b2a5ee3e760687a15e390b` | Current broad implementation line: Autoloops V2, Studio seams, fixture-control work, qualification tools, UI course correction/Slint lab, Preview 101 lineage, OS2L Blackout feedback software, and independently added copies of the decoder research. |
-| merge base | `47bb45d6e84609a7a73358517ed77e492c29f882` | Last common accepted ancestor. |
+| Pre-coordination `main` implementation/evidence baseline | `86694f02d89ef856b06d846026fe558e39206f90` | Current-project SoundSwitch decoder/pilot evidence plus the main-only historical Preview 97 installer upload lineage. It does not contain the broad current integration implementation. |
+| PR #86 / `agent/backyard-party-v2` | `7efd0b083cc7c42df3b2a5ee3e760687a15e390b` | Broad implementation line: Autoloops V2, Studio seams, fixture-control work, qualification tools, UI course correction/Slint lab, Preview 101 lineage, OS2L Blackout-feedback software, and independently added decoder research. |
+| Last common ancestor | `47bb45d6e84609a7a73358517ed77e492c29f882` | Merge base of the two implementation histories before coordination docs advance `main`. |
 
-GitHub currently reports PR #86 as:
+At the time of review, GitHub reported PR #86 as:
 
-- **23 commits ahead** of the merge base/current comparison;
-- **7 commits behind** current `main`;
-- **diverged** and **not mergeable**;
-- 276 changed files and a very large implementation surface.
+- 23 commits ahead;
+- 7 commits behind the pre-coordination `main` baseline;
+- diverged and not mergeable;
+- 276 changed files with a very large implementation surface.
 
-### What the seven main-side commits represent
+### What the main-side divergence represents
 
-The main-side divergence is not seven unrelated product features. It is principally:
+The main-side commits are principally:
 
-1. `fdcc8a43e9b8649077e5d872c7cf6cac8095482d` — uploaded `installer/EmberLights-0.1.0-preview.97.0-Setup.exe` into source history;
-2. a sequence of SoundSwitch v2.2.2/current-2026 decoder and pilot evidence commits ending at `86694f0`.
+1. `fdcc8a43e9b8649077e5d872c7cf6cac8095482d` — historical upload of `installer/EmberLights-0.1.0-preview.97.0-Setup.exe` into source history;
+2. current SoundSwitch v2.2.2/current-2026 decoder and pilot evidence ending at `86694f0`.
 
-PR #86 independently added the decoder research files in its latest commit, but the blobs/history are not assumed equivalent merely because the filenames and prose appear similar. Gate A must compare them deliberately.
+PR #86 independently added copies of the decoder research near its head. Similar filenames do not prove identical blobs, conclusions, or history. Convergence must compare them deliberately.
 
 ### CI truth
 
-The current PR head has no valid GitHub-hosted build/test result. Recent workflow runs failed before runner assignment because of the repository/account Actions payment or spending-limit gate. Empty jobs are infrastructure failures, not source regressions and not source validation.
+Recent GitHub Actions jobs failed before runner assignment because of the repository/account Actions payment or spending-limit gate. Empty jobs are infrastructure failures—not source regressions and not source validation.
 
-PR #86 contains extensive reported local build/test/package evidence from its component checkpoints. That evidence is useful, but the converged tree still requires a fresh complete local/Windows validation pass before merge or installer publication.
+PR #86 contains extensive reported local build/test/package evidence from its component checkpoints. That evidence is useful, but the final converged tree still requires a fresh complete local/Windows validation pass before merge or installer publication.
 
 ### Installer truth
 
-Preview 101 is the latest identified installed legacy-shell testing line in the integration documentation. It is a small session-ownership safety/defect preview over the frozen transitional Win32 shell. It is **not** the replacement-shell product UI and it does not represent the current PR #86 head.
+Preview 101 is the latest identified installed legacy-shell test line in the integration documentation. It is a small session-ownership safety/defect preview over the frozen transitional Win32 shell. It is not the replacement-shell product UI and is not the current PR #86 head.
 
-Do not increment the preview number merely to ship rearranged legacy UI or model-only changes. The next installer must either:
+Do not advance the preview number merely for model-only work or rearranged legacy UI. The next installer must be either:
 
-- be an explicitly labeled diagnostic/lab build; or
-- activate a meaningful product-shaped slice after convergence and its required validation.
+- an explicitly labeled diagnostic/lab build required for evidence; or
+- a meaningful product-shaped slice with exact source, package, Windows, and claim boundaries.
 
 ---
 
 ## 3. Work that already exists and must not be rebuilt
 
-Agents must inspect the converged implementation before assuming any item below is missing. Open issue checkboxes are stale in several places.
+Open issue checkboxes and old sequencing docs are stale in several places. Inspect the converged tree before assuming any of the following is absent.
 
-### 3.1 Core/Runner/output foundation
-
-The implementation lineage already contains:
-
-- deterministic project/compiler/Runner boundaries;
-- sparse semantic property ownership and two-universe rendering;
-- Art-Net, sACN, ENTTEC-style USB output foundations, SoundSwitch Micro session/qualification tooling, output routing, Blackout authority, diagnostics, and frame attribution;
-- MIDI/WinMM foundations, mapping contracts, session-scoped ownership cleanup, and controller lifecycle seams;
-- raw hardware test, Runner-frame inspection, evidence joining, and qualification/attestation foundations;
-- non-droppable safety authority and fixed-capacity/no-model-call Runner rules.
-
-Do not create another engine, resolver, output router, project model, or hardware-test subsystem.
-
-### 3.2 Fixture truth and Static Looks
+### Core, Runner, output, and evidence foundations
 
 The integration lineage already contains:
 
-- profile-backed fixture capabilities and parameter catalog;
-- direct channels plus named DMX ranges/functions represented through one fixture-control identity;
-- structured profile authoring/workbench models;
+- deterministic project/compiler/Runner boundaries;
+- sparse semantic property ownership and fixed two-universe rendering;
+- Art-Net, sACN, initial USB-DMX adapters, SoundSwitch Micro session/qualification tooling, output routing, Blackout authority, diagnostics, and frame attribution;
+- MIDI/WinMM, mapping, and session-scoped ownership foundations;
+- raw hardware test, Runner-frame inspection, evidence joining, and qualification/attestation foundations;
+- fixed-capacity/no-model-call Runner rules and non-droppable safety authority.
+
+Do not create another engine, resolver, output router, project model, or hardware-test subsystem.
+
+### Fixture truth and Static Looks
+
+The integration lineage already contains:
+
+- profile-backed fixture capabilities and one fixture-control identity for direct channels and named ranges/functions;
+- structured profile/channel authoring services;
 - fixture/group target validation and capability-aware assignments;
-- Static Look authoring, transactional document mutation, exact offline preview through the production compiler/renderer, and bounded physical-preview foundations;
-- renderer-neutral Fixtures + Static Looks shell model and an opt-in Slint lab;
-- explicit UI course correction freezing further product-facing Win32 editor/form growth.
+- Static Look authoring, transactional document mutation, exact output-disabled production preview, and bounded physical-preview foundations;
+- renderer-neutral Fixtures + Static Looks shell models and an opt-in Slint product-shaped lab;
+- an accepted UI course correction freezing further product-facing Win32 editor/form growth.
 
 Do not add fixture-specific repair buttons, duplicate channel models, or raw-DMX-first product controls.
 
-### 3.3 Autoloops V2 and AutoScript
+### Autoloops V2 and AutoScript
 
 The integration lineage already contains substantial Autoloops V2 work:
 
 - signed 64-bit 960-PPQ source/event model;
-- source validation/canonical serialization and deterministic compilation;
-- authoring operations, generation checks, dependency reporting, placement/content separation, Undo/Redo, populate/reset semantics;
-- original 128-placement EmberLights starter content with stable management identity;
-- rich-source persistence through the existing project unknown-record compatibility channel;
-- deterministic rule-based AutoScript proposal, immutable review, bounded cancellation/budgets, and explicit commit;
-- Studio AutoScript bridge through `StudioDocumentService`;
-- output-disabled V2 preview and project palette reference realization;
+- source validation, canonical serialization, and deterministic compilation;
+- generation-checked authoring, dependency reporting, placement/content separation, Undo/Redo, and populate/reset behavior;
+- an original 128-placement EmberLights starter pack with stable management identity;
+- rich-source persistence through the existing project compatibility channel;
+- deterministic bounded rule-based AutoScript proposal/review/commit;
+- Studio AutoScript transaction bridge through `StudioDocumentService`;
+- output-disabled V2 preview and project Palette realization;
 - compiled package/director/Runner path with explicit legacy/V2 ownership and return behavior.
 
-Before writing new Autoloop model/runtime/generator code, prove the needed behavior is absent from the converged tree. The current priority is source migration fidelity and product exposure—not another source model or another hand-authored default-pack pass.
+The current priority is source migration fidelity and product exposure—not another timeline model, generator, persistence model, runtime, or hand-authored default-pack pass.
 
-### 3.4 UI platform direction
+### UI platform direction
 
-The accepted direction is:
+Accepted direction:
 
 - legacy Win32 is a frozen transitional/Safe bridge;
 - no new top-level Win32 editor, property form, or product-skin claim;
 - one renderer-neutral command/state/capability/component registry;
-- Slint/C++ is the first product-shaped candidate, WinUI 3 is the bounded Windows comparison, and Direct2D/Win32 is the Safe baseline;
-- product controls are task-facing visual controls over profile semantics; raw DMX is Advanced diagnostics;
-- reusable shared primitives/components are desired, but must be built inside the accepted renderer/runtime path rather than becoming a third UI framework.
+- Slint/C++ is the first product-shaped candidate;
+- WinUI 3 is the bounded Windows comparison;
+- Direct2D/Win32 is the Safe baseline;
+- raw DMX is Advanced diagnostics;
+- reusable controls are built only within the accepted toolkit/runtime and carry keyboard, accessibility, state, ownership, and safety semantics.
 
-Do not restart UI architecture, create another skin runtime, or add generic component libraries before the toolkit/runtime gate is decided.
+Do not restart UI architecture or introduce another framework/runtime.
 
-### 3.5 OS2L software checkpoint
+### Existing OS2L software checkpoint
 
-PR #86 head includes the first bounded outbound feedback implementation:
+PR #86 head contains the first bounded outbound Blackout-feedback implementation:
 
-- `Os2lTcpServer` send/partial-send/coalescing state for Blackout feedback;
+- `Os2lTcpServer` send/partial-send/coalescing state;
 - feedback counts/errors/bytes and synchronization status;
 - Runner publication of authoritative Blackout feedback state;
-- native tests added in the head commit.
+- native tests.
 
-This is **software-complete only for the first bounded feedback slice**. It does not prove the installed VirtualDJ wire behavior, launch-order discovery, song transition lifecycle, application-owned service extraction, or generic command bridge.
+This is software-complete only for the first bounded feedback slice. It does not prove installed VirtualDJ packet behavior, launch-order discovery, song-transition lifecycle, application-owned service extraction, or the generic command bridge.
 
-### 3.6 SoundSwitch decoder evidence
+### Existing SoundSwitch decoder evidence
 
-The repository now records source-derived evidence for:
+The repository records source-derived evidence for:
 
 - exact current project identity and hashes;
 - 112 Autoloop placements across four banks;
@@ -150,39 +164,39 @@ The repository now records source-derived evidence for:
 - B-record timed RGB plus direct-emitter endpoint evidence;
 - Static Look intensity/RGBWAUV tables;
 - exact current-project Venue target IDs;
-- the failed Pilot 01 caused by old-project target-map contamination;
-- a corrected-map one-loop probe with a deliberately labeled test-only red fallback.
+- Pilot 01 failure caused by older-project target-map contamination;
+- a corrected-map one-loop comparison probe with a deliberately labeled test-only red fallback.
 
-This evidence is enough to begin issue #90. It is not enough to claim exact interpolation, exact unidentified packed-byte semantics, or a faithful full 112-loop conversion.
+That evidence is sufficient to start issue #90. It is not sufficient to claim exact interpolation, exact unidentified packed-byte semantics, or a faithful full 112-loop import.
 
 ---
 
-## 4. What remains genuinely unproven or incomplete
+## 4. Real remaining gaps
 
-The following are real gaps—not stale checklist artifacts:
+These are genuine gaps rather than stale checklist artifacts:
 
-1. **One accepted repository tree.** There is no current mergeable branch that combines main and PR #86.
-2. **Production SoundSwitch source adapter/import.** Research and generated comparison artifacts exist; a bounded version-specific parser/evidence IR/review/re-import path does not yet exist in the product.
-3. **OS2L installed behavior.** The exact VirtualDJ packet/release/connection behavior and automatic launch/reconnect matrix remain unproven.
-4. **Application-owned OS2L lifetime.** The listener/discovery lifecycle still needs to be cleanly separated from Runner/song transport where current code remains coupled.
-5. **Physical/gig qualification.** Software evidence must remain distinct from installed Windows, physical response, soak, and live-event qualification.
-6. **Replacement-shell decision.** Slint has a meaningful lab, but the accepted #37 comparison and production toolkit decision are not closed.
-7. **Product-shaped activation.** The first Fixtures + Static Looks Default workflow is not yet the installed primary product shell.
-8. **Perceptual fade quality.** Physical feedback shows stepped/harsh transitions; issue #88 remains a real rendering/transition-quality lane.
-9. **Full SoundSwitch parity.** Track-specific scripting, broad migration coverage, movement/effects, broader fixture corpus, controller UX, and complete Live/Studio journeys remain later work.
+1. one accepted implementation tree;
+2. a production current-2026 SoundSwitch source adapter/import path;
+3. installed VirtualDJ wire/lifecycle evidence;
+4. application-owned OS2L listener/discovery/reconnect lifetime;
+5. installed Windows, physical-output, soak, and gig qualification at the proper claim level;
+6. a measured production toolkit/renderer decision and trusted Safe path;
+7. activation of the first installed product-shaped Fixtures + Static Looks workflow;
+8. perceptual fade/transition quality on owned fixtures;
+9. broader SoundSwitch parity: track scripts, movement/effects, source versions, fixture corpus, mapping UX, and complete Studio/Live journeys.
 
 ---
 
 ## 5. Binding critical path
 
 ```text
-Gate A repository convergence
+#87 Gate A: repository convergence
         |
         +--> #90 current SoundSwitch source adapter/import vertical slice
         |
         +--> #89 installed OS2L capture + lifecycle/service proof
         |
-        +--> owned-rig evidence reconciliation
+        +--> #52/#79 owned-rig evidence and truthful qualification
         |
         +--> #37 toolkit decision -> #32 Safe/runtime -> #33 first Default product slice
                      |
@@ -190,50 +204,53 @@ Gate A repository convergence
                      +--> broader Autoloops/Live/mapping/migration parity
 ```
 
-The lanes after Gate A may proceed in parallel only when they use distinct files and one shared convergence anchor.
+After Gate A, independent lanes may proceed in parallel only from one exact convergence anchor and with non-overlapping file ownership.
 
 ---
 
 ## 6. Work Packet A — Gate A repository convergence
 
-**Priority:** P0, blocking all broad implementation.
+**Priority:** P0; blocks broad implementation.
 
-**Owner:** one integration agent/worktree. Other agents may inspect/read, but must not independently merge shared histories.
+**Owner:** one integration agent/worktree. Other agents may inspect but must not independently merge the shared histories.
 
-### 6.1 Required branch procedure
+### Branch procedure
 
-1. Create `integration/convergence-2026-08-19` from exact `main@86694f02d89ef856b06d846026fe558e39206f90`.
-2. Merge or replay exact PR #86 head `7efd0b083cc7c42df3b2a5ee3e760687a15e390b` into that branch with both histories preserved.
-3. Do not resolve conflicts by blanket `ours`/`theirs` or by constructing a two-parent commit whose tree silently discards one parent.
-4. Resolve conflicts by domain and record each deliberate choice.
-5. Make the first convergence commit behavior-preserving: no new feature/refactor mixed into the merge.
-6. Keep `main` and PR #86 read-only until the convergence PR is validated.
+1. Fetch the latest `main` after this coordination package lands.
+2. Verify `86694f02d89ef856b06d846026fe558e39206f90` is an ancestor of that head.
+3. Create `integration/convergence-2026-08-19` from that latest `main` head.
+4. Merge or replay exact PR #86 head `7efd0b083cc7c42df3b2a5ee3e760687a15e390b` with both histories preserved.
+5. Never resolve conflicts with blanket `ours`/`theirs` or a two-parent commit whose tree silently discards one parent.
+6. Resolve by domain and record every deliberate choice.
+7. Keep the first convergence commit behavior-preserving; do not mix in new features/refactors.
+8. Keep `main` and PR #86 otherwise read-only until the convergence PR is validated.
 
-### 6.2 Mandatory reconciliation areas
+### Mandatory reconciliation areas
 
 #### SoundSwitch research
 
-Compare every current-2026/v2.2.2 research file from both histories. Retain the latest accurate conclusions, including:
+Compare all current-2026/v2.2.2 research files from both histories. Retain:
 
-- current project placement-array ordering;
+- placement-array ordering;
 - current source target map `197–201` and `89–156`;
-- invalidation of Pilot 01;
-- corrected-map Pilot 02A limitations;
+- Pilot 01 invalidation;
+- Pilot 02A limitations;
 - no unrelated color borrowing in production import;
-- format-1 capacity/chunking as comparison only.
+- format-1 chunking as comparison only;
+- V2 semantic source/program model as the production target.
 
 No evidence file may regress to the older `345+` tube mapping as current truth.
 
 #### Preview 97 binary/source history
 
-The main-only `installer/EmberLights-0.1.0-preview.97.0-Setup.exe` must be handled explicitly:
+Handle `installer/EmberLights-0.1.0-preview.97.0-Setup.exe` explicitly:
 
-- preserve its identity/checksum and a durable artifact/tag/branch pointer before removing it from ordinary source history, if removal is chosen;
-- do not accidentally repackage it as current;
-- do not let a historical binary dictate the converged source tree;
-- record the artifact policy decision in the convergence report.
+- preserve identity/checksum and a durable artifact/tag/branch pointer before any removal from ordinary source history;
+- never present it as current;
+- do not let historical binary placement dictate the converged source tree;
+- record the artifact-policy decision.
 
-#### Governance/current-state docs
+#### Governance and generated truth
 
 Reconcile at least:
 
@@ -242,42 +259,35 @@ Reconcile at least:
 - `docs/06_PRIORITIZED_BACKLOG.md`;
 - `docs/08_DECISIONS_AND_OPEN_QUESTIONS.md`;
 - `docs/13_SOUNDSWITCH_PARITY_LEDGER.md`;
-- active handoffs/checkpoints;
-- product/artifact pointers.
+- active handoffs/checkpoints and artifact pointers;
+- CMake/Make/workflow/package sources;
+- UI/Action registry sources and generated artifacts.
 
-This handoff and issue #87 outrank stale “raw Micro proof is the first task” language. Raw/physical proof remains important, but it is not the generic first coding task after the existing evidence lineage.
+Regenerate contracts from accepted sources. Do not manually merge generated outputs while leaving generators stale.
 
-#### Build systems and generated contracts
+### Older PR equivalence review
 
-Resolve CMake/Make/workflow/registry/generated-file conflicts by regenerating from the accepted source of truth. Do not manually combine generated outputs while leaving generators stale.
+After the convergence tree is green, compare #53, #82, #83, #84, #85, and #86 against it. For each, record unique:
 
-#### Installer/package policy
+- implementation;
+- tests;
+- docs/evidence;
+- artifact lineage;
+- accepted/rejected disposition.
 
-Retain the deterministic package-contract work and uninstall coverage. Do not publish a product installer from the convergence commit until the exact converged payload and version boundary are established.
+Close/supersede only after content equivalence, not by title or chronology.
 
-### 6.3 Required equivalence review before superseding PRs
-
-After the convergence tree is green, compare older drafts #53, #82, #83, #84, #85, and PR #86 itself against the converged tree. For each PR, record:
-
-- unique implementation present/missing/rejected;
-- unique tests present/missing/rejected;
-- unique docs/evidence present/missing/rejected;
-- artifact lineage retained;
-- final disposition.
-
-Close/supersede only after content equivalence, not by title or assumed chronology.
-
-### 6.4 Convergence validation gates
+### Validation gate
 
 At minimum:
 
 - `git diff --check`;
-- clean generated UI registry and Ember Action adapter regeneration/check;
+- clean UI registry/Action regeneration and checks;
 - surface-contract gate;
-- complete warnings-fatal native `all` and `test` suites;
-- CMake configure/build/CTest for supported targets;
-- SoundSwitch migration/parser existing regressions;
-- Autoloops V1/V2 authoring, persistence, preview, runtime, Runner, and AutoScript suites;
+- full warnings-fatal native `all` and `test` suites;
+- supported CMake configure/build/CTest;
+- migration/parser regressions;
+- Autoloops V1/V2 authoring, persistence, preview, AutoScript, runtime, director, and Runner suites;
 - fixture/profile/Static Look/physical-preview suites;
 - OS2L server/Runner feedback tests;
 - package-contract tests;
@@ -285,16 +295,15 @@ At minimum:
 - Slint lab contract/compiler check;
 - dry-run Runner smoke and scheduler/resource guard tests.
 
-Because GitHub Actions is currently infrastructure-blocked, attach exact local command/output summaries and environment identity. Do not represent an empty Actions run as validation.
+Because hosted Actions is infrastructure-blocked, attach exact local commands, environment identity, and results. An empty Actions run is not validation.
 
-### 6.5 Gate A exit condition
+### Gate A exit
 
 Gate A closes only when:
 
-- one convergence PR is mergeable and green on the available evidence path;
-- its branch is a descendant of both current `main` and PR #86 histories or otherwise preserves/equates both transparently;
+- one convergence PR is mergeable and green on available evidence;
+- its tree transparently preserves/equates both protected implementation inputs;
 - `main` becomes the unambiguous implementation truth;
-- this handoff/current-start routing exists on `main`;
 - #90 and #89 can branch from one exact accepted commit;
 - no active draft contains unreviewed unique implementation.
 
@@ -302,16 +311,14 @@ Gate A closes only when:
 
 ## 7. Work Packet B — #90 current SoundSwitch source adapter/import
 
-**Priority:** P0 immediately after Gate A anchor.
+**Priority:** P0 immediately after Gate A.
 
-**Goal:** turn the current decoder evidence into a read-only, version-specific, evidence-carrying Studio migration path. This is the real work required to bring the user's current SoundSwitch project into EmberLights.
-
-### 7.1 Production architecture
+### Production architecture
 
 ```text
-source bundle manifest/probe
+read-only source bundle manifest/probe
   -> exact source-version parser
-  -> exact current-project Venue hierarchy/map
+  -> exact source-project Venue hierarchy/map
   -> Autoloop catalog/placement/length parser
   -> .ssfile A/B records + Static Look tables
   -> evidence-bearing candidate IR
@@ -322,67 +329,67 @@ source bundle manifest/probe
   -> stable idempotent re-import
 ```
 
-Reuse the accepted migration IR, `AutoloopSourceDocument`, authoring/persistence/preview/compiler services, profile-backed fixture properties, and `StudioDocumentService`. Do not create another project/timeline/color/fixture model.
+Reuse the accepted migration IR, `AutoloopSourceDocument`, authoring/persistence/preview/compiler services, profile-backed fixture controls, and `StudioDocumentService`. Do not create a second project, timeline, color, fixture, preview, or transaction model.
 
-### 7.2 First vertical slice
+### First vertical slice only
 
-Implement only current-project Medium Bank Slot 1:
+Implement current-project:
 
-- `SSAutoLoop1.ssfile`;
-- `Red - Smooth Pulse`;
-- exact source file SHA-256 already recorded in #90;
-- uplights `198–201`;
-- tube cells `90–105`, `107–122`, `124–139`, `141–156`.
+- bank: Medium;
+- slot: 1;
+- source: `SSAutoLoop1.ssfile`;
+- identity: `Red - Smooth Pulse`;
+- source SHA-256: recorded in #90;
+- source targets: uplights `198–201`; tube cells `90–105`, `107–122`, `124–139`, `141–156`.
 
-Acceptance requires exact source identity/placement/length, exact current-project source map, raw and interpreted record evidence, output-disabled V2 proposal, save/reopen, and idempotent re-import.
+Acceptance requires exact source identity/placement/length, exact source map, raw and interpreted record evidence, deterministic output-disabled V2 proposal, save/reopen, and idempotent re-import.
 
-### 7.3 Fail-closed semantic rules
+### Fail-closed rules
 
-- Target IDs are resolved from the exact source Venue database; never use another project lineage.
-- No name-derived choreography.
-- No raw DMX copying into unrelated destination profiles.
-- No color borrowed from unrelated targets.
-- Missing local color context is an explicit blocker/status, not an invitation to fabricate.
-- Unsupported UV on tube RGBWY cells is degraded, not reassigned.
-- Strobe/movement/wheels/unknown attributes stay off/opaque until decoded and safety-qualified.
-- Interpolation and unidentified packed bytes remain translated/opaque until controlled-delta evidence promotes them.
-- Format-1 sampled helper-Look projects remain comparison artifacts only; production import targets V2.
+- resolve target IDs from the exact source Venue database;
+- never reuse another project/version's IDs;
+- use decoded placement arrays, not raw entry order;
+- no name-derived choreography;
+- no raw source DMX copy into unrelated destination profiles;
+- no color borrowed from unrelated targets;
+- missing local color context becomes `MissingColorSource` / `NeedsColorContext`;
+- unsupported UV on RGBWY tube cells is degraded, not reassigned;
+- strobe/movement/wheels/unknown attributes remain off/opaque until decoded and safety-qualified;
+- interpolation and unidentified packed bytes remain translated/opaque until controlled-delta evidence promotes them;
+- format-1 sampled helper-Look projects remain comparison artifacts only;
+- production import targets V2.
 
-### 7.4 User-testability rule
+### Testability rule
 
-The importer/project must be openable and reviewable without exact fixture qualification. Lack of qualification must:
+Unqualified fixture/profile/patch status must:
 
-- mark the patch/output as unverified;
-- keep outputs disabled by default;
-- require explicit review/arming for physical output;
-- never block source inspection, mapping review, preview simulation, save/reopen, or migration-report generation.
+- remain visible and truthful;
+- keep output disabled by default;
+- require explicit bounded arming for physical tests;
+- never block source inspection, mapping review, output-disabled simulation, editing, save/reopen, or migration-report generation.
 
-This preserves safety without preventing the user from testing migration progress.
-
-### 7.5 Expansion rule
-
-Do not expand to slots 2–4 or all 112 loops until the first vertical slice is source-map-correct and its unresolved semantics are explicit. A mismatch returns to parser/evidence work, not hand-authored replacement content.
+Do not expand to slots 2–4 or all 112 loops until this vertical slice is source-map-correct and every unresolved semantic is explicit. A mismatch returns to parser/evidence work, not hand-authored replacement content.
 
 ---
 
 ## 8. Work Packet C — #89 OS2L/VirtualDJ reliability
 
-**Priority:** P0 after convergence; may run parallel to #90 with isolated files.
+**Priority:** P0 after convergence; may proceed parallel to #90 with isolated files.
 
-### 8.1 Integrate the existing software slice first
+### Preserve and verify the existing feedback slice
 
-PR #86 head already adds bounded Blackout feedback send support and tests. Preserve it during convergence, then verify its exact authority path:
+PR #86 head already adds bounded Blackout-feedback send support and tests. Preserve it, then verify:
 
-- initial authoritative Blackout state after connection;
-- state transitions from every supported control surface;
+- authoritative Blackout snapshot after connection;
+- transitions from every supported surface;
 - bounded/coalesced partial-send behavior;
-- send failure diagnostics/recovery;
+- send-failure diagnostics and recovery;
 - no socket work on the DMX scheduler;
-- connection loss never clears authoritative Blackout.
+- client loss never clears authoritative Blackout.
 
-Do not reimplement this slice from issue prose before reviewing the converged code.
+Do not reimplement it from issue prose before reviewing the converged code.
 
-### 8.2 Next executable slice: installed raw capture
+### Next executable slice: installed raw capture
 
 Package/expose `os2l_capture` and record exact installed VirtualDJ behavior for:
 
@@ -393,119 +400,116 @@ os2l_button 'blackout' off
 os2l_button 'EmberLights Keepalive' off
 ```
 
-Also capture load/play/stop/replace transitions and whether VirtualDJ closes TCP or only stops transport messages.
+Also capture load/play/stop/replace transitions and whether VirtualDJ closes TCP or merely stops/reset transport traffic.
 
-This evidence decides whether the remaining defect is serialization/feedback semantics, discovery policy, listener ownership, or a VirtualDJ mapping assumption.
+This evidence determines whether the next fix belongs in serialization/feedback semantics, discovery policy, listener ownership, or the VirtualDJ mapping assumption.
 
-### 8.3 Then extract/finish application-owned service lifetime
+### Then finish application-owned service lifetime
 
-The normal product path must work in either launch order and across song/app transitions without pressing a lighting pad to wake the connection. Separate:
+The normal product path must work in either launch order and across app/song transitions without pressing a lighting pad to wake OS2L. Separate:
 
 - listener state;
 - DNS-SD advertisement;
 - TCP client state;
-- transport/beat sync state;
+- transport/beat-sync state;
 - connection/session epoch;
 - authoritative feedback state.
 
-Do not begin the generic `os2l_cmd` bridge until feedback and lifecycle P0 are proven with real VirtualDJ.
-
-### 8.4 Completion evidence
-
-The installed journey must cover both app launch orders, both app restarts, repeated stop/play, load A→B, client reconnect, port conflict recovery, discovery and direct-IP fallback, true Blackout toggle feedback, external Blackout reflection, and stale-session safety.
+Do not begin the generic `os2l_cmd` bridge until P0 feedback/lifecycle is proven with real VirtualDJ.
 
 ---
 
-## 9. Work Packet D — fixture, patch, and physical evidence closure
+## 9. Work Packet D — fixture, patch, and physical evidence
 
-**Priority:** P0/P1 evidence lane; it must not displace Gate A or #90.
+**Priority:** P0/P1 evidence lane; it must not displace convergence or #90.
 
-### 9.1 Current owned destination rig truth
+### Current destination rig
 
-For the current migration/bench destination, use:
+Use:
 
-- 4 × Both Lighting IR-4 in 10CH mode at U1 `001`, `011`, `021`, `031`;
-- 4 × BO-TUBE192/360 Tubes in 80CH mode at U1 `041`, `121`, `201`, `281`;
-- no additional generic “Both Lighting uplight” fixtures in the EmberLights destination project.
+- 4 × Both Lighting IR-4, 10CH, U1 `001`, `011`, `021`, `031`;
+- 4 × BO-TUBE192/360 Tubes, 80CH, U1 `041`, `121`, `201`, `281`;
+- no additional generic Both Lighting uplight destination fixtures.
 
-The SoundSwitch source Venue's uplight identities describe the source fixture family. Migration reconciles their semantic intent to the current IR-4 destination; it does not add duplicate destination uplights.
+SoundSwitch source uplight identities describe the source rig. Reconcile their semantic intent to current IR-4 destination capabilities; do not add duplicate destination fixtures or copy raw source channels.
 
-### 9.2 Qualification versus testability
+### Qualification versus project testability
 
-Exact profile/patch qualification remains required for:
+Exact qualification remains required for:
 
 - physical support claims;
 - evidence-backed attestation;
 - automatic output enablement or gig-qualified status;
-- claiming exact emitter/channel behavior.
+- claims of exact emitter/channel behavior.
 
-It is **not** required merely to:
+It is not required merely to:
 
 - import/open a project;
-- inspect the source map/migration report;
+- inspect the source map/report;
 - simulate output-disabled frames;
 - edit mappings/profiles;
 - save/reopen;
-- explicitly run a bounded user-authorized test with visible unverified status.
+- run an explicitly bounded user-authorized test with visible unverified status.
 
-Remove or bypass any hard UI gate that prevents source/project testing solely because exact fixture qualification is incomplete. Replace it with truthful status, disabled output by default, and explicit safe arming.
+Remove/bypass any hard UI gate that blocks these safe tasks solely because qualification is incomplete. Replace it with truthful status, disabled output, and explicit safe arming.
 
-### 9.3 Remaining evidence session
+### Remaining evidence session
 
-Use existing tools to close only current unknowns:
+Use existing tools to settle:
 
 - IR-4 10CH R/G/B/W/A/UV one-hot truth, master, strobe-off, mode/address;
 - tube cell order/direction and RGBWY behavior;
-- SoundSwitch Micro raw frame vs exact Runner frame;
-- blackout, reconnect, unplug/replug;
+- SoundSwitch Micro raw frame versus exact Runner frame;
+- blackout, reconnect, and unplug/replug;
 - bounded selected-fixture preview timeout/fault/terminal blackout;
-- saved exact evidence/attestation tied to source/profile/mode/address/backend.
+- exact evidence/attestation tied to source/profile/mode/address/backend.
 
-Do not create another hardware-test UI or infer physical output from accepted USB writes.
+Do not create another hardware-test UI or infer fixture response from accepted USB writes.
 
 ---
 
 ## 10. Work Packet E — replacement shell and first real product slice
 
-**Priority:** P1 after Gate A; #37 evidence can proceed parallel to #90/#89 if files are isolated.
+**Priority:** P1 after Gate A. #37 evidence may run parallel to #90/#89 with isolated files.
 
-### 10.1 No more legacy-shell expansion
+### No more legacy-shell expansion
 
-The Win32 shell may receive only:
+Win32 receives only safety, defect, accessibility, bridge-containment, and explicitly required diagnostic-evidence changes. No new top-level Win32 editor, inspector, property form, or product skin.
 
-- safety fixes;
-- defect fixes;
-- accessibility fixes;
-- bridge removal/containment;
-- explicitly labeled diagnostic exposure needed to gather evidence.
+### Finish #37 with one real workflow
 
-No new top-level Win32 editor, inspector, property form, or product skin.
+Evaluate Slint/C++, WinUI 3, and Direct2D/Win32 Safe through the same Fixtures + Static Looks model, commands, persistence, preview, and fault states. Measure:
 
-### 10.2 Finish #37 with the same workflow
+- native Windows packaging;
+- DPI/scaling and resize;
+- keyboard traversal and visible focus;
+- UI Automation/Narrator/accessibility;
+- startup, memory, repaint, long-list behavior;
+- preview timeout/fault behavior;
+- scheduler effect;
+- dependency/license/redistribution/servicing impact.
 
-Evaluate Slint/C++, WinUI 3, and Direct2D/Win32 Safe using the same Fixtures + Static Looks model, commands, queries, persistence, preview, and fault states. Measure native Windows packaging, DPI, accessibility/UI Automation, keyboard navigation, memory, startup, repaint, long lists, resize, preview timeout/fault, and scheduler effect.
+Select one production renderer/toolkit and record the decision while keeping public command/state/skin contracts renderer-neutral.
 
-Select one product renderer/toolkit and record the decision. Keep public command/state/skin contracts renderer-neutral.
+### First installed Default slice
 
-### 10.3 First installed Default slice
-
-The first accepted product slice must let an ordinary operator:
+An ordinary operator must be able to:
 
 1. find/import and inspect a fixture profile with provenance;
-2. patch/select fixtures/groups;
+2. patch/select fixtures and groups;
 3. create/edit/duplicate a Static Look;
-4. control complete profile-backed parameters with appropriate visual controls;
+4. use complete profile-backed visual controls;
 5. understand Set/Release/ForceZero;
 6. simulate and explicitly arm bounded selected-fixture preview;
 7. save/reopen/Undo/Redo;
-8. see output/DJ/controller/safety health;
+8. understand output/DJ/controller/safety health;
 9. reach raw DMX only through Advanced.
 
-Only after this works should the product shell expand aggressively into Autoloops authoring/performance, Live overrides, mapping editor, SoundSwitch Reference, and broad skin customization.
+Only after this works should the shell expand aggressively into Autoloops, Live overrides, mapping editor, SoundSwitch Reference, and broad skin customization.
 
-### 10.4 Reusable UI primitives
+### Reusable controls after toolkit selection
 
-After the toolkit/runtime decision, build one lightweight reusable design system for:
+Build one lightweight accessible primitive system for:
 
 - buttons/toggles/pads;
 - faders/knobs/rate controls;
@@ -513,25 +517,24 @@ After the toolkit/runtime decision, build one lightweight reusable design system
 - XY position pads;
 - segmented/tab/navigation controls;
 - searchable lists/trees;
-- status pills, validation, ownership and safety states;
-- contextual inspector/layout primitives;
-- accessible focus/keyboard/automation behavior.
+- status/validation/ownership/safety states;
+- contextual inspector/layout primitives.
 
-Do not source or bundle a large control framework without license, footprint, maintenance, accessibility, and renderer-fit review.
+Do not bundle a large control framework without license, footprint, maintenance, accessibility, and renderer-fit review.
 
 ---
 
 ## 11. Work Packet F — perceptual fade and show quality
 
-**Priority:** P1 after convergence and alongside product exposure; tracker #88.
+**Priority:** P1 after convergence; tracker #88.
 
-Physical feedback indicates that mathematically linear 8-bit transitions can still look stepped or harsh. Address this at the engine/transition layer rather than hand-editing every loop:
+Physical feedback shows mathematically linear 8-bit transitions may still look stepped/harsh. Solve this at the engine/profile/transition layer rather than hand-editing every loop:
 
 - parameter-family easing/curve profiles;
 - dimmer/color interpolation policy;
-- temporal smoothing or appropriate dither where safe and deterministic;
-- fixture calibration/gamma/white balance hooks;
-- exact Cut vs Linear vs eased transition semantics;
+- deterministic temporal smoothing or appropriate dither where safe;
+- fixture calibration/gamma/white-balance hooks;
+- exact Cut versus Linear versus eased semantics;
 - phase/beat-preserving return from Look/override ownership;
 - physical IR-4/tube comparison and repeatable evidence.
 
@@ -539,7 +542,7 @@ Do not hide decoder mistakes with smoothing. Source timing/target correctness an
 
 ---
 
-## 12. Shared-file and lane coordination map
+## 12. Lane ownership
 
 ### Convergence owner only until Gate A closes
 
@@ -550,9 +553,9 @@ Do not hide decoder mistakes with smoothing. Source timing/target correctness an
 - `docs/13_SOUNDSWITCH_PARITY_LEDGER.md`;
 - top-level CMake/Make/workflow/package manifests;
 - generated registries/adapters;
-- any file with unresolved main/PR #86 conflict.
+- any unresolved main/PR #86 conflict.
 
-### #90 migration lane likely ownership
+### #90 migration lane
 
 Prefer new/exclusive files such as:
 
@@ -567,50 +570,42 @@ native-core/tests/test_soundswitch_autoloop_adapter.cpp
 
 Reserve before touching shared migration IR, Studio document/preview, project I/O, Make/CMake, or UI/view-model files.
 
-### #89 OS2L lane likely ownership
+### #89 OS2L lane
 
-- `showcore/os2l_server.*`;
-- extracted DJ transport/service files;
-- Runner/app connection adapters/status only where required;
-- OS2L capture/diagnostics tests/tools;
-- canonical registry files only after an approved user-visible command/state change.
+Own OS2L server/service/capture/diagnostics files. Coordinate any `runner.*`, `windows_app.cpp`, registry, or shared diagnostics edit. Do not edit migration or UI domain behavior from this lane.
 
-Coordinate any `runner.*`, `windows_app.cpp`, registry, or shared diagnostics edit explicitly.
+### UI evidence lane
 
-### UI lane
-
-Remain inside the Slint lab/comparison/runtime files and renderer-neutral shell model unless Gate C accepts production activation. Do not edit migration or OS2L domain behavior from the UI lane.
+Stay inside the existing comparison/lab/runtime and renderer-neutral shell-model files until #37 accepts production activation. Do not edit migration or OS2L domain behavior.
 
 ---
 
-## 13. Mandatory agent operating protocol
+## 13. Mandatory agent protocol
 
 Every implementation agent must:
 
-1. Read this handoff, issue #87, and the smallest owning issue/handoff before editing.
-2. State the exact base commit/branch and owning issue in its first repository checkpoint.
-3. Reserve exact files before changing shared code.
-4. Deliver one bounded vertical slice; do not absorb adjacent backlog because it is nearby.
-5. Reuse existing authorities/services/contracts before adding a new type/system.
-6. Keep source evidence, editable Studio data, compiled packages, Runner state, and physical qualification distinct.
-7. Add behavioral tests with behavioral changes.
-8. Report exact commands/results, commit SHA, changed files, remaining unknowns, and claim boundary.
-9. Update the owning issue/checkpoint; do not create a new planning document unless it closes a real authority/evidence gap.
-10. Stop when the slice's acceptance criteria pass. Do not continue into the next lane without a new reservation.
+1. read this handoff, #87, and the smallest owning issue/handoff;
+2. state exact base commit/branch and owning issue;
+3. reserve exact files before changing shared code;
+4. deliver one bounded vertical slice;
+5. reuse existing authorities/services/contracts before adding a system;
+6. keep source evidence, editable Studio data, compiled packages, Runner state, and physical qualification distinct;
+7. add behavioral tests with behavioral changes;
+8. report exact commands/results, commit SHA, changed files, remaining unknowns, and claim boundary;
+9. update the owning issue/checkpoint rather than creating redundant planning;
+10. stop when the slice passes—do not absorb the next lane without a new reservation.
 
-### Required language discipline
+Use claim terms accurately:
 
-Use these terms accurately:
-
-- **Implemented:** code exists on the stated exact tree.
-- **Software-tested:** deterministic/local tests passed on the stated environment.
-- **Packaged:** exact payload/installer contract was built and verified.
-- **Installed-Windows-tested:** native installation/launch/persistence/uninstall was observed.
+- **Implemented:** code exists on the stated tree.
+- **Software-tested:** deterministic tests passed in the stated environment.
+- **Packaged:** exact payload/installer contract was verified.
+- **Installed-Windows-tested:** native install/launch/persistence/uninstall was observed.
 - **Physical-output-tested:** exact backend/profile/mode/address produced observed fixture response.
 - **Gig-qualified:** soak/fault/operator/live-event gates passed.
 - **Exact / DeterministicallyTranslated / Approximated / PreservedOpaque / Unsupported / Conflicted / MissingDependency / RejectedUnsafe:** migration evidence statuses, not interchangeable marketing terms.
 
-Do not promote a claim to the next level by inference.
+Never promote a claim by inference.
 
 ---
 
@@ -619,19 +614,19 @@ Do not promote a claim to the next level by inference.
 Until Gate A and the first #90 vertical slice are complete, do not spend primary build time on:
 
 - WOLFMIX parsing/emulation;
-- track-specific scripted-audio decoding unless required to prove the current source manifest boundary;
+- broad track-specific scripted-audio decoding unless needed to prove the current source manifest boundary;
 - AI/model-driven lighting;
-- broad new default content packs;
+- broad new default packs;
 - another Autoloop source/runtime model;
-- another fixture model/catalog architecture;
+- another fixture/catalog architecture;
 - new top-level Win32 UI;
 - broad skin designer/marketplace/cloud/plugin work;
-- Control One OLED/storage/proprietary DMX expansion;
+- Control One OLED/storage/proprietary-DMX expansion;
 - macOS;
 - generalized remote/tablet/event-workflow superiority;
 - new preview numbers without a meaningful validated operator slice.
 
-These remain valid future goals; they are not the next work.
+These remain future goals, not next work.
 
 ---
 
@@ -639,18 +634,18 @@ These remain valid future goals; they are not the next work.
 
 ### Agent 1 — Integration owner
 
-**Start:** `main@86694f0`  
-**Task:** Create the convergence branch, integrate `7efd0b0`, resolve only merge/governance/artifact conflicts, run the complete gate, publish one convergence PR, and make it the sole candidate for `main`.
+**Start:** latest `main` after this coordination package lands; verify `86694f0` is an ancestor.  
+**Task:** create the convergence branch, integrate exact `7efd0b0`, resolve only merge/governance/artifact conflicts, run the complete gate, publish one convergence PR, and make it the sole candidate for implementation `main`.
 
 ### Agent 2 — SoundSwitch adapter owner
 
 **Start:** analysis/read-only until Agent 1 publishes the convergence anchor; then branch from that exact commit.  
-**Task:** implement #90 slices SS26-1 through the smallest testable portion of SS26-4, beginning with bundle probe, exact Venue source map, placement ordering, and evidence-bearing A/B records for `Red - Smooth Pulse`. Do not generate broad project content.
+**Task:** implement #90 from bundle probe through the smallest testable A/B parser slice for `Red - Smooth Pulse`: exact Venue map, placement ordering, source locators, raw-field retention, and deterministic evidence. Do not generate broad project content.
 
 ### Agent 3 — OS2L evidence owner
 
-**Start:** inspect/consolidate the existing Blackout feedback slice; code only from the convergence anchor.  
-**Task:** package/run installed `os2l_capture`, capture plain/on/off/keepalive plus song transitions, reconcile the result with the current send/feedback implementation, and define the smallest lifecycle fix. Do not start the generic command bridge.
+**Start:** inspect the existing Blackout-feedback slice; code only from the convergence anchor.  
+**Task:** package/run installed `os2l_capture`, capture plain/on/off/keepalive and song transitions, reconcile the result with current send/feedback code, and define the smallest lifecycle fix. Do not start the generic command bridge.
 
 ### Agent 4 — UI/toolkit evidence owner (optional parallel lane)
 
@@ -659,19 +654,19 @@ These remain valid future goals; they are not the next work.
 
 ### Owner/operator evidence
 
-Use the current installed build only for explicitly named evidence tasks. Do not ask the owner to compare dozens of generated loops. The next migration comparison is exactly one `Red - Smooth Pulse` vertical slice after its source-map report is correct.
+Use installed builds only for explicitly named evidence tasks. Do not ask the owner to compare dozens of generated loops. The next migration comparison is exactly one `Red - Smooth Pulse` vertical slice after its source-map report is correct.
 
 ---
 
 ## 16. Definition of a successful next build session
 
-The next session is successful when it produces all of the following—not merely more code:
+The next session succeeds only when it produces:
 
-1. A single published convergence PR/commit that preserves both current histories and is the obvious base for new work.
-2. Current `main`/handoffs/issues no longer route agents back to already-completed raw-core or Autoloops-foundation work.
-3. #90 has a real parser/adapter implementation or a narrowly evidenced blocker at the exact field/record level—not another approximate Ember project.
-4. #89's existing feedback slice is preserved and the installed VirtualDJ behavior is captured or the exact capture package is ready for one bounded operator run.
-5. Exact fixture qualification no longer hard-blocks opening/importing/testing an output-disabled project; qualification status remains truthful and safety-gated.
-6. No new parallel architecture, UI framework, engine, project model, or speculative vendor migration path was introduced.
+1. one published convergence PR/commit preserving both implementation histories and becoming the obvious base;
+2. current `main`/handoffs/issues no longer routing agents back to completed raw-core or Autoloops-foundation work;
+3. #90 parser/adapter implementation or a narrowly evidenced blocker at an exact field/record—not another approximate Ember project;
+4. #89's existing feedback slice preserved and installed VirtualDJ behavior captured, or the exact capture package ready for one bounded operator run;
+5. fixture qualification no longer hard-blocking output-disabled import/project testing while support/safety status remains truthful;
+6. no new parallel engine, project model, UI framework/runtime, or speculative vendor migration path.
 
 That is the shortest route from EmberLights' substantial foundation to a coherent, testable SoundSwitch replacement.
