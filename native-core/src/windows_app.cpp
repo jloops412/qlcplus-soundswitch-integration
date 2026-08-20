@@ -18,6 +18,7 @@
 #include "emberlights/live_view_model.hpp"
 #include "emberlights/migration_portability_review.hpp"
 #include "emberlights/ofl_fixture_catalog.hpp"
+#include "emberlights/os2l_service.hpp"
 #include "emberlights/runner.hpp"
 #include "emberlights/runner_frame_inspector.hpp"
 #include "emberlights/runner_raw_hardware_parity.hpp"
@@ -1469,6 +1470,7 @@ private:
     void resolve_audio_assets_for_project();
 
     void apply_connections();
+    void configure_os2l_service() noexcept;
     void copy_virtualdj_setup();
     void apply_safety();
     void update_midi_targets();
@@ -1579,7 +1581,8 @@ private:
     std::thread fixture_catalog_worker_;
     bool fixture_catalog_busy_{false};
 
-    emberlights::RunnerService runner_{};
+    emberlights::Os2lService os2l_service_{};
+    emberlights::RunnerService runner_{&os2l_service_};
     emberlights::StaticLookPhysicalPreviewService physical_preview_{runner_};
     emberlights::UiCommandFacade ui_commands_{runner_, *this};
     emberlights::LiveViewModel live_view_model_{};
@@ -1595,6 +1598,7 @@ private:
 Application::~Application() noexcept {
     static_cast<void>(physical_preview_.stop());
     runner_.stop();
+    os2l_service_.stop();
     if (fixture_catalog_worker_.joinable()) {
         fixture_catalog_worker_.join();
     }
@@ -1843,6 +1847,7 @@ bool Application::create_window(int show_command) {
     }
     static_cast<void>(::SetTimer(window_, kStatusTimer, kStatusTimerMs, nullptr));
     refresh_midi_ports();
+    configure_os2l_service();
     refresh_all();
     show_page(Page::Live);
     layout();
@@ -4901,6 +4906,13 @@ void set_static_look_color_controls(
 
 }  // namespace
 
+void Application::configure_os2l_service() noexcept {
+    static_cast<void>(os2l_service_.configure(
+        project_.connections.os2l_enabled,
+        project_.connections.os2l_bind,
+        project_.connections.os2l_port));
+}
+
 void Application::refresh_all() {
     refreshing_ = true;
     refresh_profiles();
@@ -5264,7 +5276,7 @@ void Application::refresh_live_status() {
     std::wostringstream metrics;
     metrics << L"OS2L: " << adapter_state_name(status.os2l)
             << (status.os2l_listen_port != 0U
-                    ? L" on " + widen(live_project().connections.os2l_bind) + L":" +
+                    ? L" on " + widen(status.os2l_configured_bind.view()) + L":" +
                         std::to_wstring(status.os2l_listen_port)
                     : std::wstring{})
             << L"    Discovery: " << adapter_state_name(status.os2l_discovery)
@@ -8605,14 +8617,36 @@ std::string Application::diagnostics_text() const {
            << "  Queue drops: " << status.output_queue_drops
            << "  Superseded stale frames: " << status.output_superseded_frames << "\r\n"
            << "OS2L connections: " << status.os2l_connections
+           << "  client: " << (status.os2l_client_connected ? "connected" : "disconnected")
+           << "  session epoch: " << status.os2l_session_epoch
            << "  messages: " << status.os2l_messages
            << "  decode errors: " << status.os2l_decode_errors
            << "  dropped named actions: " << status.dropped_os2l_actions
-           << "  listening: " << project_.connections.os2l_bind << ":"
-           << status.os2l_listen_port
+           << "  service queue drops: " << status.os2l_service_dropped_events
+           << "  discarded while Runner stopped: "
+           << status.os2l_discarded_while_runner_stopped
+           << "  configured: " << status.os2l_configured_bind.view() << ":"
+           << status.os2l_configured_port
+           << "  actual bound port: " << status.os2l_listen_port
            << "  last socket error: " << status.os2l_last_error
            << "  discovery: " << narrow(adapter_state_name(status.os2l_discovery))
            << "  discovery error: " << status.os2l_discovery_last_error << "\r\n"
+           << "OS2L transport timestamps (monotonic ms): connect "
+           << status.os2l_last_connect_ms
+           << "  disconnect " << status.os2l_last_disconnect_ms
+           << "  message " << status.os2l_last_message_ms
+           << "  beat " << status.os2l_last_beat_ms << "\r\n";
+    if (status.os2l_last_feedback_valid) {
+        output << "OS2L last feedback: blackout="
+               << (status.os2l_last_feedback_blackout ? "on" : "off")
+               << " at monotonic ms " << status.os2l_last_feedback_ms
+               << "\r\n";
+    }
+    if (status.os2l_last_inbound.length != 0U) {
+        output << "OS2L last bounded inbound: "
+               << status.os2l_last_inbound.view() << "\r\n";
+    }
+    output
            << "MIDI messages: " << status.midi_messages
            << "  dropped actions: " << status.dropped_midi_actions
            << "\r\nRunner uptime: " << status.uptime_ms << " ms"
@@ -10082,6 +10116,7 @@ void Application::new_project() {
     ui_commands_.set_active_project(nullptr);
     active_project_.reset();
     project_ = emberlights::make_starter_project();
+    configure_os2l_service();
     current_path_.clear();
     edit_history_.clear();
     capture_saved_project();
@@ -10206,6 +10241,7 @@ void Application::restore_project_history_dialog() {
         return;
     }
     project_ = std::move(restored);
+    configure_os2l_service();
     edit_history_.clear();
     capture_saved_project();
     reset_authoring_selection();
@@ -10722,6 +10758,7 @@ void Application::import_soundswitch_v1_dialog() {
     ui_commands_.set_active_project(nullptr);
     active_project_.reset();
     project_ = migration.project;
+    configure_os2l_service();
     current_path_ = destination;
     static_cast<void>(remember_project_path(current_path_));
     edit_history_.clear();
@@ -10999,6 +11036,7 @@ bool Application::open_project(const std::filesystem::path& path) {
     ui_commands_.set_active_project(nullptr);
     active_project_.reset();
     project_ = std::move(loaded);
+    configure_os2l_service();
     current_path_ = path;
     const auto remembered = remember_project_path(current_path_);
     edit_history_.clear();
@@ -14314,6 +14352,7 @@ void Application::apply_connections() {
             true);
         return;
     }
+    configure_os2l_service();
     if (was_running && previous_connections != project_.connections) {
         runner_.stop();
         ui_commands_.set_active_project(nullptr);
@@ -14353,11 +14392,12 @@ void Application::apply_connections() {
             IdConnectionsMessage,
             "Saved to project. Runner was already using these settings. VirtualDJ should use os2l=Auto with os2lDirectIp blank for automatic discovery.");
     } else {
-        set_status(L"Connections saved to the project; they will open when the show starts.");
+        set_status(
+            L"Connections saved. OS2L is listening now; output and MIDI open with Start Show.");
         set_page_message(
             Page::Connections,
             IdConnectionsMessage,
-            "Saved to project. Connections open with Start Show. VirtualDJ should use os2l=Auto with os2lDirectIp blank for automatic discovery.");
+            "Saved to project. OS2L discovery/listening applies immediately and stays available while the show is stopped; output and MIDI open with Start Show. VirtualDJ should use os2l=Auto with os2lDirectIp blank.");
     }
 }
 

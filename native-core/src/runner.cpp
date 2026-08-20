@@ -1,9 +1,10 @@
 #include "emberlights/runner.hpp"
 
+#include "emberlights/os2l_service.hpp"
+
 #include "showcore/artnet.hpp"
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/look.hpp"
-#include "showcore/os2l_server.hpp"
 #include "showcore/sacn.hpp"
 #include "showcore/soundswitch_micro.hpp"
 #include "showcore/soundswitch_control_one.hpp"
@@ -168,6 +169,24 @@ void update_maximum(
     return AdapterState::Fault;
 }
 
+[[nodiscard]] AdapterState adapter_state(
+    const Os2lServiceStatus& status) noexcept {
+    if (!status.enabled) {
+        return AdapterState::Disabled;
+    }
+    switch (status.listener) {
+    case showcore::Os2lServerState::Closed:
+        return AdapterState::Starting;
+    case showcore::Os2lServerState::Listening:
+        return AdapterState::Waiting;
+    case showcore::Os2lServerState::ClientConnected:
+        return AdapterState::Ready;
+    case showcore::Os2lServerState::Fault:
+        return AdapterState::Fault;
+    }
+    return AdapterState::Fault;
+}
+
 constexpr std::array<showcore::Property, 12> kVisualBlackoutProperties{{
     showcore::Property::Intensity,
     showcore::Property::Red,
@@ -297,7 +316,8 @@ struct RunnerService::ActivationState {
     std::uint64_t generation{0};
 };
 
-RunnerService::RunnerService() noexcept = default;
+RunnerService::RunnerService(Os2lService* os2l_service) noexcept
+    : os2l_service_(os2l_service) {}
 
 RunnerService::~RunnerService() noexcept {
     stop();
@@ -373,6 +393,10 @@ bool RunnerService::start(
     stop_requested_.store(false, std::memory_order_release);
     blackout_requested_.store(false, std::memory_order_release);
     work_light_requested_.store(false, std::memory_order_release);
+    if (os2l_service_ != nullptr && connections_.os2l_enabled) {
+        os2l_service_->publish_blackout(false);
+        os2l_consumer_generation_ = os2l_service_->attach_consumer();
+    }
     os2l_owner_session_token_.store(0U, std::memory_order_release);
     sync_state_.store(showcore::SyncState::Waiting, std::memory_order_relaxed);
     clock_source_.store(showcore::ClockSource::None, std::memory_order_relaxed);
@@ -422,15 +446,6 @@ bool RunnerService::start(
     soundswitch_micro_write_failures_.store(0, std::memory_order_relaxed);
     soundswitch_micro_last_error_.store(0, std::memory_order_relaxed);
     soundswitch_micro_last_nonzero_slots_.store(0, std::memory_order_relaxed);
-    os2l_connections_.store(0, std::memory_order_relaxed);
-    os2l_messages_.store(0, std::memory_order_relaxed);
-    os2l_decode_errors_.store(0, std::memory_order_relaxed);
-    os2l_feedback_messages_.store(0, std::memory_order_relaxed);
-    os2l_feedback_errors_.store(0, std::memory_order_relaxed);
-    os2l_blackout_feedback_synchronized_.store(false, std::memory_order_relaxed);
-    os2l_listen_port_.store(0, std::memory_order_relaxed);
-    os2l_last_error_.store(0, std::memory_order_relaxed);
-    os2l_discovery_last_error_.store(0, std::memory_order_relaxed);
     dropped_beats_.store(0, std::memory_order_relaxed);
     dropped_os2l_actions_.store(0, std::memory_order_relaxed);
     midi_messages_.store(0, std::memory_order_relaxed);
@@ -449,12 +464,6 @@ bool RunnerService::start(
     package_generation_.store(1U, std::memory_order_relaxed);
     package_activations_.store(0, std::memory_order_relaxed);
     package_activation_failures_.store(0, std::memory_order_relaxed);
-    os2l_state_.store(
-        connections_.os2l_enabled ? AdapterState::Starting : AdapterState::Disabled,
-        std::memory_order_relaxed);
-    os2l_discovery_state_.store(
-        connections_.os2l_enabled ? AdapterState::Starting : AdapterState::Disabled,
-        std::memory_order_relaxed);
     midi_input_state_.store(
         connections_.midi_input_index >= 0 ? AdapterState::Starting : AdapterState::Disabled,
         std::memory_order_relaxed);
@@ -526,6 +535,10 @@ bool RunnerService::start(
         }
         published_activation_.store(nullptr, std::memory_order_release);
         active_activation_.reset();
+        if (os2l_service_ != nullptr) {
+            os2l_service_->detach_consumer(os2l_consumer_generation_);
+            os2l_consumer_generation_ = 0U;
+        }
         state_.store(RunnerState::Stopped, std::memory_order_release);
         return false;
     }
@@ -613,6 +626,10 @@ void RunnerService::stop() noexcept {
     if (output_thread_.joinable()) {
         output_thread_.join();
     }
+    if (os2l_service_ != nullptr) {
+        os2l_service_->detach_consumer(os2l_consumer_generation_);
+        os2l_consumer_generation_ = 0U;
+    }
     published_activation_.store(nullptr, std::memory_order_release);
     {
         std::lock_guard lock(activation_mutex_);
@@ -627,9 +644,8 @@ void RunnerService::stop() noexcept {
 RunnerStatus RunnerService::status() const noexcept {
     RunnerStatus snapshot;
     snapshot.state = state_.load(std::memory_order_acquire);
-    snapshot.os2l = os2l_state_.load(std::memory_order_relaxed);
-    snapshot.os2l_discovery =
-        os2l_discovery_state_.load(std::memory_order_relaxed);
+    snapshot.os2l = AdapterState::Disabled;
+    snapshot.os2l_discovery = AdapterState::Disabled;
     snapshot.midi_input = midi_input_state_.load(std::memory_order_relaxed);
     snapshot.midi_output = midi_output_state_.load(std::memory_order_relaxed);
     snapshot.artnet = artnet_state_.load(std::memory_order_relaxed);
@@ -732,19 +748,37 @@ RunnerStatus RunnerService::status() const noexcept {
         soundswitch_micro_last_error_.load(std::memory_order_relaxed);
     snapshot.soundswitch_micro_last_nonzero_slots =
         soundswitch_micro_last_nonzero_slots_.load(std::memory_order_relaxed);
-    snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
-    snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
-    snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
-    snapshot.os2l_feedback_messages =
-        os2l_feedback_messages_.load(std::memory_order_relaxed);
-    snapshot.os2l_feedback_errors =
-        os2l_feedback_errors_.load(std::memory_order_relaxed);
-    snapshot.os2l_blackout_feedback_synchronized =
-        os2l_blackout_feedback_synchronized_.load(std::memory_order_relaxed);
-    snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
-    snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
-    snapshot.os2l_discovery_last_error =
-        os2l_discovery_last_error_.load(std::memory_order_relaxed);
+    if (os2l_service_ != nullptr) {
+        const auto os2l = os2l_service_->status();
+        snapshot.os2l = adapter_state(os2l);
+        snapshot.os2l_discovery = adapter_state(os2l.discovery);
+        snapshot.os2l_connections = os2l.stats.connections;
+        snapshot.os2l_messages = os2l.stats.messages;
+        snapshot.os2l_decode_errors = os2l.stats.decode_errors;
+        snapshot.os2l_feedback_messages = os2l.stats.feedback_messages;
+        snapshot.os2l_feedback_errors = os2l.stats.feedback_errors;
+        snapshot.os2l_blackout_feedback_synchronized =
+            os2l.blackout_feedback_synchronized;
+        snapshot.os2l_client_connected = os2l.client_connected;
+        snapshot.os2l_session_epoch = os2l.session_epoch;
+        snapshot.os2l_configured_bind = os2l.configured_bind;
+        snapshot.os2l_configured_port = os2l.configured_port;
+        snapshot.os2l_listen_port = os2l.bound_port;
+        snapshot.os2l_last_error = os2l.last_socket_error;
+        snapshot.os2l_discovery_last_error = os2l.last_discovery_error;
+        snapshot.os2l_last_connect_ms = os2l.last_connect_ms;
+        snapshot.os2l_last_disconnect_ms = os2l.last_disconnect_ms;
+        snapshot.os2l_last_message_ms = os2l.last_message_ms;
+        snapshot.os2l_last_beat_ms = os2l.last_beat_ms;
+        snapshot.os2l_last_feedback_valid = os2l.last_feedback_valid;
+        snapshot.os2l_last_feedback_blackout =
+            os2l.last_feedback_blackout;
+        snapshot.os2l_last_feedback_ms = os2l.last_feedback_ms;
+        snapshot.os2l_service_dropped_events = os2l.dropped_events;
+        snapshot.os2l_discarded_while_runner_stopped =
+            os2l.discarded_while_detached;
+        snapshot.os2l_last_inbound = os2l.last_inbound;
+    }
     snapshot.dropped_beats = dropped_beats_.load(std::memory_order_relaxed);
     snapshot.dropped_os2l_actions =
         dropped_os2l_actions_.load(std::memory_order_relaxed);
@@ -832,6 +866,9 @@ bool RunnerService::post(const RunnerCommand& command) noexcept {
 
 void RunnerService::set_blackout(bool active) noexcept {
     blackout_requested_.store(active, std::memory_order_release);
+    if (os2l_service_ != nullptr && os2l_consumer_generation_ != 0U) {
+        os2l_service_->publish_blackout(active);
+    }
 }
 
 void RunnerService::set_work_light(bool active) noexcept {
@@ -1016,58 +1053,13 @@ bool RunnerService::poll_midi_monitor(RunnerMidiMonitorEvent& event) noexcept {
     return midi_monitor_.try_pop(event);
 }
 
-void RunnerService::os2l_callback(
-    const showcore::Os2lEvent& event,
-    showcore::Os2lParseError error,
-    std::string_view,
-    void* context) noexcept {
-    auto& service = *static_cast<RunnerService*>(context);
-    if (error != showcore::Os2lParseError::None) {
-        return;
-    }
-    if (event.kind == showcore::Os2lKind::Beat) {
-        const BeatEvent beat{event.beat.position, event.beat.bpm, monotonic_ms()};
-        if (!service.beats_.try_push(beat)) {
-            service.dropped_beats_.fetch_add(1, std::memory_order_relaxed);
-        }
-    } else if (event.kind == showcore::Os2lKind::Button) {
-        // Reserved no-op used only to wake VirtualDJ's direct-IP OS2L client.
-        // It must never change live output state.
-        if (event.button.name.view() == "EmberLights Keepalive" ||
-            event.button.name.view() == "emberlights.keepalive") {
-            return;
-        }
-        if (event.button.name.view() == "blackout") {
-            service.set_blackout(event.button.on);
-        } else if (event.button.name.view() == "worklight" ||
-                   event.button.name.view() == "white") {
-            service.set_work_light(event.button.on);
-        } else if (const auto* activation =
-                       service.published_activation_.load(std::memory_order_acquire);
-                   activation != nullptr) {
-            const RunnerOs2lButtonEvent button{
-                event.button.name,
-                event.button.on,
-                activation->generation,
-                service.os2l_owner_session_token_.load(
-                    std::memory_order_acquire)};
-            if (!service.os2l_buttons_.try_push(button)) {
-                service.dropped_os2l_actions_.fetch_add(1, std::memory_order_relaxed);
-            }
-        }
-    }
-}
-
 void RunnerService::run_input() noexcept {
-    showcore::Os2lTcpServer os2l;
     showcore::WinMmMidiInput midi_input;
     showcore::WinMmMidiOutput midi_output;
-    bool os2l_open = false;
     bool midi_input_open = false;
     bool midi_output_open = false;
     std::uint64_t os2l_owner_session = 0U;
     std::uint64_t midi_owner_session = 0U;
-    auto next_os2l_retry = SteadyClock::now();
     auto next_midi_retry = SteadyClock::now();
     auto next_midi_health_probe = SteadyClock::now();
 
@@ -1107,90 +1099,112 @@ void RunnerService::run_input() noexcept {
         }
         input_activation_ack_.store(activation->generation, std::memory_order_release);
         const auto now = SteadyClock::now();
-        if (connections_.os2l_enabled && !os2l_open && now >= next_os2l_retry) {
-            os2l_state_.store(AdapterState::Starting, std::memory_order_relaxed);
-            os2l_open = os2l.open_ipv4(connections_.os2l_bind, connections_.os2l_port);
-            os2l_listen_port_.store(
-                os2l_open ? os2l.bound_port() : 0U,
-                std::memory_order_relaxed);
-            os2l_last_error_.store(os2l.last_error(), std::memory_order_relaxed);
-            os2l_discovery_state_.store(
-                adapter_state(os2l.discovery_state()), std::memory_order_relaxed);
-            os2l_discovery_last_error_.store(
-                os2l.discovery_last_error(), std::memory_order_relaxed);
-            os2l_state_.store(
-                os2l_open ? AdapterState::Waiting : AdapterState::Fault,
-                std::memory_order_relaxed);
-            next_os2l_retry = now + std::chrono::seconds(2);
-        }
-        if (os2l_open) {
-            const auto blackout =
-                blackout_requested_.load(std::memory_order_acquire);
-            if (os2l.state() == showcore::Os2lServerState::ClientConnected) {
-                static_cast<void>(os2l.queue_blackout_feedback(blackout));
-            }
-            const auto poll = os2l.poll(&RunnerService::os2l_callback, this, 2);
-            if (poll == showcore::Os2lPollResult::ClientConnected) {
-                os2l_owner_session = next_owner_session();
+        if (os2l_service_ != nullptr &&
+            os2l_consumer_generation_ != 0U) {
+            os2l_service_->publish_blackout(
+                blackout_requested_.load(std::memory_order_acquire));
+
+            // Reconcile from the service snapshot as well as queued lifecycle
+            // events so a bounded queue overflow can never leave a stale owner
+            // epoch authoritative.
+            const auto transport = os2l_service_->status();
+            const auto observed_session = transport.client_connected
+                ? transport.session_epoch
+                : 0U;
+            if (observed_session != os2l_owner_session) {
+                queue_owner_loss(
+                    StaticLookOwnerKind::External,
+                    os2l_owner_session,
+                    activation->generation);
+                os2l_owner_session = observed_session;
                 os2l_owner_session_token_.store(
                     os2l_owner_session, std::memory_order_release);
-                static_cast<void>(os2l.queue_blackout_feedback(
-                    blackout_requested_.load(std::memory_order_acquire)));
-            } else if (poll == showcore::Os2lPollResult::ClientDisconnected) {
-                queue_owner_loss(
-                    StaticLookOwnerKind::External,
-                    os2l_owner_session,
-                    activation->generation);
-                os2l_owner_session = 0U;
-                os2l_owner_session_token_.store(0U, std::memory_order_release);
             }
-            if (poll == showcore::Os2lPollResult::Error) {
-                const auto discovery_state = adapter_state(os2l.discovery_state());
-                const auto discovery_error = os2l.discovery_last_error();
-                const auto socket_error = os2l.last_error();
-                queue_owner_loss(
-                    StaticLookOwnerKind::External,
-                    os2l_owner_session,
-                    activation->generation);
-                os2l_owner_session = 0U;
-                os2l_owner_session_token_.store(0U, std::memory_order_release);
-                os2l.close();
-                os2l_open = false;
-                os2l_blackout_feedback_synchronized_.store(
-                    false, std::memory_order_relaxed);
-                os2l_listen_port_.store(0U, std::memory_order_relaxed);
-                os2l_last_error_.store(socket_error, std::memory_order_relaxed);
-                os2l_discovery_state_.store(
-                    discovery_state, std::memory_order_relaxed);
-                os2l_discovery_last_error_.store(
-                    discovery_error, std::memory_order_relaxed);
-                os2l_state_.store(AdapterState::Fault, std::memory_order_relaxed);
-                next_os2l_retry = now + std::chrono::seconds(2);
-            } else {
-                os2l_state_.store(
-                    os2l.state() == showcore::Os2lServerState::ClientConnected
-                        ? AdapterState::Ready
-                        : AdapterState::Waiting,
-                    std::memory_order_relaxed);
+
+            Os2lServiceEvent inbound;
+            while (os2l_service_->try_pop(inbound)) {
+                if (inbound.consumer_generation !=
+                    os2l_consumer_generation_) {
+                    continue;
+                }
+                if (inbound.kind ==
+                    Os2lServiceEventKind::ClientConnected) {
+                    if (inbound.session_epoch != os2l_owner_session) {
+                        queue_owner_loss(
+                            StaticLookOwnerKind::External,
+                            os2l_owner_session,
+                            activation->generation);
+                        os2l_owner_session = inbound.session_epoch;
+                        os2l_owner_session_token_.store(
+                            os2l_owner_session,
+                            std::memory_order_release);
+                    }
+                    continue;
+                }
+                if (inbound.kind ==
+                    Os2lServiceEventKind::ClientDisconnected) {
+                    if (inbound.session_epoch == os2l_owner_session) {
+                        queue_owner_loss(
+                            StaticLookOwnerKind::External,
+                            os2l_owner_session,
+                            activation->generation);
+                        os2l_owner_session = 0U;
+                        os2l_owner_session_token_.store(
+                            0U, std::memory_order_release);
+                    }
+                    continue;
+                }
+                if (inbound.session_epoch == 0U ||
+                    inbound.session_epoch != os2l_owner_session) {
+                    continue;
+                }
+
+                const auto& event = inbound.message;
+                if (event.kind == showcore::Os2lKind::Beat) {
+                    const BeatEvent beat{
+                        event.beat.position,
+                        event.beat.bpm,
+                        monotonic_ms()};
+                    if (!beats_.try_push(beat)) {
+                        dropped_beats_.fetch_add(
+                            1U, std::memory_order_relaxed);
+                    }
+                    continue;
+                }
+                if (event.kind != showcore::Os2lKind::Button) {
+                    continue;
+                }
+
+                // Reserved no-op used only by the direct-IP compatibility
+                // fallback. It never changes live output state.
+                const auto name = event.button.name.view();
+                if (name == "EmberLights Keepalive" ||
+                    name == "emberlights.keepalive") {
+                    continue;
+                }
+                if (name == "blackout") {
+                    set_blackout(event.button.on);
+                } else if (name == "worklight" || name == "white") {
+                    set_work_light(event.button.on);
+                } else {
+                    const RunnerOs2lButtonEvent button{
+                        event.button.name,
+                        event.button.on,
+                        activation->generation,
+                        os2l_owner_session};
+                    if (!os2l_buttons_.try_push(button)) {
+                        dropped_os2l_actions_.fetch_add(
+                            1U, std::memory_order_relaxed);
+                    }
+                }
             }
-            const auto& stats = os2l.stats();
-            if (os2l_open) {
-                os2l_discovery_state_.store(
-                    adapter_state(os2l.discovery_state()), std::memory_order_relaxed);
-                os2l_discovery_last_error_.store(
-                    os2l.discovery_last_error(), std::memory_order_relaxed);
-            }
-            os2l_connections_.store(stats.connections, std::memory_order_relaxed);
-            os2l_messages_.store(stats.messages, std::memory_order_relaxed);
-            os2l_decode_errors_.store(stats.decode_errors, std::memory_order_relaxed);
-            os2l_feedback_messages_.store(
-                stats.feedback_messages, std::memory_order_relaxed);
-            os2l_feedback_errors_.store(
-                stats.feedback_errors, std::memory_order_relaxed);
-            os2l_blackout_feedback_synchronized_.store(
-                os2l.blackout_feedback_synchronized(
-                    blackout_requested_.load(std::memory_order_acquire)),
-                std::memory_order_relaxed);
+        } else if (os2l_owner_session != 0U) {
+            queue_owner_loss(
+                StaticLookOwnerKind::External,
+                os2l_owner_session,
+                activation->generation);
+            os2l_owner_session = 0U;
+            os2l_owner_session_token_.store(0U, std::memory_order_release);
         }
 
         if (now >= next_midi_retry) {
@@ -1253,11 +1267,7 @@ void RunnerService::run_input() noexcept {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    os2l.close();
-    os2l_blackout_feedback_synchronized_.store(false, std::memory_order_relaxed);
     os2l_owner_session_token_.store(0U, std::memory_order_release);
-    os2l_listen_port_.store(0U, std::memory_order_relaxed);
-    os2l_discovery_state_.store(AdapterState::Disabled, std::memory_order_relaxed);
     midi_input.close_all();
     midi_output.close_all();
 }

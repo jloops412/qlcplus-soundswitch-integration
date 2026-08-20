@@ -266,6 +266,7 @@ class WindowsPackageContractTests(unittest.TestCase):
         self.assertIn('"QuietUninstallString"', installer)
         self.assertIn('Delete "$DESKTOP\\EmberLights.lnk"', installer)
         self.assertIn('Delete "$INSTDIR\\unins???.exe"', installer)
+        self.assertIn('Delete "$INSTDIR\\Tools\\os2l_capture.exe"', installer)
 
     def test_windows_cmake_stages_end_user_tools_under_tools(self) -> None:
         cmake = (Path(__file__).parents[1] / "native-core/CMakeLists.txt").read_text(
@@ -277,7 +278,9 @@ class WindowsPackageContractTests(unittest.TestCase):
             cmake,
         )
         self.assertIn("RUNTIME DESTINATION Tools)", cmake)
+        self.assertIn("soundswitch_control_one_probe os2l_capture", cmake)
         self.assertIn("Tools/midi_capture.exe", contract.REQUIRED_FILES)
+        self.assertIn("Tools/os2l_capture.exe", contract.REQUIRED_FILES)
 
     def test_windows_workflow_wires_only_non_outputting_package_smokes(self) -> None:
         workflow = (Path(__file__).parents[1] / ".github/workflows/native-core.yml").read_text(

@@ -28,6 +28,7 @@ REQUIRED_FILES = (
     "Tools/emberlights_migrate.exe",
     "Tools/emberlights_qualify.exe",
     "Tools/midi_capture.exe",
+    "Tools/os2l_capture.exe",
     "Tools/soundswitch_control_one_probe.exe",
     "Tools/soundswitch_micro_probe.exe",
     "Templates/EmberLights-2026-V1-Template.emberlights",

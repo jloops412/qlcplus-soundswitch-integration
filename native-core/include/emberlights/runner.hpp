@@ -23,6 +23,8 @@
 
 namespace emberlights {
 
+class Os2lService;
+
 enum class RunnerState : std::uint8_t {
     Stopped,
     Starting,
@@ -286,9 +288,23 @@ struct RunnerStatus {
     std::uint64_t os2l_feedback_messages{0};
     std::uint64_t os2l_feedback_errors{0};
     bool os2l_blackout_feedback_synchronized{false};
+    bool os2l_client_connected{false};
+    std::uint64_t os2l_session_epoch{0U};
+    showcore::FixedText<64U> os2l_configured_bind{};
+    std::uint16_t os2l_configured_port{0U};
     std::uint16_t os2l_listen_port{0};
     std::int32_t os2l_last_error{0};
     std::int32_t os2l_discovery_last_error{0};
+    std::uint64_t os2l_last_connect_ms{0U};
+    std::uint64_t os2l_last_disconnect_ms{0U};
+    std::uint64_t os2l_last_message_ms{0U};
+    std::uint64_t os2l_last_beat_ms{0U};
+    bool os2l_last_feedback_valid{false};
+    bool os2l_last_feedback_blackout{false};
+    std::uint64_t os2l_last_feedback_ms{0U};
+    std::uint64_t os2l_service_dropped_events{0U};
+    std::uint64_t os2l_discarded_while_runner_stopped{0U};
+    showcore::FixedText<384U> os2l_last_inbound{};
     std::uint64_t dropped_beats{0};
     std::uint64_t dropped_os2l_actions{0};
     std::uint64_t midi_messages{0};
@@ -380,7 +396,7 @@ class RunnerService {
 public:
     using FixtureMask = std::array<std::uint64_t, (showcore::kMaxFixtures + 63U) / 64U>;
 
-    RunnerService() noexcept;
+    explicit RunnerService(Os2lService* os2l_service = nullptr) noexcept;
     ~RunnerService() noexcept;
 
     RunnerService(const RunnerService&) = delete;
@@ -460,11 +476,6 @@ private:
         showcore::SpscQueue<RunnerStaticLookOwnerLossEvent, 65>;
     using OutputQueue = showcore::SpscQueue<OutputFrame, 9>;
 
-    static void os2l_callback(
-        const showcore::Os2lEvent& event,
-        showcore::Os2lParseError error,
-        std::string_view raw,
-        void* context) noexcept;
     void run_scheduler() noexcept;
     void run_input() noexcept;
     void run_output() noexcept;
@@ -477,6 +488,8 @@ private:
     std::mutex activation_mutex_{};
     ConnectionSettings connections_{};
     std::string project_id_;
+    Os2lService* os2l_service_{nullptr};
+    std::uint64_t os2l_consumer_generation_{0U};
 
     CommandQueue commands_{};
     BeatQueue beats_{};
@@ -496,8 +509,6 @@ private:
     std::atomic<bool> blackout_requested_{false};
     std::atomic<bool> work_light_requested_{false};
     std::atomic<RunnerState> state_{RunnerState::Stopped};
-    std::atomic<AdapterState> os2l_state_{AdapterState::Disabled};
-    std::atomic<AdapterState> os2l_discovery_state_{AdapterState::Disabled};
     std::atomic<AdapterState> midi_input_state_{AdapterState::Disabled};
     std::atomic<AdapterState> midi_output_state_{AdapterState::Disabled};
     std::atomic<AdapterState> artnet_state_{AdapterState::Disabled};
@@ -565,15 +576,6 @@ private:
     std::atomic<std::uint64_t> soundswitch_micro_write_failures_{0};
     std::atomic<std::uint32_t> soundswitch_micro_last_error_{0};
     std::atomic<std::uint16_t> soundswitch_micro_last_nonzero_slots_{0};
-    std::atomic<std::uint64_t> os2l_connections_{0};
-    std::atomic<std::uint64_t> os2l_messages_{0};
-    std::atomic<std::uint64_t> os2l_decode_errors_{0};
-    std::atomic<std::uint64_t> os2l_feedback_messages_{0};
-    std::atomic<std::uint64_t> os2l_feedback_errors_{0};
-    std::atomic<bool> os2l_blackout_feedback_synchronized_{false};
-    std::atomic<std::uint16_t> os2l_listen_port_{0};
-    std::atomic<std::int32_t> os2l_last_error_{0};
-    std::atomic<std::int32_t> os2l_discovery_last_error_{0};
     std::atomic<std::uint64_t> dropped_beats_{0};
     std::atomic<std::uint64_t> dropped_os2l_actions_{0};
     std::atomic<std::uint64_t> midi_messages_{0};

@@ -62,6 +62,7 @@ add_library(showcore STATIC
     src/sacn.cpp
     src/os2l.cpp
     src/os2l_server.cpp
+    src/os2l_service.cpp
     src/sync_manager.cpp
     src/midi.cpp
     src/winmm_midi.cpp
@@ -438,7 +439,7 @@ if(WIN32)
 
     install(TARGETS EmberLights RUNTIME DESTINATION .)
     install(TARGETS midi_capture emberlights_qualify emberlights_migrate soundswitch_micro_probe
-        soundswitch_control_one_probe
+        soundswitch_control_one_probe os2l_capture
         RUNTIME DESTINATION Tools)
     install(FILES "${EMBERLIGHTS_V1_TEMPLATE}" DESTINATION Templates)
     install(FILES

@@ -36,6 +36,7 @@ SOURCES := \
 	src/sacn.cpp \
 	src/os2l.cpp \
 	src/os2l_server.cpp \
+	src/os2l_service.cpp \
 	src/sync_manager.cpp \
 	src/midi.cpp \
 	src/winmm_midi.cpp \

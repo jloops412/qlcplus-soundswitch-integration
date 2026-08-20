@@ -7,6 +7,7 @@
 #include "emberlights/project_edit_history.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/qlc_fixture_import.hpp"
+#include "emberlights/os2l_service.hpp"
 #include "emberlights/runner.hpp"
 #include "emberlights/soundswitch_import.hpp"
 #include "emberlights/soundswitch_source_binding.hpp"
@@ -2357,7 +2358,24 @@ void test_runner_os2l_startup_without_button_trigger() {
         return;
     }
 
-    emberlights::RunnerService runner;
+    emberlights::Os2lService os2l_service;
+    CHECK(os2l_service.configure(
+        project.connections.os2l_enabled,
+        project.connections.os2l_bind,
+        project.connections.os2l_port));
+    const auto application_listen_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    auto service_status = os2l_service.status();
+    while (service_status.listener != showcore::Os2lServerState::Listening &&
+           std::chrono::steady_clock::now() < application_listen_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        service_status = os2l_service.status();
+    }
+    CHECK(service_status.running);
+    CHECK(service_status.listener == showcore::Os2lServerState::Listening);
+    CHECK(service_status.bound_port == project.connections.os2l_port);
+
+    emberlights::RunnerService runner(&os2l_service);
     emberlights::RunnerOutputSnapshot unavailable_output;
     CHECK(!runner.latest_output_snapshot(unavailable_output));
     CHECK(runner.start(std::move(compilation.show), project));
@@ -2397,6 +2415,9 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(status.os2l_feedback_messages >= 1U);
         CHECK(status.os2l_feedback_errors == 0U);
         CHECK(status.os2l_blackout_feedback_synchronized);
+        CHECK(status.os2l_last_feedback_valid);
+        CHECK(!status.os2l_last_feedback_blackout);
+        CHECK(status.os2l_last_feedback_ms != 0U);
         CHECK(std::abs(status.bpm - 137.25) < 0.01);
         CHECK(status.clock_source == showcore::ClockSource::Os2l);
 
@@ -2545,6 +2566,106 @@ void test_runner_os2l_startup_without_button_trigger() {
     }
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
+    CHECK(runner.status().os2l == emberlights::AdapterState::Waiting);
+    CHECK(runner.status().os2l_listen_port == project.connections.os2l_port);
+
+    // The application transport remains available across Runner stop and
+    // accepts a fresh session without replaying a command into a stopped show.
+    const auto stopped_runner_client =
+        connect_loopback(project.connections.os2l_port);
+    CHECK(stopped_runner_client != kInvalidTestSocket);
+    if (stopped_runner_client != kInvalidTestSocket) {
+        constexpr std::string_view stopped_red =
+            R"({"evt":"btn","name":"Red","state":"on"})";
+        CHECK(send_all(stopped_runner_client, stopped_red));
+        const auto stopped_session_deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.os2l_connections < 3U ||
+                status.os2l_messages < 16U ||
+                status.os2l_discarded_while_runner_stopped == 0U) &&
+               std::chrono::steady_clock::now() < stopped_session_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.os2l == emberlights::AdapterState::Ready);
+        CHECK(status.os2l_connections == 3U);
+        CHECK(status.os2l_messages >= 16U);
+        CHECK(status.os2l_discarded_while_runner_stopped > 0U);
+        CHECK(status.active_look == -1);
+
+        auto restarted_compilation = emberlights::compile_project(project);
+        CHECK(restarted_compilation);
+        if (restarted_compilation) {
+            CHECK(runner.start(std::move(restarted_compilation.show), project));
+            const auto restart_deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            status = runner.status();
+            while (status.state != emberlights::RunnerState::Running &&
+                   std::chrono::steady_clock::now() < restart_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(75));
+            CHECK(runner.status().active_look == -1);
+
+            // A fresh action from the already-connected session is accepted,
+            // proving the stopped action was discarded rather than deferred.
+            CHECK(send_all(stopped_runner_client, stopped_red));
+            const auto fresh_action_deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            status = runner.status();
+            while ((status.active_look != 0 || status.os2l_messages < 17U) &&
+                   std::chrono::steady_clock::now() < fresh_action_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.active_look == 0);
+            CHECK(status.os2l_messages >= 17U);
+        }
+        close_test_socket(stopped_runner_client);
+    }
+    runner.stop();
+
+    // Applying connection settings reconfigures the application service
+    // without requiring a Runner lifetime. Exercise disable and rebind here
+    // so the UI's Save & Apply path cannot regress into a restart dependency.
+    CHECK(os2l_service.configure(
+        false,
+        project.connections.os2l_bind,
+        project.connections.os2l_port));
+    const auto disable_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    service_status = os2l_service.status();
+    while ((service_status.listener != showcore::Os2lServerState::Closed ||
+            service_status.bound_port != 0U) &&
+           std::chrono::steady_clock::now() < disable_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        service_status = os2l_service.status();
+    }
+    CHECK(!service_status.enabled);
+    CHECK(service_status.listener == showcore::Os2lServerState::Closed);
+    CHECK(service_status.bound_port == 0U);
+
+    const auto rebound_port = reserve_loopback_port();
+    CHECK(rebound_port != 0U);
+    CHECK(os2l_service.configure(
+        true,
+        project.connections.os2l_bind,
+        rebound_port));
+    const auto rebind_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    service_status = os2l_service.status();
+    while (service_status.listener != showcore::Os2lServerState::Listening &&
+           std::chrono::steady_clock::now() < rebind_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        service_status = os2l_service.status();
+    }
+    CHECK(service_status.listener == showcore::Os2lServerState::Listening);
+    CHECK(service_status.configured_port == rebound_port);
+    CHECK(service_status.bound_port == rebound_port);
+
+    os2l_service.stop();
     CHECK(runner.status().os2l_listen_port == 0U);
 }
 

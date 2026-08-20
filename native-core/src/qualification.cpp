@@ -1,4 +1,5 @@
 #include "emberlights/compiler.hpp"
+#include "emberlights/os2l_service.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/runner.hpp"
 #include "emberlights/version.hpp"
@@ -478,7 +479,16 @@ int main(int argc, char** argv) {
         return 3;
     }
 
-    auto runner = std::make_unique<emberlights::RunnerService>();
+    auto os2l_service = std::make_unique<emberlights::Os2lService>();
+    if (!os2l_service->configure(
+            project.connections.os2l_enabled,
+            project.connections.os2l_bind,
+            project.connections.os2l_port)) {
+        std::cerr << "The qualification OS2L service did not start.\n";
+        return 3;
+    }
+    auto runner = std::make_unique<emberlights::RunnerService>(
+        os2l_service.get());
     const auto runner_start_started = SteadyClock::now();
     if (!runner->start(std::move(compilation.show), project)) {
         std::cerr << "The qualification Runner did not start.\n";
