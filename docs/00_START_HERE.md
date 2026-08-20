@@ -104,6 +104,8 @@ PR #86 already has the first bounded Blackout-feedback implementation. The next 
 
 ### UI direction
 
+**UI course correction (2026-08-14):** the reusable domain models and contracts remain authoritative, while the legacy Win32 shell is frozen as a transitional/Safe bridge rather than EmberLights Default. New product presentation proceeds through the renderer-neutral Fixtures + Static Looks replacement-shell gate; raw DMX remains Advanced diagnostics.
+
 Legacy Win32 is a transitional/Safe bridge. No new top-level Win32 editor/property form/product skin is accepted. #37 measures Slint/C++ against a bounded WinUI 3 comparison and Direct2D/Win32 Safe baseline using the same real Fixtures + Static Looks workflow. Public command/state/skin contracts remain renderer-neutral. Raw DMX stays Advanced.
 
 ---

@@ -2901,8 +2901,14 @@ void test_runner_service_lifecycle() {
             current.owner_feedback_token == 0xC1U;
     }).static_look;
     const auto covered_progress = runner.status().active_autoloop_progress;
-    std::this_thread::sleep_for(std::chrono::milliseconds(125));
-    const auto still_covered = runner.status();
+    const auto covered_progress_deadline = std::chrono::steady_clock::now() +
+        std::chrono::seconds(2);
+    auto still_covered = runner.status();
+    while (still_covered.active_autoloop_progress == covered_progress &&
+           std::chrono::steady_clock::now() < covered_progress_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        still_covered = runner.status();
+    }
     CHECK((still_covered.active_autoloop ==
            showcore::AutoloopAddress{7U, 3U}));
     CHECK(still_covered.active_autoloop_progress != covered_progress);
@@ -3025,12 +3031,21 @@ void test_runner_service_lifecycle() {
             return !output.configured &&
                 output.state == showcore::OutputHealthState::Disabled &&
                 output.frames_attempted == 0U;
-        }));
+    }));
     CHECK(runner.clear_track_script());
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    CHECK(runner.status().active_track_script == -1);
-    CHECK(runner.status().active_track_script_beat == 0.0);
-    CHECK(runner.status().active_track_script_consumed_cues == 0U);
+    const auto clear_script_deadline = std::chrono::steady_clock::now() +
+        std::chrono::seconds(2);
+    auto cleared_script = runner.status();
+    while ((cleared_script.active_track_script != -1 ||
+            cleared_script.active_track_script_beat != 0.0 ||
+            cleared_script.active_track_script_consumed_cues != 0U) &&
+           std::chrono::steady_clock::now() < clear_script_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        cleared_script = runner.status();
+    }
+    CHECK(cleared_script.active_track_script == -1);
+    CHECK(cleared_script.active_track_script_beat == 0.0);
+    CHECK(cleared_script.active_track_script_consumed_cues == 0U);
     CHECK(runner.select_exclusive_autoloop_bank(7U));
     CHECK(wait_for_bank_mask(std::uint64_t{1} << 7U));
 

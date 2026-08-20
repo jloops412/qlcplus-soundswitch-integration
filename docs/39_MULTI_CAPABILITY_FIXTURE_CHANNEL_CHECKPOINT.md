@@ -1,8 +1,11 @@
 # Multi-capability fixture-channel checkpoint
 
-Status: **implemented and packaged in Preview 91; portable, Windows-source, and package-contract tests green**  
+Status: **implemented and packaged in Preview 91; portable, Windows-source, and package-contract tests green**
+
 Successor: `40_NAMED_FIXTURE_CONTROL_SURFACES_CHECKPOINT.md` exposes these profile functions through the shared target-choice catalog in Static Looks and Live while preserving this checkpoint's safety and persistence contract.
-Date: 2026-08-13  
+
+Date: 2026-08-13
+
 Owners: fixture issue #52, UI facade issue #31, controller/binding issue #66
 
 ## Operator outcome

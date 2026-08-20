@@ -153,7 +153,7 @@ else()
 endif()
 
 if(WIN32)
-    target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0A00)
+    target_compile_definitions(showcore PUBLIC NOMINMAX _WIN32_WINNT=0x0a00)
     target_link_libraries(showcore PUBLIC
         ws2_32 winmm setupapi winusb winhttp advapi32 dnsapi ole32 uuid)
 endif()
@@ -408,7 +408,7 @@ if(WIN32)
         UNICODE
         _UNICODE
         NOMINMAX
-        _WIN32_WINNT=0x0A00
+        _WIN32_WINNT=0x0a00
         EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}")
     if(MSVC)
         target_compile_options(soundswitch_micro_probe PRIVATE /W4 /WX /permissive-)
@@ -429,7 +429,7 @@ if(WIN32)
         UNICODE
         _UNICODE
         NOMINMAX
-        _WIN32_WINNT=0x0A00
+        _WIN32_WINNT=0x0a00
         EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}")
     if(MSVC)
         target_compile_options(soundswitch_control_one_probe PRIVATE

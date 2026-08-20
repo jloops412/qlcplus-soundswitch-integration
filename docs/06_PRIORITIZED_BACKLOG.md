@@ -17,6 +17,7 @@ The granular backlog below remains the long-range product inventory, but it is *
 
 ### Work already present on the integration lineage—inspect before rebuilding
 
+- **UI course correction (2026-08-14):** legacy Win32 is a frozen transitional/Safe bridge; product UI proceeds through the renderer-neutral Fixtures + Static Looks replacement-shell gate, with raw DMX kept behind Advanced diagnostics.
 - raw hardware/Runner frame evidence and qualification foundations;
 - profile-backed fixture controls and Static Look authoring/preview;
 - canonical UI/action registry foundations and UI course correction;

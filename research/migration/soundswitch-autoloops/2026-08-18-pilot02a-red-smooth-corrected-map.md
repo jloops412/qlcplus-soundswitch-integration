@@ -57,4 +57,3 @@ Physical comparison should focus only on B1/S1:
 1. If IR-4 pulse timing and row order now feel close, the next task is decoding/resolving the missing color context and then expanding to `Blue - Smooth`, `Sunny - Smooth`, and `80s - Smooth`.
 2. If timing/order is still wrong, stop expanding and revisit SoundSwitch timing/loop-length interpretation before any more project files are generated.
 3. Do not treat structural validation as migration fidelity evidence.
-
