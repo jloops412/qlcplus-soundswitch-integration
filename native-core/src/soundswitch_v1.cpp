@@ -156,34 +156,6 @@ struct PaletteLook {
     return std::string(manifest.substr(first_quote + 1U, second_quote - first_quote - 1U));
 }
 
-[[nodiscard]] FixtureProfileDefinition make_profile(
-    std::string id,
-    std::string manufacturer,
-    std::string model,
-    std::string mode,
-    std::vector<Property> properties) {
-    FixtureProfileDefinition profile;
-    profile.id = std::move(id);
-    profile.manufacturer = std::move(manufacturer);
-    profile.model = std::move(model);
-    profile.mode = std::move(mode);
-    profile.name = profile.manufacturer + " " + profile.model + " (" + profile.mode + ")";
-    profile.source = showcore::FixtureProfileSource::Local;
-    profile.source_revision = "soundswitch-2.10.3-safe-v1";
-    profile.footprint = static_cast<std::uint16_t>(properties.size());
-    for (std::size_t index = 0U; index < properties.size(); ++index) {
-        profile.channels.push_back({
-            properties[index],
-            static_cast<std::uint16_t>(index),
-            -1,
-            showcore::ChannelEncoding::Linear8,
-            0U,
-            255U,
-            0U});
-    }
-    return profile;
-}
-
 [[nodiscard]] bool profile_has_property(
     const FixtureProfileDefinition& profile,
     Property property) {
@@ -248,11 +220,9 @@ void append_palette_look(ProjectDocument& project, const PaletteLook& definition
         std::string_view stable_ref;
         bool has_master;
     };
-    constexpr std::array<Target, 4U> targets{{
-        {"uplights", "group.uplights", true},
-        {"tubes", "group.tubes", false},
-        {"wash", "group.wash", true},
+    constexpr std::array<Target, 2U> targets{{
         {"ir4", "group.ir4", true},
+        {"tubes", "group.tubes", false},
     }};
     for (auto& program : source.programs) {
         auto source_events = std::move(program.events);
@@ -325,7 +295,7 @@ ProjectDocument make_safe_color_rig_v1_template(
     static_cast<void>(autoloop_names);
     auto project = make_starter_project();
     project.id = "emberlights-safe-color-rig-v1";
-    project.name = "SoundSwitch 2026 Color Rig V1 - PATCH REVIEW REQUIRED";
+    project.name = "SoundSwitch 2026 Current Rig - PATCH REVIEW REQUIRED";
     project.connections.os2l_enabled = true;
     project.connections.artnet_enabled = false;
     project.connections.sacn_enabled = false;
@@ -336,40 +306,30 @@ ProjectDocument make_safe_color_rig_v1_template(
     project.safety.max_strobe = 0.35F;
     project.safety.max_intensity = 0.75F;
 
-    project.fixture_profiles.push_back(make_profile(
-        "soundswitch.both-lighting.bo-s601.mode2",
-        "Both Lighting", "6x18W RGBWA UV 6in1 Uplight (BO-S601)", "Mode 2",
-        {Property::Intensity, Property::Red, Property::Green, Property::Blue,
-         Property::Amber, Property::White, Property::UV, Property::Strobe,
-         Property::Custom1, Property::Custom2}));
-    project.fixture_profiles.push_back(make_profile(
-        "soundswitch.chauvet.wash-fx-hex.mode1",
-        "Chauvet", "Wash FX HEX", "Mode 1",
-        {Property::Intensity, Property::Strobe, Property::Red, Property::Green,
-         Property::Blue, Property::White, Property::Amber, Property::UV,
-         Property::Custom1, Property::Custom2, Property::Custom3}));
     // make_starter_project already owns the canonical manual-backed IR-4 6CH
     // and 10CH snapshots. Reuse them instead of minting duplicate identities.
 
     std::vector<std::string> all_color;
-    std::vector<std::string> uplights;
+    std::vector<std::string> ir4;
     for (std::uint16_t index = 0U; index < 4U; ++index) {
-        const auto id = "uplight-" + std::to_string(index + 1U);
+        const auto id = "ir4-" + std::to_string(index + 1U);
         project.fixtures.push_back({
             id,
-            "Uplight " + std::to_string(index + 1U),
-            "soundswitch.both-lighting.bo-s601.mode2",
+            "BO-IR4 Spotlight " + std::to_string(index + 1U),
+            std::string(kBothLightingBoIr4TenChannelProfileId),
             1U,
             static_cast<std::uint16_t>(1U + index * 10U),
-            {"uplight", "color", "event-wash"}});
-        uplights.push_back(id);
+            {"ir4", "spotlight", "color", "source-uplight-destination"}});
+        ir4.push_back(id);
         all_color.push_back(id);
     }
 
     std::vector<std::string> tubes;
+    constexpr std::array<std::uint16_t, 4U> tube_bases{{
+        41U, 121U, 201U, 281U}};
     for (std::uint16_t tube = 0U; tube < 4U; ++tube) {
         std::vector<std::string> cells;
-        const auto base = static_cast<std::uint16_t>(41U + tube * 48U);
+        const auto base = tube_bases[tube];
         for (std::uint16_t cell = 0U; cell < 16U; ++cell) {
             const auto id = "tube-" + std::to_string(tube + 1U) +
                 "-cell-" + std::to_string(cell + 1U);
@@ -390,30 +350,8 @@ ProjectDocument make_safe_color_rig_v1_template(
             std::move(cells)});
     }
 
-    project.fixtures.push_back({
-        "wash-fx-hex-1", "Dance Floor Wash FX HEX",
-        "soundswitch.chauvet.wash-fx-hex.mode1", 1U, 233U,
-        {"wash", "dance-floor", "color"}});
-    all_color.push_back("wash-fx-hex-1");
-
-    std::vector<std::string> ir4;
-    for (std::uint16_t index = 0U; index < 2U; ++index) {
-        const auto id = "ir4-" + std::to_string(index + 1U);
-        project.fixtures.push_back({
-            id,
-            "BO-IR4 Spotlight " + std::to_string(index + 1U),
-            std::string(kBothLightingBoIr4TenChannelProfileId),
-            1U,
-            static_cast<std::uint16_t>(244U + index * 10U),
-            {"spotlight", "color", "accent"}});
-        ir4.push_back(id);
-        all_color.push_back(id);
-    }
-
-    project.groups.push_back({"group.uplights", "4 Uplights", uplights});
     project.groups.push_back({"group.tubes", "All BO-Tubes", tubes});
-    project.groups.push_back({"group.wash", "Wash (Dance Floor)", {"wash-fx-hex-1"}});
-    project.groups.push_back({"group.ir4", "BO-IR4 Spotlights", ir4});
+    project.groups.push_back({"group.ir4", "4 BO-IR4 Spotlights", ir4});
     project.groups.push_back({"group.all-color", "All Color Fixtures", all_color});
     project.unknown_records.push_back(
         "MIGRATED_PATCH_UNVERIFIED\tfixture-mode-address-universe-review-required");
@@ -539,18 +477,19 @@ SoundSwitchV1MigrationResult create_soundswitch_v1_project(
     }
     result.warnings = {
         "All Art-Net, sACN, and USB-DMX outputs are disabled until the physical patch is checked.",
-        "Universe 1 addresses 1-263 are a safe non-overlapping staging layout, not decoded SoundSwitch addresses.",
-        "The staged IR-4 fixtures use the manufacturer-manual 10-channel profile. Confirm the fixture display is 10CH; if it is 6CH, explicitly select the built-in 6-channel profile and repatch before enabling output.",
+        "The destination patch uses the current rig: four IR-4 fixtures at U1 001/011/021/031 and four BO-TUBE192 fixtures beginning at U1 041/121/201/281.",
+        "The staged IR-4 fixtures use the manufacturer-manual 10-channel profile. Confirm every fixture display is 10CH; if one is 6CH, explicitly select the built-in 6-channel profile and repatch before enabling output.",
         "The IR-4 manual calls the sixth emitter UV in its specifications and Purple in the DMX table; EmberLights uses semantic UV and keeps physical confirmation open.",
-        "BO-S601, 360 Tube, and Wash FX Hex staged modes remain source-qualified approximations until each physical display and official DMX chart is checked.",
+        "Each BO-TUBE192 is represented by sixteen RGB cell projections inside its 80-channel block; the remaining fixture functions stay unclaimed until the exact 80-channel profile is qualified.",
+        "The SoundSwitch source uplight targets reconcile to the four current IR-4 destinations. No duplicate generic Both Lighting uplight fixtures are created.",
         "The 32 active SoundSwitch Autoloop names are retained in the migration report only; choreography is never fabricated from names.",
         "The project includes 128 original EmberLights semantic V2 Autoloops with independent intensity and RGB lanes, realized against the staged fixture groups.",
         "SoundSwitch A-record intensity timelines and B-record color segments remain source evidence until the versioned decoder is qualified; they are not converted into helper Static Looks.",
         "Mover, GigBar, PartyBar, cold-spark, and purchased track-show payloads remain in the original archive and are not enabled in this first-pilot color rig.",
         "Keep SoundSwitch and the original export available as the rehearsed fallback for the first pilot."
     };
-    result.message = "Created a validated, output-disabled first-pilot project with 4 uplights, "
-        "4 x 16-cell tubes, 1 dance-floor wash, 2 IR-4 spotlights, 18 Static Looks, "
+    result.message = "Created a validated, output-disabled first-pilot project with 4 IR-4 spotlights, "
+        "4 x 16-cell tube projections, 18 Static Looks, "
         "and 128 original semantic V2 Autoloops. SoundSwitch loop names are evidence only, "
         "not fabricated choreography.";
     return result;
@@ -571,7 +510,8 @@ std::string serialize_soundswitch_v1_migration_report(
            << "  \"venueSha256\": \"" << migration.venue_sha256 << "\",\n"
            << "  \"autoloopsSha256\": \"" << migration.autoloops_sha256 << "\",\n"
            << "  \"outputEnabled\": false,\n"
-           << "  \"stagedPatch\": {\"universe\": 1, \"firstAddress\": 1, \"lastAddress\": 263},\n"
+           << "  \"stagedPatch\": {\"universe\": 1, \"firstAddress\": 1, \"lastAddress\": 360, "
+              "\"ir4Bases\": [1, 11, 21, 31], \"tubeBases\": [41, 121, 201, 281]},\n"
            << "  \"projectCounts\": {"
            << "\"profiles\": " << migration.project.fixture_profiles.size() << ", "
            << "\"fixtures\": " << migration.project.fixtures.size() << ", "

@@ -1,6 +1,7 @@
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
 #include "emberlights/hardware_qualification.hpp"
+#include "emberlights/soundswitch_2026_autoloop.hpp"
 #include "emberlights/soundswitch_import.hpp"
 #include "emberlights/soundswitch_migration_ir.hpp"
 #include "emberlights/soundswitch_source_binding.hpp"
@@ -28,6 +29,7 @@ void print_help() {
         << "  emberlights_migrate bundle <SoundSwitch project or extracted application-data directory> <new bundle directory>\n"
         << "  emberlights_migrate verify-source-binding <project.emberlights> <SoundSwitch directory> [--archive <SoundSwitch.zip>] [--report <file>] [--force]\n"
         << "  emberlights_migrate corpus-manifest <SoundSwitch project directory> --report <file> [--source-version <version>] [--scripted-tracks] [--force]\n"
+        << "  emberlights_migrate convert-2026-red-smooth <SoundSwitch project directory> <output.emberlights> [--report <file>] [--force]\n"
         << "  emberlights_migrate convert-v1 <SoundSwitch project directory> <output.emberlights> [--report <file>] [--force]\n"
         << "  emberlights_migrate upgrade-fixtures <input.emberlights> <new-output.emberlights> [--soundswitch-source <directory>] [--source-archive <SoundSwitch.zip>] [--report <file>] [--source-report <file>] [--force]\n"
         << "  emberlights_migrate template-v1 <output.emberlights> [--force]\n"
@@ -44,6 +46,8 @@ void print_help() {
         << "establishes identity only; it never qualifies semantic coverage.\n"
         << "corpus-manifest evaluates evidence availability and missing dependency classes;\n"
         << "it does not claim semantic import completeness or scan external music libraries.\n"
+        << "convert-2026-red-smooth imports the exact reviewed Medium slot 1 source timeline\n"
+        << "into the current IR-4/tube patch and keeps every physical output disabled.\n"
         << "convert-v1 recognizes the qualified SoundSwitch 2.10.x color rig, rebuilds the\n"
         << "active 32-look bank as native semantic content, and leaves every DMX output off.\n"
         << "upgrade-fixtures creates a separate reviewed candidate for exact known-bad embedded\n"
@@ -352,6 +356,58 @@ int run(const std::vector<std::filesystem::path>& arguments) {
                   << manifest.missing_dependency_codes.size()
                   << " dependency class(es) remain unavailable.\n";
         return inspection.complete() ? 0 : 2;
+    }
+    if (command == "convert-2026-red-smooth") {
+        if (arguments.size() < 3U) {
+            print_help();
+            return 1;
+        }
+        std::filesystem::path report = arguments[2];
+        report += ".migration.json";
+        bool force = false;
+        for (std::size_t index = 3U; index < arguments.size(); ++index) {
+            const auto option = arguments[index].string();
+            if (option == "--force") {
+                force = true;
+            } else if (option == "--report" && index + 1U < arguments.size()) {
+                report = arguments[++index];
+            } else {
+                std::cerr << "Unknown or incomplete option: " << option << '\n';
+                return 1;
+            }
+        }
+        std::error_code filesystem_error;
+        if (!force && (std::filesystem::exists(arguments[2], filesystem_error) ||
+                       std::filesystem::exists(report, filesystem_error))) {
+            std::cerr << "Output or report already exists; use --force to replace it.\n";
+            return 1;
+        }
+        const auto migration =
+            emberlights::create_soundswitch_2026_red_smooth_project(
+                arguments[1]);
+        if (!migration) {
+            std::cerr << migration.message << '\n';
+            return 2;
+        }
+        const auto saved = emberlights::save_project_atomic(
+            arguments[2], migration.project, false);
+        if (!saved) {
+            std::cerr << saved.message << '\n';
+            return 2;
+        }
+        std::string report_error;
+        if (!save_text_atomic(
+                report,
+                emberlights::serialize_soundswitch_migration_report(
+                    migration.proposal.migration_report),
+                report_error)) {
+            std::cerr << report_error << '\n';
+            return 2;
+        }
+        std::cout << migration.message << "\nProject: "
+                  << arguments[2].string() << "\nReport: "
+                  << report.string() << '\n';
+        return 0;
     }
     if (command == "convert-v1") {
         if (arguments.size() < 3U) {

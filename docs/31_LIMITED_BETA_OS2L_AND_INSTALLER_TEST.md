@@ -42,6 +42,22 @@ os2l_button 'EmberLights Keepalive' off
 
 Press `Ctrl+C` after the final transition. The capture records ordered sequence numbers, Unix-millisecond timestamps, connection events, parsed summaries, and the exact bounded raw JSON. Review the text before sharing it.
 
+## Five-minute SoundSwitch import check
+
+1. Keep every physical output disabled. Select **File → Import SoundSwitch 2026 Project (Output-Disabled)** and choose the extracted root of the exact current `2026.ssproj` source.
+2. The exact adapter should identify `Medium / slot 1 / Red - Smooth Pulse / 8 bars` and propose a separate project with 68 semantic fixture rows, 18 original review Static Looks, and exactly one imported semantic Autoloop. Decline the save if the adapter falls back to the broader V1 approximation unexpectedly.
+3. Save the candidate under a new `.emberlights` filename. Confirm Patch contains four IR-4 destinations at U1 `001/011/021/031`, tube cell banks beginning at `041/121/201/281`, and no `uplight-*` destination fixtures.
+4. In Autoloops, confirm Medium slot 1 is `Red - Smooth Pulse`. Save, close, and reopen the project; the same one-loop source should persist.
+5. Treat missing IR-4 color as an expected explicit limitation: this slice retains the source intensity timeline but invents no red color when the source target has no local color records.
+
+The installed CLI exposes the same reviewed path and writes a JSON evidence report:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" `
+  convert-2026-red-smooth "D:\2026.ssproj" `
+  "$env:USERPROFILE\Desktop\EmberLights-Red-Smooth.emberlights"
+```
+
 ## What to send back
 
 - Windows version and VirtualDJ build;

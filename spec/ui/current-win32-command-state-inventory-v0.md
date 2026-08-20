@@ -63,6 +63,7 @@ The UI, MIDI feedback, tests, and external surfaces must not infer success merel
 | `IdFileSave` | `project.save` | studio | project | `project.saveState`, `project.lastVerifiedSave` |
 | `IdFileSaveAs` | `project.saveAs.dialog` | blocking-utility | project/app | save/path states |
 | `IdFileRestoreHistory` | `project.restoreHistory.open` | blocking-utility | project | `project.history.*` |
+| `IdFileImportSoundSwitch` | `migration.soundswitch.import.dialog` | blocking-utility | project | `migration.lastReport.*`, project lifecycle/result |
 | `IdFileInspectSoundSwitch` | `migration.soundswitch.inspect.dialog` | blocking-utility | none | `migration.lastReport.*` |
 | `IdFileCompareSoundSwitch` | `migration.soundswitch.compare.dialog` | blocking-utility | none | report/progress/error |
 | `IdFileBundleSoundSwitch` | `migration.soundswitch.bundle.dialog` | blocking-utility | none | report/progress/error |

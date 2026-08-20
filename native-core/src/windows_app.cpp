@@ -31,6 +31,7 @@
 #include "emberlights/ui_command.hpp"
 #include "emberlights/ui_state.hpp"
 #include "emberlights/ui_visual.hpp"
+#include "emberlights/soundswitch_2026_autoloop.hpp"
 #include "emberlights/soundswitch_import.hpp"
 #include "emberlights/soundswitch_source_binding.hpp"
 #include "emberlights/soundswitch_v1.hpp"
@@ -2238,7 +2239,8 @@ void Application::create_menu_bar() {
         file, MF_STRING, IdFileRestoreHistory, L"Restore Saved &Version..."));
     static_cast<void>(::AppendMenuW(file, MF_SEPARATOR, 0, nullptr));
     static_cast<void>(::AppendMenuW(
-        file, MF_STRING, IdFileImportSoundSwitch, L"Import SoundSwitch Project (&V1 Preview)..."));
+        file, MF_STRING, IdFileImportSoundSwitch,
+        L"Import SoundSwitch 2026 Project (Output-Disabled)..."));
     static_cast<void>(::AppendMenuW(
         file, MF_STRING, IdFileInspectSoundSwitch, L"Inspect SoundSwitch &Source..."));
     static_cast<void>(::AppendMenuW(
@@ -10681,42 +10683,68 @@ void Application::import_soundswitch_v1_dialog() {
         return;
     }
     set_status(
-        L"Building a conservative, output-disabled SoundSwitch migration candidate...");
+        L"Reading SoundSwitch source and building an output-disabled migration candidate...");
     static_cast<void>(::UpdateWindow(window_));
-    const auto migration = emberlights::create_soundswitch_v1_project(*source);
-    if (!migration) {
-        const auto message = widen(migration.message);
-        ::MessageBoxW(
-            window_,
-            message.c_str(),
-            L"SoundSwitch V1 preview could not import this source",
-            MB_OK | MB_ICONWARNING);
-        set_status(
-            L"SoundSwitch source was left unchanged. This preview only accepts its qualified 2.10.x color-rig shape.");
-        return;
+
+    emberlights::ProjectDocument migration_project;
+    std::string migration_message;
+    std::vector<std::string> migration_warnings;
+    bool exact_2026_slice = false;
+    const auto current_2026 =
+        emberlights::create_soundswitch_2026_red_smooth_project(*source);
+    if (current_2026) {
+        exact_2026_slice = true;
+        migration_project = current_2026.project;
+        migration_message = current_2026.message;
+        migration_warnings = {
+            "Exactly one decoded source Autoloop is included: Medium / slot 1 / Red - Smooth Pulse / 8 bars.",
+            "A/B interpolation remains deterministically translated while controlled-delta proof is open.",
+            "The four source uplight targets contain intensity but no local color timeline; EmberLights marks MissingColorSource and invents no red fallback.",
+            "The destination patch is four IR-4 fixtures at U1 001/011/021/031 and four tube blocks at U1 041/121/201/281. No duplicate generic uplights are created.",
+            "The 18 Static Looks are original output-disabled EmberLights review content, not claimed SoundSwitch imports.",
+            "All physical outputs remain disabled until the patch, profiles, and fixture modes are deliberately reviewed."};
+    } else {
+        const auto legacy = emberlights::create_soundswitch_v1_project(*source);
+        if (!legacy) {
+            const auto message = widen(
+                "Current-2026 adapter: " + current_2026.message +
+                "\n\nLegacy 2.10.x fallback: " + legacy.message);
+            ::MessageBoxW(
+                window_, message.c_str(),
+                L"SoundSwitch import could not recognize this source",
+                MB_OK | MB_ICONWARNING);
+            set_status(
+                L"SoundSwitch source was left unchanged. Review the exact source/version and migration evidence.");
+            return;
+        }
+        migration_project = legacy.project;
+        migration_message = legacy.message;
+        migration_warnings = legacy.warnings;
     }
 
     const auto semantic_source =
-        emberlights::inspect_persisted_autoloop_source(migration.project);
+        emberlights::inspect_persisted_autoloop_source(migration_project);
     const auto semantic_autoloops =
         semantic_source && semantic_source.stamp.present
         ? semantic_source.source.placements.size() : 0U;
     std::wostringstream review;
-    review << widen(migration.message) << L"\n\n"
+    review << widen(migration_message) << L"\n\n"
            << L"OUTPUTS: disabled\n"
-           << L"Profiles: " << migration.project.fixture_profiles.size()
-           << L"    Fixtures: " << migration.project.fixtures.size()
-           << L"    Static Looks: " << migration.project.looks.size()
+           << L"Profiles: " << migration_project.fixture_profiles.size()
+           << L"    Fixtures: " << migration_project.fixtures.size()
+           << L"    Static Looks: " << migration_project.looks.size()
            << L"    Semantic Autoloops: " << semantic_autoloops << L"\n\n"
            << L"Important review limits:\n";
-    for (const auto& warning : migration.warnings) {
+    for (const auto& warning : migration_warnings) {
         review << L"• " << widen(warning) << L"\n";
     }
     review << L"\nCreate this as a separate EmberLights project now?";
     if (::MessageBoxW(
             window_,
             review.str().c_str(),
-            L"Review SoundSwitch V1 migration candidate",
+            exact_2026_slice
+                ? L"Review exact SoundSwitch 2026 migration slice"
+                : L"Review SoundSwitch V1 migration candidate",
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
         set_status(L"SoundSwitch migration candidate was not saved; the source was unchanged.");
         return;
@@ -10724,7 +10752,8 @@ void Application::import_soundswitch_v1_dialog() {
 
     std::array<wchar_t, 32768> selected{};
     const auto suggested = widen(
-        slugify(migration.project.name) + std::string(emberlights::kProjectExtension));
+        slugify(migration_project.name) +
+        std::string(emberlights::kProjectExtension));
     std::copy_n(
         suggested.c_str(),
         std::min(suggested.size(), selected.size() - 1U),
@@ -10744,7 +10773,7 @@ void Application::import_soundswitch_v1_dialog() {
     }
     const std::filesystem::path destination(selected.data());
     const auto saved =
-        emberlights::save_project_atomic(destination, migration.project, false);
+        emberlights::save_project_atomic(destination, migration_project, false);
     if (!saved) {
         const auto message = widen(saved.message);
         ::MessageBoxW(
@@ -10757,7 +10786,7 @@ void Application::import_soundswitch_v1_dialog() {
     runner_.stop();
     ui_commands_.set_active_project(nullptr);
     active_project_.reset();
-    project_ = migration.project;
+    project_ = std::move(migration_project);
     configure_os2l_service();
     current_path_ = destination;
     static_cast<void>(remember_project_path(current_path_));
@@ -10771,7 +10800,8 @@ void Application::import_soundswitch_v1_dialog() {
         window_,
         L"The separate, output-disabled migration project is open. Start in Fixture Profiles "
         L"and Fixture Patch, verify physical modes/addresses, then review Static Looks and "
-        L"Autoloops. Nothing is qualified for live output merely because it imported.",
+        L"Autoloops. Medium slot 1 is the first evidence-backed source slice when the exact "
+        L"2026 adapter matched. Nothing is qualified for live output merely because it imported.",
         L"SoundSwitch migration candidate created",
         MB_OK | MB_ICONINFORMATION);
     set_status(

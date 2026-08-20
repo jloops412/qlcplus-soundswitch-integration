@@ -4421,8 +4421,8 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(migration);
     CHECK(migration.manifest_id == "{TEST-V1}");
     CHECK(migration.source_autoloop_names.size() == 32U);
-    CHECK(migration.project.fixtures.size() == 71U);
-    CHECK(migration.project.groups.size() == 9U);
+    CHECK(migration.project.fixtures.size() == 68U);
+    CHECK(migration.project.groups.size() == 7U);
     CHECK(migration.project.looks.size() == 18U);
     CHECK(migration.project.autoloops.empty());
     const auto semantic_source =
@@ -4431,9 +4431,9 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(semantic_source.stamp.present);
     CHECK(semantic_source.source.placements.size() == 128U);
     CHECK(semantic_source.source.programs.size() == 128U);
-    CHECK(semantic_source.source.programs.front().targets.size() == 4U);
-    CHECK(semantic_source.source.programs.front().lanes.size() == 7U);
-    CHECK(semantic_source.source.programs.front().events.size() == 15U);
+    CHECK(semantic_source.source.programs.front().targets.size() == 2U);
+    CHECK(semantic_source.source.programs.front().lanes.size() == 3U);
+    CHECK(semantic_source.source.programs.front().events.size() == 7U);
     const auto ir4_profile = std::find_if(
         migration.project.fixture_profiles.begin(),
         migration.project.fixture_profiles.end(),
@@ -4455,6 +4455,32 @@ void test_soundswitch_v1_semantic_conversion() {
             CHECK(ir4_profile->channels[7].property == showcore::Property::Strobe);
         }
     }
+    CHECK(std::none_of(
+        migration.project.fixtures.begin(), migration.project.fixtures.end(),
+        [](const auto& fixture) { return fixture.id.starts_with("uplight-"); }));
+    constexpr std::array<std::uint16_t, 4U> expected_ir4_addresses{{
+        1U, 11U, 21U, 31U}};
+    constexpr std::array<std::uint16_t, 4U> expected_tube_addresses{{
+        41U, 121U, 201U, 281U}};
+    for (std::size_t index = 0U; index < expected_ir4_addresses.size(); ++index) {
+        const auto ir4_id = "ir4-" + std::to_string(index + 1U);
+        const auto ir4 = std::find_if(
+            migration.project.fixtures.begin(), migration.project.fixtures.end(),
+            [&](const auto& fixture) { return fixture.id == ir4_id; });
+        CHECK(ir4 != migration.project.fixtures.end());
+        if (ir4 != migration.project.fixtures.end()) {
+            CHECK(ir4->address == expected_ir4_addresses[index]);
+        }
+        const auto tube_id =
+            "tube-" + std::to_string(index + 1U) + "-cell-1";
+        const auto tube = std::find_if(
+            migration.project.fixtures.begin(), migration.project.fixtures.end(),
+            [&](const auto& fixture) { return fixture.id == tube_id; });
+        CHECK(tube != migration.project.fixtures.end());
+        if (tube != migration.project.fixtures.end()) {
+            CHECK(tube->address == expected_tube_addresses[index]);
+        }
+    }
     CHECK(!migration.project.connections.artnet_enabled);
     CHECK(!migration.project.connections.sacn_enabled);
     CHECK(migration.project.connections.dmx_usb_pro_ports[0].empty());
@@ -4465,8 +4491,12 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(report.find("emberlights-soundswitch-v1-migration") != std::string::npos);
     CHECK(report.find("\"outputEnabled\": false") != std::string::npos);
     CHECK(report.find("Test Loop 1") != std::string::npos);
-    CHECK(report.find("Confirm the fixture display is 10CH") != std::string::npos);
-    CHECK(report.find("source-qualified approximations") != std::string::npos);
+    CHECK(report.find("Confirm every fixture display is 10CH") !=
+          std::string::npos);
+    CHECK(report.find("four IR-4 fixtures at U1 001/011/021/031") !=
+          std::string::npos);
+    CHECK(report.find("No duplicate generic Both Lighting uplight fixtures") !=
+          std::string::npos);
     CHECK(report.find("\"legacyAutoloops\": 0") != std::string::npos);
     CHECK(report.find("\"semanticAutoloops\": 128") != std::string::npos);
     CHECK(report.find("choreography is never fabricated from names") !=

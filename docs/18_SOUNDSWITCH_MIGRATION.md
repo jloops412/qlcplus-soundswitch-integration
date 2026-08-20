@@ -9,11 +9,11 @@ SoundSwitch documents that a project export carries project settings such as ven
 - [Move a SoundSwitch project to another computer](https://support.soundswitch.com/en/support/solutions/articles/69000860388-soundswitch-how-do-i-move-my-soundswitch-project-to-a-different-computer-)
 - [Saving projects and light shows](https://support.soundswitch.com/en/support/solutions/articles/69000853039-soundswitch-saving-projects-and-light-shows)
 
-Independent public format research suggests that recent exports may contain a `.ssproj` manifest, `SoundSwitchVenues.bin`, Autoloop databases, `SoundSwitchTrackMap.bin`, `.ssfile` scripts, and `recordable/*.dat`. Some observed `.ssfile` payloads begin `AA AA 09 55`. Those details are treated as version-specific evidence, not a stable specification. The general importer recognizes and reports them without guessing; the narrow V1 converter described below is qualified only against the supplied SoundSwitch 2.10.x color rig.
+Independent public format research suggests that recent exports may contain a `.ssproj` manifest, `SoundSwitchVenues.bin`, Autoloop databases, `SoundSwitchTrackMap.bin`, `.ssfile` scripts, and `recordable/*.dat`. Some observed `.ssfile` payloads begin `AA AA 09 55`. Those details are treated as version-specific evidence, not a stable specification. The general importer recognizes and reports them without guessing. The current-2026 adapter described below accepts only the exact reviewed five-artifact identity and imports one evidence-backed Autoloop slice; the broader V1 fallback remains an output-disabled approximation.
 
 ## Installed workflow
 
-In EmberLights, use **File → Inspect SoundSwitch Project** to create a JSON inventory, **File → Compare SoundSwitch Exports** after one controlled change, or **File → Create SoundSwitch Migration Bundle** to make a verified copy. The comparison reports added, removed, and modified payloads with SHA-256 values and bounded changed-byte ranges; it does not retain or export source payload bytes.
+In EmberLights, use **File → Import SoundSwitch 2026 Project (Output-Disabled)** for the exact reviewed first slice, **File → Inspect SoundSwitch Project** to create a JSON inventory, **File → Compare SoundSwitch Exports** after one controlled change, or **File → Create SoundSwitch Migration Bundle** to make a verified copy. The comparison reports added, removed, and modified payloads with SHA-256 values and bounded changed-byte ranges; it does not retain or export source payload bytes.
 
 The bundle contains:
 
@@ -28,6 +28,7 @@ The installed command-line tool supports the same workflow:
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" inspect "D:\ExportedProject.ssproj" --report "$env:USERPROFILE\Desktop\soundswitch-inspection.json"
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" compare "D:\Export-before" "D:\Export-after" --report "$env:USERPROFILE\Desktop\soundswitch-comparison.json"
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" bundle "D:\ExportedProject.ssproj" "$env:USERPROFILE\Desktop\MyShow-EmberLights-migration"
+& "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" convert-2026-red-smooth "D:\2026.ssproj" "$env:USERPROFILE\Desktop\EmberLights-2026-Red-Smooth.emberlights"
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" convert-v1 "D:\2026.ssproj" "$env:USERPROFILE\Desktop\EmberLights-2026-V1.emberlights"
 & "$env:LOCALAPPDATA\Programs\EmberLights\Tools\emberlights_migrate.exe" verify-source-binding "$env:USERPROFILE\Desktop\EmberLights-2026-V1.emberlights" "D:\2026.ssproj" --report "$env:USERPROFILE\Desktop\EmberLights-migration-review.json"
 ```
@@ -55,25 +56,37 @@ content was imported exactly or that output is ready to enable. Stable action
 codes let the Studio UI present the same repair checklist without inventing a
 second migration policy.
 
-## Qualified 2026 color-rig V1 conversion
+## Current-2026 exact first Autoloop slice
 
-`convert-v1` reads only `.ssproj`, `SoundSwitchVenues.bin`, and `SoundSwitchAutoLoops.bin`. It verifies the SoundSwitch 2.10.x manifest and the four recognized fixture models, hashes the two binary inputs, and emits both a checksummed EmberLights project and a JSON migration report.
+`convert-2026-red-smooth` and the File-menu import first require the exact reviewed current project identity: project marker, Venue database, primary and extended Autoloop catalogs, and `SSAutoLoop1.ssfile`. Every artifact is size-bounded and SHA-256 checked. The adapter uses the authored placement arrays and the exact current-project Venue target map; it never derives choreography from the loop name or reuses target IDs from another project.
 
-The staged native patch is deliberately non-overlapping and output-disabled:
+The first accepted slice is:
+
+- bank/slot: `Medium / 1`;
+- source identity: `Red - Smooth Pulse`;
+- length: 8 bars;
+- representation: Autoloops V2 semantic source/program;
+- evidence: exact catalog placement plus byte-range-backed A/B timeline records;
+- status: RGB/intensity timelines are `DeterministicallyTranslated`; unclaimed packed bytes are `PreservedOpaque`; missing uplight-local color is `MissingDependency` / `soundswitch.missing_color_source`;
+- output: disabled by construction.
+
+The separate destination project uses the current test rig and does not create the obsolete duplicate generic uplights:
 
 | Fixtures | EmberLights representation | Staged universe/address |
 | --- | --- | --- |
-| 4 Both Lighting BO-S601 uplights | Mode 2, 10 channels each | U1 1, 11, 21, 31 |
-| 4 Both Lighting 360 tubes | 16 RGB cells per tube, 48 channels each | U1 41, 89, 137, 185 |
-| 1 CHAUVET DJ Wash FX HEX | Mode 1, 11 channels | U1 233 |
-| 2 Both Lighting BO-IR4 spotlights | SoundSwitch Mode 1 / manufacturer 10-channel map (Dimmer, R, G, B, W, Amber, UV, Strobe, Macro, Speed) | U1 244, 254 |
+| 4 Both Lighting BO-IR4 spotlights | Manufacturer-manual 10-channel snapshot; source uplight intensity reconciles semantically | U1 001, 011, 021, 031 |
+| 4 BO-TUBE192/360 tubes | Sixteen RGB cell projections inside each 80-channel physical block; unclaimed functions remain unsupported | U1 041, 121, 201, 281 |
 
-The project contains 18 native Static Looks and 32 native beat-driven Autoloops. Active SoundSwitch Autoloop names are retained, but their patterns are purpose-built semantic equivalents derived from those names; the binary cues are not represented as exact decoded timelines. The IR-4 10-channel ordering is checked against the manufacturer manual. BO-S601, 360 Tube, and Wash FX Hex staged modes remain source-qualified approximations until their physical displays and official DMX charts are checked. If an IR-4 is physically set to 6 channels, select the built-in IR-4 6-channel profile and repatch it instead of using the staged 10-channel profile. Movers, GigBars, PartyBars, cold sparks, purchased track shows, and other opaque payloads remain in the original archive. Confirm every physical DMX mode and address in **Patch** before enabling Art-Net, sACN, or a USB-DMX output.
+The exact-slice project contains one imported Autoloop at Medium slot 1 and 18 clearly labeled original EmberLights review Static Looks. Those Looks are not claimed SoundSwitch imports. The source directory is never modified; save/reopen and idempotent re-import are generation/digest checked through `StudioDocumentService`.
 
-The Windows package also installs `Templates\EmberLights-2026-V1-Template.emberlights`, which has the same safe patch and content without source hashes.
+## Broader V1 fallback
+
+`convert-v1` accepts the recognized SoundSwitch 2.10.x color-rig shape and creates the same current IR-4/tube destination patch, 18 original Static Looks, and the original 128-placement EmberLights starter Autoloop pack. Source Autoloop names are retained only as evidence; no choreography is fabricated from names. This fallback is useful for safe project/fixture/UI testing but is not source-fidelity evidence.
+
+The Windows package also installs `Templates\EmberLights-2026-V1-Template.emberlights`. It remains output-disabled and must be reviewed against the exact physical modes and addresses before any adapter is enabled.
 
 ## What is still needed for broad semantic conversion
 
 Provide a verified baseline bundle from the SoundSwitch version you use, ideally containing a small known venue with one fixture, one Static Look, one Autoloop, and one deliberately simple scripted track. Then make **one** documented change, export again, and create a comparison report. Repeat per feature. This isolates candidate fields without risking your original project. Copied audio is needed only for validating track identity/relinking; keep your originals and share only material you are authorized to use.
 
-Until that corpus exists, EmberLights makes no broad claim that SoundSwitch binary cues are semantically imported. The current bundle remains the loss-preserving input needed to build and regression-test that decoder safely.
+The supplied current-2026 corpus proves only the first Red Smooth vertical slice. EmberLights makes no broad claim for the other 111 Autoloops, Static Looks, movement/effects, other fixture families, scripted tracks, or other SoundSwitch versions until each evidence class is decoded and regression-tested. The current bundle remains the loss-preserving input for that expansion.
