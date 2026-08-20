@@ -84,6 +84,13 @@ Evidence class: **contract-tested non-Windows unsigned testing preview**. This
 is not installed-tested, physically qualified, accessibility-qualified,
 gig-qualified, signed, or a public release.
 
+PR #96's Native core and non-product Slint lab workflows were marked failed
+before any job created a step or log; both packaging jobs were consequently
+skipped. This matches the repository's existing hosted-runner/infrastructure
+gate and is neither product failure evidence nor passing CI. The complete local
+native, cross-build, package, reproducibility, and archive evidence above
+remains this preview's release basis.
+
 ## Joshua's test tonight
 
 1. Download the immutable Preview 105 bundle and verify its SHA-256 with
