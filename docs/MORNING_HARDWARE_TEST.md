@@ -1,39 +1,142 @@
-# EmberLights Morning Hardware Test
+# EmberLights Installed Hardware Test
 
-This test separates the SoundSwitch Micro transport from Autoloop and OS2L behavior, then proves that the exact compiled fixture/Runner frame matches the raw reference. Host-accepted USB writes are not proof of physical DMX; record the transmitter and fixture result.
+The Start-menu **EmberLights Hardware Test** shortcut still launches
+`Tools\soundswitch_micro_probe.exe --active-test`. Its active behavior is now
+the evidence-bound Raw Hardware Test v1: one reviewed project, one fixture ID,
+one named physical unit, and one enabled SoundSwitch Micro universe binding.
 
-## Prepare one safe fixture
+Normal launch creates the unchanged passive `SoundSwitch-Micro-report.txt`.
+`--self-test` is also non-outputting. Neither mode sends a USB transfer. Active
+output requires a valid manifest and an exact typed acknowledgement after the
+complete plan is displayed.
 
-1. Close SoundSwitch and EmberLights so only the Hardware Test can own the Micro.
-2. Connect the Micro to the known-good transmitter or directly to one isolated fixture when practical.
-3. Use one Both Lighting IR-4 and confirm its display shows 6-channel mode and DMX address `001`.
-4. Confirm Master is Off and the transmitter/wireless selection matches the fixture.
-5. Disconnect fog, haze, lasers, sparks, strobe effects, and unrelated fixtures.
+## Prepare an isolated fixture
 
-## Run the bounded raw test
+1. Close SoundSwitch and EmberLights so only Hardware Test can own the Micro.
+2. Connect exactly the physical fixture/unit named in the manifest. Verify its
+   displayed mode, DMX address, universe, cable or wireless binding, and master
+   setting against the candidate project and exact manual.
+3. Disconnect every unrelated fixture. Disconnect fog, haze, lasers, sparks,
+   and any effect whose isolated response would be hazardous.
+4. Keep a physical emergency disconnect within reach. A host-accepted USB
+   write is not proof that the fixture responded or blacked out.
 
-1. Open **EmberLights Hardware Test** from the Start menu.
-2. Wait for the descriptor report. The test is deliberately fixed to universe 1, address `001`; it does not ask for another address.
-3. Type `TEST` only after confirming the isolated setup.
-4. The shared production Micro session will inspect the exact VID/PID, configuration, alternate setting, and 64-byte bulk OUT pipe; reset and configure the pipe; send the two JLS1 initialization packets; settle for 200 ms; and warm up with 50 blackout frames at 40 Hz.
-5. Before any active output, the frame inspector compiles an exact IR-4 6-channel semantic project through the production compiler and renderer. It compares all 512 DMX slots and all 522 native JLS1 packet bytes against the raw reference and refuses transmission on any mismatch.
-6. Stage 1 sends the raw reference—CH1 Red `255`; CH2 Green, CH3 Blue, CH4 White, CH5 Amber, and CH6 UV all `0`—for about three seconds, then blackouts.
-7. Confirm that Stage 1 visibly produced red and then blacked out.
-8. The tool closes and reopens the Micro, repeats initialization/warm-up, and sends the compiled Runner frame for about three seconds, then blackouts.
-9. Confirm that Stage 2 visibly matched the same red and then blacked out.
-10. Stage 3 keeps the same production session lifecycle active and asks you to unplug the Micro. Press Enter only after unplugging it; the test must observe the Windows device disappear.
-11. Reconnect the same Micro. The tool waits up to 60 seconds, reopens and reinitializes it without a project reload, sends the compiled red frame again, then blackouts.
-12. Confirm that the recovery stage visibly produced red and then blacked out.
-13. Retain `SoundSwitch-Micro-report.txt` and `SoundSwitch-Micro-active-test.txt` from the Desktop. The active report names the first incomplete gate, such as `disconnect-not-observed`, `reconnect-open-failed`, or `reconnect-observation-failed`; a partial run is never labeled successful.
+## Create a reviewed v1 manifest
 
-## Interpret the result
+Save a UTF-8 tab-separated text file. Relative paths resolve from the manifest
+directory. `graduated_project` must not exist: Hardware Test never overwrites a
+candidate or previous result. `audit` may exist only if it is already a valid
+append-only v1 audit.
 
-- All three stages produce identical red and blackout: raw Micro output, a clean repeat open, the exact compiled fixture/Runner path, Windows disconnect detection, and production-session reinitialization after replug are proven for this state.
-- USB writes succeed but no red appears: remain in transport/session/electrical diagnosis. Do not adjust Autoloops or the 71-fixture migration as a substitute.
-- Raw red works but the Runner stage fails: preserve the report; the exact failing boundary is reopen, Runner-frame write, or physical frame response.
-- Open or initialization fails: close competing applications, reconnect the Micro, and retain the exact lifecycle/error report.
-- Disconnect is not observed: make sure the USB side of the Micro itself was unplugged, not only the DMX cable, then rerun the bounded test.
-- Reconnect is detected but recovery open or output fails: preserve the exact gate and Windows error in the active report; do not reload or change the project as a workaround.
-- Automatic blackout fails: stop testing and disconnect output; the build is not hardware-safe.
+```text
+EMBERLIGHTS_RAW_HARDWARE_TEST_OPERATOR	1
+project	candidate.emberlights
+graduated_project	candidate.unit-a-qualified.emberlights
+audit	candidate.raw-hardware-attempts-v1.audit
+input_project_sha256	<64 lowercase SHA-256 hex characters>
+fixture_id	<one exact fixture ID from the candidate>
+unit_label	<one physical unit or serial label>
+output_backend	soundswitch-micro:u1
+operator_id	<operator identity>
+observation_timeout_ms	30000
+session_timeout_ms	3600000
+blackout_repetitions	3
+criterion	1	255	<reviewed expected behavior for slot 1>
+criterion	2	255	<reviewed expected behavior for slot 2>
+marker	MIGRATED_PATCH_UNVERIFIED	<copy the complete exact marker record>
+```
 
-The six-channel ordering comes from the manufacturer IR-4 manual: Red, Green, Blue, White, Amber, then UV (called Purple in the channel table). Do not mark the Micro supported or physically qualified until the raw response, compiled Runner response, blackout, repeat open, and unplug/replug checks are operator-confirmed.
+The file must contain exactly one value for every single-valued field, one
+`criterion` for every slot in the selected fixture's footprint, and at least
+one exact current `MIGRATED_PATCH_UNVERIFIED` or `QUALIFICATION_INVALIDATED`
+record. Criteria are one-based. Each raw value must be nonzero and every
+criterion implicitly requires no spill. Add or remove criterion lines to match
+the exact profile footprint; do not copy the two-line example as fixture truth.
+
+The active input SHA-256 comes from the candidate/migration evidence that
+produced this project. It is not inferred from a fixture name. RGBWAUV, dimmer,
+strobe, macro/program, neutral/default, fine-channel, and multi-cell boundary
+behavior must be reviewed against the exact manual and then physically
+observed. Imported semantic property names are not proof.
+
+The project must already enable the Micro on the selected fixture universe.
+No Art-Net, sACN, DMX USB Pro, Control One, generic backend, arbitrary channel
+list, or raw full-frame mode is accepted by this installed workflow.
+
+## Run the bounded active test
+
+1. Open **EmberLights Hardware Test**. The passive descriptor report is saved
+   before any active workflow begins.
+2. Enter the v1 manifest path. The tool reads the candidate without backup
+   recovery, validates its exact file SHA-256, project basis, fixture/profile,
+   unit, mode/address/universe, behavior fingerprint, safety policy, backend,
+   criteria, markers, time budgets, audit, and unused graduation path.
+3. Review every displayed blackout/one-hot requirement and path. The tool does
+   not open the Micro during this review.
+4. Type the complete generated `QUALIFY ...` line exactly. `TEST`, `yes`, case
+   changes, missing fields, or trailing spaces do not authorize output. The
+   candidate and destinations are revalidated after acknowledgement.
+5. For each stimulus, enter one bounded command before its observation timeout:
+
+   - `PASS <what physically happened>` — expected behavior observed, no spill;
+   - `FAIL <what failed>` — behavior did not pass;
+   - `SPILL <what else responded>` — a neighbor/cell/other function responded;
+   - `CANCEL <reason>` — stop the attempt.
+
+   Escape, Ctrl+C, console-close notification, timeout, device disappearance,
+   write failure, or invalid session state also stops the attempt. Invalid text
+   commands do not extend the original timeout.
+
+For every requirement—including blackout—the state machine checks connection,
+sends a bounded blackout-before train, sends exactly one internally generated
+all-zero or one-hot frame inside the selected fixture footprint, waits for one
+bounded observation, and sends blackout-after. Every terminal fault attempts a
+final blackout and closes the production `SoundSwitchMicroSession`. No Runner,
+`CompiledShow`, Look, Autoloop, full patch, neighboring fixture data, timer
+script, or arbitrary frame enters this path.
+
+## Audit and graduation
+
+Every terminal session that can be sealed appends one content-addressed record
+to the manifest's versioned audit:
+
+```text
+EMBERLIGHTS_RAW_HARDWARE_TEST_AUDIT	1
+RAW_HARDWARE_TEST_ATTEMPT	1	<content-sha256>	<hex-canonical-payload>
+```
+
+The audit is append-only; malformed content, duplicate attempt digests, or an
+oversized audit blocks the run or append. A failed, cancelled, timed-out,
+device-lost, blackout-failed, stale, or otherwise rejected attempt remains
+audit evidence but never creates a graduated project and never authorizes
+output. Accepted USB writes alone cannot graduate anything.
+
+Only a fully successful sealed attempt is considered for graduation. After
+auditing it, the tool re-hashes and reloads the exact candidate file, validates
+the attempt and current markers again, transactionally embeds the attempt,
+attestation, and exact supersessions in memory, and atomically creates the new
+`graduated_project`. Any byte change, profile/binding/project change, tamper,
+replay, missing marker, pre-existing output, or save failure leaves the attempt
+audited and produces no authorized project. Other unqualified fixture/backend/
+marker tuples may still keep the graduated candidate's physical-output gate
+blocked.
+
+## Compatibility and remaining gates
+
+- The passive report filename and descriptor behavior are unchanged.
+- The installed shortcut argument remains `--active-test`; it now asks for the
+  v1 manifest instead of running the former fixed IR-4/Runner sequence.
+- The former `SoundSwitch-Micro-active-test.txt` report is not overwritten.
+  Evidence-bound runs use the manifest-selected, explicitly versioned audit.
+- Preview 95 implements the separate CR-4 software comparison surface through
+  the output-disabled **IR-4 6CH Editable Bench** project and the production
+  Runner frame report in System Diagnostics. Follow
+  `docs/IR4_6CH_RUNNER_FRAME_TEST.md` to compare complete raw-reference and
+  routed frames. It is deliberately not invoked, erased, or claimed by this
+  isolated evidence-bound qualification workflow; a successful software
+  comparison is not a physical hardware qualification.
+- Software tests and simulated transports prove only parsing, bounds, state,
+  audit, and graduation contracts. They provide no owned-hardware, installed
+  Windows, visible blackout, spill, transport endurance, physical parity, or
+  gig-readiness evidence. Record those claims only from the corresponding
+  physical runs.

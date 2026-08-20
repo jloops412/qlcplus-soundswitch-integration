@@ -1,4 +1,5 @@
 #include "emberlights/project_io.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "showcore/number_chars.hpp"
 
 #include <algorithm>
@@ -270,13 +271,16 @@ template <typename Value>
 [[nodiscard]] bool is_known_primary(std::string_view type) noexcept {
     return type == "PROJECT" || type == "CONNECTIONS" || type == "SAFETY" ||
         type == "PROFILE" || type == "FIXTURE" || type == "GROUP" ||
-        type == "LOOK" || type == "AUTOLOOP" || type == "AUDIO" ||
-        type == "TRACK" || type == "MIDI";
+        type == "COLOR_PALETTE_V1" || type == "LOOK" ||
+        type == "AUTOLOOP" || type == "AUDIO" || type == "TRACK" ||
+        type == "MIDI";
 }
 
 [[nodiscard]] bool is_known_secondary(std::string_view type) noexcept {
     return type == "CHANNEL" || type == "ROLE" || type == "GROUP_MEMBER" ||
-        type == "LOOK_VALUE" || type == "STEP" || type == "TRACK_CUE";
+        type == "CHANNEL_META_V1" || type == "CHANNEL_CAPABILITY_V1" ||
+        type == "COLOR_SWATCH_V1" || type == "LOOK_VALUE" ||
+        type == "STEP" || type == "TRACK_CUE";
 }
 
 template <typename Collection>
@@ -400,6 +404,15 @@ template <typename Collection>
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid GROUP record.");
             }
             project.groups.push_back({f[1], f[2], {}});
+        } else if (f[0] == "COLOR_PALETTE_V1") {
+            if (f.size() != 3U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid COLOR_PALETTE_V1 record.");
+            }
+            project.color_palettes.push_back({
+                kStudioColorPaletteAssetVersion, f[1], f[2], {}});
         } else if (f[0] == "LOOK") {
             if (f.size() != 4U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid LOOK record.");
@@ -482,6 +495,12 @@ template <typename Collection>
             }
             mapping.device_name = f[1];
             mapping.target_ref = f[18];
+            // Field 19 was reserved as literal zero by earlier format-1
+            // writers. Reuse it additively for optional named fixture-control
+            // provenance without invalidating existing project files.
+            if (f[19] != "0") {
+                mapping.fixture_control_binding_id = f[19];
+            }
             mapping.message_type = static_cast<showcore::MidiMessageType>(message_type);
             mapping.input_mode = static_cast<showcore::MidiInputMode>(input_mode);
             mapping.behavior = static_cast<showcore::MappingBehavior>(behavior);
@@ -516,6 +535,91 @@ template <typename Collection>
                 return error(ProjectIoError::InvalidValue, record.line, "Invalid CHANNEL value.");
             }
             profile->channels.push_back(channel);
+        } else if (f[0] == "CHANNEL_META_V1") {
+            if (f.size() != 6U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid CHANNEL_META_V1 record.");
+            }
+            const auto profile = find_id(project.fixture_profiles, f[1]);
+            std::uint16_t coarse_offset = 0U;
+            if (profile == project.fixture_profiles.end() ||
+                !parse_number(f[2], coarse_offset)) {
+                return error(
+                    ProjectIoError::MissingReference,
+                    record.line,
+                    "CHANNEL_META_V1 references a missing profile or channel.");
+            }
+            const auto channel = std::find_if(
+                profile->channels.begin(),
+                profile->channels.end(),
+                [coarse_offset](const auto& candidate) {
+                    return candidate.coarse_offset == coarse_offset;
+                });
+            if (channel == profile->channels.end() ||
+                !parse_number(f[3], channel->blackout_value) ||
+                !parse_number(f[4], channel->highlight_value)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid CHANNEL_META_V1 values.");
+            }
+            channel->owner = f[5];
+        } else if (f[0] == "CHANNEL_CAPABILITY_V1") {
+            if (f.size() != 13U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid CHANNEL_CAPABILITY_V1 record.");
+            }
+            const auto profile = find_id(project.fixture_profiles, f[1]);
+            std::uint16_t coarse_offset = 0U;
+            std::uint16_t behavior = 0U;
+            std::uint16_t access = 0U;
+            std::uint16_t role = 0U;
+            ChannelCapabilityDefinition capability;
+            if (profile == project.fixture_profiles.end() ||
+                !parse_number(f[2], coarse_offset) ||
+                !parse_property(f[5], capability.property) ||
+                !parse_number(f[6], capability.dmx_min) ||
+                !parse_number(f[7], capability.dmx_max) ||
+                !parse_number(f[8], capability.preferred_value) ||
+                !parse_number(f[9], behavior) ||
+                !parse_number(f[10], access) ||
+                !parse_number(f[11], role) ||
+                !parse_bool(f[12], capability.reversed) ||
+                behavior > static_cast<std::uint16_t>(
+                    showcore::ChannelCapabilityBehavior::Continuous) ||
+                access > static_cast<std::uint16_t>(
+                    showcore::ChannelCapabilityAccess::Protected) ||
+                role > static_cast<std::uint16_t>(
+                    FixtureChannelCapabilityRole::Custom)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid CHANNEL_CAPABILITY_V1 values.");
+            }
+            const auto channel = std::find_if(
+                profile->channels.begin(),
+                profile->channels.end(),
+                [coarse_offset](const auto& candidate) {
+                    return candidate.coarse_offset == coarse_offset;
+                });
+            if (channel == profile->channels.end()) {
+                return error(
+                    ProjectIoError::MissingReference,
+                    record.line,
+                    "CHANNEL_CAPABILITY_V1 references a missing channel.");
+            }
+            capability.id = f[3];
+            capability.name = f[4];
+            capability.behavior =
+                static_cast<showcore::ChannelCapabilityBehavior>(behavior);
+            capability.access =
+                static_cast<showcore::ChannelCapabilityAccess>(access);
+            capability.role = static_cast<FixtureChannelCapabilityRole>(role);
+            channel->capabilities.push_back(std::move(capability));
         } else if (f[0] == "ROLE") {
             if (f.size() != 3U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid ROLE record.");
@@ -534,6 +638,38 @@ template <typename Collection>
                 return error(ProjectIoError::MissingReference, record.line, "GROUP_MEMBER references a missing group.");
             }
             group->fixture_ids.push_back(f[2]);
+        } else if (f[0] == "COLOR_SWATCH_V1") {
+            if (f.size() != 13U) {
+                return error(
+                    ProjectIoError::InvalidRecord,
+                    record.line,
+                    "Invalid COLOR_SWATCH_V1 record.");
+            }
+            const auto palette = find_id(project.color_palettes, f[1]);
+            if (palette == project.color_palettes.end()) {
+                return error(
+                    ProjectIoError::MissingReference,
+                    record.line,
+                    "COLOR_SWATCH_V1 references a missing palette.");
+            }
+            StudioColorSwatch swatch;
+            swatch.id = f[2];
+            swatch.name = f[3];
+            if (!parse_number(f[4], swatch.color.rgb.red) ||
+                !parse_number(f[5], swatch.color.rgb.green) ||
+                !parse_number(f[6], swatch.color.rgb.blue) ||
+                !parse_number(f[7], swatch.color.white) ||
+                !parse_number(f[8], swatch.color.amber) ||
+                !parse_number(f[9], swatch.color.uv) ||
+                !parse_number(f[10], swatch.color.lime) ||
+                !parse_number(f[11], swatch.color.indigo) ||
+                !parse_number(f[12], swatch.color.intensity)) {
+                return error(
+                    ProjectIoError::InvalidValue,
+                    record.line,
+                    "Invalid COLOR_SWATCH_V1 color value.");
+            }
+            palette->swatches.push_back(std::move(swatch));
         } else if (f[0] == "LOOK_VALUE") {
             if (f.size() != 6U) {
                 return error(ProjectIoError::InvalidRecord, record.line, "Invalid LOOK_VALUE record.");
@@ -590,6 +726,13 @@ template <typename Collection>
     }
     if (project.id.empty()) {
         return error(ProjectIoError::InvalidRecord, 0, "Project metadata record is missing.");
+    }
+    const auto persisted_source = inspect_persisted_autoloop_source(project);
+    if (!persisted_source) {
+        return error(
+            ProjectIoError::InvalidRecord,
+            0,
+            "Invalid persisted Autoloop source: " + persisted_source.message);
     }
     return {};
 }
@@ -752,6 +895,29 @@ std::string serialize_project(const ProjectDocument& project) {
                 std::string(channel_encoding_name(channel.encoding)),
                 number_text(channel.dmx_min), number_text(channel.dmx_max),
                 number_text(channel.default_value)});
+            append_record(payload, {
+                "CHANNEL_META_V1",
+                profile.id,
+                number_text(channel.coarse_offset),
+                number_text(channel.blackout_value),
+                number_text(channel.highlight_value),
+                channel.owner});
+            for (const auto& capability : channel.capabilities) {
+                append_record(payload, {
+                    "CHANNEL_CAPABILITY_V1",
+                    profile.id,
+                    number_text(channel.coarse_offset),
+                    capability.id,
+                    capability.name,
+                    std::string(property_name(capability.property)),
+                    number_text(capability.dmx_min),
+                    number_text(capability.dmx_max),
+                    number_text(capability.preferred_value),
+                    enum_number(capability.behavior),
+                    enum_number(capability.access),
+                    enum_number(capability.role),
+                    capability.reversed ? "1" : "0"});
+            }
         }
     }
     for (const auto& fixture : project.fixtures) {
@@ -766,6 +932,22 @@ std::string serialize_project(const ProjectDocument& project) {
         append_record(payload, {"GROUP", group.id, group.name});
         for (const auto& fixture_id : group.fixture_ids) {
             append_record(payload, {"GROUP_MEMBER", group.id, fixture_id});
+        }
+    }
+    for (const auto& palette : project.color_palettes) {
+        append_record(payload, {"COLOR_PALETTE_V1", palette.id, palette.name});
+        for (const auto& swatch : palette.swatches) {
+            append_record(payload, {
+                "COLOR_SWATCH_V1", palette.id, swatch.id, swatch.name,
+                number_text(swatch.color.rgb.red),
+                number_text(swatch.color.rgb.green),
+                number_text(swatch.color.rgb.blue),
+                number_text(swatch.color.white),
+                number_text(swatch.color.amber),
+                number_text(swatch.color.uv),
+                number_text(swatch.color.lime),
+                number_text(swatch.color.indigo),
+                number_text(swatch.color.intensity)});
         }
     }
     for (const auto& look : project.looks) {
@@ -812,7 +994,10 @@ std::string serialize_project(const ProjectDocument& project) {
             number_text(mapping.action.target_id), number_text(mapping.output_min),
             number_text(mapping.output_max), number_text(mapping.curve),
             mapping.inverted ? "1" : "0", mapping.soft_takeover ? "1" : "0",
-            number_text(mapping.takeover_tolerance), mapping.target_ref, "0", "0", "0"});
+            number_text(mapping.takeover_tolerance), mapping.target_ref,
+            mapping.fixture_control_binding_id.empty()
+                ? "0" : mapping.fixture_control_binding_id,
+            "0", "0"});
     }
     for (const auto& unknown : project.unknown_records) {
         payload.append(unknown);
@@ -1023,6 +1208,13 @@ ProjectIoResult save_project_atomic(
     bool capture_history) {
     if (path.empty()) {
         return error(ProjectIoError::WriteFailed, 0, "Project path is empty.");
+    }
+    const auto persisted_source = inspect_persisted_autoloop_source(project);
+    if (!persisted_source) {
+        return error(
+            ProjectIoError::InvalidRecord,
+            0,
+            "Invalid persisted Autoloop source: " + persisted_source.message);
     }
     std::error_code filesystem_error;
     const auto parent = path.parent_path();

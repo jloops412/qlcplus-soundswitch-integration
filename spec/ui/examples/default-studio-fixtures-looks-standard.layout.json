@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "workspace": "studio",
+  "variant": "fixtures-looks-standard",
+  "metadata": {
+    "descriptionKey": "skin.default.studio.fixturesLooks.description",
+    "defaultFocus": "default.studio.fixturesLooks.library",
+    "minimumWidth": 1366,
+    "minimumHeight": 768
+  },
+  "root": {
+    "type": "Column",
+    "id": "default.studio.fixturesLooks.root",
+    "gap": 8,
+    "padding": 8,
+    "children": [
+      {
+        "type": "Row",
+        "id": "default.studio.fixturesLooks.header",
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "type": "Label",
+            "id": "default.studio.fixturesLooks.title",
+            "labelKey": "studio.fixturesLooks.title",
+            "accessibility": {
+              "role": "heading",
+              "nameKey": "studio.fixturesLooks.title"
+            }
+          },
+          {
+            "type": "Spacer",
+            "id": "default.studio.fixturesLooks.headerSpacer",
+            "flexGrow": 1
+          },
+          {
+            "type": "StatusBadge",
+            "id": "default.studio.fixturesLooks.previewSafety",
+            "labelKey": "studio.preview.liveStoppedOnly",
+            "accessibility": {
+              "role": "status",
+              "nameKey": "studio.preview.liveStoppedOnly"
+            }
+          },
+          {
+            "type": "Button",
+            "id": "default.studio.fixturesLooks.advancedToggle",
+            "labelKey": "action.advancedDiagnostics",
+            "accessibility": {
+              "role": "button",
+              "nameKey": "action.advancedDiagnostics"
+            }
+          }
+        ]
+      },
+      {
+        "type": "Tabs",
+        "id": "default.studio.fixturesLooks.tabs",
+        "selectionState": "view.studio.fixturesLooks.tab",
+        "placement": "top",
+        "flexGrow": 1,
+        "children": [
+          {
+            "type": "Panel",
+            "id": "default.studio.fixturesLooks.profiles",
+            "titleKey": "studio.fixtures.profiles",
+            "children": [
+              {
+                "type": "SplitPane",
+                "id": "default.studio.fixturesLooks.profileSplit",
+                "orientation": "horizontal",
+                "ratios": [0.34, 0.66],
+                "persistenceKey": "default.studio.fixturesLooks.profileSplit",
+                "children": [
+                  {
+                    "type": "NativeComponent",
+                    "id": "default.studio.fixturesLooks.library",
+                    "componentType": "ember.authoringWorkbench",
+                    "minimumVersion": 1,
+                    "variant": "default",
+                    "properties": {
+                      "collectionEmphasis": "wide",
+                      "query": "",
+                      "resourceKind": "fixtureProfile",
+                      "showStableIds": false
+                    }
+                  },
+                  {
+                    "type": "NativeComponent",
+                    "id": "default.studio.fixturesLooks.profileEditor",
+                    "componentType": "ember.fixtureProfileEditor",
+                    "minimumVersion": 1,
+                    "variant": "default",
+                    "properties": {
+                      "showCatalog": true,
+                      "showDiagnostics": false
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Panel",
+            "id": "default.studio.fixturesLooks.looks",
+            "titleKey": "studio.staticLooks.title",
+            "children": [
+              {
+                "type": "SplitPane",
+                "id": "default.studio.fixturesLooks.lookSplit",
+                "orientation": "horizontal",
+                "ratios": [0.30, 0.70],
+                "persistenceKey": "default.studio.fixturesLooks.lookSplit",
+                "children": [
+                  {
+                    "type": "NativeComponent",
+                    "id": "default.studio.fixturesLooks.lookMatrix",
+                    "componentType": "ember.staticLookMatrix",
+                    "minimumVersion": 1,
+                    "variant": "default",
+                    "properties": {
+                      "showBindingHints": true,
+                      "showProgress": false
+                    }
+                  },
+                  {
+                    "type": "Column",
+                    "id": "default.studio.fixturesLooks.lookEditor",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "type": "SegmentedControl",
+                        "id": "default.studio.fixturesLooks.ownership",
+                        "selectionState": "studio.staticLook.ownershipMode",
+                        "placement": "top",
+                        "children": [
+                          {
+                            "type": "Label",
+                            "id": "default.studio.fixturesLooks.ownership.release",
+                            "labelKey": "staticLook.ownership.release"
+                          },
+                          {
+                            "type": "Label",
+                            "id": "default.studio.fixturesLooks.ownership.set",
+                            "labelKey": "staticLook.ownership.set"
+                          },
+                          {
+                            "type": "Label",
+                            "id": "default.studio.fixturesLooks.ownership.forceZero",
+                            "labelKey": "staticLook.ownership.forceZero"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "NativeComponent",
+                        "id": "default.studio.fixturesLooks.controlSurface",
+                        "componentType": "ember.fixtureControlSurface",
+                        "minimumVersion": 1,
+                        "variant": "wide",
+                        "flexGrow": 1,
+                        "properties": {
+                          "category": "all",
+                          "includeAdvanced": false,
+                          "query": "",
+                          "selectedControlId": "",
+                          "showDiagnostics": false,
+                          "surface": "staticLook"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Drawer",
+        "id": "default.studio.fixturesLooks.advanced",
+        "titleKey": "studio.advancedDiagnostics.title",
+        "placement": "right",
+        "openState": "view.studio.fixturesLooks.advancedOpen",
+        "dismissible": true,
+        "modal": false,
+        "children": [
+          {
+            "type": "NativeComponent",
+            "id": "default.studio.fixturesLooks.diagnostics",
+            "componentType": "ember.fixtureFunctionBrowser",
+            "minimumVersion": 1,
+            "variant": "wide",
+            "properties": {
+              "category": "all",
+              "favoritesOnly": false,
+              "position": 0,
+              "query": "",
+              "selectedControlId": "",
+              "showDiagnostics": true,
+              "surface": "staticLook"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -237,6 +237,23 @@ bool WinMmMidiInput::poll(MidiMessage& message) noexcept {
     return false;
 }
 
+bool WinMmMidiInput::connected(std::uint32_t logical_device_id) noexcept {
+    if (impl_ == nullptr || logical_device_id == kAnyMidiDevice) {
+        return false;
+    }
+    for (const auto& slot : impl_->slots) {
+        if (!slot.active.load(std::memory_order_acquire) ||
+            slot.logical_device_id != logical_device_id ||
+            slot.handle == nullptr) {
+            continue;
+        }
+        UINT system_index = 0U;
+        impl_->last_error = ::midiInGetID(slot.handle, &system_index);
+        return impl_->last_error == MMSYSERR_NOERROR;
+    }
+    return false;
+}
+
 std::size_t WinMmMidiInput::open_port_count() const noexcept {
     if (impl_ == nullptr) {
         return 0;
@@ -389,6 +406,7 @@ bool WinMmMidiInput::open(std::uint32_t, std::uint32_t) noexcept { return false;
 bool WinMmMidiInput::close(std::uint32_t) noexcept { return false; }
 void WinMmMidiInput::close_all() noexcept {}
 bool WinMmMidiInput::poll(MidiMessage&) noexcept { return false; }
+bool WinMmMidiInput::connected(std::uint32_t) noexcept { return false; }
 std::size_t WinMmMidiInput::open_port_count() const noexcept { return 0; }
 std::uint64_t WinMmMidiInput::dropped_messages() const noexcept { return 0; }
 std::uint32_t WinMmMidiInput::last_error() const noexcept {

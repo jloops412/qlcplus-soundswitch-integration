@@ -1,8 +1,10 @@
 # EmberLights UI Registries
 
-Status: the SKIN2-001 first generated command/state spine is implemented. The
-older seed files remain reconciliation evidence and are not an accepted second
-authority.
+Status: the SKIN2-001 generated registry spine now includes generation-2
+contract catalogs for the first non-callable Component/Capability family and
+the reusable values, enum, units, targets, and invocation results referenced by
+the current native corpus. The older seed files remain reconciliation evidence
+and are not an accepted second authority.
 
 ## Canonical implementation source
 
@@ -15,9 +17,12 @@ spec/ui/registry/source/
   -> docs/generated/ui-registry/REFERENCE.md
 ```
 
-The source currently integrates the exact 29 native commands and 39 native Live
-state definitions. Explicit native ordinals preserve the existing ABI. General
-source JSON is never parsed by Runner or the DMX scheduler.
+The source integrates the exact 31 native commands and 54 native state
+definitions, plus ten non-callable Runtime/Safe component contracts,
+two non-callable content capabilities, eleven reusable value contracts,
+thirteen explicit invocation results, and five interactions. Explicit native
+ordinals preserve the existing command/state/result ABI. General source JSON is
+never parsed by Runner or the DMX scheduler.
 
 Generate and gate:
 
@@ -28,8 +33,40 @@ make -C native-core surface-contract-gate
 python3 native-core/tools/generate_ui_registry.py diff \
   --baseline spec/ui/registry/baselines/ui-registry-v1.json \
   --candidate spec/ui/registry/generated/ui-registry.catalog.json \
-  --expect unchanged
+  --expect compatibleAdditive
 ```
+
+Generation 2 is currently registry set `1.9.0`, generator `1.2.0`. Against the
+frozen v1 baseline it remains compatible-additive with 31 native commands, 54
+states, 10 components, 2 capabilities, and 11 reusable values. The generator
+now carries explicit MIDI, keyboard, and Ember Action bindability so trusted
+Studio-only operations can be registered without becoming imported action or
+controller entry points. The compatibility diff must report zero breaking
+changes and zero removals.
+
+## Generation-2 bounded contract families
+
+- Components: `ember.activeLayers`, `ember.authoringWorkbench`,
+  `ember.autoloopMatrix`, `ember.connectionPanel`, `ember.diagnostics`,
+  `ember.fixtureControlSurface`,
+  `ember.fixtureFunctionBrowser` (displayed as Fixture Control Inspector),
+  `ember.fixtureProfileEditor`, `ember.staticLookMatrix`, and
+  `ember.staticLookPreview`. Bridged/planned contracts
+  describe toolkit-neutral native seams; all remain `callable: false`, so no
+  production skin-runtime activation is implied.
+- Capabilities: `content.staticLooks` describes stable-ID Static Look behavior;
+  `content.staticLookPreview` describes asynchronous offline and explicitly
+  armed bounded Studio preview. Both are non-callable capability metadata.
+- Values: `value.adapterState`, `value.fixtureProperty`, the `bpm`, `beats`, and
+  `normalized` units, and every target kind currently referenced by the
+  31-command/54-state corpus.
+- Results: ten existing native outcomes retain ordinals 0–9. `missingTarget`,
+  `cancelled`, and `startedAsync` remain reserved catalog-only outcomes.
+
+The generator fails closed on unknown schema/unit/target/component/capability
+references, duplicate IDs/tokens, capability/replacement cycles, invalid
+lifecycle metadata, unbounded numeric contracts, and semantic type, safety,
+terminal, lifecycle, or absence-policy changes in compatibility fixtures.
 
 The source-format decision, weighted evidence, result/realtime/update policies,
 seed disposition, version/digest rules, and bounded gaps are recorded in
@@ -180,7 +217,8 @@ Before promoting `planningSeed` to `implementationDraft`:
 - add missing project/authoring/connection/output/safety commands;
 - resolve explicit Set/Toggle/Hold ownership semantics;
 - define exact invocation results;
-- define state value object schemas referenced by `schemaRef`;
+- extend reusable value schemas beyond the current native enum/unit/target set
+  as new accepted definitions require them;
 - define localization keys;
 - validate every example layout and binding against the accepted registry;
 - add uniqueness, deprecation, and cross-reference tests;

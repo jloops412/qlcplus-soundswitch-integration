@@ -1,4 +1,71 @@
 {
+  "capabilities": [
+    {
+      "absenceBehavior": "disable",
+      "callable": false,
+      "category": "content",
+      "conflicts": [],
+      "dependencies": [
+        "content.staticLooks"
+      ],
+      "deprecated": false,
+      "description": "Studio can simulate a Static Look draft asynchronously and, after explicit operator arming, use the bounded physical-preview authority while Live is stopped.",
+      "experimental": false,
+      "id": "content.staticLookPreview",
+      "introducedGeneration": 2,
+      "label": "Static Look preview",
+      "origin": "application",
+      "qualificationStatus": "softwareVerified",
+      "relevantCommands": [
+        "staticLook.preview.start",
+        "staticLook.preview.stop"
+      ],
+      "relevantComponents": [
+        "ember.staticLookPreview"
+      ],
+      "relevantStates": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "status": "implemented",
+      "version": "1.0.0"
+    },
+    {
+      "absenceBehavior": "reject",
+      "callable": false,
+      "category": "content",
+      "conflicts": [],
+      "dependencies": [],
+      "deprecated": false,
+      "description": "The active compiled package supports stable-ID Static Look activation and authoritative active-state feedback.",
+      "experimental": false,
+      "id": "content.staticLooks",
+      "introducedGeneration": 2,
+      "label": "Static Looks",
+      "origin": "project",
+      "qualificationStatus": "softwareVerified",
+      "relevantCommands": [
+        "staticLook.activate",
+        "staticLook.clear",
+        "staticLook.hold",
+        "staticLook.toggle"
+      ],
+      "relevantComponents": [
+        "ember.staticLookMatrix"
+      ],
+      "relevantStates": [
+        "staticLook.active.id"
+      ],
+      "status": "implemented",
+      "version": "1.0.0"
+    }
+  ],
   "commands": [
     {
       "availability": "runner.state == 'running'",
@@ -785,7 +852,14 @@
       "deprecated": false,
       "description": "Activates one compiled Static Look resolved by stable ID.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.activate",
       "interaction": "trigger",
@@ -822,7 +896,14 @@
       "deprecated": false,
       "description": "Clears the active Static Look without resetting unrelated layers.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.clear",
       "interaction": "trigger",
@@ -851,9 +932,16 @@
       "availability": "runner.state == 'running' && staticLook.exists(lookId)",
       "category": "staticLook",
       "deprecated": false,
-      "description": "Activates or releases one Static Look through the transitional hold facade.",
+      "description": "Activates or generation-safely releases one Static Look for a trusted binding owner.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.hold",
       "interaction": "momentary",
@@ -863,7 +951,7 @@
       "midiBindable": true,
       "nativeName": "StaticLookHold",
       "nativeOrdinal": 14,
-      "notes": "Cross-surface qualification waits for generation-safe stale-release ownership.",
+      "notes": "Trusted binding services supply the opaque feedback key and echo the observed package/activation generations on release.",
       "parameters": {
         "active": {
           "required": true,
@@ -886,7 +974,104 @@
         "controller",
         "external"
       ],
-      "status": "bridged",
+      "status": "implemented",
+      "undoable": false
+    },
+    {
+      "actionBindable": false,
+      "availability": "runner.state == 'stopped' && staticLook.preview.available",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Starts an asynchronous offline simulation or explicitly armed bounded fixture preview for one Static Look draft and selected fixture target.",
+      "feedback": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "id": "staticLook.preview.start",
+      "interaction": "trigger",
+      "introducedGeneration": 1,
+      "keyboardBindable": false,
+      "label": "Start Static Look preview",
+      "midiBindable": false,
+      "nativeName": "StaticLookPreviewStart",
+      "nativeOrdinal": 29,
+      "notes": "Physical mode is accepted only by a trusted Studio host after explicit process-level arming. The renderer never receives Runner or output ownership.",
+      "parameters": {
+        "lookId": {
+          "required": true,
+          "targetKind": "staticLook",
+          "type": "id"
+        },
+        "mode": {
+          "enumValues": [
+            "simulation",
+            "physical"
+          ],
+          "required": true,
+          "type": "enum"
+        },
+        "targetId": {
+          "maxLength": 128,
+          "required": true,
+          "type": "string"
+        }
+      },
+      "persistenceScope": "none",
+      "realtimeClass": "utilityAsync",
+      "requiredCapabilities": [
+        "content.staticLookPreview"
+      ],
+      "safetyClass": "boundedPreview",
+      "safetyGate": "staticLookPhysicalPreviewAuthority",
+      "scopes": [
+        "studio"
+      ],
+      "status": "implemented",
+      "undoable": false
+    },
+    {
+      "actionBindable": false,
+      "availability": "staticLook.preview.state != 'stopped'",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Stops the current simulation or performs terminal blackout and releases the bounded physical-preview Runner lease.",
+      "feedback": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "id": "staticLook.preview.stop",
+      "interaction": "trigger",
+      "introducedGeneration": 1,
+      "keyboardBindable": false,
+      "label": "Blackout and stop Static Look preview",
+      "midiBindable": false,
+      "nativeName": "StaticLookPreviewStop",
+      "nativeOrdinal": 30,
+      "notes": "The physical service owns terminal blackout. A surface may request stop but cannot replace that authority.",
+      "parameters": {},
+      "persistenceScope": "none",
+      "realtimeClass": "utilityAsync",
+      "requiredCapabilities": [
+        "content.staticLookPreview"
+      ],
+      "safetyClass": "boundedPreview",
+      "safetyGate": "staticLookPhysicalPreviewAuthority",
+      "scopes": [
+        "studio"
+      ],
+      "status": "implemented",
       "undoable": false
     },
     {
@@ -895,7 +1080,14 @@
       "deprecated": false,
       "description": "Atomically toggles one compiled Static Look resolved by stable ID.",
       "feedback": [
-        "staticLook.active.id"
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
       ],
       "id": "staticLook.toggle",
       "interaction": "toggle",
@@ -1069,7 +1261,620 @@
       "undoable": false
     }
   ],
-  "generator": "emberlights-ui-registry-generator/1.0.0",
+  "components": [
+    {
+      "accessibilityRole": "status",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents Runner-owned active content, safety, and override summaries without resolving lighting layers.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.activeLayers",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Active Layers",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {},
+      "requiredCapabilities": [],
+      "requiredCommands": [
+        "autoloop.clear",
+        "override.releaseAll",
+        "staticLook.clear",
+        "trackScript.clear"
+      ],
+      "requiredStates": [
+        "autoloop.active.completedCycles",
+        "autoloop.active.id",
+        "autoloop.active.progress",
+        "output.blackout",
+        "output.workLight",
+        "override.activePropertyCount",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress",
+        "trackScript.active.id",
+        "trackScript.elapsedBeat"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "safe"
+      ]
+    },
+    {
+      "accessibilityRole": "region",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents one searchable stable-ID collection beside a contextual Inspector with explicit draft, read-only, empty, filtered, and selection-hidden states.",
+      "events": [
+        "createRequested",
+        "deleteRequested",
+        "duplicateRequested",
+        "queryChanged",
+        "saveRequested",
+        "selectionChanged"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.authoringWorkbench",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Authoring Workbench",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {
+        "collectionEmphasis": {
+          "enumValues": [
+            "standard",
+            "wide"
+          ],
+          "type": "enum"
+        },
+        "query": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "resourceKind": {
+          "enumValues": [
+            "autoloop",
+            "fixture",
+            "fixtureGroup",
+            "fixtureProfile",
+            "staticLook",
+            "trackScript"
+          ],
+          "type": "enum"
+        },
+        "showStableIds": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [],
+      "slots": [
+        "collection",
+        "inspector",
+        "libraryActions",
+        "inspectorActions"
+      ],
+      "status": "bridged",
+      "supportedVariants": [
+        "compact",
+        "default",
+        "wide"
+      ],
+      "supportedWorkspaces": [
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "grid",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents a bounded, virtualized bank and slot window over registered Autoloop commands and state.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.autoloopMatrix",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Autoloop Matrix",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {
+        "bankWindowSize": {
+          "maximum": 64,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "showEmptySlots": {
+          "type": "boolean"
+        },
+        "showProgress": {
+          "type": "boolean"
+        },
+        "slotsPerBank": {
+          "maximum": 32,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [
+        "autoloop.bankFilter.enableAll",
+        "autoloop.bankFilter.selectExclusive",
+        "autoloop.bankFilter.setEnabled",
+        "autoloop.clear",
+        "autoloop.launch",
+        "autoloop.next",
+        "autoloop.previous"
+      ],
+      "requiredStates": [
+        "autoloop.active.bank",
+        "autoloop.active.completedCycles",
+        "autoloop.active.id",
+        "autoloop.active.progress",
+        "autoloop.active.repeat",
+        "autoloop.active.slot",
+        "autoloop.bankFilter.mask"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "region",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents adapter-owned configured and actual connection status through bounded snapshots.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.connectionPanel",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Connection Panel",
+      "optionalCapabilities": [],
+      "performanceClass": "healthBounded",
+      "properties": {},
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [
+        "connection.os2l.discoveryStatus",
+        "connection.os2l.status",
+        "controller.input.status",
+        "controller.output.status",
+        "output.artnet.status",
+        "output.controlOne.status",
+        "output.dmxUsbPro[0].status",
+        "output.dmxUsbPro[1].status",
+        "output.micro.status",
+        "output.sacn.status"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "controller",
+        "dj",
+        "full",
+        "outputs",
+        "summary"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "safe",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "log",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents bounded health, timing, adapter, validation, and active-content diagnostics without performing adapter work.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.diagnostics",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Diagnostics",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {},
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [
+        "connection.os2l.status",
+        "controller.input.status",
+        "output.artnet.status",
+        "output.controlOne.status",
+        "output.micro.status",
+        "output.sacn.status",
+        "runner.frames",
+        "runner.generation",
+        "runner.health",
+        "runner.state"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "safe",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "group",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.2.0",
+      "deprecated": false,
+      "description": "Projects the complete selected-target profile catalog through stable category navigation, bounded search, task-facing visual controls, explicit ownership, coverage, availability, and safety state; raw DMX diagnostics and unclassified channels require explicit Advanced disclosure.",
+      "events": [
+        "favoriteToggled",
+        "ownershipChanged",
+        "releaseRequested",
+        "selectionChanged",
+        "valueChanged"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.fixtureControlSurface",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Fixture Control Surface",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {
+        "category": {
+          "enumValues": [
+            "all",
+            "atmosphere",
+            "beam",
+            "color",
+            "custom",
+            "effect",
+            "image",
+            "intensity",
+            "position"
+          ],
+          "type": "enum"
+        },
+        "includeAdvanced": {
+          "type": "boolean"
+        },
+        "query": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "selectedControlId": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "showDiagnostics": {
+          "type": "boolean"
+        },
+        "surface": {
+          "enumValues": [
+            "autoloop",
+            "controller",
+            "liveOverride",
+            "staticLook"
+          ],
+          "type": "enum"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [
+        "override.activePropertyCount"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "compact",
+        "default",
+        "wide",
+        "touch"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "listbox",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.3.0",
+      "deprecated": false,
+      "description": "Searches and diagnoses one stable profile-backed catalog containing direct fixture channels and named DMX functions, with surface-aware availability for Live, Static Looks, Autoloops, and controller mappings; protected ranges remain excluded.",
+      "events": [
+        "favoriteToggled",
+        "filterChanged",
+        "selectionChanged",
+        "useRequested"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.fixtureFunctionBrowser",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Fixture Control Inspector",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {
+        "category": {
+          "enumValues": [
+            "all",
+            "atmosphere",
+            "beam",
+            "color",
+            "custom",
+            "effect",
+            "image",
+            "intensity",
+            "position"
+          ],
+          "type": "enum"
+        },
+        "favoritesOnly": {
+          "type": "boolean"
+        },
+        "position": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "query": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "selectedControlId": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "showDiagnostics": {
+          "type": "boolean"
+        },
+        "surface": {
+          "enumValues": [
+            "autoloop",
+            "controller",
+            "liveOverride",
+            "staticLook"
+          ],
+          "type": "enum"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [
+        "fixture.override.property.release",
+        "fixture.override.property.set",
+        "group.override.property.release",
+        "group.override.property.set"
+      ],
+      "requiredStates": [
+        "override.activePropertyCount"
+      ],
+      "slots": [],
+      "status": "bridged",
+      "supportedVariants": [
+        "compact",
+        "default",
+        "wide"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "form",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents ordered channel mappings, safe semantic parameters, named DMX ranges, provenance, audit results, and immutable-source duplicate-to-edit workflow.",
+      "events": [],
+      "failureBehavior": "safeFallback",
+      "id": "ember.fixtureProfileEditor",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Fixture Profile Editor",
+      "optionalCapabilities": [],
+      "performanceClass": "snapshotBounded",
+      "properties": {
+        "showCatalog": {
+          "type": "boolean"
+        },
+        "showDiagnostics": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [],
+      "requiredCommands": [],
+      "requiredStates": [],
+      "slots": [],
+      "status": "bridged",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "grid",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents registered Static Look activation, hold, toggle, clear, and active-state feedback by stable ID.",
+      "events": [],
+      "failureBehavior": "placeholder",
+      "id": "ember.staticLookMatrix",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Static Look Matrix",
+      "optionalCapabilities": [],
+      "performanceClass": "virtualized",
+      "properties": {
+        "showBindingHints": {
+          "type": "boolean"
+        },
+        "showProgress": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [
+        "content.staticLooks"
+      ],
+      "requiredCommands": [
+        "staticLook.activate",
+        "staticLook.clear",
+        "staticLook.hold",
+        "staticLook.toggle"
+      ],
+      "requiredStates": [
+        "staticLook.active.activationGeneration",
+        "staticLook.active.behavior",
+        "staticLook.active.id",
+        "staticLook.active.ownerFeedbackKey",
+        "staticLook.active.ownerKind",
+        "staticLook.active.packageGeneration",
+        "staticLook.active.status",
+        "staticLook.active.transitionProgress"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "compact",
+        "default"
+      ],
+      "supportedWorkspaces": [
+        "live",
+        "studio"
+      ]
+    },
+    {
+      "accessibilityRole": "group",
+      "callable": false,
+      "classification": "nativeComplex",
+      "contractVersion": "0.1.0",
+      "deprecated": false,
+      "description": "Presents offline simulation, explicitly armed bounded fixture preview, countdown, cap, fixture count, exact faults, and terminal blackout/stop without owning output behavior.",
+      "events": [
+        "physicalPreviewRequested",
+        "simulationRequested",
+        "stopRequested"
+      ],
+      "failureBehavior": "safeFallback",
+      "id": "ember.staticLookPreview",
+      "inputModes": [
+        "keyboard",
+        "pointer",
+        "touch"
+      ],
+      "introducedGeneration": 2,
+      "label": "Static Look Preview",
+      "optionalCapabilities": [],
+      "performanceClass": "healthBounded",
+      "properties": {
+        "allowPhysical": {
+          "type": "boolean"
+        },
+        "showFrameDigest": {
+          "type": "boolean"
+        }
+      },
+      "requiredCapabilities": [
+        "content.staticLookPreview"
+      ],
+      "requiredCommands": [
+        "staticLook.preview.start",
+        "staticLook.preview.stop"
+      ],
+      "requiredStates": [
+        "staticLook.preview.error",
+        "staticLook.preview.frameDigest",
+        "staticLook.preview.mode",
+        "staticLook.preview.outputCap",
+        "staticLook.preview.remainingMs",
+        "staticLook.preview.selectedFixtureCount",
+        "staticLook.preview.state",
+        "staticLook.preview.updateCount"
+      ],
+      "slots": [],
+      "status": "planned",
+      "supportedVariants": [
+        "default",
+        "wide"
+      ],
+      "supportedWorkspaces": [
+        "studio"
+      ]
+    }
+  ],
+  "generator": "emberlights-ui-registry-generator/1.2.0",
   "interactions": [
     {
       "id": "absolute",
@@ -1119,18 +1924,24 @@
       ]
     }
   ],
-  "registryGeneration": 1,
-  "registrySetVersion": "1.0.0",
+  "registryGeneration": 2,
+  "registrySetVersion": "1.9.0",
   "results": [
     {
+      "description": "The command request was accepted by its authoritative service.",
       "id": "accepted",
+      "introducedGeneration": 1,
+      "label": "Accepted",
       "nativeName": "Accepted",
       "nativeOrdinal": 0,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "Reserved typed outcome for a cancelled asynchronous operation; not a native result yet.",
       "id": "cancelled",
+      "introducedGeneration": 1,
+      "label": "Cancelled",
       "ownerIssues": [
         31,
         64
@@ -1139,21 +1950,30 @@
       "terminal": true
     },
     {
+      "description": "The authoritative service failed without accepting the request.",
       "id": "internalError",
+      "introducedGeneration": 1,
+      "label": "Internal error",
       "nativeName": "InternalError",
       "nativeOrdinal": 9,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "One or more invocation arguments failed the registered value contract.",
       "id": "invalidArguments",
+      "introducedGeneration": 1,
+      "label": "Invalid arguments",
       "nativeName": "InvalidArguments",
       "nativeOrdinal": 3,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "Reserved typed outcome for an unavailable stable target; not a native result yet.",
       "id": "missingTarget",
+      "introducedGeneration": 1,
+      "label": "Missing target",
       "ownerIssues": [
         31,
         64
@@ -1162,14 +1982,20 @@
       "terminal": true
     },
     {
+      "description": "The request was valid but authoritative state already matched it.",
       "id": "noChange",
+      "introducedGeneration": 1,
+      "label": "No change",
       "nativeName": "NoChange",
       "nativeOrdinal": 1,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "The current native facade could not resolve the requested object.",
       "id": "notFound",
+      "introducedGeneration": 1,
+      "label": "Not found",
       "nativeName": "NotFound",
       "nativeOrdinal": 4,
       "notes": "Distinct current native result; not silently aliased to missingTarget.",
@@ -1177,21 +2003,30 @@
       "terminal": true
     },
     {
+      "description": "The bounded command queue had no available capacity.",
       "id": "queueFull",
+      "introducedGeneration": 1,
+      "label": "Queue full",
       "nativeName": "QueueFull",
       "nativeOrdinal": 6,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "An authoritative safety gate rejected the request.",
       "id": "safetyRejected",
+      "introducedGeneration": 1,
+      "label": "Safety rejected",
       "nativeName": "SafetyRejected",
       "nativeOrdinal": 7,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "Reserved non-terminal outcome carrying a bounded operation identity; not a native result yet.",
       "id": "startedAsync",
+      "introducedGeneration": 1,
+      "label": "Started asynchronously",
       "ownerIssues": [
         31,
         64
@@ -1203,21 +2038,30 @@
       "terminal": false
     },
     {
+      "description": "The registered operation is not currently available.",
       "id": "unavailable",
+      "introducedGeneration": 1,
+      "label": "Unavailable",
       "nativeName": "Unavailable",
       "nativeOrdinal": 2,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "The current implementation does not support the registered operation for this target.",
       "id": "unsupported",
+      "introducedGeneration": 1,
+      "label": "Unsupported",
       "nativeName": "Unsupported",
       "nativeOrdinal": 8,
       "status": "implemented",
       "terminal": true
     },
     {
+      "description": "The authoritative service rejected the request after domain validation.",
       "id": "validationFailed",
+      "introducedGeneration": 1,
+      "label": "Validation failed",
       "nativeName": "ValidationFailed",
       "nativeOrdinal": 5,
       "status": "implemented",
@@ -1225,7 +2069,7 @@
     }
   ],
   "schemaVersion": 1,
-  "sourceDigest": "c7f0306c2c875c9a3387693f0af84273fbf55e7113e4baf3ea782a19c5313605",
+  "sourceDigest": "5fd185e0d3fc8beb42954e71c24de8b5758bbd6e2b416280f57a1feefd713bcc",
   "states": [
     {
       "authority": "runnerScheduler",
@@ -1956,6 +2800,57 @@
       "authority": "runnerScheduler",
       "category": "staticLook",
       "deprecated": false,
+      "description": "Monotonic activation generation used with the owner key to reject stale Hold releases.",
+      "id": "staticLook.active.activationGeneration",
+      "introducedGeneration": 1,
+      "label": "Static Look activation generation",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 40,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Authoritative activation behavior shared by software, keyboard, MIDI, controller, and external surfaces.",
+      "id": "staticLook.active.behavior",
+      "introducedGeneration": 1,
+      "label": "Static Look activation behavior",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 43,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "latch",
+          "hold",
+          "explicit"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
       "description": "Current native Live core state definition.",
       "id": "staticLook.active.id",
       "introducedGeneration": 1,
@@ -1973,6 +2868,337 @@
       "value": {
         "targetKind": "staticLook",
         "type": "id"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Opaque non-sensitive owner key used for held-by-this-control feedback; it is not a project or skin argument.",
+      "id": "staticLook.active.ownerFeedbackKey",
+      "introducedGeneration": 1,
+      "label": "Static Look owner feedback key",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 42,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "format": "uint64Decimal",
+        "maxLength": 20,
+        "type": "string"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Trusted surface category that owns the current activation.",
+      "id": "staticLook.active.ownerKind",
+      "introducedGeneration": 1,
+      "label": "Static Look owner kind",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 41,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "ui",
+          "keyboard",
+          "midi",
+          "controller",
+          "moment",
+          "external",
+          "test"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Runner package generation that owns the current Static Look activation.",
+      "id": "staticLook.active.packageGeneration",
+      "introducedGeneration": 1,
+      "label": "Static Look package generation",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 39,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Authoritative inactive, activating, active, or releasing state.",
+      "id": "staticLook.active.status",
+      "introducedGeneration": 1,
+      "label": "Static Look activation status",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 44,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "activating",
+          "active",
+          "releasing"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "runnerScheduler",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Runner-owned progress for the current activation or release transition; presentation is not timing authority.",
+      "id": "staticLook.active.transitionProgress",
+      "introducedGeneration": 1,
+      "label": "Static Look transition progress",
+      "maximumPublishHz": 30,
+      "nativeOrdinal": 45,
+      "nativeUpdateClass": "Realtime",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "runner",
+      "snapshotGroup": "staticLookActive",
+      "status": "implemented",
+      "updateClass": "progress",
+      "value": {
+        "maximum": 1,
+        "minimum": 0,
+        "type": "number",
+        "unit": "normalized"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Bounded stable error token from offline simulation or the physical-preview authority.",
+      "id": "staticLook.preview.error",
+      "introducedGeneration": 1,
+      "label": "Static Look preview error",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 48,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "maxLength": 64,
+        "type": "string"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Offline simulation frame SHA-256 for diagnostics; empty in physical mode.",
+      "id": "staticLook.preview.frameDigest",
+      "introducedGeneration": 1,
+      "label": "Static Look preview frame digest",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 53,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "maxLength": 71,
+        "type": "string"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Whether the coordinator is stopped, simulating offline, or holding the bounded physical-preview lease.",
+      "id": "staticLook.preview.mode",
+      "introducedGeneration": 1,
+      "label": "Static Look preview mode",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 47,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "none",
+          "simulation",
+          "physical"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Effective normalized intensity cap applied by physical-preview authority; zero for simulation.",
+      "id": "staticLook.preview.outputCap",
+      "introducedGeneration": 1,
+      "label": "Static Look preview output cap",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 50,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "maximum": 0.5,
+        "minimum": 0,
+        "type": "number",
+        "unit": "normalized"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Remaining physical-preview lease time; presentation polling is not timeout authority.",
+      "id": "staticLook.preview.remainingMs",
+      "introducedGeneration": 1,
+      "label": "Static Look preview remaining time",
+      "maximumPublishHz": 10,
+      "nativeOrdinal": 49,
+      "nativeUpdateClass": "Realtime",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "progress",
+      "value": {
+        "maximum": 60000,
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Number of fixtures resolved in the selected preview target.",
+      "id": "staticLook.preview.selectedFixtureCount",
+      "introducedGeneration": 1,
+      "label": "Static Look preview fixture count",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 51,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Authoritative asynchronous lifecycle of the Studio Static Look preview coordinator.",
+      "id": "staticLook.preview.state",
+      "introducedGeneration": 1,
+      "label": "Static Look preview state",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 46,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "enumValues": [
+          "stopped",
+          "starting",
+          "active",
+          "updating",
+          "stopping",
+          "timedOut",
+          "fault"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "authority": "studioPreviewService",
+      "category": "staticLook",
+      "deprecated": false,
+      "description": "Number of successfully activated draft updates in the current preview session.",
+      "id": "staticLook.preview.updateCount",
+      "introducedGeneration": 1,
+      "label": "Static Look preview update count",
+      "maximumPublishHz": null,
+      "nativeOrdinal": 52,
+      "nativeUpdateClass": "Event",
+      "nullable": false,
+      "persisted": false,
+      "privacy": "publicUi",
+      "scope": "documentSession",
+      "snapshotGroup": "staticLookPreview",
+      "status": "implemented",
+      "updateClass": "onChange",
+      "value": {
+        "minimum": 0,
+        "type": "integer"
       }
     },
     {
@@ -2154,5 +3380,209 @@
       }
     }
   ],
-  "status": "implementationDraft"
+  "status": "implementationDraft",
+  "values": [
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable compiled Autoloop identity.",
+      "id": "target.autoloop",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Autoloop target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "autoloop",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable fixture identity in the active project and compiled package.",
+      "id": "target.fixture",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Fixture target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "fixture",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable fixture-group identity in the active project and compiled package.",
+      "id": "target.fixtureGroup",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Fixture group target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "fixtureGroup",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable active-project identity.",
+      "id": "target.project",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Project target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "project",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable compiled Static Look identity.",
+      "id": "target.staticLook",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Static Look target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "staticLook",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Stable compiled Track Script identity.",
+      "id": "target.trackScript",
+      "introducedGeneration": 2,
+      "kind": "target",
+      "label": "Track Script target",
+      "missingBehavior": "unavailable",
+      "status": "implemented",
+      "token": "trackScript",
+      "valueType": "id"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Musical beat-count unit; Runner remains timing authority.",
+      "id": "unit.beats",
+      "introducedGeneration": 2,
+      "kind": "unit",
+      "label": "Beats",
+      "status": "implemented",
+      "token": "beats",
+      "valueType": "number"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Transport tempo in beats per minute.",
+      "id": "unit.bpm",
+      "introducedGeneration": 2,
+      "kind": "unit",
+      "label": "Beats per minute",
+      "status": "implemented",
+      "token": "bpm",
+      "valueType": "number"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Finite normalized value from zero through one.",
+      "id": "unit.normalized",
+      "introducedGeneration": 2,
+      "kind": "unit",
+      "label": "Normalized",
+      "maximum": 1,
+      "minimum": 0,
+      "status": "implemented",
+      "token": "normalized",
+      "valueType": "number"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Current normalized native adapter lifecycle state.",
+      "enumValues": [
+        "disabled",
+        "starting",
+        "waiting",
+        "ready",
+        "fault"
+      ],
+      "id": "value.adapterState",
+      "introducedGeneration": 2,
+      "kind": "enum",
+      "label": "Adapter state",
+      "status": "implemented",
+      "unknownValueBehavior": "reject",
+      "valueType": "enum"
+    },
+    {
+      "callable": false,
+      "deprecated": false,
+      "description": "Canonical semantic fixture-property vocabulary used by the native core.",
+      "enumValues": [
+        "intensity",
+        "red",
+        "green",
+        "blue",
+        "white",
+        "amber",
+        "uv",
+        "cyan",
+        "magenta",
+        "yellow",
+        "lime",
+        "indigo",
+        "pan",
+        "tilt",
+        "panRotate",
+        "tiltRotate",
+        "panTiltSpeed",
+        "strobe",
+        "shutter",
+        "colorWheel",
+        "gobo",
+        "goboRotation",
+        "prism",
+        "prismRotation",
+        "focus",
+        "zoom",
+        "iris",
+        "frost",
+        "animation",
+        "animationRotation",
+        "effect",
+        "effectSpeed",
+        "fan",
+        "fog",
+        "haze",
+        "laser",
+        "spark",
+        "custom1",
+        "custom2",
+        "custom3",
+        "custom4",
+        "custom5",
+        "custom6",
+        "custom7",
+        "custom8",
+        "custom9",
+        "custom10",
+        "custom11",
+        "custom12",
+        "custom13",
+        "custom14",
+        "custom15",
+        "custom16"
+      ],
+      "id": "value.fixtureProperty",
+      "introducedGeneration": 2,
+      "kind": "enum",
+      "label": "Fixture property",
+      "status": "implemented",
+      "unknownValueBehavior": "reject",
+      "valueType": "enum"
+    }
+  ]
 }

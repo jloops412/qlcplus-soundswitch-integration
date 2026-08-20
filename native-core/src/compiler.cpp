@@ -1,10 +1,13 @@
 #include "emberlights/compiler.hpp"
 
+#include "emberlights/autoloop_persistence.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -34,6 +37,40 @@ void compilation_error(
 
 [[nodiscard]] std::size_t autoloop_index(showcore::AutoloopAddress address) noexcept {
     return static_cast<std::size_t>(address.bank) * showcore::kAutoloopsPerBank + address.slot;
+}
+
+[[nodiscard]] std::uint64_t fixture_property_mask(
+    const showcore::Patch& patch,
+    std::uint16_t fixture_id) noexcept {
+    for (std::size_t index = 0U; index < patch.size(); ++index) {
+        const auto& fixture = patch.at(index);
+        if (fixture.id != fixture_id || fixture.profile == nullptr) {
+            continue;
+        }
+        std::uint64_t mask = 0U;
+        for (std::size_t channel = 0U;
+             channel < fixture.profile->channel_count; ++channel) {
+            const auto property = fixture.profile->channels[channel].property;
+            if (property != showcore::Property::Count) {
+                mask |= showcore::autoloop_property_mask(property);
+            }
+        }
+        return mask;
+    }
+    return 0U;
+}
+
+[[nodiscard]] std::uint64_t intersection_property_mask(
+    const showcore::Patch& patch,
+    std::span<const std::uint16_t> fixture_ids) noexcept {
+    if (fixture_ids.empty()) {
+        return 0U;
+    }
+    auto mask = showcore::all_autoloop_property_mask();
+    for (const auto fixture_id : fixture_ids) {
+        mask &= fixture_property_mask(patch, fixture_id);
+    }
+    return mask;
 }
 
 }  // namespace
@@ -69,9 +106,26 @@ CompilationResult compile_project(const ProjectDocument& project) {
     auto compiled = std::make_unique<CompiledShow>();
     std::unordered_map<std::string_view, const showcore::FixtureProfile*> profile_by_id;
     for (const auto& profile : project.fixture_profiles) {
+        std::vector<std::vector<showcore::ChannelCapabilityMapping>>
+            capability_storage(profile.channels.size());
         std::vector<showcore::ChannelMapping> mappings;
         mappings.reserve(profile.channels.size());
-        for (const auto& channel : profile.channels) {
+        for (std::size_t channel_index = 0U;
+             channel_index < profile.channels.size();
+             ++channel_index) {
+            const auto& channel = profile.channels[channel_index];
+            auto& capabilities = capability_storage[channel_index];
+            capabilities.reserve(channel.capabilities.size());
+            for (const auto& capability : channel.capabilities) {
+                capabilities.push_back({
+                    capability.property,
+                    capability.dmx_min,
+                    capability.dmx_max,
+                    capability.preferred_value,
+                    capability.behavior,
+                    capability.access,
+                    capability.reversed});
+            }
             mappings.push_back({
                 channel.property,
                 channel.coarse_offset,
@@ -79,7 +133,11 @@ CompilationResult compile_project(const ProjectDocument& project) {
                 channel.encoding,
                 channel.dmx_min,
                 channel.dmx_max,
-                channel.default_value});
+                channel.default_value,
+                channel.blackout_value,
+                channel.highlight_value,
+                capabilities.empty() ? nullptr : capabilities.data(),
+                capabilities.size()});
         }
         const showcore::FixtureProfileDraft draft{
             profile.id,
@@ -322,6 +380,144 @@ CompilationResult compile_project(const ProjectDocument& project) {
 
     result.show = std::move(compiled);
     return result;
+}
+
+CompilationResult compile_project(
+    const ProjectDocument& project,
+    const AutoloopSourceDocument& source,
+    const showcore::AutoloopCompileLimits& limits) {
+    // Keep the format-1 compiler as the single patch/look/catalog authority.
+    // This overload only adds a compiled V2 package after that immutable show
+    // has completed successfully, entirely off the scheduler thread.
+    auto result = compile_project(project);
+    if (!result) {
+        return result;
+    }
+
+    auto& show = *result.show;
+    const auto& patch = show.engine().patch();
+    std::vector<std::uint16_t> master_fixture_ids;
+    master_fixture_ids.reserve(patch.size());
+    for (std::size_t index = 0U; index < patch.size(); ++index) {
+        master_fixture_ids.push_back(patch.at(index).id);
+    }
+
+    std::unordered_map<std::string_view, std::vector<std::uint16_t>>
+        role_fixture_ids;
+    for (std::size_t index = 0U; index < project.fixtures.size(); ++index) {
+        const auto runtime_id = master_fixture_ids[index];
+        for (const auto& role : project.fixtures[index].roles) {
+            auto& fixtures = role_fixture_ids[role];
+            if (std::find(fixtures.begin(), fixtures.end(), runtime_id) ==
+                fixtures.end()) {
+                fixtures.push_back(runtime_id);
+            }
+        }
+    }
+
+    std::vector<showcore::AutoloopTargetBinding> targets;
+    targets.reserve(
+        1U + project.fixtures.size() + project.groups.size() +
+        role_fixture_ids.size());
+    targets.push_back({
+        showcore::CompiledAutoloopTargetKind::Master,
+        {},
+        master_fixture_ids,
+        intersection_property_mask(patch, master_fixture_ids)});
+    for (std::size_t index = 0U; index < project.fixtures.size(); ++index) {
+        const std::span<const std::uint16_t> fixture(
+            master_fixture_ids.data() + index, 1U);
+        targets.push_back({
+            showcore::CompiledAutoloopTargetKind::Fixture,
+            project.fixtures[index].id,
+            fixture,
+            intersection_property_mask(patch, fixture)});
+    }
+    for (std::size_t index = 0U; index < project.groups.size(); ++index) {
+        const auto* group = show.group(index);
+        if (group == nullptr) {
+            continue;
+        }
+        const std::span<const std::uint16_t> fixtures(
+            group->fixture_ids.data(), group->count);
+        targets.push_back({
+            showcore::CompiledAutoloopTargetKind::Group,
+            project.groups[index].id,
+            fixtures,
+            intersection_property_mask(patch, fixtures)});
+    }
+    for (const auto& [role, fixtures] : role_fixture_ids) {
+        targets.push_back({
+            showcore::CompiledAutoloopTargetKind::RoleSelector,
+            role,
+            fixtures,
+            intersection_property_mask(patch, fixtures)});
+    }
+
+    // Format-1 Static Looks are the only semantic references currently owned
+    // by ProjectDocument. Rich palette/movement/effect references fail closed
+    // in the V2 compiler until their corresponding immutable assets exist.
+    std::vector<showcore::AutoloopReferenceBinding> references;
+    references.reserve(project.looks.size());
+    for (std::size_t index = 0U; index < project.looks.size(); ++index) {
+        const auto* look = show.look(index);
+        if (look == nullptr) {
+            continue;
+        }
+        references.push_back({
+            showcore::CompiledAutoloopReferenceKind::LegacyLook,
+            project.looks[index].id,
+            showcore::CompiledAutoloopTargetKind::Master,
+            {},
+            std::span<const showcore::LookAssignment>(
+                look->assignments, look->assignment_count),
+            showcore::CompiledAutoloopGeneratorKind::None,
+            1U});
+    }
+
+    auto compiled_v2 = showcore::compile_autoloop_programs(
+        source, {targets, references}, limits);
+    if (!compiled_v2) {
+        if (compiled_v2.diagnostics.empty()) {
+            compilation_error(
+                result.validation,
+                "autoloop.compile.internal",
+                "autoloop-v2",
+                "V2 Autoloop compilation failed without a diagnostic.");
+        }
+        for (auto& diagnostic : compiled_v2.diagnostics) {
+            compilation_error(
+                result.validation,
+                std::move(diagnostic.code),
+                std::move(diagnostic.subject),
+                std::move(diagnostic.message));
+        }
+        result.show.reset();
+        return result;
+    }
+    show.autoloop_v2_package_ = std::move(compiled_v2.package);
+    return result;
+}
+
+CompilationResult compile_project_with_persisted_autoloops(
+    const ProjectDocument& project,
+    const showcore::AutoloopCompileLimits& limits) {
+    const auto persisted = inspect_persisted_autoloop_source(project);
+    if (!persisted) {
+        CompilationResult result;
+        result.validation = validate_project(project);
+        compilation_error(
+            result.validation,
+            "autoloop.persistence.invalid",
+            "autoloop-v2",
+            persisted.message.empty()
+                ? "The persisted V2 Autoloop source is invalid."
+                : persisted.message);
+        return result;
+    }
+    return persisted.stamp.present
+        ? compile_project(project, persisted.source, limits)
+        : compile_project(project);
 }
 
 }  // namespace emberlights

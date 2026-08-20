@@ -77,3 +77,4 @@ Do not generate the next file until the following is complete:
 - Migration reports must include the source ID map used for every fixture group/cell.
 - If a target's color lane is missing, importer output must mark the gap; it must not invent or borrow color unless the rule is source-proven and reported.
 - Source-fidelity acceptance requires physical/user comparison, not just project validation.
+

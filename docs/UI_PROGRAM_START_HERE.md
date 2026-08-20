@@ -16,6 +16,10 @@ Build a lightweight modular interface platform in which:
 
 ## Current gate
 
+**UI course correction (2026-08-14):** the current Win32 shell is now a frozen transitional/Safe bridge, not EmberLights Default. Previews 98–100 proved reusable authoring and fixture-control models but did not prove acceptable product UI. New product presentation begins with the renderer-neutral Fixtures + Static Looks acceptance slice in `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`; raw DMX and the legacy Fixture Control Inspector are Advanced diagnostics, not the ordinary workflow.
+
+**Replacement-shell implementation checkpoint (2026-08-14):** `45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md` records the first real issue #37 surface. Slint 1.17.1 is pinned for this lab only. The shell model v3 and adapter project the selected target's complete profile-backed parameter catalog through stable category tabs and bounded search, then group every semantic property's direct values, continuous ranges, exact choices, ownership, coverage, mixed state, availability, and safety into one stable parameter-family card. Color and Pan/Tilt retain specialized complete controls; no renderer-maintained familiar-property list or disconnected ownership/choice rail remains. The markup and C++ adapter are warning-green against the exact 1.17.1 compiler/headers, the renderer-neutral model is native-test-green, and the lab invokes existing Static Look authoring functions without giving the renderer output authority. Offline simulation is the default; an explicit project plus process-level arm can exercise the registered bounded physical-preview service with visible cap/countdown/fault state and terminal blackout. Windows/DPI/accessibility/performance/deployment and physical-fixture evidence, a WinUI comparison, the Safe baseline, persistence completion, and toolkit acceptance remain open.
+
 **Issue #38 / `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md` is the immediate P0.**
 
 Broad Default/Reference implementation waits for:
@@ -130,10 +134,16 @@ The registry policy applies to every user-visible feature change, even when the 
 - Skins Platform V2 visual designer, Ember Actions, migration, registry lifecycle, ADR, issue graph, and work-agent handoff;
 - qualification matrix and issue decomposition.
 
+## Current implementation checkpoint
+
+`45_SLINT_FIXTURES_LOOKS_LAB_CHECKPOINT.md` is the active implementation checkpoint under the binding direction in `44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`. It preserves the registry/domain foundations, keeps the legacy Win32 freeze intact, and implements the first product-shaped Fixtures + Static Looks lab without claiming toolkit or product acceptance. `36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` remains historical evidence for preview 88's bounded bridge and toolkit/resource audit.
+
+This checkpoint adds a renderer adapter and lab-only callbacks over existing domain behavior. It does not accept a production toolkit, `.emberskin` runtime, Safe surface, product installer, or Reference skin.
+
 ## Immediate implementation order after the core gate
 
-1. Complete/reconcile #31 command/state facade and #64 registry authority without changing lighting behavior.
-2. Complete #37 equivalent toolkit measurements and decision.
+1. Keep the D-091 Win32 freeze green and complete/reconcile #31 command/state facade and #64 registry authority without changing lighting behavior.
+2. Complete #37 equivalent toolkit measurements using the real Fixtures + Static Looks slice—not placeholder counters or another form—and record the decision.
 3. Implement #32 package/runtime/Safe surface.
 4. Build #33 Default journeys.
 5. Finish #30 Tier A evidence and build #34 Reference parity skin.

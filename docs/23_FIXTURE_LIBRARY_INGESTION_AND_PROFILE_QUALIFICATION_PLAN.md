@@ -5,6 +5,8 @@ Date: 2026-08-11
 Primary objective: remove fixture-profile, DMX-mode, and patch uncertainty without confusing library ingestion with physical hardware proof.  
 Authority: execute together with `21_CORE_SYSTEMS_RECOVERY_AND_HARDWARE_QUALIFICATION_PLAN.md`; where scope conflicts, the raw-output and safety gates in that plan win.
 
+Implementation note (2026-08-13): the native project/compiler now retains bounded non-overlapping named capability ranges, channel owner/head/cell labels, blackout/highlight, safety access, role, and direction; the QXF/OFL bridge imports compatible rows as unreviewed snapshots. See `39_MULTI_CAPABILITY_FIXTURE_CHANNEL_CHECKPOINT.md`. Qualification evidence, pinned corpus, grouped cell/head realization, and hardware proof in this plan remain open.
+
 ## 1. Immediate decision
 
 SoundSwitch's Fixture Manager and fixture library are useful evidence sources, but they do not replace controlled hardware qualification.

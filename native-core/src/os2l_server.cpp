@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <new>
 #include <string>
+#include <string_view>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -354,9 +355,100 @@ void Os2lTcpServer::disconnect_client(bool error) noexcept {
         }
     }
     decoder_.reset();
+    feedback_offset_ = 0U;
+    feedback_size_ = 0U;
+    follow_up_pending_ = false;
+    last_feedback_valid_ = false;
     if (listener_ >= 0) {
         state_ = Os2lServerState::Listening;
     }
+}
+
+void Os2lTcpServer::prepare_feedback(bool active) noexcept {
+    constexpr std::string_view on =
+        R"({"evt":"feedback","name":"blackout","state":"on"})";
+    constexpr std::string_view off =
+        R"({"evt":"feedback","name":"blackout","state":"off"})";
+    const auto message = active ? on : off;
+    std::copy(message.begin(), message.end(), feedback_buffer_.begin());
+    feedback_offset_ = 0U;
+    feedback_size_ = message.size();
+    feedback_state_ = active;
+}
+
+bool Os2lTcpServer::queue_blackout_feedback(bool active) noexcept {
+    if (client_ < 0) {
+        return false;
+    }
+    if (feedback_offset_ < feedback_size_) {
+        if (feedback_state_ == active) {
+            follow_up_pending_ = false;
+        } else {
+            follow_up_pending_ = true;
+            follow_up_state_ = active;
+        }
+        return true;
+    }
+    if (last_feedback_valid_ && last_feedback_state_ == active) {
+        return true;
+    }
+    prepare_feedback(active);
+    return true;
+}
+
+bool Os2lTcpServer::blackout_feedback_synchronized(bool active) const noexcept {
+    return client_ >= 0 && feedback_offset_ == feedback_size_ &&
+        !follow_up_pending_ && last_feedback_valid_ &&
+        last_feedback_state_ == active;
+}
+
+bool Os2lTcpServer::flush_feedback() noexcept {
+    if (client_ < 0 || feedback_offset_ >= feedback_size_) {
+        return true;
+    }
+    const auto remaining = feedback_size_ - feedback_offset_;
+#ifdef _WIN32
+    const auto sent = ::send(
+        native_socket(client_),
+        feedback_buffer_.data() + feedback_offset_,
+        static_cast<int>(remaining),
+        0);
+#else
+    const auto sent = ::send(
+        native_socket(client_),
+        feedback_buffer_.data() + feedback_offset_,
+        remaining,
+        MSG_NOSIGNAL);
+#endif
+    if (sent < 0) {
+        last_error_ = network_error();
+        if (recoverable_error(last_error_)) {
+            return true;
+        }
+        ++stats_.feedback_errors;
+        disconnect_client(true);
+        return false;
+    }
+    if (sent == 0) {
+        ++stats_.feedback_errors;
+        disconnect_client(true);
+        return false;
+    }
+    feedback_offset_ += static_cast<std::size_t>(sent);
+    stats_.bytes_sent += static_cast<std::size_t>(sent);
+    if (feedback_offset_ == feedback_size_) {
+        ++stats_.feedback_messages;
+        last_feedback_valid_ = true;
+        last_feedback_state_ = feedback_state_;
+        if (follow_up_pending_) {
+            const auto next = follow_up_state_;
+            follow_up_pending_ = false;
+            if (next != last_feedback_state_) {
+                prepare_feedback(next);
+            }
+        }
+    }
+    return true;
 }
 
 void Os2lTcpServer::close() noexcept {
@@ -389,16 +481,21 @@ Os2lPollResult Os2lTcpServer::poll(
 
     const auto socket = client_ >= 0 ? native_socket(client_) : native_socket(listener_);
     fd_set read_set;
+    fd_set write_set;
     FD_ZERO(&read_set);
+    FD_ZERO(&write_set);
     FD_SET(socket, &read_set);
+    if (client_ >= 0 && feedback_offset_ < feedback_size_) {
+        FD_SET(socket, &write_set);
+    }
     timeval timeout{};
     timeout.tv_sec = static_cast<long>(timeout_ms / 1000U);
     timeout.tv_usec = static_cast<long>((timeout_ms % 1000U) * 1000U);
 
 #ifdef _WIN32
-    const auto selected = ::select(0, &read_set, nullptr, nullptr, &timeout);
+    const auto selected = ::select(0, &read_set, &write_set, nullptr, &timeout);
 #else
-    const auto selected = ::select(socket + 1, &read_set, nullptr, nullptr, &timeout);
+    const auto selected = ::select(socket + 1, &read_set, &write_set, nullptr, &timeout);
 #endif
     if (selected == 0) {
         return Os2lPollResult::Idle;
@@ -427,6 +524,13 @@ Os2lPollResult Os2lTcpServer::poll(
         ++stats_.connections;
         state_ = Os2lServerState::ClientConnected;
         return Os2lPollResult::ClientConnected;
+    }
+
+    if (FD_ISSET(socket, &write_set) && !flush_feedback()) {
+        return Os2lPollResult::ClientDisconnected;
+    }
+    if (!FD_ISSET(socket, &read_set)) {
+        return Os2lPollResult::Idle;
     }
 
     std::array<char, 2048> bytes{};

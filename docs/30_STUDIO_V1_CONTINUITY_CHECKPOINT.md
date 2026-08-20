@@ -171,3 +171,117 @@ Do not report Studio V1, SoundSwitch migration, or parity as complete until issu
 ## 8. Next action
 
 Switch this planning lane to a work agent and execute only the bounded foundation packet in doc 29. Preserve issue #46 as the additive source of progress, decisions, file ownership, and handoff—not a new replacement plan per pass.
+
+## 9. Additive implementation update — 2026-08-11
+
+The earlier sections remain the historical planning checkpoint. Current repository truth now includes:
+
+- PR #49 merged the generation-checked `StudioDocumentService`, deterministic SoundSwitch corpus manifest, object-level migration IR/report, strict schemas, synthetic tests, and bounded `corpus-manifest` command;
+- PR #50 integrated the finalized Studio and Live lanes without moving Studio into Runner/output ownership;
+- branch `agent/studio-authoring-preview` advances a bounded part of STUDIO-004/006 with an original EmberLights semantic color and preview foundation;
+- private scripted-track/audio/library source remains unavailable to this lane, so `authorized_soundswitch_corpus_unavailable` and the prior exactness boundaries remain unchanged.
+
+### ST-D011 — capability-aware rich color intent
+
+Studio picker state is fixture-independent and supports RGB, HSV, HSL, CMY, hex, Kelvin/tint display approximation, and explicit White/Amber/UV/Lime/Indigo emitters. A picker commit is realized only through semantic fixture-profile properties. RGB/CMY/color-wheel capability is never inferred from channel names or raw DMX, and missing emitters produce visible degraded/unsupported results rather than silent guesses.
+
+This follows the useful QLC+ separation between primary-color capabilities and fixed color-wheel channels without copying QLC+ source, assets, or UI. The EmberLights model, math, authoring transaction, and tests are original and remain compatible with the existing QXF profile adapter boundary.
+
+### ST-D012 — one compiled no-output preview path
+
+Committed Static Looks and Autoloops preview through the normal immutable `CompiledShow`, layer resolver, safety policy, and fixture renderer. Real-time picker gestures use a temporary semantic preview layer over that same candidate. Preview never mutates the project, opens an output adapter, becomes timing authority, or creates a skin-specific lighting engine.
+
+The preview snapshot exposes fixture identity, semantic emitted color/intensity, display approximation, exact rendered DMX slots, content/beat/generation state, and validation diagnostics for future Default/Reference native components.
+
+### Evidence and remaining boundary
+
+- focused warning-fatal Studio authoring tests cover color-space conversions, palette transactions, semantic RGBWAUV/CMY/white-only realization, unsupported color-wheel preservation, deterministic Static Look upserts, compiled Look/Autoloop preview, temporary picker override/release, stale generations, failed candidate retention, and exact preview DMX frames;
+- this slice does not yet persist palette assets in format vNext, render the production picker/2D stage component, add waveform/beatgrid analysis, or freeze the scripted-track timeline ABI;
+- those visual components must bind to these services through the shared UI command/state platform after toolkit ownership is ready.
+
+## 10. Additive implementation update — 2026-08-12 palette persistence
+
+The first reusable Studio color asset now extends the same accepted color,
+document, persistence, and preview contracts rather than creating a parallel
+palette subsystem:
+
+- `StudioColor`, `StudioColorSwatch`, and the new bounded
+  `StudioColorPaletteAsset` share one dependency-neutral type contract;
+- project-owned palettes use additive `COLOR_PALETTE_V1` and
+  `COLOR_SWATCH_V1` records in the checksummed format-1 container;
+- an older reader can retain those lines through its existing unknown-record
+  path, while an unknown future palette-record version remains opaque to the
+  current reader;
+- deterministic asset upsert/removal modifies a complete document candidate,
+  then the existing `StudioDocumentService` performs the generation check,
+  validation, one-entry Undo/Redo transaction, and dirty-state comparison;
+- persisted swatch preview delegates to the existing temporary semantic color
+  overlay over the normal compiled candidate and still opens no output adapter.
+
+Focused warning-fatal tests cover deterministic record ordering and float
+round-trip, stable reserialization, invalid-version rejection, future opaque
+record retention, no-change behavior, stale-generation rejection, one-entry
+Undo/Redo, removal recovery, missing palette/swatch diagnostics, and identical
+repeated rendered DMX snapshots for a persisted swatch.
+
+This is a toolkit-neutral internal service/persistence slice. It publishes no
+new command, state, component, capability, binding, or direct callback; later
+Default/Reference/Safe or controller exposure must add the appropriate
+canonical registry entries and pass the Surface Contract Gate. Palette-linked
+timeline/Autoloop events, dependency-impact UI, production picker/canvas,
+scripted-track ABI, source decoder fidelity, and physical fixture qualification
+remain separate ordered work.
+
+## 11. Additive named-controller and migration-readiness checkpoint — 2026-08-13
+
+Preview 93 extends Studio's existing fixture capability and format-1 mapping
+contracts without adding a vendor-specific controller engine or changing the
+Runner scheduler.
+
+### Persistent named fixture-function mappings
+
+- `plan_fixture_controller_binding` treats a learned MIDI message as an input
+  prototype and derives target, action, property, exact semantic range, and
+  stable choice provenance from `fixture_control_choices`;
+- an exact homogeneous group remains one group-property mapping; a
+  mixed-profile group expands atomically into fixture-property mappings so
+  each profile keeps its own normalized slot or continuous endpoints;
+- project and per-message fanout limits are checked before publication. A
+  relative prototype that cannot remain within the named range, an unavailable
+  or protected choice, an unconfirmed safety-gated choice, or incomplete
+  capacity returns no partial plan;
+- `MidiMappingDefinition::fixture_control_binding_id` stores the stable catalog
+  choice ID in format-1 MIDI field 19, which older writers reserved as literal
+  zero. Existing projects therefore retain an empty value, and current
+  serialize/parse/compile behavior remains deterministic;
+- the ID is authoring provenance, not a display label, raw byte, controller
+  model, or alternate runtime action. Compiled mappings remain the existing
+  bounded semantic `SetProperty` / `SetGroupProperty` actions.
+
+### Evidence-only source portability review
+
+`build_migration_portability_review` emits a content-safe, deterministic
+Probe → Inventory → Decode → Reconcile → Plan → Commit → Upgrade view. It
+reuses the current SoundSwitch source-binding audit and deliberately reports
+artifact/hash identity separately from semantic decoder qualification. It
+contains no source paths, hashes, payload bytes, raw DMX, or mutable project
+operation.
+
+The WOLFMIX row is research-only and every stage reports
+`wolfmix.controlled_delta_corpus_unavailable`. No WOLFMIX source inspector,
+parser, importer, project conversion, or runtime behavior exists in this
+slice. For SoundSwitch, an exact artifact identity still does not qualify a
+timeline decoder or upgrade an approximate migration item to exact.
+
+Focused warning-fatal Make and fresh CMake/CTest runs pass
+`fixture_controller_binding_tests` and
+`migration_portability_review_tests`, including format-1 provenance
+round-trip, compiled mixed-profile event values, fixed capacity refusal,
+content-safe serialization, SoundSwitch identity/fidelity separation, and the
+explicit WOLFMIX evidence blocker.
+
+The current Windows mapping and diagnostic controls remain part of the
+existing Authoring transition recorded in the direct-callback ledger. No new
+callable command, state, component, capability, registry generation, skin
+binding, or Runner path was added. Typed Studio mapping commands/results and a
+production registry-driven binding component remain issue #31/#66 work.

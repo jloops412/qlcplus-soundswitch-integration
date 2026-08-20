@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -25,9 +26,12 @@ HEADER_PATH = ROOT / "native-core/include/emberlights/generated/ui_registry.gene
 CATALOG_PATH = ROOT / "spec/ui/registry/generated/ui-registry.catalog.json"
 REFERENCE_PATH = ROOT / "docs/generated/ui-registry/REFERENCE.md"
 CROSS_REFERENCE_PATH = ROOT / "spec/ui/registry/generated/surface-cross-reference-report.json"
-GENERATOR_ID = "emberlights-ui-registry-generator/1.0.0"
+GENERATOR_VERSION = "1.2.0"
+GENERATOR_ID = f"emberlights-ui-registry-generator/{GENERATOR_VERSION}"
 ID_PATTERN = re.compile(r"^[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9_\[\]-]+)+$")
 TOKEN_PATTERN = re.compile(r"^[a-z][a-zA-Z0-9]*$")
+LIFECYCLE_STATUSES = {"implemented", "bridged", "planned", "deprecated"}
+VALUE_TYPES = {"boolean", "enum", "id", "integer", "number", "string"}
 
 
 class RegistryError(RuntimeError):
@@ -82,7 +86,7 @@ def unique_by_id(kind: str, definitions: list[dict[str, Any]]) -> None:
 def load_registry() -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]], str]:
     manifest = load_json(MANIFEST_PATH)
     require(manifest.get("schemaVersion") == 1, "registry-set schemaVersion must be 1")
-    require(manifest.get("generatorVersion") == "1.0.0",
+    require(manifest.get("generatorVersion") == GENERATOR_VERSION,
             "registry-set generatorVersion does not match this generator")
     fragments = manifest.get("fragments")
     require(isinstance(fragments, dict), "registry-set fragments must be an object")
@@ -171,6 +175,9 @@ def validate_replacement_graph(kind: str, definitions: list[dict[str, Any]]) -> 
                     f"{kind} {definition['id']}: unknown replacement {replacement}")
             require(replacement != definition["id"],
                     f"{kind} {definition['id']}: replacement cannot be itself")
+            compatibility = definition.get("replacementCompatibility")
+            require(compatibility in {"exact", "lossless", "manual"},
+                    f"{kind} {definition['id']}: invalid replacementCompatibility")
             edges[definition["id"]] = replacement
     for start in edges:
         seen: set[str] = set()
@@ -179,6 +186,207 @@ def validate_replacement_graph(kind: str, definitions: list[dict[str, Any]]) -> 
             require(current not in seen, f"{kind}: replacement cycle starting at {start}")
             seen.add(current)
             current = edges[current]
+    ignored = {
+        "id", "nativeName", "nativeOrdinal", "label", "description", "notes",
+        "status", "introducedGeneration", "deprecated", "replacement",
+        "replacementCompatibility", "deprecatedGeneration", "plannedRemovalGeneration",
+    }
+    for definition in definitions:
+        if not definition.get("deprecated") or definition.get("replacementCompatibility") != "exact":
+            continue
+        replacement = by_id[definition["replacement"]]
+        before = {key: value for key, value in definition.items() if key not in ignored}
+        after = {key: value for key, value in replacement.items() if key not in ignored}
+        require(before == after,
+                f"{kind} {definition['id']}: exact replacement changes semantic contract")
+
+
+def require_string(value: Any, message: str) -> str:
+    require(isinstance(value, str) and bool(value), message)
+    return value
+
+
+def require_unique_strings(value: Any, message: str) -> list[str]:
+    require(
+        isinstance(value, list)
+        and all(isinstance(item, str) and bool(item) for item in value)
+        and len(value) == len(set(value)),
+        message,
+    )
+    return value
+
+
+def validate_lifecycle(
+    kind: str,
+    definition: dict[str, Any],
+    generation: int,
+) -> None:
+    status = definition.get("status")
+    require(status in LIFECYCLE_STATUSES,
+            f"{kind} {definition['id']}: invalid status {status!r}")
+    introduced = definition.get("introducedGeneration")
+    require(
+        isinstance(introduced, int)
+        and not isinstance(introduced, bool)
+        and 1 <= introduced <= generation,
+        f"{kind} {definition['id']}: invalid introducedGeneration",
+    )
+    deprecated = definition.get("deprecated")
+    require(isinstance(deprecated, bool),
+            f"{kind} {definition['id']}: deprecated must be boolean")
+    require((status == "deprecated") == deprecated,
+            f"{kind} {definition['id']}: status/deprecated mismatch")
+    if not deprecated:
+        require("replacement" not in definition,
+                f"{kind} {definition['id']}: active definition cannot declare replacement")
+
+
+def validate_value_contract(
+    value: Any,
+    owner: str,
+    values_by_id: dict[str, dict[str, Any]],
+    unit_by_token: dict[str, dict[str, Any]],
+    target_by_token: dict[str, dict[str, Any]],
+) -> None:
+    require(isinstance(value, dict), f"{owner}: value contract must be an object")
+    value_type = value.get("type")
+    require(value_type in VALUE_TYPES, f"{owner}: invalid value type {value_type!r}")
+    if "minimum" in value or "maximum" in value:
+        require(value_type in {"integer", "number"},
+                f"{owner}: only numeric values may declare bounds")
+    for field in ("minimum", "maximum"):
+        if field in value:
+            bound = value[field]
+            require(
+                isinstance(bound, (int, float))
+                and not isinstance(bound, bool)
+                and math.isfinite(float(bound)),
+                f"{owner}: {field} must be finite",
+            )
+    if "minimum" in value and "maximum" in value:
+        require(value["minimum"] <= value["maximum"],
+                f"{owner}: minimum exceeds maximum")
+    if "maxLength" in value:
+        maximum_length = value["maxLength"]
+        require(isinstance(maximum_length, int) and not isinstance(maximum_length, bool)
+                and maximum_length > 0,
+                f"{owner}: maxLength must be a positive integer")
+    enum_values = value.get("enumValues")
+    schema_ref = value.get("schemaRef")
+    if enum_values is not None:
+        require(value_type == "enum", f"{owner}: enumValues require enum type")
+        require_unique_strings(enum_values, f"{owner}: enumValues must be unique strings")
+        require(bool(enum_values), f"{owner}: enumValues cannot be empty")
+    if schema_ref is not None:
+        require(isinstance(schema_ref, str), f"{owner}: schemaRef must be a string")
+        require(schema_ref in values_by_id, f"{owner}: unknown schemaRef {schema_ref}")
+        if value_type == "enum":
+            require(values_by_id[schema_ref].get("kind") == "enum",
+                    f"{owner}: enum schemaRef {schema_ref} is not an enum")
+    if value_type == "enum":
+        require(enum_values is not None or schema_ref is not None,
+                f"{owner}: enum needs enumValues or schemaRef")
+    unit = value.get("unit")
+    if unit is not None:
+        require(value_type in {"integer", "number"},
+                f"{owner}: unit is only valid for numeric values")
+        require(isinstance(unit, str) and unit in unit_by_token,
+                f"{owner}: unknown unit {unit!r}")
+    target = value.get("targetKind")
+    if target is not None:
+        require(value_type == "id", f"{owner}: targetKind requires id type")
+        require(isinstance(target, str) and target in target_by_token,
+                f"{owner}: unknown targetKind {target!r}")
+    if value_type == "id":
+        require(isinstance(target, str), f"{owner}: id requires targetKind")
+
+
+def validate_value_definitions(
+    values: list[dict[str, Any]],
+    generation: int,
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
+    values_by_id = {item["id"]: item for item in values}
+    unit_by_token: dict[str, dict[str, Any]] = {}
+    target_by_token: dict[str, dict[str, Any]] = {}
+    for value in values:
+        validate_lifecycle("value", value, generation)
+        require(value.get("callable") is False,
+                f"value {value['id']}: reusable values are non-callable")
+        require_string(value.get("label"), f"value {value['id']}: label is required")
+        require_string(value.get("description"),
+                       f"value {value['id']}: description is required")
+        kind = value.get("kind")
+        require(kind in {"enum", "target", "unit"},
+                f"value {value['id']}: invalid kind {kind!r}")
+        if kind == "enum":
+            require(value.get("valueType") == "enum",
+                    f"value {value['id']}: enum valueType must be enum")
+            entries = require_unique_strings(
+                value.get("enumValues"), f"value {value['id']}: enumValues must be unique strings"
+            )
+            require(bool(entries), f"value {value['id']}: enumValues cannot be empty")
+            require(value.get("unknownValueBehavior") in {"preserve", "reject"},
+                    f"value {value['id']}: invalid unknownValueBehavior")
+        else:
+            token = value.get("token")
+            require(isinstance(token, str) and TOKEN_PATTERN.fullmatch(token) is not None,
+                    f"value {value['id']}: invalid token {token!r}")
+            index = unit_by_token if kind == "unit" else target_by_token
+            require(token not in index, f"values: duplicate {kind} token {token}")
+            index[token] = value
+            expected_type = "number" if kind == "unit" else "id"
+            require(value.get("valueType") == expected_type,
+                    f"value {value['id']}: {kind} valueType must be {expected_type}")
+            if kind == "target":
+                require(value.get("missingBehavior") in {"conflicted", "unavailable"},
+                        f"value {value['id']}: invalid missingBehavior")
+            for field in ("minimum", "maximum"):
+                if field in value:
+                    bound = value[field]
+                    require(isinstance(bound, (int, float)) and not isinstance(bound, bool)
+                            and math.isfinite(float(bound)),
+                            f"value {value['id']}: {field} must be finite")
+            if "minimum" in value and "maximum" in value:
+                require(value["minimum"] <= value["maximum"],
+                        f"value {value['id']}: minimum exceeds maximum")
+    return values_by_id, unit_by_token, target_by_token
+
+
+def validate_reference_list(
+    owner: str,
+    field: str,
+    definition: dict[str, Any],
+    known: set[str],
+) -> None:
+    references = require_unique_strings(
+        definition.get(field, []), f"{owner}: {field} must be unique strings"
+    )
+    missing = sorted(set(references) - known)
+    require(not missing, f"{owner}: unknown {field}: {', '.join(missing)}")
+
+
+def validate_capability_graph(capabilities: list[dict[str, Any]]) -> None:
+    edges = {item["id"]: item.get("dependencies", []) for item in capabilities}
+    for start in edges:
+        active: set[str] = set()
+        complete: set[str] = set()
+
+        def visit(current: str) -> None:
+            require(current not in active,
+                    f"capabilities: dependency cycle starting at {start}")
+            if current in complete:
+                return
+            active.add(current)
+            for dependency in edges[current]:
+                visit(dependency)
+            active.remove(current)
+            complete.add(current)
+
+        visit(start)
 
 
 def validate_registry(
@@ -186,14 +394,23 @@ def validate_registry(
     collections: dict[str, list[dict[str, Any]]],
 ) -> None:
     integrated = manifest.get("nativeMode") == "integrated"
+    generation = manifest.get("registryGeneration")
+    require(isinstance(generation, int) and not isinstance(generation, bool) and generation > 0,
+            "registryGeneration must be a positive integer")
     commands = collections.get("commands", [])
     states = collections.get("states", [])
     results = collections.get("results", [])
     interactions = collections.get("interactions", [])
+    components = collections.get("components", [])
+    capabilities = collections.get("capabilities", [])
+    values = collections.get("values", [])
     require(commands, "command registry cannot be empty")
     require(states, "state registry cannot be empty")
     require(results, "result registry cannot be empty")
     require(interactions, "interaction registry cannot be empty")
+    require(components, "component registry cannot be empty")
+    require(capabilities, "capability registry cannot be empty")
+    require(values, "value registry cannot be empty")
 
     validate_native_ordinals("commands", commands, integrated)
     validate_native_ordinals("results", results, False)
@@ -204,14 +421,78 @@ def validate_registry(
                 "states: integrated definitions require nativeOrdinal")
         require(set(state_ordinals) == set(range(len(states))),
                 f"states: integrated native ordinals must be contiguous 0..{len(states) - 1}")
-    validate_replacement_graph("commands", commands)
-    validate_replacement_graph("states", states)
+    for kind in ("commands", "states", "components", "capabilities", "values", "results"):
+        validate_replacement_graph(kind, collections[kind])
 
+    command_ids = {item["id"] for item in commands}
     state_ids = {item["id"] for item in states}
+    component_ids = {item["id"] for item in components}
+    capability_ids = {item["id"] for item in capabilities}
     interaction_ids = {item["id"] for item in interactions}
+    values_by_id, unit_by_token, target_by_token = validate_value_definitions(
+        values, generation
+    )
+
+    for interaction in interactions:
+        require(interaction.get("status") == "implemented",
+                f"interaction {interaction['id']}: unsupported status")
+        require("nativeName" in interaction and "nativeOrdinal" in interaction,
+                f"interaction {interaction['id']}: native metadata is required")
+
+    for result in results:
+        status = result.get("status")
+        require(status in {"implemented", "reserved", "deprecated"},
+                f"result {result['id']}: invalid status {status!r}")
+        introduced = result.get("introducedGeneration")
+        require(isinstance(introduced, int) and not isinstance(introduced, bool)
+                and 1 <= introduced <= generation,
+                f"result {result['id']}: invalid introducedGeneration")
+        require_string(result.get("label"), f"result {result['id']}: label is required")
+        require_string(result.get("description"),
+                       f"result {result['id']}: description is required")
+        require(isinstance(result.get("terminal"), bool),
+                f"result {result['id']}: terminal must be boolean")
+        if status == "implemented":
+            require("nativeName" in result and "nativeOrdinal" in result,
+                    f"result {result['id']}: implemented result needs native metadata")
+        if status == "reserved":
+            require("nativeName" not in result and "nativeOrdinal" not in result,
+                    f"result {result['id']}: reserved result cannot occupy native ABI")
+            owners = result.get("ownerIssues")
+            require(isinstance(owners, list) and bool(owners)
+                    and all(isinstance(item, int) and item > 0 for item in owners),
+                    f"result {result['id']}: reserved result needs ownerIssues")
+        payload = result.get("payloadSchema")
+        if payload is not None:
+            require(isinstance(payload, dict),
+                    f"result {result['id']}: payloadSchema must be an object")
+            if payload == {"operationId": "boundedString"}:
+                continue
+            require(payload.get("type") == "object",
+                    f"result {result['id']}: payloadSchema must be an object schema")
+            require(payload.get("additionalProperties") is False,
+                    f"result {result['id']}: payloadSchema must fail closed")
+            properties = payload.get("properties")
+            required = payload.get("required")
+            require(isinstance(properties, dict) and isinstance(required, list),
+                    f"result {result['id']}: payloadSchema properties/required are needed")
+            require(set(required) <= set(properties),
+                    f"result {result['id']}: payloadSchema has unknown required field")
+            for name, definition in properties.items():
+                validate_value_contract(
+                    definition,
+                    f"result {result['id']} payload {name}",
+                    values_by_id,
+                    unit_by_token,
+                    target_by_token,
+                )
+
     for command in commands:
-        require(command.get("status") in {"implemented", "bridged", "planned", "deprecated"},
-                f"command {command['id']}: invalid status")
+        validate_lifecycle("command", command, generation)
+        for field in ("midiBindable", "keyboardBindable", "actionBindable"):
+            if field in command:
+                require(isinstance(command[field], bool),
+                        f"command {command['id']}: {field} must be boolean")
         require(command.get("interaction") in interaction_ids,
                 f"command {command['id']}: unknown interaction {command.get('interaction')}")
         require(command.get("realtimeClass") in {
@@ -221,13 +502,39 @@ def validate_registry(
         require(command.get("persistenceScope") in {
             "none", "appLocal", "projectAuthored", "liveTransient"
         }, f"command {command['id']}: invalid persistenceScope")
+        require_string(command.get("safetyClass"),
+                       f"command {command['id']}: safetyClass is required")
+        parameters = command.get("parameters")
+        require(isinstance(parameters, dict),
+                f"command {command['id']}: parameters must be an object")
+        for name, value in parameters.items():
+            require(isinstance(name, str) and bool(name),
+                    f"command {command['id']}: invalid parameter name")
+            validate_value_contract(
+                value,
+                f"command {command['id']} parameter {name}",
+                values_by_id,
+                unit_by_token,
+                target_by_token,
+            )
+            require(isinstance(value.get("required"), bool),
+                    f"command {command['id']} parameter {name}: required must be boolean")
         for state_id in command.get("feedback", []):
             require(state_id in state_ids,
                     f"command {command['id']}: unknown feedback state {state_id}")
+        validate_reference_list(
+            f"command {command['id']}", "requiredCapabilities", command, capability_ids
+        )
 
     for state in states:
-        require(state.get("status") in {"implemented", "bridged", "planned", "deprecated"},
-                f"state {state['id']}: invalid status")
+        validate_lifecycle("state", state, generation)
+        validate_value_contract(
+            state.get("value"),
+            f"state {state['id']}",
+            values_by_id,
+            unit_by_token,
+            target_by_token,
+        )
         require(state.get("nativeUpdateClass") in {"Event", "Health", "Realtime"},
                 f"state {state['id']}: invalid nativeUpdateClass")
         if state.get("updateClass") in {"slow", "health", "transport", "progress"}:
@@ -237,6 +544,117 @@ def validate_registry(
         if state.get("authority") == "runnerScheduler":
             require(state.get("persisted") is False,
                     f"state {state['id']}: scheduler state cannot be persisted")
+
+    for component in components:
+        validate_lifecycle("component", component, generation)
+        require(component.get("callable") is False,
+                f"component {component['id']}: component contracts are non-callable")
+        require(component.get("classification") in {"nativeComplex", "primitive"},
+                f"component {component['id']}: invalid classification")
+        require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", component.get("contractVersion", ""))
+                is not None,
+                f"component {component['id']}: invalid contractVersion")
+        require_string(component.get("label"),
+                       f"component {component['id']}: label is required")
+        require_string(component.get("description"),
+                       f"component {component['id']}: description is required")
+        workspaces = require_unique_strings(
+            component.get("supportedWorkspaces"),
+            f"component {component['id']}: supportedWorkspaces must be unique strings",
+        )
+        require(bool(workspaces) and set(workspaces) <= {"live", "safe", "studio"},
+                f"component {component['id']}: invalid supportedWorkspaces")
+        variants = require_unique_strings(
+            component.get("supportedVariants"),
+            f"component {component['id']}: supportedVariants must be unique strings",
+        )
+        require(bool(variants), f"component {component['id']}: supportedVariants cannot be empty")
+        inputs = require_unique_strings(
+            component.get("inputModes"),
+            f"component {component['id']}: inputModes must be unique strings",
+        )
+        require(bool(inputs) and set(inputs) <= {"keyboard", "pointer", "touch"},
+                f"component {component['id']}: invalid inputModes")
+        properties = component.get("properties")
+        require(isinstance(properties, dict),
+                f"component {component['id']}: properties must be an object")
+        for name, value in properties.items():
+            validate_value_contract(
+                value,
+                f"component {component['id']} property {name}",
+                values_by_id,
+                unit_by_token,
+                target_by_token,
+            )
+        require_unique_strings(component.get("events"),
+                               f"component {component['id']}: events must be unique strings")
+        require_unique_strings(component.get("slots"),
+                               f"component {component['id']}: slots must be unique strings")
+        validate_reference_list(
+            f"component {component['id']}", "requiredCommands", component, command_ids
+        )
+        validate_reference_list(
+            f"component {component['id']}", "requiredStates", component, state_ids
+        )
+        validate_reference_list(
+            f"component {component['id']}", "requiredCapabilities", component, capability_ids
+        )
+        validate_reference_list(
+            f"component {component['id']}", "optionalCapabilities", component, capability_ids
+        )
+        require_string(component.get("accessibilityRole"),
+                       f"component {component['id']}: accessibilityRole is required")
+        require(component.get("performanceClass") in {
+            "bounded", "healthBounded", "snapshotBounded", "virtualized"
+        }, f"component {component['id']}: invalid performanceClass")
+        require(component.get("failureBehavior") in {"placeholder", "safeFallback"},
+                f"component {component['id']}: invalid failureBehavior")
+
+    for capability in capabilities:
+        validate_lifecycle("capability", capability, generation)
+        require(capability.get("callable") is False,
+                f"capability {capability['id']}: capabilities are non-callable")
+        require_string(capability.get("label"),
+                       f"capability {capability['id']}: label is required")
+        require_string(capability.get("description"),
+                       f"capability {capability['id']}: description is required")
+        require_string(capability.get("category"),
+                       f"capability {capability['id']}: category is required")
+        require(capability.get("origin") in {"adapter", "application", "engine", "platform", "project"},
+                f"capability {capability['id']}: invalid origin")
+        require(capability.get("absenceBehavior") in {"degrade", "disable", "hide", "reject"},
+                f"capability {capability['id']}: invalid absenceBehavior")
+        validate_reference_list(
+            f"capability {capability['id']}", "dependencies", capability, capability_ids
+        )
+        validate_reference_list(
+            f"capability {capability['id']}", "conflicts", capability, capability_ids
+        )
+        require(capability["id"] not in capability.get("dependencies", []),
+                f"capability {capability['id']}: cannot depend on itself")
+        require(capability["id"] not in capability.get("conflicts", []),
+                f"capability {capability['id']}: cannot conflict with itself")
+        require(not (set(capability.get("dependencies", []))
+                     & set(capability.get("conflicts", []))),
+                f"capability {capability['id']}: dependency cannot also conflict")
+        validate_reference_list(
+            f"capability {capability['id']}", "relevantCommands", capability, command_ids
+        )
+        validate_reference_list(
+            f"capability {capability['id']}", "relevantStates", capability, state_ids
+        )
+        validate_reference_list(
+            f"capability {capability['id']}", "relevantComponents", capability, component_ids
+        )
+        require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", capability.get("version", ""))
+                is not None,
+                f"capability {capability['id']}: invalid version")
+        require(capability.get("qualificationStatus") in {
+            "experimental", "softwareVerified", "unverified"
+        }, f"capability {capability['id']}: invalid qualificationStatus")
+        require(isinstance(capability.get("experimental"), bool),
+                f"capability {capability['id']}: experimental must be boolean")
+    validate_capability_graph(capabilities)
 
 
 def cpp_string(value: str) -> str:
@@ -310,6 +728,7 @@ def generate_header(
         "    bool emergency{false};",
         "    bool midi_bindable{true};",
         "    bool keyboard_bindable{true};",
+        "    bool action_bindable{true};",
         "};",
         "",
         f"inline constexpr std::array<UiCommandDefinition, {len(commands)}> kUiCommandDefinitions{{{{",
@@ -319,12 +738,13 @@ def generate_header(
         emergency = "true" if command.get("safetyClass") == "emergency" else "false"
         midi = "true" if command.get("midiBindable", True) else "false"
         keyboard = "true" if command.get("keyboardBindable", True) else "false"
+        action = "true" if command.get("actionBindable", True) else "false"
         lines.append(
-            "    {UiCommandId::%s, %s, %s, UiCommandInteraction::%s, %s, %s, %s},"
+            "    {UiCommandId::%s, %s, %s, UiCommandInteraction::%s, %s, %s, %s, %s},"
             % (
                 command["nativeName"], cpp_string(command["id"]),
                 cpp_string(command["label"]), interaction_by_id[command["interaction"]],
-                emergency, midi, keyboard,
+                emergency, midi, keyboard, action,
             )
         )
     lines.extend([
@@ -383,7 +803,9 @@ def validate_cross_reference_artifact(
     references = artifact.get("references")
     require(isinstance(references, dict), f"{artifact_name}: references must be an object")
     result: dict[str, Any] = {"artifact": artifact_name, "resolved": {}, "status": "valid"}
-    for kind in ("commands", "states", "components", "capabilities"):
+    for kind in (
+        "commands", "states", "components", "capabilities", "values", "results", "interactions"
+    ):
         requested = references.get(kind, [])
         require(isinstance(requested, list) and all(isinstance(item, str) for item in requested),
                 f"{artifact_name}: references.{kind} must be a string array")
@@ -410,12 +832,12 @@ def generate_cross_reference_report(
         "schemaVersion": 1,
         "registryGeneration": manifest["registryGeneration"],
         "sourceDigest": digest,
-        "scope": "bounded-native-registry-spike",
+        "scope": "canonical-registry-contracts-generation-2",
         "status": "valid",
         "artifacts": reports,
         "deferredPlanningArtifacts": {
-            "status": "notValidatedByFirstSlice",
-            "reason": "Bundled layout and inactive capture-required profile references include planned commands/states owned by later #31/#32/#59 work; SKIN2-001 does not publish them as callable to make fixtures pass."
+            "status": "notValidatedByGeneration2",
+            "reason": "Full bundled layout/profile validation still includes planned commands, components, and states owned by later #31/#32/#59 work; generation 2 does not publish fake callable IDs to make those artifacts pass."
         }
     }
 
@@ -460,9 +882,39 @@ def generate_reference(
         "## Invocation results",
         "",
         *markdown_table(
-            ["ID", "Status", "Native"],
-            ([item["id"], item["status"], item.get("nativeName", "—")]
+            ["ID", "Status", "Terminal", "Native"],
+            ([item["id"], item["status"], str(item["terminal"]).lower(), item.get("nativeName", "—")]
              for item in collections["results"]),
+        ),
+        "",
+        "## Components",
+        "",
+        *markdown_table(
+            ["ID", "Status", "Class", "Workspaces", "Performance"],
+            ([
+                item["id"], item["status"], item["classification"],
+                ", ".join(item["supportedWorkspaces"]), item["performanceClass"],
+            ] for item in collections["components"]),
+        ),
+        "",
+        "## Capabilities",
+        "",
+        *markdown_table(
+            ["ID", "Status", "Origin", "Absence", "Qualification"],
+            ([
+                item["id"], item["status"], item["origin"], item["absenceBehavior"],
+                item["qualificationStatus"],
+            ] for item in collections["capabilities"]),
+        ),
+        "",
+        "## Reusable values, units, and targets",
+        "",
+        *markdown_table(
+            ["ID", "Status", "Kind", "Token / values"],
+            ([
+                item["id"], item["status"], item["kind"],
+                item.get("token", ", ".join(item.get("enumValues", []))),
+            ] for item in collections["values"]),
         ),
         "",
         "## Owner reservations",
@@ -524,6 +976,8 @@ def generate(check: bool) -> int:
     print(
         f"UI registry {verb}: generation={manifest['registryGeneration']} "
         f"commands={len(collections['commands'])} states={len(collections['states'])} "
+        f"components={len(collections['components'])} "
+        f"capabilities={len(collections['capabilities'])} values={len(collections['values'])} "
         f"digest={digest}"
     )
     return 0
@@ -535,6 +989,33 @@ def compatibility_key(kind: str, definition: dict[str, Any]) -> dict[str, Any]:
         "deprecated", "replacement", "replacementCompatibility",
     }
     return {key: value for key, value in definition.items() if key not in ignored}
+
+
+def contract_change_is_compatible(
+    kind: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> bool:
+    before_key = compatibility_key(kind, before)
+    after_key = compatibility_key(kind, after)
+    if kind == "commands":
+        before_feedback = before_key.pop("feedback", [])
+        after_feedback = after_key.pop("feedback", [])
+        if not (
+            isinstance(before_feedback, list)
+            and isinstance(after_feedback, list)
+            and set(before_feedback).issubset(after_feedback)
+        ):
+            return False
+    return before_key == after_key
+
+
+def lifecycle_change_is_compatible(before: str | None, after: str | None) -> bool:
+    return (before, after) in {
+        ("planned", "bridged"),
+        ("planned", "implemented"),
+        ("bridged", "implemented"),
+    }
 
 
 def registry_diff(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
@@ -556,7 +1037,9 @@ def registry_diff(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[s
         "migrationAvailable": False,
         "manualActionRequired": False,
     }
-    for kind in ("commands", "states", "components", "capabilities", "results", "interactions"):
+    for kind in (
+        "commands", "states", "components", "capabilities", "values", "results", "interactions"
+    ):
         before = {item["id"]: item for item in baseline.get(kind, [])}
         after = {item["id"]: item for item in candidate.get(kind, [])}
         detail = {key: [] for key in (
@@ -575,7 +1058,21 @@ def registry_diff(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[s
                 replacement = after[identifier].get("replacement")
                 if replacement and replacement in after:
                     detail["replacementAvailable"].append(identifier)
-            elif compatibility_key(kind, before[identifier]) == compatibility_key(kind, after[identifier]):
+            elif before[identifier].get("status") != after[identifier].get("status"):
+                if (
+                    lifecycle_change_is_compatible(
+                        before[identifier].get("status"), after[identifier].get("status")
+                    )
+                    and contract_change_is_compatible(
+                        kind, before[identifier], after[identifier]
+                    )
+                ):
+                    detail["changedCompatible"].append(identifier)
+                else:
+                    detail["changedBreaking"].append(identifier)
+            elif contract_change_is_compatible(
+                kind, before[identifier], after[identifier]
+            ):
                 detail["changedCompatible"].append(identifier)
             else:
                 detail["changedBreaking"].append(identifier)
@@ -640,6 +1137,8 @@ def main() -> int:
             print(
                 f"UI registry valid: generation={manifest['registryGeneration']} "
                 f"commands={len(collections['commands'])} states={len(collections['states'])} "
+                f"components={len(collections['components'])} "
+                f"capabilities={len(collections['capabilities'])} values={len(collections['values'])} "
                 f"digest={digest}"
             )
             return 0

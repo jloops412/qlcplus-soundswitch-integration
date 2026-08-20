@@ -294,6 +294,74 @@ StaticLookAuthoringOutcome apply_static_look_property(
     return outcome;
 }
 
+StaticLookAuthoringOutcome apply_static_look_control_choice(
+    StaticLookDraft& draft,
+    const ProjectDocument& project,
+    std::string_view target_id,
+    std::string_view choice_id,
+    float position) {
+    StaticLookAuthoringOutcome outcome;
+    if (!normalized(position) || choice_id.empty()) {
+        outcome.result = StaticLookAuthoringResult::InvalidValue;
+        return outcome;
+    }
+    const auto catalog = fixture_control_choices(project, target_id, position);
+    outcome.warnings = catalog.warnings;
+    if (!catalog.target_found) {
+        outcome.result = StaticLookAuthoringResult::TargetNotFound;
+        return outcome;
+    }
+    if (catalog.target_fixture_count == 0U) {
+        outcome.result = StaticLookAuthoringResult::EmptyTarget;
+        return outcome;
+    }
+    const auto selected = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [choice_id](const auto& choice) { return choice.id == choice_id; });
+    if (selected == catalog.choices.end() || selected->values.empty()) {
+        outcome.result = StaticLookAuthoringResult::Unsupported;
+        return outcome;
+    }
+
+    auto candidate = draft;
+    outcome.fixtures_considered = catalog.target_fixture_count;
+    outcome.assignments_written = selected->values.size();
+    outcome.fixtures_skipped = outcome.fixtures_considered - std::min(
+        outcome.fixtures_considered, selected->values.size());
+    for (const auto& value : selected->values) {
+        if (upsert_assignment(
+                candidate.look,
+                value.fixture_id,
+                value.property,
+                showcore::PropertyValue::set(value.normalized_value))) {
+            ++outcome.fixtures_modified;
+        }
+    }
+    if (selected->partial()) {
+        outcome.warnings.push_back(
+            selected->name + " was applied to " +
+            std::to_string(selected->supported_fixture_count) + " of " +
+            std::to_string(selected->target_fixture_count) + " fixtures.");
+    }
+    if (catalog.group && !selected->shared_value) {
+        outcome.warnings.push_back(
+            selected->name +
+            " uses profile-specific values. Static Look authoring preserved each exact value; "
+            "one-value Live group control is unavailable.");
+    }
+    if (selected->safety_gated()) {
+        outcome.warnings.push_back(
+            selected->name + " remains subject to the normal Runner safety gate.");
+    }
+    sort_assignments(candidate.look, project);
+    const auto changed = outcome.fixtures_modified != 0U;
+    draft = std::move(candidate);
+    outcome.result = changed
+        ? StaticLookAuthoringResult::Applied
+        : StaticLookAuthoringResult::NoChange;
+    return outcome;
+}
+
 StaticLookAuthoringOutcome remove_static_look_property(
     StaticLookDraft& draft,
     const ProjectDocument& project,

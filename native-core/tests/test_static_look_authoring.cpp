@@ -60,6 +60,94 @@ int failures = 0;
     return project;
 }
 
+[[nodiscard]] emberlights::ProjectDocument make_named_control_project() {
+    auto project = emberlights::make_starter_project();
+    project.id = "named-control-test";
+    project.name = "Named Control Test";
+
+    const auto capability = [](
+        std::string id,
+        std::string name,
+        showcore::Property property,
+        std::uint8_t minimum,
+        std::uint8_t maximum,
+        std::uint8_t preferred,
+        showcore::ChannelCapabilityAccess access =
+            showcore::ChannelCapabilityAccess::Selectable) {
+        emberlights::ChannelCapabilityDefinition value;
+        value.id = std::move(id);
+        value.name = std::move(name);
+        value.property = property;
+        value.dmx_min = minimum;
+        value.dmx_max = maximum;
+        value.preferred_value = preferred;
+        value.access = access;
+        return value;
+    };
+    const auto make_profile = [&](bool three_wheel_slots) {
+        emberlights::FixtureProfileDefinition profile;
+        profile.id = three_wheel_slots ? "local.wheel.three" : "local.wheel.two";
+        profile.manufacturer = "Test";
+        profile.model = "Wheel";
+        profile.mode = three_wheel_slots ? "Three slots" : "Two slots";
+        profile.name = profile.model + " " + profile.mode;
+        profile.footprint = 2U;
+
+        emberlights::ChannelDefinition wheel;
+        wheel.property = showcore::Property::Count;
+        wheel.coarse_offset = 0U;
+        wheel.encoding = showcore::ChannelEncoding::Discrete8;
+        wheel.capabilities.push_back(capability(
+            "red", "Red", showcore::Property::ColorWheel, 0U, 9U, 5U));
+        if (three_wheel_slots) {
+            wheel.capabilities.push_back(capability(
+                "green", "Green", showcore::Property::ColorWheel,
+                10U, 19U, 15U));
+            wheel.capabilities.push_back(capability(
+                "blue", "Blue", showcore::Property::ColorWheel,
+                20U, 29U, 25U));
+        } else {
+            wheel.capabilities.push_back(capability(
+                "blue", "Blue", showcore::Property::ColorWheel,
+                10U, 19U, 15U));
+        }
+        wheel.capabilities.push_back(capability(
+            "factory-reset", "Factory reset", showcore::Property::Custom1,
+            240U, 249U, 245U,
+            showcore::ChannelCapabilityAccess::Protected));
+        profile.channels.push_back(std::move(wheel));
+
+        emberlights::ChannelDefinition shutter;
+        shutter.property = showcore::Property::Shutter;
+        shutter.coarse_offset = 1U;
+        shutter.encoding = showcore::ChannelEncoding::Discrete8;
+        auto strobe = capability(
+            "strobe-slow-fast", "Strobe slow to fast",
+            showcore::Property::Strobe,
+            three_wheel_slots ? 20U : 10U,
+            three_wheel_slots ? 89U : 99U,
+            three_wheel_slots ? 55U : 60U,
+            showcore::ChannelCapabilityAccess::SafetyGated);
+        strobe.behavior = showcore::ChannelCapabilityBehavior::Continuous;
+        shutter.capabilities.push_back(std::move(strobe));
+        shutter.capabilities.push_back(capability(
+            "open", "Open", showcore::Property::Shutter, 100U, 199U,
+            three_wheel_slots ? 150U : 100U));
+        profile.channels.push_back(std::move(shutter));
+        return profile;
+    };
+
+    project.fixture_profiles.push_back(make_profile(false));
+    project.fixture_profiles.push_back(make_profile(true));
+    project.fixtures.push_back({
+        "wheel-two", "Two-slot wheel", "local.wheel.two", 1U, 1U, {}});
+    project.fixtures.push_back({
+        "wheel-three", "Three-slot wheel", "local.wheel.three", 1U, 10U, {}});
+    project.groups.push_back({
+        "wheel-group", "Wheel group", {"wheel-two", "wheel-three"}});
+    return project;
+}
+
 void test_capability_inventory_and_color_authoring() {
     const auto project = make_ir4_authoring_project();
     CHECK(emberlights::validate_project(project).ok());
@@ -121,6 +209,54 @@ void test_capability_inventory_and_color_authoring() {
     CHECK(partial.assignments_written == 1U);
     CHECK(partial.fixtures_skipped == 1U);
     CHECK(assignment(draft.look, "ir4-10", showcore::Property::Intensity)->value.value == 0.5F);
+}
+
+void test_direct_fixture_attribute_choices() {
+    const auto project = make_ir4_authoring_project();
+    const auto catalog = emberlights::fixture_control_choices(
+        project, "ir4-pair", 0.25F);
+    const auto red = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "direct.red";
+        });
+    CHECK(red != catalog.choices.end());
+    if (red == catalog.choices.end()) {
+        return;
+    }
+    CHECK(red->kind ==
+          emberlights::FixtureControlChoiceKind::DirectAttribute);
+    CHECK(red->behavior ==
+          showcore::ChannelCapabilityBehavior::Continuous);
+    CHECK(red->common());
+    CHECK(red->shared_value);
+    CHECK(red->live_override_compatible());
+    CHECK(red->values.size() == 2U);
+    for (const auto& value : red->values) {
+        CHECK(value.property == showcore::Property::Red);
+        CHECK(std::fabs(value.normalized_value - 0.25F) < 0.0001F);
+        CHECK(value.raw_value == 64U);
+        CHECK(value.encoding == showcore::ChannelEncoding::Linear8);
+        CHECK(value.binding_id.find("/direct.red") != std::string::npos);
+    }
+
+    auto draft = emberlights::make_static_look_draft(
+        1U, "direct-red", "Direct Red");
+    const auto applied = emberlights::apply_static_look_control_choice(
+        draft, project, "ir4-pair", red->id, 0.25F);
+    CHECK(applied);
+    CHECK(applied.fixtures_modified == 2U);
+    CHECK(applied.assignments_written == 2U);
+    for (const auto fixture_id :
+         {std::string_view{"ir4-6"}, std::string_view{"ir4-10"}}) {
+        const auto* value = assignment(
+            draft.look, fixture_id, showcore::Property::Red);
+        CHECK(value != nullptr);
+        if (value != nullptr) {
+            CHECK(value->value.mode == showcore::ValueMode::Set);
+            CHECK(std::fabs(value->value.value - 0.25F) < 0.0001F);
+        }
+    }
 }
 
 void test_ir4_exact_offline_frames() {
@@ -222,6 +358,125 @@ void test_master_closed_and_unsupported_validation() {
     CHECK(!rejected.ok());
     CHECK(has_issue(rejected, "look.unsupportedProperty"));
     CHECK(!emberlights::compile_project(unsupported));
+}
+
+void test_named_fixture_control_choices() {
+    const auto project = make_named_control_project();
+    CHECK(emberlights::validate_project(project).ok());
+    const auto catalog = emberlights::fixture_control_choices(
+        project, "wheel-group");
+    CHECK(catalog.target_found);
+    CHECK(catalog.group);
+    CHECK(catalog.target_fixture_count == 2U);
+    CHECK(catalog.choices.size() == 5U);
+    CHECK(std::none_of(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "factory-reset";
+        }));
+
+    const auto blue = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "blue";
+        });
+    const auto open = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "open";
+        });
+    const auto strobe = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "strobe-slow-fast";
+        });
+    CHECK(blue != catalog.choices.end());
+    CHECK(open != catalog.choices.end());
+    CHECK(strobe != catalog.choices.end());
+    if (blue == catalog.choices.end() || open == catalog.choices.end() ||
+        strobe == catalog.choices.end()) {
+        return;
+    }
+    CHECK(blue->common());
+    CHECK(!blue->shared_value);
+    CHECK(!blue->live_override_compatible());
+    CHECK(blue->values.size() == 2U);
+    CHECK(std::fabs(blue->values[0].normalized_value - 0.75F) < 0.0001F);
+    CHECK(std::fabs(
+        blue->values[1].normalized_value - (2.5F / 3.0F)) < 0.0001F);
+    CHECK(open->common());
+    CHECK(open->shared_value);
+    CHECK(open->live_override_compatible());
+    CHECK(open->values[0].raw_value == 100U);
+    CHECK(open->values[1].raw_value == 150U);
+    CHECK(strobe->safety_gated());
+    CHECK(strobe->behavior ==
+          showcore::ChannelCapabilityBehavior::Continuous);
+    CHECK(strobe->live_override_compatible());
+    const auto green = std::find_if(
+        catalog.choices.begin(), catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "green";
+        });
+    CHECK(green != catalog.choices.end());
+    if (green != catalog.choices.end()) {
+        CHECK(green->partial());
+        CHECK(green->shared_value);
+        CHECK(!green->live_override_compatible());
+    }
+    std::vector<std::string> choice_ids;
+    choice_ids.reserve(catalog.choices.size());
+    for (const auto& choice : catalog.choices) {
+        choice_ids.push_back(choice.id);
+    }
+    std::sort(choice_ids.begin(), choice_ids.end());
+    CHECK(std::adjacent_find(choice_ids.begin(), choice_ids.end()) ==
+          choice_ids.end());
+
+    const auto quarter_catalog = emberlights::fixture_control_choices(
+        project, "wheel-group", 0.25F);
+    const auto quarter_strobe = std::find_if(
+        quarter_catalog.choices.begin(), quarter_catalog.choices.end(),
+        [](const auto& choice) {
+            return choice.capability_id == "strobe-slow-fast";
+        });
+    CHECK(quarter_strobe != quarter_catalog.choices.end());
+    if (quarter_strobe != quarter_catalog.choices.end()) {
+        CHECK(quarter_strobe->values[0].raw_value == 32U);
+        CHECK(quarter_strobe->values[1].raw_value == 37U);
+        CHECK(std::fabs(quarter_strobe->shared_normalized_value - 0.25F) <
+              0.0001F);
+    }
+
+    auto draft = emberlights::make_static_look_draft(
+        1U, "named-look", "Named Look");
+    const auto applied_blue = emberlights::apply_static_look_control_choice(
+        draft, project, "wheel-group", blue->id);
+    CHECK(applied_blue);
+    CHECK(applied_blue.fixtures_modified == 2U);
+    CHECK(!applied_blue.warnings.empty());
+    const auto* two_slot_assignment = assignment(
+        draft.look, "wheel-two", showcore::Property::ColorWheel);
+    const auto* three_slot_assignment = assignment(
+        draft.look, "wheel-three", showcore::Property::ColorWheel);
+    CHECK(two_slot_assignment != nullptr);
+    CHECK(three_slot_assignment != nullptr);
+    if (two_slot_assignment == nullptr || three_slot_assignment == nullptr) {
+        return;
+    }
+    CHECK(std::fabs(two_slot_assignment->value.value - 0.75F) < 0.0001F);
+    CHECK(std::fabs(
+        three_slot_assignment->value.value - (2.5F / 3.0F)) < 0.0001F);
+
+    const auto applied_open = emberlights::apply_static_look_control_choice(
+        draft, project, "wheel-group", open->id);
+    CHECK(applied_open);
+    const auto preview = emberlights::preview_static_look_draft(project, draft);
+    CHECK(preview);
+    CHECK(preview.frames.universes[0][0] == 15U);
+    CHECK(preview.frames.universes[0][1] == 100U);
+    CHECK(preview.frames.universes[0][9] == 25U);
+    CHECK(preview.frames.universes[0][10] == 150U);
 }
 
 void test_ownership_round_trip_and_document_commit() {
@@ -329,8 +584,10 @@ void test_limits_dependencies_and_hex() {
 
 int main() {
     test_capability_inventory_and_color_authoring();
+    test_direct_fixture_attribute_choices();
     test_ir4_exact_offline_frames();
     test_master_closed_and_unsupported_validation();
+    test_named_fixture_control_choices();
     test_ownership_round_trip_and_document_commit();
     test_limits_dependencies_and_hex();
     if (failures != 0) {

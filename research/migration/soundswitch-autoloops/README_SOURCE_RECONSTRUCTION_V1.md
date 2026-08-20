@@ -18,3 +18,4 @@ Observed generation result:
 This exercise confirms the format-1 capacity problem described in the decoder checkpoint: a single Preview-101 project cannot represent all 96 source timelines at useful sampled fidelity without exceeding Look/assignment limits. Do **not** turn the chunking strategy into the production migration architecture. The production path remains the semantic Autoloops V2 source/program model under #57/#60.
 
 The generated files are user test artifacts and are intentionally not committed to Git. Source bytes also remain outside Git.
+

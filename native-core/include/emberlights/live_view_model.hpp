@@ -37,6 +37,13 @@ struct LiveStaticLookPad {
     std::uint16_t compiled_index{0U};
     bool active{false};
     bool available{false};
+    StaticLookBehavior behavior{StaticLookBehavior::None};
+    StaticLookActivationStatus status{StaticLookActivationStatus::None};
+    StaticLookOwnerKind owner_kind{StaticLookOwnerKind::None};
+    std::uint64_t owner_feedback_token{0U};
+    std::uint64_t package_generation{0U};
+    std::uint64_t activation_generation{0U};
+    float transition_progress{0.0F};
 };
 
 struct LiveAutoloopPad {
@@ -70,6 +77,14 @@ struct LiveTrackScriptItem {
 struct LiveActiveContent {
     std::string_view static_look_id;
     std::string_view static_look_name;
+    StaticLookBehavior static_look_behavior{StaticLookBehavior::None};
+    StaticLookActivationStatus static_look_status{
+        StaticLookActivationStatus::None};
+    StaticLookOwnerKind static_look_owner_kind{StaticLookOwnerKind::None};
+    std::uint64_t static_look_owner_feedback_token{0U};
+    std::uint64_t static_look_package_generation{0U};
+    std::uint64_t static_look_activation_generation{0U};
+    float static_look_transition_progress{0.0F};
     std::string_view autoloop_id;
     std::string_view autoloop_name;
     std::string_view track_script_id;

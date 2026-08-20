@@ -8,14 +8,28 @@
 
 namespace emberlights {
 
+enum class UiStaticLookPreviewMode : std::uint8_t {
+    None,
+    Simulation,
+    Physical
+};
+
 struct UiCommandInvocation {
     UiCommandId command{UiCommandId::ShowStart};
     bool bool_value{false};
     double number_value{0.0};
     showcore::Property property{showcore::Property::Count};
     std::string_view target_id{};
+    std::string_view secondary_target_id{};
+    UiStaticLookPreviewMode static_look_preview_mode{
+        UiStaticLookPreviewMode::None};
     showcore::AutoloopAddress autoloop_address{};
     std::uint16_t bank{static_cast<std::uint16_t>(showcore::kMaxAutoloopBanks)};
+    // Trusted invocation metadata, intentionally outside the generated/public
+    // command argument registry. Hold controls must supply a stable nonzero
+    // feedback token and echo both observed generations on release.
+    StaticLookOwnerContext static_look_owner{
+        StaticLookOwnerKind::Ui, 0U, 0U, 0U};
 };
 
 class UiAppCommandHost {
@@ -23,6 +37,19 @@ public:
     virtual ~UiAppCommandHost() = default;
     [[nodiscard]] virtual UiInvocationResult ui_start_show() noexcept = 0;
     [[nodiscard]] virtual UiInvocationResult ui_stop_show() noexcept = 0;
+    [[nodiscard]] virtual UiInvocationResult ui_start_static_look_preview(
+        std::string_view look_id,
+        std::string_view target_id,
+        UiStaticLookPreviewMode mode) noexcept {
+        static_cast<void>(look_id);
+        static_cast<void>(target_id);
+        static_cast<void>(mode);
+        return UiInvocationResult::Unsupported;
+    }
+    [[nodiscard]] virtual UiInvocationResult
+    ui_stop_static_look_preview() noexcept {
+        return UiInvocationResult::Unsupported;
+    }
 };
 
 class UiCommandFacade {

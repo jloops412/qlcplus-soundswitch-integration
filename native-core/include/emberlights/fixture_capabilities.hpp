@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,6 +68,87 @@ struct FixtureTargetCapabilities {
         showcore::Property property) const noexcept;
 };
 
+enum class FixtureControlChoiceKind : std::uint8_t {
+    // An ordinary profile channel such as Intensity, Red, Pan, Tilt, or Zoom.
+    // Its semantic value spans the complete authored channel mapping.
+    DirectAttribute,
+    // One named range or slot on a compound channel such as Shutter Open,
+    // Gobo 4, Prism Insert, or Strobe Slow-to-Fast.
+    NamedCapability
+};
+
+// One exact, profile-backed fixture attribute realization. Raw DMX values are
+// inspection evidence only; callers continue to invoke Static Look, Live,
+// Autoloop, and controller behavior through the semantic property/value pair.
+struct FixtureControlChoiceValue {
+    std::string fixture_id;
+    std::string profile_id;
+    std::string binding_id;
+    std::uint16_t channel{0U};
+    showcore::Property property{showcore::Property::Count};
+    float normalized_value{0.0F};
+    float semantic_min{0.0F};
+    float semantic_max{1.0F};
+    std::uint8_t raw_value{0U};
+    std::uint8_t dmx_min{0U};
+    std::uint8_t dmx_max{0U};
+    showcore::ChannelEncoding encoding{showcore::ChannelEncoding::Linear8};
+    std::uint16_t fine_channel{0U};
+    std::uint8_t raw_fine_value{0U};
+    std::uint16_t default_value{0U};
+    std::uint16_t blackout_value{0U};
+    std::uint16_t highlight_value{255U};
+};
+
+// A target-facing fixture attribute. Direct channels and named compound-channel
+// functions share one stable identity/value contract. Group choices retain one
+// exact realization per supporting fixture. A Live group command can use the
+// choice only when every supporting profile resolves to the same semantic
+// value; Static Look/Autoloop authoring may preserve per-fixture values.
+struct FixtureControlChoice {
+    std::string id;
+    std::string capability_id;
+    std::string name;
+    std::string owner;
+    FixtureControlChoiceKind kind{FixtureControlChoiceKind::NamedCapability};
+    showcore::Property property{showcore::Property::Count};
+    showcore::ChannelCapabilityBehavior behavior{
+        showcore::ChannelCapabilityBehavior::Slot};
+    showcore::ChannelCapabilityAccess access{
+        showcore::ChannelCapabilityAccess::Selectable};
+    FixtureChannelCapabilityRole role{FixtureChannelCapabilityRole::Function};
+    std::size_t supported_fixture_count{0U};
+    std::size_t target_fixture_count{0U};
+    float shared_normalized_value{0.0F};
+    bool shared_value{false};
+    std::vector<FixtureControlChoiceValue> values;
+
+    [[nodiscard]] bool partial() const noexcept {
+        return supported_fixture_count != 0U &&
+            supported_fixture_count != target_fixture_count;
+    }
+    [[nodiscard]] bool common() const noexcept {
+        return target_fixture_count != 0U &&
+            supported_fixture_count == target_fixture_count;
+    }
+    [[nodiscard]] bool safety_gated() const noexcept {
+        return access == showcore::ChannelCapabilityAccess::SafetyGated;
+    }
+    [[nodiscard]] bool live_override_compatible() const noexcept {
+        return common() && shared_value;
+    }
+};
+
+struct FixtureControlChoiceCatalog {
+    bool target_found{false};
+    bool group{false};
+    std::string target_id;
+    std::string target_name;
+    std::size_t target_fixture_count{0U};
+    std::vector<FixtureControlChoice> choices;
+    std::vector<std::string> warnings;
+};
+
 [[nodiscard]] const FixtureProfileDefinition* find_fixture_profile(
     const ProjectDocument& project,
     std::string_view profile_id) noexcept;
@@ -85,5 +167,15 @@ struct FixtureTargetCapabilities {
 [[nodiscard]] FixtureTargetCapabilities inspect_fixture_target(
     const ProjectDocument& project,
     std::string_view target_id);
+
+// Builds deterministic, toolkit-neutral fixture attributes for one patched
+// fixture or group. Ordinary direct mappings and selectable named ranges share
+// this catalog. Continuous controls use `position`; named slots ignore it and
+// use the documented preferred byte. Protected reset/service/custom ranges
+// never enter the catalog.
+[[nodiscard]] FixtureControlChoiceCatalog fixture_control_choices(
+    const ProjectDocument& project,
+    std::string_view target_id,
+    float position = 0.5F);
 
 }  // namespace emberlights

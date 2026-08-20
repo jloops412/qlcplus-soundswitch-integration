@@ -28,6 +28,7 @@ struct LiveCoreUiState {
     double bpm{0.0};
     double beat_position{0.0};
     std::int32_t active_look{-1};
+    RunnerStaticLookActivation static_look{};
     showcore::AutoloopAddress active_autoloop{};
     showcore::AutoloopRepeat active_autoloop_repeat{showcore::AutoloopRepeat::Once};
     float active_autoloop_progress{0.0F};
@@ -48,5 +49,12 @@ struct LiveCoreUiState {
 
 [[nodiscard]] LiveCoreUiState make_live_core_ui_state(
     const RunnerStatus& status) noexcept;
+
+[[nodiscard]] const char* static_look_owner_kind_name(
+    StaticLookOwnerKind kind) noexcept;
+[[nodiscard]] const char* static_look_behavior_name(
+    StaticLookBehavior behavior) noexcept;
+[[nodiscard]] const char* static_look_activation_status_name(
+    StaticLookActivationStatus status) noexcept;
 
 }  // namespace emberlights

@@ -1013,6 +1013,183 @@ struct ActiveRange {
     return false;
 }
 
+[[nodiscard]] FixtureChannelCapabilityRole qlc_capability_role(
+    const QlcCapability& capability) {
+    const auto text = lower_copy(capability.preset + " " + capability.label);
+    if (text.find("reset") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Reset;
+    }
+    if (text.find("service") != std::string::npos ||
+        text.find("calibrat") != std::string::npos ||
+        text.find("lamp on") != std::string::npos ||
+        text.find("lamp off") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Service;
+    }
+    if (text.find("blackout") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Blackout;
+    }
+    if (text.find("closed") != std::string::npos ||
+        text.find("off") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Closed;
+    }
+    if (text.find("open") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Open;
+    }
+    if (text.find("home") != std::string::npos ||
+        text.find("neutral") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Home;
+    }
+    if (text.find("counterclockwise") != std::string::npos ||
+        text.find("counter-clockwise") != std::string::npos ||
+        text.find(" ccw") != std::string::npos) {
+        return FixtureChannelCapabilityRole::CounterClockwise;
+    }
+    if (text.find("clockwise") != std::string::npos ||
+        text.find(" cw") != std::string::npos) {
+        return FixtureChannelCapabilityRole::Clockwise;
+    }
+    return FixtureChannelCapabilityRole::Function;
+}
+
+[[nodiscard]] showcore::Property qlc_capability_property(
+    const QlcCapability& capability,
+    showcore::Property fallback) {
+    // A shutter-labelled gate on hazardous hardware still controls the
+    // hazardous emitter. Keeping the fixture-level safety property here is
+    // what makes every imported open/closed slot pass through arming.
+    if (fallback == showcore::Property::Fog ||
+        fallback == showcore::Property::Haze ||
+        fallback == showcore::Property::Laser ||
+        fallback == showcore::Property::Spark) {
+        return fallback;
+    }
+    if (const auto preset = preset_property(capability.preset); preset.has_value() &&
+        *preset != showcore::Property::Count) {
+        return *preset;
+    }
+    const auto text = lower_copy(capability.preset + " " + capability.label);
+    if (text.find("strobe") != std::string::npos) return showcore::Property::Strobe;
+    if (text.find("shutter") != std::string::npos ||
+        text.find("open") != std::string::npos ||
+        text.find("closed") != std::string::npos) return showcore::Property::Shutter;
+    if (text.find("gobo") != std::string::npos) return showcore::Property::Gobo;
+    if (text.find("prism") != std::string::npos) return showcore::Property::Prism;
+    if (text.find("color") != std::string::npos ||
+        text.find("colour") != std::string::npos) return showcore::Property::ColorWheel;
+    if (text.find("reset") != std::string::npos ||
+        text.find("service") != std::string::npos ||
+        text.find("calibrat") != std::string::npos) return showcore::Property::Effect;
+    return fallback;
+}
+
+[[nodiscard]] showcore::ChannelCapabilityBehavior qlc_capability_behavior(
+    const QlcCapability& capability) {
+    const auto text = lower_copy(capability.preset + " " + capability.label);
+    return capability.minimum != capability.maximum &&
+            (text.find("range") != std::string::npos ||
+             text.find("speed") != std::string::npos ||
+             text.find("slow") != std::string::npos ||
+             text.find("fast") != std::string::npos ||
+             text.find("frequency") != std::string::npos ||
+             text.find("rotat") != std::string::npos)
+        ? showcore::ChannelCapabilityBehavior::Continuous
+        : showcore::ChannelCapabilityBehavior::Slot;
+}
+
+[[nodiscard]] showcore::ChannelCapabilityAccess qlc_capability_access(
+    showcore::Property property,
+    FixtureChannelCapabilityRole role,
+    std::string_view text) {
+    if (role == FixtureChannelCapabilityRole::Reset ||
+        role == FixtureChannelCapabilityRole::Service ||
+        property >= showcore::Property::Custom1 ||
+        contains_case_insensitive(text, "no function") ||
+        contains_case_insensitive(text, "reserved")) {
+        return showcore::ChannelCapabilityAccess::Protected;
+    }
+    if (property == showcore::Property::Strobe || property == showcore::Property::Fog ||
+        property == showcore::Property::Haze || property == showcore::Property::Laser ||
+        property == showcore::Property::Spark) {
+        return showcore::ChannelCapabilityAccess::SafetyGated;
+    }
+    return showcore::ChannelCapabilityAccess::Selectable;
+}
+
+[[nodiscard]] std::vector<ChannelCapabilityDefinition> convert_capabilities(
+    const QlcChannel& source,
+    showcore::Property fallback,
+    QlcFixtureImportResult& result,
+    std::string_view mode_name) {
+    std::vector<ChannelCapabilityDefinition> converted;
+    std::unordered_set<std::string> ids;
+    for (const auto& source_capability : source.capabilities) {
+        if (source_capability.has_alias) {
+            continue;
+        }
+        ChannelCapabilityDefinition capability;
+        capability.name = !source_capability.label.empty()
+            ? source_capability.label
+            : !source_capability.preset.empty()
+                ? source_capability.preset
+                : "DMX " + std::to_string(source_capability.minimum) + "-" +
+                    std::to_string(source_capability.maximum);
+        auto base_id = slug_component(capability.name, 72U);
+        capability.id = base_id;
+        for (std::size_t ordinal = 2U; !ids.insert(capability.id).second; ++ordinal) {
+            capability.id = base_id + "-" + std::to_string(ordinal);
+        }
+        capability.property = qlc_capability_property(source_capability, fallback);
+        capability.dmx_min = source_capability.minimum;
+        capability.dmx_max = source_capability.maximum;
+        capability.preferred_value = static_cast<std::uint8_t>(
+            static_cast<std::uint16_t>(source_capability.minimum) +
+            (static_cast<std::uint16_t>(source_capability.maximum) -
+             static_cast<std::uint16_t>(source_capability.minimum)) / 2U);
+        capability.role = qlc_capability_role(source_capability);
+        capability.behavior = qlc_capability_behavior(source_capability);
+        const auto continuously_controlled =
+            is_continuous(capability.property) ||
+            capability.property == showcore::Property::Fog ||
+            capability.property == showcore::Property::Haze ||
+            capability.property == showcore::Property::Laser ||
+            capability.property == showcore::Property::Spark;
+        if (capability.behavior ==
+                showcore::ChannelCapabilityBehavior::Slot &&
+            capability.role == FixtureChannelCapabilityRole::Function &&
+            capability.dmx_min != capability.dmx_max &&
+            continuously_controlled) {
+            capability.behavior =
+                showcore::ChannelCapabilityBehavior::Continuous;
+        }
+        capability.access = qlc_capability_access(
+            capability.property,
+            capability.role,
+            capability.name + " " + source_capability.preset);
+        capability.reversed = preset_is_reversed(source_capability.preset);
+        const auto overlaps = std::any_of(
+            converted.begin(), converted.end(), [&](const auto& existing) {
+                return !(capability.dmx_max < existing.dmx_min ||
+                    capability.dmx_min > existing.dmx_max);
+            });
+        if (overlaps) {
+            add_issue(
+                result,
+                QlcImportIssueSeverity::Warning,
+                "capability.overlapQuarantined",
+                std::string(mode_name),
+                "Overlapping capability '" + capability.name + "' on channel '" +
+                    source.name + "' was retained only in source evidence and requires manual review.");
+            continue;
+        }
+        converted.push_back(std::move(capability));
+    }
+    std::stable_sort(
+        converted.begin(), converted.end(), [](const auto& left, const auto& right) {
+            return left.dmx_min < right.dmx_min;
+        });
+    return converted;
+}
+
 [[nodiscard]] showcore::Property custom_property(std::size_t index) noexcept {
     return static_cast<showcore::Property>(
         static_cast<std::size_t>(showcore::Property::Custom1) + index);
@@ -1220,14 +1397,68 @@ struct ActiveRange {
                 }
             }
         }
-        profile.channels.push_back({
+        ChannelDefinition definition{
             guess.property,
             reference.number,
             -1,
             encoding,
             dmx_min,
             dmx_max,
-            default_value});
+            default_value};
+        definition.blackout_value = 0U;
+        definition.highlight_value = 255U;
+        definition.owner = "fixture";
+        if (!source.capabilities.empty() && !guess.fine &&
+            encoding != showcore::ChannelEncoding::Linear16) {
+            definition.capabilities = convert_capabilities(
+                source, guess.property, result, mode_name);
+            if (!definition.capabilities.empty()) {
+                const auto first_property = definition.capabilities.front().property;
+                const auto compound = std::any_of(
+                    definition.capabilities.begin(),
+                    definition.capabilities.end(),
+                    [first_property](const auto& capability) {
+                        return capability.access !=
+                                   showcore::ChannelCapabilityAccess::Protected &&
+                            capability.property != first_property;
+                    });
+                definition.property = compound
+                    ? showcore::Property::Count
+                    : first_property;
+                definition.encoding = compound
+                    ? showcore::ChannelEncoding::Discrete8
+                    : definition.encoding;
+                const auto blackout = std::find_if(
+                    definition.capabilities.begin(),
+                    definition.capabilities.end(), [](const auto& capability) {
+                        return capability.role == FixtureChannelCapabilityRole::Blackout ||
+                            capability.role == FixtureChannelCapabilityRole::Closed;
+                    });
+                if (blackout != definition.capabilities.end()) {
+                    definition.blackout_value = blackout->preferred_value;
+                }
+                const auto highlight = std::find_if(
+                    definition.capabilities.begin(),
+                    definition.capabilities.end(), [](const auto& capability) {
+                        return capability.access ==
+                                showcore::ChannelCapabilityAccess::Selectable &&
+                            (capability.role == FixtureChannelCapabilityRole::Open ||
+                             capability.role == FixtureChannelCapabilityRole::Function);
+                    });
+                if (highlight != definition.capabilities.end()) {
+                    definition.highlight_value = highlight->preferred_value;
+                }
+                add_issue(
+                    result,
+                    QlcImportIssueSeverity::Warning,
+                    "capability.namedRangesImported",
+                    mode_name,
+                    "Channel '" + source.name + "' imported " +
+                        std::to_string(definition.capabilities.size()) +
+                        " named DMX range(s). Verify names, safety, and physical behavior before qualification.");
+            }
+        }
+        profile.channels.push_back(std::move(definition));
     }
 
     for (const auto& fine : fine_channels) {
@@ -1294,9 +1525,26 @@ struct ActiveRange {
         return false;
     }
 
+    std::vector<std::vector<showcore::ChannelCapabilityMapping>>
+        capability_storage(profile.channels.size());
     std::vector<showcore::ChannelMapping> runtime;
     runtime.reserve(profile.channels.size());
-    for (const auto& channel : profile.channels) {
+    for (std::size_t channel_index = 0U;
+         channel_index < profile.channels.size();
+         ++channel_index) {
+        const auto& channel = profile.channels[channel_index];
+        auto& capabilities = capability_storage[channel_index];
+        capabilities.reserve(channel.capabilities.size());
+        for (const auto& capability : channel.capabilities) {
+            capabilities.push_back({
+                capability.property,
+                capability.dmx_min,
+                capability.dmx_max,
+                capability.preferred_value,
+                capability.behavior,
+                capability.access,
+                capability.reversed});
+        }
         runtime.push_back({
             channel.property,
             channel.coarse_offset,
@@ -1304,7 +1552,11 @@ struct ActiveRange {
             channel.encoding,
             channel.dmx_min,
             channel.dmx_max,
-            channel.default_value});
+            channel.default_value,
+            channel.blackout_value,
+            channel.highlight_value,
+            capabilities.empty() ? nullptr : capabilities.data(),
+            capabilities.size()});
     }
     const showcore::FixtureProfile candidate{
         profile.name.c_str(), runtime.data(), runtime.size(), profile.footprint};

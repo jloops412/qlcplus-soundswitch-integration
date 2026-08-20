@@ -58,7 +58,14 @@ void LiveViewModel::load_project(const ProjectDocument& active_project) {
             look.name,
             static_cast<std::uint16_t>(index),
             false,
-            false});
+            false,
+            StaticLookBehavior::None,
+            StaticLookActivationStatus::None,
+            StaticLookOwnerKind::None,
+            0U,
+            0U,
+            0U,
+            0.0F});
     }
 
     autoloop_catalog_.clear();
@@ -156,6 +163,26 @@ void LiveViewModel::update(const RunnerStatus& status) noexcept {
     for (auto& look : static_looks_) {
         look.active = state_.active_look == static_cast<std::int32_t>(look.compiled_index);
         look.available = available;
+        if (look.active) {
+            look.behavior = state_.static_look.behavior;
+            look.status = state_.static_look.status;
+            look.owner_kind = state_.static_look.owner_kind;
+            look.owner_feedback_token =
+                state_.static_look.owner_feedback_token;
+            look.package_generation =
+                state_.static_look.package_generation;
+            look.activation_generation =
+                state_.static_look.activation_generation;
+            look.transition_progress = state_.static_look.transition_progress;
+        } else {
+            look.behavior = StaticLookBehavior::None;
+            look.status = StaticLookActivationStatus::None;
+            look.owner_kind = StaticLookOwnerKind::None;
+            look.owner_feedback_token = 0U;
+            look.package_generation = 0U;
+            look.activation_generation = 0U;
+            look.transition_progress = 0.0F;
+        }
     }
     for (auto& script : track_scripts_) {
         script.active =
@@ -257,6 +284,19 @@ void LiveViewModel::rebuild_active_content() noexcept {
         if (index < static_looks_.size()) {
             active_content_.static_look_id = static_looks_[index].id;
             active_content_.static_look_name = static_looks_[index].name;
+            active_content_.static_look_behavior =
+                state_.static_look.behavior;
+            active_content_.static_look_status = state_.static_look.status;
+            active_content_.static_look_owner_kind =
+                state_.static_look.owner_kind;
+            active_content_.static_look_owner_feedback_token =
+                state_.static_look.owner_feedback_token;
+            active_content_.static_look_package_generation =
+                state_.static_look.package_generation;
+            active_content_.static_look_activation_generation =
+                state_.static_look.activation_generation;
+            active_content_.static_look_transition_progress =
+                state_.static_look.transition_progress;
         }
     }
     if (state_.active_autoloop.valid()) {

@@ -9,7 +9,15 @@ EmberLights V1 testing builds are unsigned pre-release software. GitHub Actions 
 
 Windows 10 build 1809 or later and Windows 11 are the current implementation target. Real-machine qualification is still required before that range becomes a release guarantee.
 
+The NSIS bootstrap deliberately does not perform its own architecture or OS-version check. The packaged application is verified as a 64-bit Windows executable, and the Windows loader is the authoritative compatibility check; this avoids false rejections of supported Windows 11 x64 systems by the 32-bit installer bootstrap.
+
+Setup recognizes the stable EmberLights identity used by earlier Inno Setup and NSIS testing builds. It closes over those per-user uninstall records, removes the older program files before replacement, and preserves projects and user settings outside `%LocalAppData%\Programs\EmberLights`. The new build remains available under **Installed apps** and through **Start → EmberLights → Uninstall EmberLights**.
+
 Every packaged build records its product version and source commit in About/Diagnostics. GitHub artifacts also contain a SHA-256 checksum file and machine-readable release manifest.
+
+The Windows package additionally carries `EmberLights-Windows-payload-manifest.json`. It binds the package version and exact checked-out commit to the SHA-256 and size of every CMake-staged file, and records the testing-preview/non-outputting/no-physical-claim safety boundary. CI rejects the package if `git rev-parse HEAD` differs from that declared commit. On pull requests the exact checkout may be GitHub's synthetic merge commit; the contributor head is recorded separately as `sourceHeadCommit` in the external release manifest rather than being mislabeled as the packaged tree. Packaging also fails if a required application, tool, template, operator document, or notice is missing; if paths collide under Windows rules; or if the staged, portable, and installed payloads differ. The external release evidence retains the same payload manifest plus the report from the installed `emberlights_qualify.exe` smoke.
+
+Windows CI verifies a clean isolated install, `.emberlights` association, full installed-payload hashes, GUI startup, non-outputting Micro and Control One self-tests, a two-second qualification smoke with network output disabled, uninstall, and association cleanup. It separately extracts and verifies the portable ZIP and launches its GUI smoke. These checks do not yet exercise upgrade from an older build, rollback, Authenticode, hardware, or physical DMX; the format-2 release manifest reports upgrade and rollback as `not-run` until those distinct gates exist.
 
 Only one EmberLights process runs per Windows session, preventing duplicate DMX transmitters and OS2L listeners. Opening an `.emberlights` file while the app is already running forwards that project to the existing window, including its normal unsaved-changes prompt. The installer also asks the running app to close before replacing files.
 
@@ -18,7 +26,7 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
 1. Install EmberLights or extract the portable ZIP.
 2. Start the app. All DMX output is disabled in a new project; OS2L listens only on `127.0.0.1` by default. After one successful open or save, EmberLights reopens that project automatically on later launches.
 3. Build and validate a project before enabling output:
-   - choose or create a Fixture Profile, or use **Profiles → Import QLC+ Fixture (.qxf)...** and review the conversion report;
+   - choose or create a Fixture Profile, use **Import Fixture File (.qxf)...**, or search the official Open Fixture Library directly on Profiles and choose **Download + Import Selected**;
    - add each fixture under Patch with the correct universe, DMX address, and optional role tags;
    - create reusable Groups from the stable fixture IDs shown in Patch;
    - create Static Looks using `fixture-id,property,value` or `group-id,property,value` rows;
@@ -33,11 +41,38 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
    - press **Save & Apply Connections**. This validates and atomically saves every setting on the page into the project. If Runner is active and the adapter graph changed, EmberLights performs the normal zero-frame stop and restarts it from the saved settings.
 6. Start the show from Live. Confirm clock, adapter, frame, error, and jitter state under Diagnostics before triggering content.
 
-Imported QXF modes are read-only snapshots with recorded provenance. Duplicate one to make an editable local profile. Verify every imported channel against the fixture's official DMX chart—especially shared shutter/strobe functions, hazardous output, custom lanes, and multi-head fixtures—before enabling physical output. See `docs/16_QLC_FIXTURE_IMPORT.md` for the exact conversion and quarantine rules.
+Imported QXF/OFL modes are read-only snapshots with recorded provenance. Duplicate one to make an editable local profile. Official catalog downloads retain the OFL key/source URLs, MIT attribution, exact QXF SHA-256, and adapter version, but remain **unreviewed** because catalog/import success cannot prove the selected physical mode or fixture behavior. Verify every imported channel against the fixture's official DMX chart—especially shared shutter/strobe functions, hazardous output, custom lanes, and multi-head fixtures—before enabling physical output. See `docs/16_QLC_FIXTURE_IMPORT.md` for the exact conversion and quarantine rules.
+
+Profiles use a structured channel table and one shared semantic parameter catalog. Select a row to load its Property, Encoding, Fine, Min, Max, and Default fields. Properties are grouped as Intensity, Color, Position, Beam, Image, Effect, Atmosphere, and Custom—the same stable semantics used by Static Looks, Autoloops, Live overrides, MIDI/controllers, and future skins. **Apply Safe Defaults** immediately maps a direct emitter or other conservative linear control without typing ranges. It refuses strobe, shutter, wheel, macro, rotation, hazard, and Custom functions until their exact DMX-chart range/default is entered. **Add / Replace Channel** applies fully manual field edits. The audit names open footprint slots, chart-defined rows, safety restrictions, repeated semantics, and Custom rows. Templates remain starting points rather than fixture truth; QXF or an exact official OFL result remains preferable when available.
+
+White and Amber no longer have a permanent repair button. Core compiler/renderer regressions prove that each semantic reaches the offset in the active saved profile; the application does not globally invert those colors. If the physical fixture responds backwards:
+
+1. In Fixture Patch, identify the exact profile used by the affected fixture. In Profiles, **PATCH USAGE** must list that fixture, universe, and address.
+2. If the profile is built-in or imported, choose **Duplicate to Edit**. Do not edit an unused copy.
+3. Select the physical channel that produces amber, choose **Color • Amber**, then **Apply Safe Defaults**. Select the physical channel that produces white, choose **Color • White**, then **Apply Safe Defaults**.
+4. Choose **Save Profile**. When prompted, choose **Yes** to atomically rebind every listed fixture from the immutable source to this validated/compiled Local copy.
+5. While normal Live is stopped, preview isolated White and Amber at low output. Save the project only after both outputs and blackout match the physical fixture mode.
+
+The manufacturer-backed BO-IR4 6CH definition remains R/G/B/White/Amber/UV (White CH4, Amber CH5) because that is the published chart. A unit or firmware that behaves differently should use a separately named Local physical variant; do not silently rewrite the immutable source snapshot.
+
+## Static Look hardware preview
+
+While normal Live is stopped, Studio → Static Looks can preview the selected fixture/group on the configured output:
+
+1. Select a patched fixture or non-empty group and apply at least one Full Color, swatch, or property.
+2. Choose **Preview Selected Target on Fixtures** and acknowledge the bounded-output warning.
+3. Apply colors and properties normally. The active physical preview recompiles and updates those edits in realtime without extending its deadline.
+4. Choose **STOP PREVIEW**, leave Static Looks, or wait for the 30-second timeout. Each route stops through Runner's terminal blackout frames.
+
+The physical authoring preview keeps only the selected target, zeros profile defaults, disables OS2L/MIDI/Autoloops/Track Scripts, caps direct emitters and master at 35%, and refuses positive strobe/fog/haze/laser/spark/custom output or profiles with unsafe nonzero constant channels. The Live page labels this state **STUDIO HARDWARE PREVIEW** instead of claiming the show is running. It is useful visual feedback, not fixture qualification; use the Raw Hardware Test for channel/transport evidence.
 
 The native USB paths implement the published single-universe DMX USB Pro serial framing and an independently implemented SoundSwitch Micro WinUSB adapter. For the Micro, Diagnostics deliberately says **Open**, then separately reports accepted native frame writes, write failures, the last Windows error, and the number of nonzero rendered slots. Open/accepted writes prove host-side progress; only a responding physical receiver proves DMX interoperability. SoundSwitch must remain closed while EmberLights owns the Micro.
 
 Before assigning the Micro to a normal project, run **EmberLights Hardware Test** from the Start menu with the isolated IR-4 bench in `docs/MORNING_HARDWARE_TEST.md`. The guided test now includes raw output, compiled Runner output after a clean reopen, and an unplug/replug recovery stage through the same production session lifecycle. Its Desktop report names the first incomplete gate and only reports `passed` after operator-confirmed red and blackout in all three stages.
+
+Preview 95 also installs **IR-4 6CH Editable Bench** in the EmberLights Start-menu folder. That project is a separate Local, manual-derived diagnostic fixture profile with Blackout/Red/Green/Blue/White/Amber looks; every physical output is disabled in the distributed file. Follow `docs/IR4_6CH_RUNNER_FRAME_TEST.md`, save a working copy, and explicitly apply only the isolated Micro U1 route before starting Runner. Diagnostics then reports the exact pre-blackout and routed two-universe frame hashes, nonzero channels, fixture/profile/mapping/property attribution, and per-backend attempted/accepted results. When one of the bench looks is active, it also compares the routed frame with the immutable manual reference (White CH4, Amber CH5).
+
+An exact Diagnostics comparison establishes software-frame parity only. It does not prove that the selected fixture mode, cable, interface, or physical light interprets that channel as expected. If Diagnostics reports White on CH4 and Amber on CH5 while the fixture visibly does the reverse, use the general Local profile channel workbench to exchange those two compatible functions, save the profile/project, then Stop Show and Start Show before repeating the test. Preserve both reports rather than changing the immutable built-in reference.
 
 ## VirtualDJ and MIDI
 
@@ -67,7 +102,7 @@ Before assigning the Micro to a normal project, run **EmberLights Hardware Test*
 
 Do not use this build as the only lighting controller at a live event. It still needs the acceptance evidence in `04_V1_SCOPE_AND_ACCEPTANCE.md`, including real VirtualDJ/OS2L capture, Control One capture and feedback, representative Art-Net/sACN/USB-DMX receiver tests, interface disconnect/reconnect tests, low-end Windows measurements, eight-hour soak tests, shadow rehearsals, and a low-risk pilot.
 
-The installer is not code-signed yet, so Windows may show an unknown-publisher warning. Signing, upgrade/rollback validation, and public distribution are release gates rather than hidden limitations.
+The installer is not code-signed yet, so Windows may show an unknown-publisher warning. Signing, cross-version upgrade/rollback validation, and public distribution are release gates rather than hidden limitations. A matching payload hash, startup smoke, or synthetic qualification report proves package identity and software execution only; it does not graduate a hardware attempt or establish physical output.
 
 ## Machine qualification
 

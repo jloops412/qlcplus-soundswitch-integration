@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/audio_assets.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
 #include "emberlights/project.hpp"
@@ -10,6 +11,7 @@
 #include "emberlights/soundswitch_import.hpp"
 #include "emberlights/soundswitch_source_binding.hpp"
 #include "emberlights/soundswitch_v1.hpp"
+#include "emberlights/static_look_preview.hpp"
 #include "showcore/artnet.hpp"
 #include "showcore/autoloop.hpp"
 #include "showcore/dmx_usb_pro.hpp"
@@ -165,6 +167,38 @@ void cleanup_test_network() {}
         }
         sent_total += static_cast<std::size_t>(sent);
     }
+    return true;
+}
+
+[[nodiscard]] bool receive_once(
+    TestSocket socket,
+    std::string& bytes,
+    std::uint32_t timeout_ms = 1000U) {
+    fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(socket, &read_set);
+    timeval timeout{};
+    timeout.tv_sec = static_cast<long>(timeout_ms / 1000U);
+    timeout.tv_usec = static_cast<long>((timeout_ms % 1000U) * 1000U);
+#ifdef _WIN32
+    const auto selected = ::select(0, &read_set, nullptr, nullptr, &timeout);
+#else
+    const auto selected = ::select(socket + 1, &read_set, nullptr, nullptr, &timeout);
+#endif
+    if (selected != 1) {
+        return false;
+    }
+    std::array<char, 256U> buffer{};
+#ifdef _WIN32
+    const auto received = ::recv(
+        socket, buffer.data(), static_cast<int>(buffer.size()), 0);
+#else
+    const auto received = ::recv(socket, buffer.data(), buffer.size(), 0);
+#endif
+    if (received <= 0) {
+        return false;
+    }
+    bytes.assign(buffer.data(), static_cast<std::size_t>(received));
     return true;
 }
 
@@ -370,6 +404,18 @@ void test_generic_profile_rendering() {
     CHECK(engine->frames().universes[0][5] == 0U);
     CHECK(engine->frames().universes[0][6] == 9U);
     CHECK(engine->frames().universes[0][7] == 128U);
+    const auto& defaults = engine->frame_attribution().universes[0];
+    CHECK(defaults[0].fixture_id == 0U);
+    CHECK(defaults[0].mapping_index == 0U);
+    CHECK(defaults[0].property == showcore::Property::Intensity);
+    CHECK(defaults[0].origin == showcore::RenderValueOrigin::Default);
+    CHECK(defaults[0].value_mode == showcore::ValueMode::Release);
+    CHECK(defaults[0].winning_layer == showcore::LayerId::Count);
+    CHECK(defaults[2].encoding == showcore::ChannelEncoding::Linear16);
+    CHECK(!defaults[2].fine_channel);
+    CHECK(defaults[3].fine_channel);
+    CHECK(defaults[4].origin == showcore::RenderValueOrigin::Constant);
+    CHECK(defaults[4].property == showcore::Property::Count);
 
     engine->layers().set(showcore::LayerId::TrackScript, 0,
         showcore::Property::Intensity, showcore::PropertyValue::set(0.0F));
@@ -386,6 +432,14 @@ void test_generic_profile_rendering() {
     CHECK(engine->frames().universes[0][2] == 0x80U);
     CHECK(engine->frames().universes[0][3] == 0x00U);
     CHECK(engine->frames().universes[0][5] == 100U);
+    const auto& resolved = engine->frame_attribution().universes[0];
+    CHECK(resolved[0].origin == showcore::RenderValueOrigin::Property);
+    CHECK(resolved[0].value_mode == showcore::ValueMode::Set);
+    CHECK(resolved[0].winning_layer == showcore::LayerId::TrackScript);
+    CHECK(resolved[0].property == showcore::Property::Intensity);
+    CHECK(resolved[2].origin == showcore::RenderValueOrigin::Property);
+    CHECK(resolved[3].origin == showcore::RenderValueOrigin::Property);
+    CHECK(resolved[3].fine_channel);
 
     engine->layers().set(showcore::LayerId::Emergency, 0,
         showcore::Property::Intensity, showcore::PropertyValue::force_zero());
@@ -394,6 +448,10 @@ void test_generic_profile_rendering() {
     engine->tick();
     CHECK(engine->frames().universes[0][0] == 0U);
     CHECK(engine->frames().universes[0][1] == 0U);
+    const auto& forced = engine->frame_attribution().universes[0];
+    CHECK(forced[0].origin == showcore::RenderValueOrigin::Property);
+    CHECK(forced[0].value_mode == showcore::ValueMode::ForceZero);
+    CHECK(forced[0].winning_layer == showcore::LayerId::Emergency);
 }
 
 void test_ranged_channel_rendering() {
@@ -419,6 +477,71 @@ void test_ranged_channel_rendering() {
     engine->safety().strobe_allowed = false;
     engine->tick();
     CHECK(engine->frames().universes[0][0] == 0U);
+    const auto& safety = engine->frame_attribution().universes[0][0];
+    CHECK(safety.origin == showcore::RenderValueOrigin::Safety);
+    CHECK(safety.property == showcore::Property::Strobe);
+    CHECK(safety.value_mode == showcore::ValueMode::ForceZero);
+    CHECK(safety.winning_layer == showcore::LayerId::Safety);
+}
+
+void test_capability_frame_attribution() {
+    const std::array<showcore::ChannelCapabilityMapping, 3U> capabilities{{
+        {showcore::Property::Red, 0U, 63U, 32U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::Selectable, false},
+        {showcore::Property::Green, 64U, 127U, 96U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::Selectable, false},
+        {showcore::Property::Laser, 128U, 255U, 192U,
+         showcore::ChannelCapabilityBehavior::Continuous,
+         showcore::ChannelCapabilityAccess::SafetyGated, false}
+    }};
+    const std::array<showcore::ChannelMapping, 1U> channels{{
+        {showcore::Property::Count, 0U, -1,
+         showcore::ChannelEncoding::Discrete8, 0U, 255U, 7U, 0U, 255U,
+         capabilities.data(), capabilities.size()}
+    }};
+    const showcore::FixtureProfile profile{
+        "Capability attribution", channels.data(), channels.size(), 1U};
+    auto engine = std::make_unique<showcore::Engine>();
+    CHECK(engine->patch().add({7U, 0U, 10U, &profile}));
+
+    engine->tick();
+    auto evidence = engine->frame_attribution().universes[0][9];
+    CHECK(engine->frames().universes[0][9] == 7U);
+    CHECK(evidence.fixture_id == 7U);
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Default);
+
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Red, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    evidence = engine->frame_attribution().universes[0][9];
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Capability);
+    CHECK(evidence.property == showcore::Property::Red);
+    CHECK(evidence.capability_index == 0U);
+    CHECK(evidence.winning_layer == showcore::LayerId::ManualOverride);
+
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Green, showcore::PropertyValue::set(0.5F));
+    engine->tick();
+    evidence = engine->frame_attribution().universes[0][9];
+    CHECK(engine->frames().universes[0][9] == 0U);
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Conflict);
+    CHECK(evidence.winning_layer == showcore::LayerId::ManualOverride);
+
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Red, showcore::PropertyValue::release());
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Green, showcore::PropertyValue::release());
+    engine->layers().set(showcore::LayerId::ManualOverride, 7U,
+        showcore::Property::Laser, showcore::PropertyValue::set(1.0F));
+    engine->tick();
+    evidence = engine->frame_attribution().universes[0][9];
+    CHECK(engine->frames().universes[0][9] == 0U);
+    CHECK(evidence.origin == showcore::RenderValueOrigin::Safety);
+    CHECK(evidence.property == showcore::Property::Laser);
+    CHECK(evidence.value_mode == showcore::ValueMode::ForceZero);
+    CHECK(evidence.winning_layer == showcore::LayerId::Safety);
 }
 
 void test_qlc_fixture_import() {
@@ -478,13 +601,33 @@ void test_qlc_fixture_import() {
         CHECK(dimmer->coarse_offset == 0U && dimmer->fine_offset == 1);
         CHECK(dimmer->default_value == 0x0102U);
     }
-    const auto strobe = std::find_if(profile.channels.begin(), profile.channels.end(),
-        [](const auto& channel) { return channel.property == showcore::Property::Strobe; });
-    CHECK(strobe != profile.channels.end());
-    if (strobe != profile.channels.end()) {
-        CHECK(strobe->encoding == showcore::ChannelEncoding::Ranged8);
-        CHECK(strobe->dmx_min == 16U && strobe->dmx_max == 127U);
-        CHECK(strobe->default_value == 8U);
+    const auto shutter_strobe = std::find_if(
+        profile.channels.begin(), profile.channels.end(), [](const auto& channel) {
+            return std::any_of(
+                channel.capabilities.begin(),
+                channel.capabilities.end(),
+                [](const auto& capability) {
+                    return capability.property == showcore::Property::Strobe;
+                });
+        });
+    CHECK(shutter_strobe != profile.channels.end());
+    if (shutter_strobe != profile.channels.end()) {
+        CHECK(shutter_strobe->property == showcore::Property::Count);
+        CHECK(shutter_strobe->capabilities.size() == 4U);
+        CHECK(shutter_strobe->default_value == 8U);
+        const auto strobe_range = std::find_if(
+            shutter_strobe->capabilities.begin(),
+            shutter_strobe->capabilities.end(),
+            [](const auto& capability) {
+                return capability.property == showcore::Property::Strobe;
+            });
+        CHECK(strobe_range != shutter_strobe->capabilities.end());
+        if (strobe_range != shutter_strobe->capabilities.end()) {
+            CHECK(strobe_range->dmx_min == 16U);
+            CHECK(strobe_range->dmx_max == 127U);
+            CHECK(strobe_range->access ==
+                  showcore::ChannelCapabilityAccess::SafetyGated);
+        }
     }
     CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
         [](const auto& channel) { return channel.property == showcore::Property::Haze; }));
@@ -501,10 +644,29 @@ void test_qlc_fixture_import() {
     CHECK(std::any_of(profile.channels.begin(), profile.channels.end(),
         [](const auto& channel) { return channel.property == showcore::Property::Custom1; }));
 
+    std::vector<std::vector<showcore::ChannelCapabilityMapping>> capability_storage(
+        profile.channels.size());
     std::vector<showcore::ChannelMapping> mappings;
-    for (const auto& channel : profile.channels) {
+    for (std::size_t channel_index = 0U;
+         channel_index < profile.channels.size();
+         ++channel_index) {
+        const auto& channel = profile.channels[channel_index];
+        auto& capabilities = capability_storage[channel_index];
+        for (const auto& capability : channel.capabilities) {
+            capabilities.push_back({
+                capability.property,
+                capability.dmx_min,
+                capability.dmx_max,
+                capability.preferred_value,
+                capability.behavior,
+                capability.access,
+                capability.reversed});
+        }
         mappings.push_back({channel.property, channel.coarse_offset, channel.fine_offset,
-            channel.encoding, channel.dmx_min, channel.dmx_max, channel.default_value});
+            channel.encoding, channel.dmx_min, channel.dmx_max, channel.default_value,
+            channel.blackout_value, channel.highlight_value,
+            capabilities.empty() ? nullptr : capabilities.data(),
+            capabilities.size()});
     }
     const showcore::FixtureProfile runtime{
         profile.name.c_str(), mappings.data(), mappings.size(), profile.footprint};
@@ -530,7 +692,7 @@ void test_qlc_fixture_import() {
     CHECK(parsed.fixture_profiles.back().source == showcore::FixtureProfileSource::QlcPlus);
     CHECK(std::any_of(parsed.fixture_profiles.back().channels.begin(),
         parsed.fixture_profiles.back().channels.end(), [](const auto& channel) {
-            return channel.encoding == showcore::ChannelEncoding::Ranged8;
+            return !channel.capabilities.empty();
         }));
 
     const auto external_entity = emberlights::import_qlc_fixture(
@@ -586,6 +748,17 @@ void test_qlc_fixture_import() {
     CHECK(laser_profile.channels[0].dmx_min == 8U);
     CHECK(laser_profile.channels[0].dmx_max == 15U);
 
+    std::vector<showcore::ChannelCapabilityMapping> laser_capabilities;
+    for (const auto& capability : laser_profile.channels[0].capabilities) {
+        laser_capabilities.push_back({
+            capability.property,
+            capability.dmx_min,
+            capability.dmx_max,
+            capability.preferred_value,
+            capability.behavior,
+            capability.access,
+            capability.reversed});
+    }
     const showcore::ChannelMapping laser_mapping{
         laser_profile.channels[0].property,
         laser_profile.channels[0].coarse_offset,
@@ -593,7 +766,11 @@ void test_qlc_fixture_import() {
         laser_profile.channels[0].encoding,
         laser_profile.channels[0].dmx_min,
         laser_profile.channels[0].dmx_max,
-        laser_profile.channels[0].default_value};
+        laser_profile.channels[0].default_value,
+        laser_profile.channels[0].blackout_value,
+        laser_profile.channels[0].highlight_value,
+        laser_capabilities.data(),
+        laser_capabilities.size()};
     const showcore::FixtureProfile laser_runtime{
         laser_profile.name.c_str(), &laser_mapping, 1U, laser_profile.footprint};
     auto laser_engine = std::make_unique<showcore::Engine>();
@@ -601,10 +778,10 @@ void test_qlc_fixture_import() {
     laser_engine->layers().set(showcore::LayerId::ManualOverride, 0,
         showcore::Property::Laser, showcore::PropertyValue::set(1.0F));
     laser_engine->tick();
-    CHECK(laser_engine->frames().universes[0][0] == 0U);
+    CHECK(laser_engine->frames().universes[0][0] == 3U);
     laser_engine->safety().laser_armed = true;
     laser_engine->tick();
-    CHECK(laser_engine->frames().universes[0][0] == 15U);
+    CHECK(laser_engine->frames().universes[0][0] == 11U);
 }
 
 void test_compiled_fixture_library() {
@@ -1097,6 +1274,26 @@ void test_os2l_server_lifecycle() {
         showcore::Os2lPollResult::ClientConnected);
     CHECK(server.state() == showcore::Os2lServerState::ClientConnected);
 
+    constexpr std::string_view feedback_off =
+        R"({"evt":"feedback","name":"blackout","state":"off"})";
+    constexpr std::string_view feedback_on =
+        R"({"evt":"feedback","name":"blackout","state":"on"})";
+    CHECK(server.queue_blackout_feedback(false));
+    CHECK(!server.blackout_feedback_synchronized(false));
+    CHECK(server.poll(&capture_os2l_event, nullptr, 1000) ==
+        showcore::Os2lPollResult::Idle);
+    std::string feedback;
+    CHECK(receive_once(client, feedback));
+    CHECK(feedback == feedback_off);
+    CHECK(server.blackout_feedback_synchronized(false));
+    CHECK(server.queue_blackout_feedback(false));
+    CHECK(server.queue_blackout_feedback(true));
+    CHECK(server.poll(&capture_os2l_event, nullptr, 1000) ==
+        showcore::Os2lPollResult::Idle);
+    CHECK(receive_once(client, feedback));
+    CHECK(feedback == feedback_on);
+    CHECK(server.blackout_feedback_synchronized(true));
+
     Os2lCapture capture{};
     constexpr std::string_view messages =
         R"({"evt":"beat","change":true,"pos":17,"bpm":124.5})"
@@ -1122,6 +1319,13 @@ void test_os2l_server_lifecycle() {
     CHECK(client != kInvalidTestSocket);
     CHECK(server.poll(&capture_os2l_event, &capture, 1000) ==
         showcore::Os2lPollResult::ClientConnected);
+    CHECK(!server.blackout_feedback_synchronized(true));
+    CHECK(server.queue_blackout_feedback(true));
+    CHECK(server.poll(&capture_os2l_event, &capture, 1000) ==
+        showcore::Os2lPollResult::Idle);
+    CHECK(receive_once(client, feedback));
+    CHECK(feedback == feedback_on);
+    CHECK(server.blackout_feedback_synchronized(true));
     constexpr std::string_view second =
         R"({"evt":"beat","change":true,"pos":18,"bpm":125.0})";
     CHECK(send_all(client, second));
@@ -1139,6 +1343,10 @@ void test_os2l_server_lifecycle() {
     CHECK(server.stats().messages == 3U);
     CHECK(server.stats().decode_errors == 0U);
     CHECK(server.stats().client_errors == 0U);
+    CHECK(server.stats().feedback_messages == 3U);
+    CHECK(server.stats().feedback_errors == 0U);
+    CHECK(server.stats().bytes_sent ==
+        feedback_off.size() + feedback_on.size() * 2U);
     server.close();
     CHECK(server.state() == showcore::Os2lServerState::Closed);
 }
@@ -1297,6 +1505,7 @@ void test_winmm_midi_platform_boundary() {
     CHECK(!output.open(0, 1));
     showcore::MidiMessage message;
     CHECK(!input.poll(message));
+    CHECK(!input.connected(1U));
     CHECK(!output.send(1, message));
 #endif
 }
@@ -2149,6 +2358,8 @@ void test_runner_os2l_startup_without_button_trigger() {
     }
 
     emberlights::RunnerService runner;
+    emberlights::RunnerOutputSnapshot unavailable_output;
+    CHECK(!runner.latest_output_snapshot(unavailable_output));
     CHECK(runner.start(std::move(compilation.show), project));
     const auto listen_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     auto status = runner.status();
@@ -2172,7 +2383,9 @@ void test_runner_os2l_startup_without_button_trigger() {
         const auto beat_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         status = runner.status();
         while ((status.os2l_messages < 1U ||
-                std::abs(status.bpm - 137.25) >= 0.01) &&
+                std::abs(status.bpm - 137.25) >= 0.01 ||
+                status.os2l_feedback_messages < 1U ||
+                !status.os2l_blackout_feedback_synchronized) &&
                std::chrono::steady_clock::now() < beat_deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             status = runner.status();
@@ -2181,6 +2394,9 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(status.os2l_connections == 1U);
         CHECK(status.os2l_messages == 1U);
         CHECK(status.os2l_decode_errors == 0U);
+        CHECK(status.os2l_feedback_messages >= 1U);
+        CHECK(status.os2l_feedback_errors == 0U);
+        CHECK(status.os2l_blackout_feedback_synchronized);
         CHECK(std::abs(status.bpm - 137.25) < 0.01);
         CHECK(status.clock_source == showcore::ClockSource::Os2l);
 
@@ -2218,29 +2434,114 @@ void test_runner_os2l_startup_without_button_trigger() {
         CHECK(wait_for_live_state(0, {7U, 3U}, 2U));
         CHECK(send_all(client, blue_on));
         CHECK(wait_for_live_state(1, {7U, 3U}, 3U));
-        CHECK(send_all(client, red_off));
+        CHECK(send_all(client, red_on));
         CHECK(wait_for_live_state(1, {7U, 3U}, 4U));
+        CHECK(send_all(client, red_off));
+        CHECK(wait_for_live_state(1, {7U, 3U}, 5U));
         CHECK(send_all(client, blue_off));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 5U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 6U));
+        CHECK(send_all(client, red_on));
+        CHECK(wait_for_live_state(0, {7U, 3U}, 7U));
+        CHECK(send_all(client, red_off));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 8U));
         CHECK(send_all(client, alternate_on));
-        CHECK(wait_for_live_state(-1, {7U, 4U}, 6U));
+        CHECK(wait_for_live_state(-1, {7U, 4U}, 9U));
         CHECK(send_all(client, alternate_off));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 7U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 10U));
         constexpr std::string_view blackout_on =
             R"({"evt":"btn","name":"blackout","state":"on"})";
         constexpr std::string_view blackout_off =
             R"({"evt":"btn","name":"blackout","state":"off"})";
         CHECK(send_all(client, blackout_on));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 8U));
-        CHECK(runner.status().blackout);
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 11U));
+        const auto feedback_on_deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((!status.blackout ||
+                !status.os2l_blackout_feedback_synchronized ||
+                status.os2l_feedback_messages < 2U) &&
+               std::chrono::steady_clock::now() < feedback_on_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.blackout);
+        CHECK(status.os2l_blackout_feedback_synchronized);
+        CHECK(status.os2l_feedback_messages >= 2U);
         CHECK(send_all(client, keepalive));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 9U));
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 12U));
         CHECK(runner.status().blackout);
         CHECK(send_all(client, blackout_off));
-        CHECK(wait_for_live_state(-1, {7U, 3U}, 10U));
-        CHECK(!runner.status().blackout);
-        CHECK(status.dropped_os2l_actions == 0U);
+        CHECK(wait_for_live_state(-1, {7U, 3U}, 13U));
+        const auto feedback_off_deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.blackout ||
+                !status.os2l_blackout_feedback_synchronized ||
+                status.os2l_feedback_messages < 3U) &&
+               std::chrono::steady_clock::now() < feedback_off_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(!status.blackout);
+        CHECK(status.os2l_blackout_feedback_synchronized);
+        CHECK(status.os2l_feedback_messages >= 3U);
+        CHECK(send_all(client, red_on));
+        CHECK(wait_for_live_state(0, {7U, 3U}, 14U));
         close_test_socket(client);
+        const auto disconnect_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        status = runner.status();
+        while ((status.active_look != -1 ||
+                status.os2l != emberlights::AdapterState::Waiting) &&
+               std::chrono::steady_clock::now() < disconnect_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = runner.status();
+        }
+        CHECK(status.active_look == -1);
+        CHECK(status.os2l == emberlights::AdapterState::Waiting);
+        CHECK(status.dropped_os2l_actions == 0U);
+
+        const auto reconnect = connect_loopback(project.connections.os2l_port);
+        CHECK(reconnect != kInvalidTestSocket);
+        if (reconnect != kInvalidTestSocket) {
+            const auto reconnect_deadline = std::chrono::steady_clock::now() +
+                std::chrono::seconds(2);
+            status = runner.status();
+            while (status.os2l_connections < 2U &&
+                   std::chrono::steady_clock::now() < reconnect_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.os2l_connections == 2U);
+            const auto feedback_reconnect_deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            while ((!status.os2l_blackout_feedback_synchronized ||
+                    status.os2l_feedback_messages < 4U) &&
+                   std::chrono::steady_clock::now() <
+                       feedback_reconnect_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.os2l_blackout_feedback_synchronized);
+            CHECK(status.os2l_feedback_messages >= 4U);
+            CHECK(send_all(reconnect, red_on));
+            close_test_socket(reconnect);
+            const auto queued_disconnect_deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds(2);
+            status = runner.status();
+            while ((status.os2l_messages < 15U ||
+                    status.active_look != -1 ||
+                    status.os2l != emberlights::AdapterState::Waiting) &&
+                   std::chrono::steady_clock::now() <
+                       queued_disconnect_deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                status = runner.status();
+            }
+            CHECK(status.os2l_messages >= 15U);
+            CHECK(status.active_look == -1);
+            CHECK(status.os2l == emberlights::AdapterState::Waiting);
+            CHECK(status.dropped_os2l_actions == 0U);
+        }
     }
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
@@ -2248,6 +2549,40 @@ void test_runner_os2l_startup_without_button_trigger() {
 }
 
 void test_runner_service_lifecycle() {
+    emberlights::StaticLookBindingLease adapter_lease;
+    CHECK(adapter_lease.record_begin(0x77U, 4U, 12U));
+    CHECK(adapter_lease.outstanding());
+    CHECK(!adapter_lease.record_begin(0x77U, 4U, 13U));
+    const auto adapter_release = adapter_lease.consume_release(
+        emberlights::StaticLookOwnerKind::Midi, 0x77U);
+    CHECK(adapter_release.expected_package_generation == 4U);
+    CHECK(adapter_release.expected_activation_generation == 12U);
+    CHECK(!adapter_lease.outstanding());
+    CHECK(adapter_lease.record_begin(0x77U, 4U, 13U));
+    adapter_lease.clear();
+    CHECK(!adapter_lease.outstanding());
+    CHECK(adapter_lease.consume_release(
+              emberlights::StaticLookOwnerKind::Midi, 0x77U)
+              .expected_activation_generation == 0U);
+    CHECK(adapter_lease.record_begin(0x77U, 4U, 14U, 0x901U));
+    CHECK(adapter_lease.belongs_to(0x901U));
+    CHECK(adapter_lease.belongs_to(0x901U, 0x77U));
+    CHECK(!adapter_lease.belongs_to(0x902U));
+    CHECK(adapter_lease.consume_release(
+              emberlights::StaticLookOwnerKind::Midi,
+              0x77U,
+              0x902U)
+              .expected_activation_generation == 0U);
+    CHECK(adapter_lease.outstanding());
+    const auto session_release = adapter_lease.consume_release(
+        emberlights::StaticLookOwnerKind::Midi,
+        0x77U,
+        0x901U);
+    CHECK(session_release.owner_session_token == 0x901U);
+    CHECK(session_release.expected_package_generation == 4U);
+    CHECK(session_release.expected_activation_generation == 14U);
+    CHECK(!adapter_lease.outstanding());
+
     auto project = make_test_project();
     project.connections.os2l_enabled = false;
     project.connections.artnet_enabled = false;
@@ -2264,6 +2599,55 @@ void test_runner_service_lifecycle() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     CHECK(runner.status().state == emberlights::RunnerState::Running);
+    auto wait_for_output_snapshot = [&](auto predicate) {
+        const auto output_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        emberlights::RunnerOutputSnapshot output;
+        bool available = false;
+        while (std::chrono::steady_clock::now() < output_deadline) {
+            available = runner.latest_output_snapshot(output);
+            if (available && predicate(output)) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        CHECK(available);
+        CHECK(predicate(output));
+        return output;
+    };
+    const auto first_output = wait_for_output_snapshot([](const auto& output) {
+        return output.generation == 1U && output.sequence != 0U &&
+            output.rendered_at_ms != 0U && !output.blackout_applied;
+    });
+    CHECK(first_output.pre_blackout_frames.universes ==
+          first_output.routed_frames.universes);
+    CHECK(first_output.attribution.universes[0][0].fixture_id == 0U);
+    CHECK(std::all_of(
+        first_output.routes.begin(), first_output.routes.end(),
+        [](const auto& route) {
+            return !route.configured && route.attempted_frames == 0U &&
+                route.accepted_frames == 0U;
+        }));
+    for (std::size_t sample = 0U; sample < 256U; ++sample) {
+        emberlights::RunnerOutputSnapshot coherent;
+        CHECK(runner.latest_output_snapshot(coherent));
+        CHECK(coherent.generation == 1U);
+        CHECK(coherent.sequence != 0U);
+        CHECK(coherent.rendered_at_ms != 0U);
+        if (coherent.blackout_applied) {
+            CHECK(std::all_of(
+                coherent.routed_frames.universes.begin(),
+                coherent.routed_frames.universes.end(),
+                [](const auto& universe) {
+                    return std::all_of(
+                        universe.begin(), universe.end(),
+                        [](std::uint8_t value) { return value == 0U; });
+                }));
+        } else {
+            CHECK(coherent.pre_blackout_frames.universes ==
+                  coherent.routed_frames.universes);
+        }
+    }
     auto wait_for_active_look = [&](std::int32_t expected) {
         const auto look_deadline = std::chrono::steady_clock::now() +
             std::chrono::seconds(2);
@@ -2273,19 +2657,262 @@ void test_runner_service_lifecycle() {
         }
         return runner.status().active_look == expected;
     };
-    CHECK(runner.trigger_look(0U));
+    auto wait_for_static_look = [&](auto predicate) {
+        const auto look_deadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(2);
+        auto snapshot = runner.status();
+        while (!predicate(snapshot.static_look) &&
+               std::chrono::steady_clock::now() < look_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            snapshot = runner.status();
+        }
+        return snapshot;
+    };
+    const emberlights::StaticLookOwnerContext owner_a{
+        emberlights::StaticLookOwnerKind::Test, 0xA1U, 0U, 0U};
+    const emberlights::StaticLookOwnerContext owner_b{
+        emberlights::StaticLookOwnerKind::Controller, 0xB2U, 0U, 0U};
+    CHECK(!runner.hold_look(0U, true, {}));
+    CHECK(!runner.hold_look(0U, true, {
+        emberlights::StaticLookOwnerKind::Test, 0U, 0U, 0U}));
+    CHECK(!runner.hold_look(0U, false, owner_a));
+
+    CHECK(runner.trigger_look(0U, owner_a));
     CHECK(wait_for_active_look(0));
-    CHECK(runner.toggle_look(0U));
+    auto explicit_activation = runner.status().static_look;
+    CHECK(explicit_activation.look_index == 0);
+    CHECK(explicit_activation.package_generation == 1U);
+    CHECK(explicit_activation.activation_generation != 0U);
+    CHECK(explicit_activation.owner_kind == emberlights::StaticLookOwnerKind::Test);
+    CHECK(explicit_activation.owner_feedback_token == owner_a.feedback_token);
+    CHECK(explicit_activation.behavior == emberlights::StaticLookBehavior::Explicit);
+    CHECK(explicit_activation.status ==
+              emberlights::StaticLookActivationStatus::Activating ||
+          explicit_activation.status ==
+              emberlights::StaticLookActivationStatus::Active);
+    const auto status_allocations_before =
+        g_allocations.load(std::memory_order_relaxed);
+    for (std::size_t sample = 0U; sample < 4096U; ++sample) {
+        const auto coherent = runner.status();
+        CHECK(coherent.active_look == coherent.static_look.look_index);
+        if (coherent.static_look.status ==
+            emberlights::StaticLookActivationStatus::None) {
+            CHECK(coherent.static_look.look_index == -1);
+            CHECK(coherent.static_look.activation_generation == 0U);
+        } else {
+            CHECK(coherent.static_look.look_index >= 0);
+            CHECK(coherent.static_look.package_generation != 0U);
+            CHECK(coherent.static_look.activation_generation != 0U);
+            CHECK(coherent.static_look.owner_kind !=
+                  emberlights::StaticLookOwnerKind::None);
+            CHECK(coherent.static_look.behavior !=
+                  emberlights::StaticLookBehavior::None);
+            CHECK(coherent.static_look.transition_progress >= 0.0F);
+            CHECK(coherent.static_look.transition_progress <= 1.0F);
+        }
+    }
+    CHECK(g_allocations.load(std::memory_order_relaxed) ==
+          status_allocations_before);
+
+    CHECK(runner.toggle_look(0U, owner_a));
     CHECK(wait_for_active_look(-1));
-    CHECK(runner.toggle_look(0U));
+    CHECK(runner.toggle_look(0U, owner_a));
     CHECK(wait_for_active_look(0));
-    CHECK(runner.hold_look(1U, true));
-    CHECK(wait_for_active_look(1));
-    CHECK(runner.hold_look(0U, false));
+    const auto toggled = runner.status().static_look;
+    CHECK(toggled.behavior == emberlights::StaticLookBehavior::Latch);
+    CHECK(toggled.activation_generation >
+          explicit_activation.activation_generation);
+
+    CHECK(runner.hold_look(1U, true, owner_a));
+    auto held_a = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0xA1U;
+    }).static_look;
+    CHECK(held_a.activation_generation > toggled.activation_generation);
+    CHECK(runner.hold_look(1U, true, owner_a));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    CHECK(runner.status().active_look == 1);
-    CHECK(runner.hold_look(1U, false));
+    CHECK(runner.status().static_look.activation_generation ==
+          held_a.activation_generation);
+
+    CHECK(runner.hold_look(1U, true, owner_b));
+    auto held_b = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0xB2U;
+    }).static_look;
+    CHECK(held_b.activation_generation > held_a.activation_generation);
+
+    auto stale_owner_a = owner_a;
+    stale_owner_a.expected_package_generation = held_a.package_generation;
+    stale_owner_a.expected_activation_generation =
+        held_a.activation_generation;
+    CHECK(runner.hold_look(1U, false, stale_owner_a));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          held_b.activation_generation);
+    CHECK(runner.status().static_look.owner_feedback_token ==
+          owner_b.feedback_token);
+
+    auto owner_b_release = owner_b;
+    owner_b_release.expected_package_generation = held_b.package_generation;
+    owner_b_release.expected_activation_generation =
+        held_b.activation_generation;
+    CHECK(runner.hold_look(1U, false, owner_b_release));
     CHECK(wait_for_active_look(-1));
+
+    CHECK(runner.hold_look(0U, true, owner_a));
+    held_a = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold;
+    }).static_look;
+    CHECK(runner.hold_look(1U, true, owner_b));
+    held_b = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.owner_feedback_token == 0xB2U;
+    }).static_look;
+    stale_owner_a.expected_package_generation = held_a.package_generation;
+    stale_owner_a.expected_activation_generation =
+        held_a.activation_generation;
+    CHECK(runner.hold_look(0U, false, stale_owner_a));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          held_b.activation_generation);
+
+    CHECK(runner.toggle_look(1U, owner_a));
+    const auto latch_replacement = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.behavior == emberlights::StaticLookBehavior::Latch;
+    }).static_look;
+    CHECK(latch_replacement.activation_generation >
+          held_b.activation_generation);
+    owner_b_release.expected_package_generation = held_b.package_generation;
+    owner_b_release.expected_activation_generation =
+        held_b.activation_generation;
+    CHECK(runner.hold_look(1U, false, owner_b_release));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          latch_replacement.activation_generation);
+
+    CHECK(runner.clear_look());
+    CHECK(wait_for_active_look(-1));
+
+    const emberlights::StaticLookOwnerContext controller_session_a{
+        emberlights::StaticLookOwnerKind::Controller,
+        0xC1U,
+        0U,
+        0U,
+        0x1001U};
+    const emberlights::StaticLookOwnerContext controller_session_b{
+        emberlights::StaticLookOwnerKind::Controller,
+        0xC2U,
+        0U,
+        0U,
+        0x1002U};
+    CHECK(!runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::None, 0x1001U));
+    CHECK(!runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0U));
+    CHECK(runner.hold_look(0U, true, controller_session_a));
+    const auto session_a_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.owner_kind == emberlights::StaticLookOwnerKind::Controller &&
+            current.owner_feedback_token == 0xC1U;
+    }).static_look;
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1002U));
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U, 0xC2U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(75));
+    CHECK(runner.status().static_look.activation_generation ==
+          session_a_hold.activation_generation);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    CHECK(wait_for_active_look(-1));
+
+    CHECK(runner.hold_look(1U, true, controller_session_b));
+    const auto session_b_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 1 &&
+            current.owner_feedback_token == 0xC2U;
+    }).static_look;
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(75));
+    CHECK(runner.status().static_look.activation_generation ==
+          session_b_hold.activation_generation);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1002U, 0xC2U));
+    CHECK(wait_for_active_look(-1));
+
+    CHECK(runner.toggle_look(0U, controller_session_a));
+    const auto session_latch = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Latch &&
+            current.owner_feedback_token == 0xC1U;
+    }).static_look;
+    CHECK(session_latch.activation_generation >
+          session_b_hold.activation_generation);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    CHECK(wait_for_active_look(-1));
+
+    const auto command_allocations_before =
+        g_allocations.load(std::memory_order_relaxed);
+    CHECK(runner.hold_look(0U, true, owner_a));
+    const auto allocation_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold;
+    }).static_look;
+    auto allocation_release = owner_a;
+    allocation_release.expected_package_generation =
+        allocation_hold.package_generation;
+    allocation_release.expected_activation_generation =
+        allocation_hold.activation_generation;
+    CHECK(runner.hold_look(0U, false, allocation_release));
+    CHECK(wait_for_active_look(-1));
+    CHECK(runner.hold_look(0U, true, controller_session_b));
+    static_cast<void>(wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.owner_feedback_token == 0xC2U;
+    }));
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1002U));
+    CHECK(wait_for_active_look(-1));
+    CHECK(g_allocations.load(std::memory_order_relaxed) ==
+          command_allocations_before);
+
+    CHECK(runner.trigger_autoloop({7U, 3U}));
+    const auto autoloop_deadline = std::chrono::steady_clock::now() +
+        std::chrono::seconds(2);
+    auto before_cover = runner.status();
+    while ((before_cover.active_autoloop !=
+                showcore::AutoloopAddress{7U, 3U} ||
+            before_cover.active_autoloop_progress < 0.01F) &&
+           std::chrono::steady_clock::now() < autoloop_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        before_cover = runner.status();
+    }
+    CHECK((before_cover.active_autoloop ==
+           showcore::AutoloopAddress{7U, 3U}));
+    CHECK(runner.hold_look(0U, true, controller_session_a));
+    held_a = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 &&
+            current.behavior == emberlights::StaticLookBehavior::Hold &&
+            current.owner_feedback_token == 0xC1U;
+    }).static_look;
+    const auto covered_progress = runner.status().active_autoloop_progress;
+    std::this_thread::sleep_for(std::chrono::milliseconds(125));
+    const auto still_covered = runner.status();
+    CHECK((still_covered.active_autoloop ==
+           showcore::AutoloopAddress{7U, 3U}));
+    CHECK(still_covered.active_autoloop_progress != covered_progress);
+    CHECK(runner.notify_static_look_owner_lost(
+        emberlights::StaticLookOwnerKind::Controller, 0x1001U));
+    CHECK(wait_for_active_look(-1));
+    const auto revealed = runner.status();
+    CHECK((revealed.active_autoloop ==
+           showcore::AutoloopAddress{7U, 3U}));
+    CHECK(revealed.active_autoloop_progress != before_cover.active_autoloop_progress);
     const auto all_banks = ~std::uint64_t{0};
     auto wait_for_bank_mask = [&](std::uint64_t expected) {
         const auto mask_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
@@ -2330,17 +2957,35 @@ void test_runner_service_lifecycle() {
     CHECK(wait_for_override_count(0U));
     CHECK(!runner.set_group_property(manual_group, showcore::Property::Count, 0.5F));
     CHECK(!runner.set_property(0U, showcore::Property::Count, 0.5F));
-    CHECK(runner.trigger_look(0));
+    CHECK(runner.hold_look(0U, true, owner_a));
     CHECK(runner.trigger_autoloop({7, 3}));
     CHECK(runner.trigger_track_script(0));
     CHECK(runner.set_manual_bpm(128.0));
     runner.set_blackout(true);
     runner.set_work_light(true);
+    const auto blacked_out_output = wait_for_output_snapshot([](const auto& output) {
+        return output.generation == 1U && output.blackout_applied;
+    });
+    CHECK(std::any_of(
+        blacked_out_output.pre_blackout_frames.universes[0].begin(),
+        blacked_out_output.pre_blackout_frames.universes[0].end(),
+        [](std::uint8_t value) { return value != 0U; }));
+    CHECK(std::all_of(
+        blacked_out_output.routed_frames.universes.begin(),
+        blacked_out_output.routed_frames.universes.end(),
+        [](const auto& universe) {
+            return std::all_of(
+                universe.begin(), universe.end(),
+                [](std::uint8_t value) { return value == 0U; });
+        }));
+    CHECK(blacked_out_output.attribution.universes[0][0].fixture_id == 0U);
     std::this_thread::sleep_for(std::chrono::milliseconds(125));
     const auto active = runner.status();
     CHECK(active.frames >= 3U);
     CHECK(active.output_frames >= 1U);
     CHECK(active.active_look == 0);
+    CHECK(active.static_look.behavior == emberlights::StaticLookBehavior::Hold);
+    CHECK(active.static_look.package_generation == 1U);
     CHECK((active.active_autoloop == showcore::AutoloopAddress{7, 3}));
     CHECK(active.active_autoloop_repeat == showcore::AutoloopRepeat::Infinite);
     CHECK(active.active_autoloop_progress >= 0.0F && active.active_autoloop_progress <= 1.0F);
@@ -2406,12 +3051,37 @@ void test_runner_service_lifecycle() {
     CHECK(activated.package_activations == 1U);
     CHECK(activated.package_activation_failures == 0U);
     CHECK(activated.frames > active.frames);
-    CHECK(activated.active_look == 0);
+    CHECK(activated.active_look == -1);
+    CHECK(activated.static_look.status ==
+          emberlights::StaticLookActivationStatus::None);
     CHECK((activated.active_autoloop == showcore::AutoloopAddress{7, 3}));
     CHECK(activated.active_autoloop_repeat == showcore::AutoloopRepeat::Infinite);
     CHECK(activated.active_autoloop_progress >= 0.0F && activated.active_autoloop_progress <= 1.0F);
     CHECK(activated.active_autoloop_bank_mask == (std::uint64_t{1} << 7U));
     CHECK(activated.manual_override_count == 0U);
+    const auto activated_output = wait_for_output_snapshot([](const auto& output) {
+        return output.generation == 2U;
+    });
+    CHECK(activated_output.blackout_applied);
+    CHECK(activated_output.rendered_at_ms >=
+          blacked_out_output.rendered_at_ms);
+
+    CHECK(runner.hold_look(0U, true, owner_a));
+    const auto new_package_hold = wait_for_static_look([](const auto& current) {
+        return current.look_index == 0 && current.package_generation == 2U;
+    }).static_look;
+    CHECK(new_package_hold.activation_generation >
+          active.static_look.activation_generation);
+    auto old_package_release = owner_a;
+    old_package_release.expected_package_generation =
+        active.static_look.package_generation;
+    old_package_release.expected_activation_generation =
+        active.static_look.activation_generation;
+    CHECK(runner.hold_look(0U, false, old_package_release));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(runner.status().static_look.activation_generation ==
+          new_package_hold.activation_generation);
+    CHECK(runner.status().static_look.package_generation == 2U);
 
     auto restart_project = updated_project;
     restart_project.connections.frame_rate = 39U;
@@ -2428,6 +3098,47 @@ void test_runner_service_lifecycle() {
     runner.stop();
     CHECK(runner.status().state == emberlights::RunnerState::Stopped);
     CHECK(runner.status().manual_override_count == 0U);
+}
+
+void test_runner_output_snapshot_route_results() {
+    auto project = make_test_project();
+    project.connections.os2l_enabled = false;
+    project.connections.artnet_enabled = true;
+    project.connections.artnet_destination = "127.0.0.1";
+    project.connections.sacn_enabled = false;
+    project.connections.frame_rate = 40U;
+    auto compilation = emberlights::compile_project(project);
+    CHECK(compilation);
+    emberlights::RunnerService runner;
+    CHECK(runner.start(std::move(compilation.show), project));
+
+    const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::seconds(2);
+    emberlights::RunnerOutputSnapshot snapshot;
+    bool observed = false;
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (runner.latest_output_snapshot(snapshot)) {
+            const auto& route = snapshot.routes[0U];
+            if (route.configured && route.attempted_frames == 2U &&
+                route.accepted_frames == 2U) {
+                observed = true;
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(observed);
+    CHECK(snapshot.routes[0U].kind == showcore::OutputBackendKind::ArtNet);
+    CHECK(snapshot.routes[0U].first_source_universe == 1U);
+    CHECK(snapshot.routes[0U].source_universe_count == 2U);
+    CHECK(snapshot.routes[0U].last_error == 0U);
+    CHECK(std::all_of(
+        snapshot.routes.begin() + 1, snapshot.routes.end(),
+        [](const auto& route) {
+            return !route.configured && route.attempted_frames == 0U &&
+                route.accepted_frames == 0U;
+        }));
+    runner.stop();
 }
 
 void test_soundswitch_read_only_inspection_and_bundle() {
@@ -2573,11 +3284,11 @@ void test_soundswitch_source_binding_audit() {
     constexpr std::string_view available_loops =
         "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
 
-    emberlights::ProjectDocument project;
+    auto project = emberlights::make_safe_color_rig_v1_template();
     project.unknown_records.push_back(
         "SOUNDSWITCH_SOURCE\t2.10.x\t{manifest}\t" +
         std::string(claimed_venue) + "\t" + std::string(claimed_loops) +
-        "\tsemantic-v1-safe-patch");
+        "\tsemantic-v2-safe-patch");
     emberlights::SoundSwitchInspection inspection;
     inspection.source_kind = emberlights::SoundSwitchSourceKind::ApplicationDataBackup;
     inspection.inventory_sha256 =
@@ -2606,6 +3317,34 @@ void test_soundswitch_source_binding_audit() {
     CHECK(mismatch.available_track_script_count == 1U);
     CHECK(mismatch.available_autoloop_script_count == 1U);
     CHECK(mismatch.available_fixture_personality_count == 1U);
+    CHECK(mismatch.project_valid);
+    CHECK(mismatch.outputs_disabled);
+    CHECK(mismatch.review_state ==
+          emberlights::SoundSwitchMigrationReviewState::SourceEvidenceBlocked);
+    CHECK(std::find(
+              mismatch.review_action_codes.begin(),
+              mismatch.review_action_codes.end(),
+              "migration.provide_matching_source") !=
+          mismatch.review_action_codes.end());
+    const auto patch_review = std::find_if(
+        mismatch.review_areas.begin(), mismatch.review_areas.end(),
+        [](const auto& area) { return area.area_id == "fixturePatch"; });
+    CHECK(patch_review != mismatch.review_areas.end());
+    if (patch_review != mismatch.review_areas.end()) {
+        CHECK(patch_review->state ==
+              emberlights::SoundSwitchMigrationAreaState::Approximated);
+        CHECK(patch_review->project_item_count == project.fixtures.size());
+    }
+    const auto track_review = std::find_if(
+        mismatch.review_areas.begin(), mismatch.review_areas.end(),
+        [](const auto& area) { return area.area_id == "trackScripts"; });
+    CHECK(track_review != mismatch.review_areas.end());
+    if (track_review != mismatch.review_areas.end()) {
+        CHECK(track_review->state ==
+              emberlights::SoundSwitchMigrationAreaState::SourceEvidenceOnly);
+        CHECK(track_review->source_item_count == 1U);
+        CHECK(track_review->project_item_count == 0U);
+    }
 
     auto evidenced = project;
     emberlights::record_soundswitch_source_binding_evidence(
@@ -2630,6 +3369,13 @@ void test_soundswitch_source_binding_audit() {
     CHECK(report.find("\"status\": \"sourceMismatch\"") != std::string::npos);
     CHECK(report.find("\"semanticImportQualified\": false") != std::string::npos);
     CHECK(report.find("\"trackScriptCount\": 1") != std::string::npos);
+    CHECK(report.find("\"state\": \"sourceEvidenceBlocked\"") !=
+          std::string::npos);
+    CHECK(report.find("\"id\": \"fixturePatch\"") != std::string::npos);
+    CHECK(report.find("\"state\": \"approximated\"") != std::string::npos);
+    CHECK(report.find("safe non-overlapping staging layout") !=
+          std::string::npos);
+    CHECK(report.find("PRIVATE_SOURCE_BYTES") == std::string::npos);
 
     inspection.artifacts[0].sha256 = std::string(claimed_venue);
     inspection.artifacts[1].sha256 = std::string(claimed_loops);
@@ -2638,6 +3384,32 @@ void test_soundswitch_source_binding_audit() {
           emberlights::SoundSwitchSourceBindingStatus::ExactArtifactHashMatch);
     CHECK(exact.exact_artifact_hash_match);
     CHECK(!exact.semantic_import_qualified);
+    CHECK(exact.review_state ==
+          emberlights::SoundSwitchMigrationReviewState::ReadyForManualReview);
+    CHECK(exact.review_headline.find("semantic import is still not qualified") !=
+          std::string::npos);
+
+    auto output_enabled = project;
+    output_enabled.connections.artnet_enabled = true;
+    const auto unsafe_review = emberlights::audit_soundswitch_source_binding(
+        output_enabled, inspection);
+    CHECK(unsafe_review.review_state ==
+          emberlights::SoundSwitchMigrationReviewState::OutputMustBeDisabled);
+    CHECK(!unsafe_review.outputs_disabled);
+    CHECK(std::find(
+              unsafe_review.review_action_codes.begin(),
+              unsafe_review.review_action_codes.end(),
+              "migration.disable_output_before_review") !=
+          unsafe_review.review_action_codes.end());
+
+    auto invalid_project = project;
+    invalid_project.id.clear();
+    const auto invalid_review = emberlights::audit_soundswitch_source_binding(
+        invalid_project, inspection);
+    CHECK(invalid_review.review_state ==
+          emberlights::SoundSwitchMigrationReviewState::ProjectValidationBlocked);
+    CHECK(!invalid_review.project_valid);
+    CHECK(invalid_review.project_validation_error_count > 0U);
 
     project.unknown_records.push_back(
         "SOUNDSWITCH_SOURCE\tduplicate\t{x}\t" + std::string(claimed_venue) +
@@ -3045,6 +3817,418 @@ void test_ir4_fixture_profile_upgrade() {
     std::filesystem::remove(round_trip_path, ignored);
 }
 
+void test_fixture_profile_management() {
+    using emberlights::FixtureProfileWhiteAmberCorrectionError;
+    using emberlights::Ir4ProfileAvailabilityError;
+    using showcore::ChannelEncoding;
+    using showcore::FixtureProfileSource;
+    using showcore::Property;
+
+    const auto same_channel = [](const auto& first, const auto& second) {
+        return first.property == second.property &&
+            first.coarse_offset == second.coarse_offset &&
+            first.fine_offset == second.fine_offset &&
+            first.encoding == second.encoding &&
+            first.dmx_min == second.dmx_min &&
+            first.dmx_max == second.dmx_max &&
+            first.default_value == second.default_value;
+    };
+    const auto same_profile = [&](const auto& first, const auto& second) {
+        return first.id == second.id &&
+            first.manufacturer == second.manufacturer &&
+            first.model == second.model &&
+            first.mode == second.mode &&
+            first.name == second.name &&
+            first.source == second.source &&
+            first.source_revision == second.source_revision &&
+            first.footprint == second.footprint &&
+            first.channels.size() == second.channels.size() &&
+            std::equal(
+                first.channels.begin(), first.channels.end(),
+                second.channels.begin(), same_channel);
+    };
+    const auto without_ir4_profiles = [] {
+        auto project = emberlights::make_starter_project();
+        project.fixture_profiles.erase(
+            std::remove_if(
+                project.fixture_profiles.begin(), project.fixture_profiles.end(),
+                [](const auto& profile) {
+                    return profile.id == emberlights::kBothLightingBoIr4SixChannelProfileId ||
+                        profile.id == emberlights::kBothLightingBoIr4TenChannelProfileId;
+                }),
+            project.fixture_profiles.end());
+        return project;
+    };
+    const auto find_profile = [](auto& project, std::string_view id) {
+        return std::find_if(
+            project.fixture_profiles.begin(), project.fixture_profiles.end(),
+            [id](const auto& profile) { return profile.id == id; });
+    };
+
+    auto available = without_ir4_profiles();
+    const auto availability =
+        emberlights::ensure_manual_backed_both_lighting_bo_ir4_profiles(available);
+    CHECK(availability);
+    CHECK(availability.error == Ir4ProfileAvailabilityError::None);
+    CHECK(availability.six_channel_added);
+    CHECK(availability.ten_channel_added);
+    const auto six = find_profile(
+        available, emberlights::kBothLightingBoIr4SixChannelProfileId);
+    const auto ten = find_profile(
+        available, emberlights::kBothLightingBoIr4TenChannelProfileId);
+    CHECK(six != available.fixture_profiles.end());
+    CHECK(ten != available.fixture_profiles.end());
+    if (six != available.fixture_profiles.end()) {
+        const auto summary = emberlights::summarize_fixture_profile_mapping(*six);
+        CHECK(summary.profile_valid);
+        CHECK(summary.white_mapping_count == 1U);
+        CHECK(summary.amber_mapping_count == 1U);
+        CHECK(summary.white_channel == 4U);
+        CHECK(summary.amber_channel == 5U);
+        CHECK(summary.correction_error ==
+            FixtureProfileWhiteAmberCorrectionError::NotUserOwned);
+        CHECK(summary.channels.size() == 6U);
+        CHECK(summary.channels[3].line.find("CH4 | White") != std::string::npos);
+        CHECK(summary.channels[4].line.find("CH5 | Amber") != std::string::npos);
+        CHECK(summary.text.find("Footprint: 6 channels") != std::string::npos);
+        CHECK(summary.text.find("read-only") != std::string::npos);
+    }
+    if (ten != available.fixture_profiles.end()) {
+        const auto summary = emberlights::summarize_fixture_profile_mapping(*ten);
+        CHECK(summary.profile_valid);
+        CHECK(summary.white_channel == 5U);
+        CHECK(summary.amber_channel == 6U);
+        CHECK(summary.channels.size() == 10U);
+        CHECK(summary.channels[4].line.find("CH5 | White") != std::string::npos);
+        CHECK(summary.channels[5].line.find("CH6 | Amber") != std::string::npos);
+        CHECK(summary.channels[8].line.find("CH9 | Constant") != std::string::npos);
+        CHECK(summary.channels[8].line.find("Safe constant") != std::string::npos);
+    }
+
+    const auto available_size = available.fixture_profiles.size();
+    const auto already_available =
+        emberlights::ensure_manual_backed_both_lighting_bo_ir4_profiles(available);
+    CHECK(already_available);
+    CHECK(!already_available.six_channel_added);
+    CHECK(!already_available.ten_channel_added);
+    CHECK(available.fixture_profiles.size() == available_size);
+
+    auto conflict = without_ir4_profiles();
+    auto conflicting_six = emberlights::make_both_lighting_bo_ir4_6ch_profile();
+    conflicting_six.source = FixtureProfileSource::Local;
+    conflicting_six.source_revision = "user-owned";
+    conflict.fixture_profiles.push_back(conflicting_six);
+    const auto conflict_before = conflict.fixture_profiles;
+    const auto conflict_result =
+        emberlights::ensure_manual_backed_both_lighting_bo_ir4_profiles(conflict);
+    CHECK(!conflict_result);
+    CHECK(conflict_result.error ==
+        Ir4ProfileAvailabilityError::ConflictingSixChannelId);
+    CHECK(conflict.fixture_profiles.size() == conflict_before.size());
+    CHECK(std::equal(
+        conflict.fixture_profiles.begin(), conflict.fixture_profiles.end(),
+        conflict_before.begin(), same_profile));
+    CHECK(find_profile(conflict, emberlights::kBothLightingBoIr4TenChannelProfileId) ==
+        conflict.fixture_profiles.end());
+
+    auto full = without_ir4_profiles();
+    const auto seed = full.fixture_profiles.front();
+    while (full.fixture_profiles.size() < showcore::kMaxCompiledFixtureProfiles) {
+        auto profile = seed;
+        profile.id = "capacity." + std::to_string(full.fixture_profiles.size());
+        full.fixture_profiles.push_back(std::move(profile));
+    }
+    const auto full_size = full.fixture_profiles.size();
+    const auto full_result =
+        emberlights::ensure_manual_backed_both_lighting_bo_ir4_profiles(full);
+    CHECK(!full_result);
+    CHECK(full_result.error == Ir4ProfileAvailabilityError::ProfileCapacity);
+    CHECK(full.fixture_profiles.size() == full_size);
+
+    auto local = emberlights::make_both_lighting_bo_ir4_6ch_profile();
+    local.id = "local.ir4.user-profile";
+    local.name = "My IR-4 6CH";
+    local.source = FixtureProfileSource::Local;
+    local.source_revision = "user-v1";
+    std::swap(local.channels[3].property, local.channels[4].property);
+    local.channels[3].encoding = ChannelEncoding::Discrete8;
+    local.channels[3].dmx_min = 10U;
+    local.channels[3].dmx_max = 240U;
+    local.channels[3].default_value = 7U;
+    local.channels[4].encoding = ChannelEncoding::Ranged8;
+    local.channels[4].dmx_min = 20U;
+    local.channels[4].dmx_max = 220U;
+    local.channels[4].default_value = 0U;
+    const auto local_before = local;
+    const auto reversed_summary =
+        emberlights::summarize_fixture_profile_mapping(local);
+    CHECK(reversed_summary.profile_valid);
+    CHECK(reversed_summary.can_correct_white_amber());
+    CHECK(reversed_summary.white_channel == 5U);
+    CHECK(reversed_summary.amber_channel == 4U);
+    CHECK(reversed_summary.text.find("White is CH5 and Amber is CH4") !=
+        std::string::npos);
+    const auto corrected = emberlights::correct_fixture_profile_white_amber(local);
+    CHECK(corrected.applied);
+    CHECK(corrected.error == FixtureProfileWhiteAmberCorrectionError::None);
+    CHECK(corrected.white_channel_before == 5U);
+    CHECK(corrected.amber_channel_before == 4U);
+    CHECK(corrected.white_channel_after == 4U);
+    CHECK(corrected.amber_channel_after == 5U);
+    CHECK(corrected.before_behavior_fingerprint !=
+        corrected.after_behavior_fingerprint);
+    CHECK(local.channels[3].property == Property::White);
+    CHECK(local.channels[4].property == Property::Amber);
+    for (std::size_t index = 0U; index < local.channels.size(); ++index) {
+        auto expected = local_before.channels[index];
+        if (index == 3U) {
+            expected.property = Property::White;
+        } else if (index == 4U) {
+            expected.property = Property::Amber;
+        }
+        CHECK(same_channel(local.channels[index], expected));
+    }
+    CHECK(local.id == local_before.id);
+    CHECK(local.name == local_before.name);
+    CHECK(local.source == local_before.source);
+    CHECK(local.source_revision == local_before.source_revision);
+
+    const auto expect_correction_rejected = [&](auto profile, auto expected_error) {
+        const auto before = profile;
+        const auto result =
+            emberlights::correct_fixture_profile_white_amber(profile);
+        CHECK(!result.applied);
+        CHECK(result.error == expected_error);
+        CHECK(same_profile(profile, before));
+    };
+    auto missing_white = local_before;
+    missing_white.channels[4].property = Property::UV;
+    expect_correction_rejected(
+        missing_white, FixtureProfileWhiteAmberCorrectionError::MissingWhite);
+    auto missing_amber = local_before;
+    missing_amber.channels[3].property = Property::UV;
+    expect_correction_rejected(
+        missing_amber, FixtureProfileWhiteAmberCorrectionError::MissingAmber);
+    auto ambiguous_white = local_before;
+    ambiguous_white.channels[0].property = Property::White;
+    expect_correction_rejected(
+        ambiguous_white, FixtureProfileWhiteAmberCorrectionError::AmbiguousWhite);
+    auto ambiguous_amber = local_before;
+    ambiguous_amber.channels[0].property = Property::Amber;
+    expect_correction_rejected(
+        ambiguous_amber, FixtureProfileWhiteAmberCorrectionError::AmbiguousAmber);
+    auto invalid = local_before;
+    invalid.channels[4].coarse_offset = invalid.channels[3].coarse_offset;
+    const auto invalid_summary =
+        emberlights::summarize_fixture_profile_mapping(invalid);
+    CHECK(!invalid_summary.profile_valid);
+    CHECK(invalid_summary.profile_error == showcore::ProfileError::DuplicateOffset);
+    CHECK(invalid_summary.text.find("two mappings claim the same channel") !=
+        std::string::npos);
+    expect_correction_rejected(
+        invalid, FixtureProfileWhiteAmberCorrectionError::InvalidProfile);
+    expect_correction_rejected(
+        emberlights::make_both_lighting_bo_ir4_6ch_profile(),
+        FixtureProfileWhiteAmberCorrectionError::NotUserOwned);
+    auto imported = local_before;
+    imported.source = FixtureProfileSource::QlcPlus;
+    expect_correction_rejected(
+        imported, FixtureProfileWhiteAmberCorrectionError::NotUserOwned);
+
+    // The project-level path fixes the usability failure in the old draft-only
+    // workflow: immutable source truth remains present, every actively patched
+    // fixture is rebound to one corrected Local snapshot, and the whole
+    // candidate must validate and compile before the caller's document moves.
+    auto atomic = emberlights::make_starter_project();
+    atomic.id = "atomic-white-amber-correction";
+    atomic.name = "Atomic White Amber Correction";
+    atomic.fixtures.push_back({
+        "ir4-front",
+        "IR-4 Front",
+        std::string(emberlights::kBothLightingBoIr4SixChannelProfileId),
+        1U,
+        1U,
+        {"wash"}});
+    atomic.fixtures.push_back({
+        "ir4-rear",
+        "IR-4 Rear",
+        std::string(emberlights::kBothLightingBoIr4SixChannelProfileId),
+        1U,
+        20U,
+        {"wash"}});
+    atomic.looks.push_back({
+        "white-only",
+        "White Only",
+        0U,
+        {{"ir4-front", Property::White,
+          showcore::PropertyValue::set(1.0F)}}});
+    atomic.looks.push_back({
+        "amber-only",
+        "Amber Only",
+        0U,
+        {{"ir4-front", Property::Amber,
+          showcore::PropertyValue::set(1.0F)}}});
+    CHECK(emberlights::validate_project(atomic).ok());
+
+    const auto atomic_plan =
+        emberlights::plan_fixture_profile_white_amber_correction(
+            atomic,
+            emberlights::kBothLightingBoIr4SixChannelProfileId);
+    CHECK(atomic_plan);
+    CHECK(atomic_plan.error ==
+        emberlights::FixtureProfileWhiteAmberProjectCorrectionError::None);
+    CHECK(atomic_plan.plan.creates_local_copy);
+    CHECK(atomic_plan.plan.source_profile_id ==
+        emberlights::kBothLightingBoIr4SixChannelProfileId);
+    CHECK(atomic_plan.plan.replacement_profile_id !=
+        atomic_plan.plan.source_profile_id);
+    CHECK(atomic_plan.plan.white_channel_before == 4U);
+    CHECK(atomic_plan.plan.amber_channel_before == 5U);
+    CHECK(atomic_plan.plan.white_channel_after == 5U);
+    CHECK(atomic_plan.plan.amber_channel_after == 4U);
+    CHECK(atomic_plan.plan.before_mapping.text.find("CH4 | White") !=
+        std::string::npos);
+    CHECK(atomic_plan.plan.after_mapping.text.find("CH5 | White") !=
+        std::string::npos);
+    CHECK(atomic_plan.plan.after_mapping.text.find("CH4 | Amber") !=
+        std::string::npos);
+    CHECK(atomic_plan.plan.affected_fixtures.size() == 2U);
+    if (atomic_plan.plan.affected_fixtures.size() == 2U) {
+        CHECK(atomic_plan.plan.affected_fixtures[0].fixture_id == "ir4-front");
+        CHECK(atomic_plan.plan.affected_fixtures[1].fixture_id == "ir4-rear");
+        CHECK(atomic_plan.plan.affected_fixtures[1].address == 20U);
+    }
+
+    // Any post-review source or patch edit rejects without leaking a partial
+    // profile or fixture rebind into the document.
+    auto stale_profile = atomic;
+    const auto stale_profile_before = emberlights::serialize_project(stale_profile);
+    const auto stale_source = find_profile(
+        stale_profile, emberlights::kBothLightingBoIr4SixChannelProfileId);
+    if (stale_source != stale_profile.fixture_profiles.end()) {
+        stale_source->source_revision += "-changed";
+    }
+    const auto stale_source_state = emberlights::serialize_project(stale_profile);
+    const auto stale_profile_result =
+        emberlights::apply_fixture_profile_white_amber_correction(
+            stale_profile, atomic_plan.plan);
+    CHECK(!stale_profile_result.applied);
+    CHECK(stale_profile_result.error ==
+        emberlights::FixtureProfileWhiteAmberProjectCorrectionError::StalePlan);
+    CHECK(emberlights::serialize_project(stale_profile) == stale_source_state);
+    CHECK(emberlights::serialize_project(stale_profile) != stale_profile_before);
+
+    auto stale_patch = atomic;
+    stale_patch.fixtures[0].name += " renamed";
+    const auto stale_patch_state = emberlights::serialize_project(stale_patch);
+    const auto stale_patch_result =
+        emberlights::apply_fixture_profile_white_amber_correction(
+            stale_patch, atomic_plan.plan);
+    CHECK(!stale_patch_result.applied);
+    CHECK(stale_patch_result.error ==
+        emberlights::FixtureProfileWhiteAmberProjectCorrectionError::StalePlan);
+    CHECK(emberlights::serialize_project(stale_patch) == stale_patch_state);
+
+    const auto profile_count_before = atomic.fixture_profiles.size();
+    const auto applied_atomic =
+        emberlights::apply_fixture_profile_white_amber_correction(
+            atomic, atomic_plan.plan);
+    CHECK(applied_atomic.applied);
+    CHECK(applied_atomic.error ==
+        emberlights::FixtureProfileWhiteAmberProjectCorrectionError::None);
+    CHECK(atomic.fixture_profiles.size() == profile_count_before + 1U);
+    CHECK(emberlights::validate_project(atomic).ok());
+    CHECK(emberlights::compile_project_with_persisted_autoloops(atomic));
+    CHECK(std::all_of(
+        atomic.fixtures.begin(), atomic.fixtures.end(),
+        [&](const auto& fixture) {
+            return fixture.profile_id ==
+                atomic_plan.plan.replacement_profile_id;
+        }));
+    const auto preserved_source = find_profile(
+        atomic, emberlights::kBothLightingBoIr4SixChannelProfileId);
+    CHECK(preserved_source != atomic.fixture_profiles.end());
+    if (preserved_source != atomic.fixture_profiles.end()) {
+        CHECK(preserved_source->source == FixtureProfileSource::BuiltIn);
+        CHECK(emberlights::summarize_fixture_profile_mapping(*preserved_source)
+                  .white_channel == 4U);
+    }
+    const auto corrected_copy = find_profile(
+        atomic, atomic_plan.plan.replacement_profile_id);
+    CHECK(corrected_copy != atomic.fixture_profiles.end());
+    if (corrected_copy != atomic.fixture_profiles.end()) {
+        CHECK(corrected_copy->source == FixtureProfileSource::Local);
+        const auto corrected_summary =
+            emberlights::summarize_fixture_profile_mapping(*corrected_copy);
+        CHECK(corrected_summary.white_channel == 5U);
+        CHECK(corrected_summary.amber_channel == 4U);
+    }
+    CHECK(std::any_of(
+        atomic.unknown_records.begin(), atomic.unknown_records.end(),
+        [](const auto& record) {
+            return record.starts_with(
+                "FIXTURE_PROFILE_CORRECTION\twhite-amber-v1\t");
+        }));
+
+    // This is the full authoring/compiler/renderer proof for the reported
+    // symptom. EmberLights' canonical semantics send each property to the
+    // profile offset. After the reviewed correction, White moves to physical
+    // CH5 and Amber moves to physical CH4 for both patched fixtures.
+    const auto white_preview =
+        emberlights::preview_static_look(atomic, "white-only");
+    const auto amber_preview =
+        emberlights::preview_static_look(atomic, "amber-only");
+    CHECK(white_preview);
+    CHECK(amber_preview);
+    if (white_preview && amber_preview) {
+        CHECK(white_preview.frames.universes[0][3] == 0U);
+        CHECK(white_preview.frames.universes[0][4] == 255U);
+        CHECK(amber_preview.frames.universes[0][3] == 255U);
+        CHECK(amber_preview.frames.universes[0][4] == 0U);
+    }
+
+    // Auto keeps an already-Local ID in place, so no repatch or profile-count
+    // growth is required. Force-in-place correctly refuses immutable sources.
+    auto local_project = emberlights::make_starter_project();
+    local_project.id = "local-white-amber-correction";
+    local_project.name = "Local White Amber Correction";
+    auto local_profile = emberlights::make_both_lighting_bo_ir4_6ch_profile();
+    local_profile.id = "local.active-ir4";
+    local_profile.name = "Local Active IR-4";
+    local_profile.source = FixtureProfileSource::Local;
+    local_profile.source_revision = "operator-profile-v1";
+    local_project.fixture_profiles.push_back(local_profile);
+    local_project.fixtures.push_back({
+        "local-ir4", "Local IR-4", local_profile.id, 1U, 100U, {}});
+    const auto local_count = local_project.fixture_profiles.size();
+    const auto local_result =
+        emberlights::correct_and_rebind_fixture_profile_white_amber(
+            local_project, local_profile.id);
+    CHECK(local_result.applied);
+    CHECK(!local_result.plan.creates_local_copy);
+    CHECK(local_project.fixture_profiles.size() == local_count);
+    CHECK(local_project.fixtures.back().profile_id == local_profile.id);
+    const auto local_corrected = find_profile(local_project, local_profile.id);
+    CHECK(local_corrected != local_project.fixture_profiles.end());
+    if (local_corrected != local_project.fixture_profiles.end()) {
+        const auto summary =
+            emberlights::summarize_fixture_profile_mapping(*local_corrected);
+        CHECK(summary.white_channel == 5U);
+        CHECK(summary.amber_channel == 4U);
+    }
+
+    const auto read_only_in_place =
+        emberlights::plan_fixture_profile_white_amber_correction(
+            emberlights::make_starter_project(),
+            emberlights::kBothLightingBoIr4SixChannelProfileId,
+            emberlights::FixtureProfileWhiteAmberProjectCorrectionMode::
+                UpdateLocalInPlace);
+    CHECK(!read_only_in_place);
+    CHECK(read_only_in_place.error ==
+        emberlights::FixtureProfileWhiteAmberProjectCorrectionError::
+            SourceProfileReadOnly);
+}
+
 void test_soundswitch_v1_semantic_conversion() {
     const auto source = std::filesystem::path("build/soundswitch-v1-source.ssproj");
     const auto project_path = std::filesystem::path("build/soundswitch-v1.emberlights");
@@ -3104,7 +4288,16 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(migration.project.fixtures.size() == 71U);
     CHECK(migration.project.groups.size() == 9U);
     CHECK(migration.project.looks.size() == 18U);
-    CHECK(migration.project.autoloops.size() == 32U);
+    CHECK(migration.project.autoloops.empty());
+    const auto semantic_source =
+        emberlights::inspect_persisted_autoloop_source(migration.project);
+    CHECK(semantic_source);
+    CHECK(semantic_source.stamp.present);
+    CHECK(semantic_source.source.placements.size() == 128U);
+    CHECK(semantic_source.source.programs.size() == 128U);
+    CHECK(semantic_source.source.programs.front().targets.size() == 4U);
+    CHECK(semantic_source.source.programs.front().lanes.size() == 7U);
+    CHECK(semantic_source.source.programs.front().events.size() == 15U);
     const auto ir4_profile = std::find_if(
         migration.project.fixture_profiles.begin(),
         migration.project.fixture_profiles.end(),
@@ -3138,11 +4331,19 @@ void test_soundswitch_v1_semantic_conversion() {
     CHECK(report.find("Test Loop 1") != std::string::npos);
     CHECK(report.find("Confirm the fixture display is 10CH") != std::string::npos);
     CHECK(report.find("source-qualified approximations") != std::string::npos);
+    CHECK(report.find("\"legacyAutoloops\": 0") != std::string::npos);
+    CHECK(report.find("\"semanticAutoloops\": 128") != std::string::npos);
+    CHECK(report.find("choreography is never fabricated from names") !=
+          std::string::npos);
     CHECK(emberlights::save_project_atomic(project_path, migration.project, false));
     emberlights::ProjectDocument loaded;
     CHECK(emberlights::load_project(project_path, loaded, false));
     CHECK(loaded.fixtures.size() == migration.project.fixtures.size());
     CHECK(loaded.autoloops.size() == migration.project.autoloops.size());
+    const auto loaded_semantic_source =
+        emberlights::inspect_persisted_autoloop_source(loaded);
+    CHECK(loaded_semantic_source);
+    CHECK(loaded_semantic_source.source.placements.size() == 128U);
 
     std::filesystem::remove_all(source, ignored);
     std::filesystem::remove(project_path, ignored);
@@ -3215,6 +4416,7 @@ int main() {
     test_fixture_profile_validation();
     test_generic_profile_rendering();
     test_ranged_channel_rendering();
+    test_capability_frame_attribution();
     test_qlc_fixture_import();
     test_compiled_fixture_library();
     test_patch_and_render();
@@ -3245,10 +4447,12 @@ int main() {
     test_project_validation_io_and_compilation();
     test_runner_os2l_startup_without_button_trigger();
     test_runner_service_lifecycle();
+    test_runner_output_snapshot_route_results();
     test_soundswitch_read_only_inspection_and_bundle();
     test_soundswitch_source_binding_audit();
     test_soundswitch_application_data_backup_inspection_and_bundle();
     test_ir4_fixture_profile_upgrade();
+    test_fixture_profile_management();
     test_soundswitch_v1_semantic_conversion();
 
     cleanup_test_network();

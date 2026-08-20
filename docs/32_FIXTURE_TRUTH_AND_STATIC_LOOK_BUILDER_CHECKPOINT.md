@@ -20,6 +20,9 @@ The first production-shaped Static Look slice is implemented:
 - pure-emitter and Black swatches;
 - full-color ownership that writes zeroes for every supported unselected emitter, opens a real master when present, and forces modeled strobe off;
 - exact offline DMX rendering through the production compiler, engine, layers, and fixture renderer;
+- bounded selected-target physical preview through the production Runner with a Live-stopped interlock, 35% cap, 30-second watchdog, realtime immutable updates, hazard/unknown refusal, and terminal blackout on every stop/fault;
+- official Open Fixture Library search and exact QLC+ export download on a Studio worker, with immutable unreviewed snapshots, per-mode quarantine, exact source URLs/QXF SHA-256/MIT evidence, and no silent updates;
+- atomic project-level White/Amber correction that preserves immutable sources, creates a Local copy when needed, rebinds every affected fixture, validates/compiles before apply, and records one Undo transaction;
 - per-channel fixture/profile/mode/revision/property/ownership/layer/byte trace and deterministic frame SHA-256;
 - project validation for unsupported Look properties, closed master intensity, Look limits/name/fade, all-Release no-ops, and duplicate names;
 - dependency-aware Look deletion covering Autoloops, TrackScripts, and MIDI bindings;
@@ -75,13 +78,15 @@ This prevents a red Look from leaking Green, Blue, White, Amber, UV, or Strobe f
 
 ## 4. Preview and safety boundary
 
-The builder’s preview is offline only. It compiles an immutable candidate and renders the Look through the same semantic path used by Runner, but it opens no Art-Net, sACN, USB-DMX, SoundSwitch, MIDI, or OS2L adapter.
+The builder keeps two explicitly different preview paths.
+
+**Exact offline DMX preview** compiles an immutable candidate and renders the Look through the same semantic path used by Runner, but opens no Art-Net, sACN, USB-DMX, SoundSwitch, MIDI, or OS2L adapter.
 
 The trace answers:
 
 `fixture -> profile/mode/revision -> universe/address/channel -> property -> ownership -> winning layer -> rendered byte`
 
-A bounded physical preview/test bench remains open work. It must run only while Live is stopped, start and end black, isolate selected fixtures, reject unknown/hazard functions, enforce a timeout, and black out on every stop/failure/destruction path. Raw Hardware Test remains the physical qualification authority.
+**Physical authoring preview** leases the production Runner only while normal Live is stopped. Its candidate retains configured outputs but only the selected fixture/group and draft assignments; all profile defaults are zero, OS2L/MIDI/Autoloops/Track Scripts are removed, direct optical output is capped at 35%, and positive strobe/fog/haze/laser/spark/custom output plus unsafe nonzero constants are refused. It starts black, waits for configured outputs, updates draft edits by blackout + immutable package activation, and never extends the original 30-second deadline. Stop, timeout, page departure, rejected update, output/Runner fault, and destruction all use Runner's terminal blackout path. Raw Hardware Test remains the physical qualification authority.
 
 ## 5. Verification completed
 
@@ -94,6 +99,9 @@ A bounded physical preview/test bench remains open work. It must run only while 
 - Mixed-capability groups expose support counts and modify only supporting fixtures.
 - RGB hex round-trips without changing White, Amber, or UV.
 - Draft commit, stale generation rejection, Undo, Redo, ownership round-trip, Look limit, and MIDI dependency tests pass.
+- Physical-preview isolation, cap, Live interlock, realtime update, timeout, Runner/output fault, and stop-blackout paths pass portable tests and Windows cross-compilation.
+- White/Amber compiler/renderer regression proves the corrected IR-4 6CH mapping sends White to CH5 and Amber to CH4 after a reviewed correction; there is no global semantic inversion.
+- Official OFL search/download parsing, bounded transport rules, provenance/evidence persistence, immutable unreviewed import, malformed/unsafe response rejection, and Windows WinHTTP compilation pass.
 
 These are software qualifications. Physical emitter identity, 6CH/10CH fixture display mode, address, transport, channel 8–10 behavior, and perceived/calibrated color remain unqualified until observed on both owned IR-4 fixtures.
 
@@ -102,12 +110,12 @@ These are software qualifications. Physical emitter identity, 6CH/10CH fixture d
 | Order | Work package | Priority | Completion evidence |
 | ---: | --- | --- | --- |
 | 1 | Run the two-fixture IR-4 raw emitter bench in 6CH and 10CH | P0 gate | saved raw/semantic frames, observed emitter, mode/address, blackout evidence |
-| 2 | Add bounded physical preview and Stop/timeout blackout | P0 | fault-injection tests plus installed Windows observation |
+| 2 | Run bounded physical preview on installed Windows and both owned IR-4s | P0 gate | observed White/Amber/blackout, timeout, Stop, disconnect evidence |
 | 3 | Make `StudioDocumentService` authoritative across Win32 authoring | P1 | all editor commits/Undo/Redo/New/Open/Save generation tests |
 | 4 | Add structured channel functions/ranges and neutral/open/blackout values | P1 | wheel/strobe/macro boundary goldens; no generic linear macro controls |
 | 5 | Add virtual master intensity for dimmerless direct-emitter fixtures | P1 | 6CH IR-4 intensity/safety cap and raw-diagnostic bypass tests |
 | 6 | Add structured profile evidence/revisions and qualification invalidation | P1 | edit/repatch/mode/address/source hash invalidation tests |
-| 7 | Build a Studio-only fixture catalog/index and pinned OFL exporter adapter | P1 | license manifest, provenance, quarantine, golden corpus, immutable snapshots |
+| 7 | Extend the live OFL search bridge into a pinned offline catalog/direct transformer | P1 | pinned commit/schema, license manifest, golden corpus, update review, richer mode/cell semantics |
 | 8 | Add measured per-profile color calibration | P2 | revisioned bench measurements, behavior hash, calibrated/uncalibrated UI state |
 | 9 | Add multi-cell, switching-channel, head, wheel, and matrix support | P2 | representative conformance corpus and capacity tests |
 

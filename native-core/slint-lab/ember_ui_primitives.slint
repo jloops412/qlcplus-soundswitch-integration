@@ -1,0 +1,112 @@
+// Shared presentational primitives for EmberLights renderer experiments.
+// They contain no document, output, or command authority.
+
+export global Theme {
+    in property <brush> app: #111416;
+    in property <brush> chrome: #171b1e;
+    in property <brush> canvas: #131719;
+    in property <brush> panel: #1d2226;
+    in property <brush> raised: #252b30;
+    in property <brush> control: #293036;
+    in property <brush> control-hover: #333c43;
+    in property <brush> border: #414b53;
+    in property <brush> border-subtle: #30383e;
+    in property <brush> text: #eef1f3;
+    in property <brush> text-secondary: #b7c0c6;
+    in property <brush> text-muted: #7f8a92;
+    in property <brush> brand: #f08a3c;
+    in property <brush> brand-soft: #422a1b;
+    in property <brush> focus: #8bc8ff;
+    in property <brush> good: #49c77a;
+    in property <brush> warn: #e7b24a;
+    in property <brush> danger: #e05252;
+}
+
+export component Hairline inherits Rectangle {
+    height: 1px;
+    background: Theme.border-subtle;
+}
+
+export component StatusPill inherits Rectangle {
+    in property <string> label;
+    in property <string> state;
+    in property <brush> tone: Theme.text-muted;
+    height: 28px;
+    min-width: 96px;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: root.tone;
+    background: Theme.panel;
+    accessible-role: AccessibleRole.region;
+    accessible-label: root.label + ": " + root.state;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 7px;
+        alignment: center;
+        Rectangle {
+            width: 7px;
+            height: 7px;
+            border-radius: 4px;
+            background: root.tone;
+        }
+        Text { text: root.label; color: Theme.text-muted; font-size: 11px; }
+        Text { text: root.state; color: Theme.text; font-size: 11px; font-weight: 600; }
+    }
+}
+
+export component SectionTitle inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    height: 42px;
+    VerticalLayout {
+        spacing: 2px;
+        Text { text: root.title; color: Theme.text; font-size: 14px; font-weight: 600; }
+        Text { text: root.detail; color: Theme.text-muted; font-size: 11px; overflow: elide; }
+    }
+}
+
+// Shared compact state treatment for selected, active, warning, and ownership
+// feedback. It supplements color rather than relying on color alone.
+export component StateBadge inherits Rectangle {
+    in property <string> label;
+    in property <brush> tone: Theme.text-muted;
+    min-width: 42px;
+    height: 20px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: root.tone;
+    background: Theme.panel;
+    accessible-role: AccessibleRole.region;
+    accessible-label: root.label;
+    Text {
+        text: root.label;
+        color: root.tone;
+        font-size: 8px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component ValueReadout inherits Rectangle {
+    in property <string> label;
+    in property <brush> tone: Theme.text-secondary;
+    min-width: 48px;
+    height: 24px;
+    border-radius: 5px;
+    background: Theme.canvas;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+    accessible-role: AccessibleRole.region;
+    accessible-label: root.label;
+    Text {
+        text: root.label;
+        color: root.tone;
+        font-size: 10px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

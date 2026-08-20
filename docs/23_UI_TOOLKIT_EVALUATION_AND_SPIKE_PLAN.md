@@ -2,6 +2,12 @@
 
 Status: binding decision process. No production UI toolkit is accepted until this spike produces measured evidence.
 
+UI course correction (2026-08-14): issue #37 must now implement the binding
+Fixtures + Static Looks acceptance slice from
+`44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`. A dashboard,
+placeholder counter demo, or recreation of the legacy property forms is not an
+equivalent product-shaped spike.
+
 Related:
 
 - `03_ARCHITECTURE.md`
@@ -230,16 +236,24 @@ Build a disposable but production-shaped `emberlights_ui_spike` target. It must 
    - different layout over the identical command/state data;
    - page/panel switching and responsive collapse.
 
-4. **Studio skeleton**
+4. **Fixtures + Static Looks Studio slice**
+   - fixture-profile Library search/import/provenance and useful empty/error/read-only states;
+   - ordered channel grid with 8/16-bit encoding and named DMX ranges;
+   - fixture/group and Static Look selection;
+   - color mixer, XY position, faders, rate controls, slot choices, and safety-gated triggers driven by `ember.fixtureControlSurface`;
+   - explicit `RELEASE`/`SET`/`FORCE_ZERO` ownership;
+   - bounded preview state that is clearly unavailable while Live is running;
+   - raw DMX diagnostics only in an explicit Advanced drawer;
+   - completion of the workflow at both 1366×768 and 1920×1080 without a separate modeless Inspector.
+
+5. **Dense Studio stress surface**
    - library tree with at least 10,000 synthetic rows;
    - track hierarchy with 256 synthetic tracks;
    - timeline canvas with dense cue blocks/curves;
    - waveform placeholder/custom draw surface;
-   - contextual Inspector;
-   - split/dock resizing;
-   - Autoloop and Static Look editor components.
+   - split/dock resizing.
 
-5. **Skin failure**
+6. **Skin failure**
    - invalid package load;
    - failed reload while the current skin remains active;
    - Safe fallback first-load behavior.
@@ -316,6 +330,14 @@ No candidate wins solely on total score if it fails a pass/fail gate.
 **Qt 6 is tested only if Slint fails complex Studio capability or if a small targeted benchmark can be produced efficiently.** It is the mature fallback, not the default assumption.
 
 **Custom Direct2D/DirectWrite remains the Safe fallback baseline** and the escape hatch if every framework violates Live requirements.
+
+### 2026-08-13 resource refresh
+
+- Slint 1.17.1 is the current upstream release reviewed for the next spike. Official C++ documentation provides Windows/Linux x86-64 binary packages that require no Rust development environment; source builds currently require Rust 1.92 or newer. The first Windows measurement should use the supported MSVC package, then separately qualify the repository's cross-build route.
+- Slint's `native` style resolves to Fluent on Windows and explicit `fluent-dark` is available. EmberLights semantic tokens remain authoritative; a toolkit style may supply ordinary-control behavior but may not replace status/safety/content meanings.
+- Microsoft Segoe Fluent Icons is the immediate Windows-supplied glyph bridge, with the Windows 10 MDL2 fallback. The MIT [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) repository is the candidate vector source once assets are packaged for the accepted renderer.
+- QLC+ now identifies its source as Apache 2.0. That supports audited selective adaptation with notices, but it does not make a full Qt UI fork automatically small, portable, or license-governance-free. Preview 88 copied no QLC+ source or visual asset.
+- `36_UI_RESOURCE_ADOPTION_AND_DEFAULT_2_1_CHECKPOINT.md` implements the reusable token/navigation/layout bridge and a visible Win32 strangler improvement. It is input to the equivalent toolkit spike, not evidence that raw Win32 won.
 
 ## Decision output
 

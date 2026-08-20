@@ -72,6 +72,25 @@ Tests must cover:
 - Preserve original source bundle and unknown data.
 - Migration reports are deterministic and machine-readable.
 
+## Fixture Control gate
+
+Any profile-backed operator control must prove the same stable Fixture Control
+identity across each surface it claims:
+
+- direct 8-bit and 16-bit mappings preserve normalized 0..1 semantic endpoints
+  while reporting exact coarse/fine diagnostic bytes;
+- named slots and continuous capability ranges preserve documented preferred or
+  interpolated values and exclude protected ranges;
+- mixed-profile groups retain exact per-fixture authoring values, while one Live
+  group command is available only when coverage and semantic value are exact;
+- Static Look, Autoloop, Live command, MIDI/controller, Ember Action, and skin
+  component consumers re-resolve stable IDs instead of persisting list indices
+  or raw DMX bytes;
+- default, blackout, highlight, encoding, range, owner/head/cell, profile
+  revision, and source provenance remain inspectable;
+- Runner safety policy and physical-fixture qualification remain independent of
+  profile structural validation or an accepted output write.
+
 ## Licensing/provenance
 
 - Maintain `THIRD_PARTY_NOTICES` before distributing any reused component.

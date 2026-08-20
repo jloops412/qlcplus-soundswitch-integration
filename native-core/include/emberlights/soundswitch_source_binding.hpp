@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace emberlights {
 
@@ -16,6 +17,33 @@ enum class SoundSwitchSourceBindingStatus : std::uint8_t {
     ProjectClaimMalformed,
     SourceInspectionIncomplete,
     SourceArtifactsAmbiguous
+};
+
+// This is readiness to inspect and repair a migration candidate in Studio,
+// never readiness to enable live output or a claim of semantic import parity.
+enum class SoundSwitchMigrationReviewState : std::uint8_t {
+    ReadyForManualReview,
+    SourceEvidenceBlocked,
+    ProjectValidationBlocked,
+    OutputMustBeDisabled
+};
+
+enum class SoundSwitchMigrationAreaState : std::uint8_t {
+    Approximated,
+    SourceEvidenceOnly,
+    ProjectDataUnqualified,
+    MissingDependency,
+    NotImported
+};
+
+struct SoundSwitchMigrationAreaReview {
+    std::string area_id;
+    std::string label;
+    SoundSwitchMigrationAreaState state{
+        SoundSwitchMigrationAreaState::NotImported};
+    std::size_t source_item_count{0U};
+    std::size_t project_item_count{0U};
+    std::string detail;
 };
 
 struct SoundSwitchProjectSourceClaim {
@@ -40,7 +68,11 @@ struct SoundSwitchSourceBindingAudit {
     std::string available_autoloops_sha256;
     std::size_t available_artifact_count{0U};
     std::size_t available_backup_count{0U};
+    std::size_t available_venue_database_count{0U};
+    std::size_t available_autoloop_database_count{0U};
+    std::size_t available_track_map_count{0U};
     std::size_t available_track_script_count{0U};
+    std::size_t available_recordable_data_count{0U};
     std::size_t available_autoloop_script_count{0U};
     std::size_t available_fixture_personality_count{0U};
     std::size_t available_audio_count{0U};
@@ -58,6 +90,15 @@ struct SoundSwitchSourceBindingAudit {
     // separately qualified claim and is deliberately false in this audit.
     bool semantic_import_qualified{false};
     std::string message;
+    SoundSwitchMigrationReviewState review_state{
+        SoundSwitchMigrationReviewState::SourceEvidenceBlocked};
+    bool project_valid{false};
+    std::size_t project_validation_error_count{0U};
+    std::size_t project_validation_warning_count{0U};
+    bool outputs_disabled{true};
+    std::string review_headline;
+    std::vector<SoundSwitchMigrationAreaReview> review_areas;
+    std::vector<std::string> review_action_codes;
 };
 
 [[nodiscard]] SoundSwitchProjectSourceClaim read_soundswitch_project_source_claim(
@@ -83,5 +124,9 @@ void record_soundswitch_source_binding_evidence(
 
 [[nodiscard]] const char* soundswitch_source_binding_status_name(
     SoundSwitchSourceBindingStatus status) noexcept;
+[[nodiscard]] const char* soundswitch_migration_review_state_name(
+    SoundSwitchMigrationReviewState state) noexcept;
+[[nodiscard]] const char* soundswitch_migration_area_state_name(
+    SoundSwitchMigrationAreaState state) noexcept;
 
 }  // namespace emberlights

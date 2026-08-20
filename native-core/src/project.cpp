@@ -3,6 +3,8 @@
 #include "emberlights/file_identity.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 #include "emberlights/fixture_profile_upgrade.hpp"
+#include "emberlights/hardware_qualification.hpp"
+#include "emberlights/studio_color.hpp"
 
 #include "showcore/dmx_usb_pro.hpp"
 #include "showcore/fixture_library.hpp"
@@ -424,6 +426,7 @@ ProjectValidation validate_project(const ProjectDocument& project) {
 
     std::unordered_map<std::string_view, const FixtureProfileDefinition*> profiles;
     std::size_t total_channels = 0;
+    std::size_t total_capabilities = 0;
     for (const auto& profile : project.fixture_profiles) {
         if (!valid_identifier(profile.id) || !profiles.emplace(profile.id, &profile).second) {
             add_issue(result, ProjectIssueSeverity::Error, "profile.id", profile.id,
@@ -440,9 +443,46 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                       "Fixture profile metadata, source, and revision must be present and 96 characters or fewer.");
         }
         total_channels += profile.channels.size();
+        std::vector<std::vector<showcore::ChannelCapabilityMapping>>
+            capability_storage(profile.channels.size());
         std::vector<showcore::ChannelMapping> channels;
         channels.reserve(profile.channels.size());
-        for (const auto& channel : profile.channels) {
+        for (std::size_t channel_index = 0U;
+             channel_index < profile.channels.size();
+             ++channel_index) {
+            const auto& channel = profile.channels[channel_index];
+            total_capabilities += channel.capabilities.size();
+            auto& capabilities = capability_storage[channel_index];
+            capabilities.reserve(channel.capabilities.size());
+            std::unordered_set<std::string_view> capability_ids;
+            for (const auto& capability : channel.capabilities) {
+                if (!valid_identifier(capability.id) ||
+                    !valid_identifier(capability.name) ||
+                    !capability_ids.insert(capability.id).second) {
+                    add_issue(
+                        result,
+                        ProjectIssueSeverity::Error,
+                        "profile.capabilityIdentity",
+                        profile.id,
+                        "Named channel capabilities need unique non-empty IDs and names no longer than 96 characters.");
+                }
+                capabilities.push_back({
+                    capability.property,
+                    capability.dmx_min,
+                    capability.dmx_max,
+                    capability.preferred_value,
+                    capability.behavior,
+                    capability.access,
+                    capability.reversed});
+            }
+            if (!valid_identifier(channel.owner)) {
+                add_issue(
+                    result,
+                    ProjectIssueSeverity::Error,
+                    "profile.channelOwner",
+                    profile.id,
+                    "Every channel owner must be a non-empty fixture, head, or cell identity no longer than 96 characters.");
+            }
             channels.push_back({
                 channel.property,
                 channel.coarse_offset,
@@ -450,7 +490,11 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                 channel.encoding,
                 channel.dmx_min,
                 channel.dmx_max,
-                channel.default_value});
+                channel.default_value,
+                channel.blackout_value,
+                channel.highlight_value,
+                capabilities.empty() ? nullptr : capabilities.data(),
+                capabilities.size()});
         }
         const showcore::FixtureProfile runtime{
             profile.name.c_str(), channels.data(), channels.size(), profile.footprint};
@@ -463,6 +507,14 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     if (total_channels > showcore::kMaxCompiledChannelMappings) {
         add_issue(result, ProjectIssueSeverity::Error, "profiles.channelCapacity", project.id,
                   "The project exceeds the compiled channel-mapping capacity.");
+    }
+    if (total_capabilities > showcore::kMaxCompiledChannelCapabilities) {
+        add_issue(
+            result,
+            ProjectIssueSeverity::Error,
+            "profiles.capabilityCapacity",
+            project.id,
+            "The project exceeds the compiled named channel-capability capacity.");
     }
 
     std::unordered_map<std::string_view, std::uint16_t> fixtures;
@@ -531,6 +583,52 @@ ProjectValidation validate_project(const ProjectDocument& project) {
                           "Duplicate fixture membership will be ignored.");
             }
         }
+    }
+
+    if (project.color_palettes.size() > kMaximumStudioPaletteAssets) {
+        add_issue(result, ProjectIssueSeverity::Error, "palette.capacity", project.id,
+                  "The project exceeds the supported Studio palette capacity.");
+    }
+    std::unordered_set<std::string_view> palette_ids;
+    std::size_t palette_swatch_count = 0U;
+    for (const auto& palette : project.color_palettes) {
+        if (palette.asset_version != kStudioColorPaletteAssetVersion) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.version", palette.id,
+                      "Studio palette asset version is not supported by this build.");
+        }
+        if (!valid_identifier(palette.id) || !palette_ids.insert(palette.id).second) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.id", palette.id,
+                      "Studio palette IDs must be unique, non-empty, and 96 characters or fewer.");
+        }
+        if (palette.name.empty() || palette.name.size() > kMaximumStudioPaletteNameLength) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.name", palette.id,
+                      "A Studio palette needs a display name of 255 characters or fewer.");
+        }
+        if (palette.swatches.size() > kMaximumStudioPaletteSwatches) {
+            add_issue(result, ProjectIssueSeverity::Error, "palette.swatchCapacity", palette.id,
+                      "A Studio palette exceeds its supported swatch capacity.");
+        }
+        palette_swatch_count += palette.swatches.size();
+        std::unordered_set<std::string_view> swatch_ids;
+        for (const auto& swatch : palette.swatches) {
+            if (!valid_identifier(swatch.id) || !swatch_ids.insert(swatch.id).second) {
+                add_issue(result, ProjectIssueSeverity::Error, "palette.swatchId", palette.id,
+                          "Swatch IDs must be unique within a palette and 96 characters or fewer.");
+            }
+            if (swatch.name.empty() ||
+                swatch.name.size() > kMaximumStudioSwatchNameLength) {
+                add_issue(result, ProjectIssueSeverity::Error, "palette.swatchName", swatch.id,
+                          "A swatch needs a display name of 255 characters or fewer.");
+            }
+            if (!valid_studio_color(swatch.color)) {
+                add_issue(result, ProjectIssueSeverity::Error, "palette.swatchColor", swatch.id,
+                          "A swatch contains a non-finite or out-of-range color value.");
+            }
+        }
+    }
+    if (palette_swatch_count > kMaximumStudioPaletteSwatchesTotal) {
+        add_issue(result, ProjectIssueSeverity::Error, "palette.totalSwatchCapacity", project.id,
+                  "The project exceeds the total supported Studio swatch capacity.");
     }
 
     std::unordered_set<std::string_view> look_ids;
@@ -760,6 +858,25 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     }
 
     for (const auto& mapping : project.midi_mappings) {
+        if (mapping.fixture_control_binding_id.size() >
+            kMaximumFixtureControlBindingIdLength) {
+            add_issue(
+                result,
+                ProjectIssueSeverity::Error,
+                "midi.fixtureControlBindingId",
+                mapping.device_name,
+                "MIDI named fixture-control binding IDs must be 1024 characters or fewer.");
+        }
+        if (!mapping.fixture_control_binding_id.empty() &&
+            mapping.action.type != showcore::ActionType::SetProperty &&
+            mapping.action.type != showcore::ActionType::SetGroupProperty) {
+            add_issue(
+                result,
+                ProjectIssueSeverity::Error,
+                "midi.fixtureControlBindingAction",
+                mapping.device_name,
+                "Named fixture-control provenance is valid only for fixture or group property mappings.");
+        }
         if (mapping.action.type >= showcore::ActionType::Count) {
             add_issue(result, ProjectIssueSeverity::Error, "midi.action", mapping.device_name,
                       "MIDI mapping action is outside the supported range.");
@@ -792,6 +909,17 @@ ProjectValidation validate_project(const ProjectDocument& project) {
     if (project.midi_mappings.size() > showcore::kMaxMidiMappings) {
         add_issue(result, ProjectIssueSeverity::Error, "midi.capacity", project.id,
                   "The project exceeds the V1 MIDI mapping capacity.");
+    }
+    const auto qualification = evaluate_fixture_qualification_gate(project);
+    for (const auto& issue : qualification.issues) {
+        add_issue(
+            result,
+            qualification.physical_output_requested
+                ? ProjectIssueSeverity::Error
+                : ProjectIssueSeverity::Warning,
+            issue.code,
+            issue.subject,
+            issue.message);
     }
     return result;
 }

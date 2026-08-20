@@ -202,6 +202,96 @@
       "nativeOrdinal": 38, "id": "output.controlOne.experimental", "label": "Control One experimental opt-in", "category": "output",
       "description": "Explicit project opt-in; does not imply physical or gig qualification.", "value": {"type": "boolean"},
       "scope": "projectDocument", "authority": "projectDocument", "snapshotGroup": "outputs", "persisted": true
+    },
+    {
+      "nativeOrdinal": 39, "id": "staticLook.active.packageGeneration", "label": "Static Look package generation", "category": "staticLook",
+      "description": "Runner package generation that owns the current Static Look activation.",
+      "value": {"type": "integer", "minimum": 0}, "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 40, "id": "staticLook.active.activationGeneration", "label": "Static Look activation generation", "category": "staticLook",
+      "description": "Monotonic activation generation used with the owner key to reject stale Hold releases.",
+      "value": {"type": "integer", "minimum": 0}, "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 41, "id": "staticLook.active.ownerKind", "label": "Static Look owner kind", "category": "staticLook",
+      "description": "Trusted surface category that owns the current activation.",
+      "value": {"type": "enum", "enumValues": ["none", "ui", "keyboard", "midi", "controller", "moment", "external", "test"]},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 42, "id": "staticLook.active.ownerFeedbackKey", "label": "Static Look owner feedback key", "category": "staticLook",
+      "description": "Opaque non-sensitive owner key used for held-by-this-control feedback; it is not a project or skin argument.",
+      "value": {"type": "string", "maxLength": 20, "format": "uint64Decimal"},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 43, "id": "staticLook.active.behavior", "label": "Static Look activation behavior", "category": "staticLook",
+      "description": "Authoritative activation behavior shared by software, keyboard, MIDI, controller, and external surfaces.",
+      "value": {"type": "enum", "enumValues": ["none", "latch", "hold", "explicit"]},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 44, "id": "staticLook.active.status", "label": "Static Look activation status", "category": "staticLook",
+      "description": "Authoritative inactive, activating, active, or releasing state.",
+      "value": {"type": "enum", "enumValues": ["none", "activating", "active", "releasing"]},
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 45, "id": "staticLook.active.transitionProgress", "label": "Static Look transition progress", "category": "staticLook",
+      "description": "Runner-owned progress for the current activation or release transition; presentation is not timing authority.",
+      "value": {"type": "number", "minimum": 0, "maximum": 1, "unit": "normalized"},
+      "updateClass": "progress", "nativeUpdateClass": "Realtime", "maximumPublishHz": 30,
+      "snapshotGroup": "staticLookActive"
+    },
+    {
+      "nativeOrdinal": 46, "id": "staticLook.preview.state", "label": "Static Look preview state", "category": "staticLook",
+      "description": "Authoritative asynchronous lifecycle of the Studio Static Look preview coordinator.",
+      "value": {"type": "enum", "enumValues": ["stopped", "starting", "active", "updating", "stopping", "timedOut", "fault"]},
+      "scope": "documentSession", "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 47, "id": "staticLook.preview.mode", "label": "Static Look preview mode", "category": "staticLook",
+      "description": "Whether the coordinator is stopped, simulating offline, or holding the bounded physical-preview lease.",
+      "value": {"type": "enum", "enumValues": ["none", "simulation", "physical"]},
+      "scope": "documentSession", "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 48, "id": "staticLook.preview.error", "label": "Static Look preview error", "category": "staticLook",
+      "description": "Bounded stable error token from offline simulation or the physical-preview authority.",
+      "value": {"type": "string", "maxLength": 64}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 49, "id": "staticLook.preview.remainingMs", "label": "Static Look preview remaining time", "category": "staticLook",
+      "description": "Remaining physical-preview lease time; presentation polling is not timeout authority.",
+      "value": {"type": "integer", "minimum": 0, "maximum": 60000}, "scope": "documentSession",
+      "authority": "studioPreviewService", "updateClass": "progress", "nativeUpdateClass": "Realtime",
+      "maximumPublishHz": 10, "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 50, "id": "staticLook.preview.outputCap", "label": "Static Look preview output cap", "category": "staticLook",
+      "description": "Effective normalized intensity cap applied by physical-preview authority; zero for simulation.",
+      "value": {"type": "number", "minimum": 0, "maximum": 0.5, "unit": "normalized"},
+      "scope": "documentSession", "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 51, "id": "staticLook.preview.selectedFixtureCount", "label": "Static Look preview fixture count", "category": "staticLook",
+      "description": "Number of fixtures resolved in the selected preview target.",
+      "value": {"type": "integer", "minimum": 0}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 52, "id": "staticLook.preview.updateCount", "label": "Static Look preview update count", "category": "staticLook",
+      "description": "Number of successfully activated draft updates in the current preview session.",
+      "value": {"type": "integer", "minimum": 0}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
+    },
+    {
+      "nativeOrdinal": 53, "id": "staticLook.preview.frameDigest", "label": "Static Look preview frame digest", "category": "staticLook",
+      "description": "Offline simulation frame SHA-256 for diagnostics; empty in physical mode.",
+      "value": {"type": "string", "maxLength": 71}, "scope": "documentSession",
+      "authority": "studioPreviewService", "snapshotGroup": "staticLookPreview"
     }
   ]
 }

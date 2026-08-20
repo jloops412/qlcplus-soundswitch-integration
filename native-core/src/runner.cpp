@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <thread>
@@ -72,6 +73,32 @@ inline constexpr std::size_t kSoundSwitchControlOneOutputHealth = 5U;
         static_cast<std::uint8_t>(encoded % showcore::kAutoloopsPerBank)};
 }
 
+[[nodiscard]] std::uint64_t static_look_feedback_token(
+    std::string_view identity) noexcept {
+    // FNV-1a provides a deterministic, non-sensitive feedback identity for
+    // trusted protocol bindings without retaining raw device/control text.
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const auto character : identity) {
+        hash ^= static_cast<std::uint8_t>(character);
+        hash *= 1099511628211ULL;
+    }
+    return hash == 0U ? 1U : hash;
+}
+
+[[nodiscard]] StaticLookOwnerContext normalized_static_look_owner(
+    StaticLookOwnerContext owner,
+    std::uint16_t look_index) noexcept {
+    if (owner.kind == StaticLookOwnerKind::None) {
+        owner.kind = StaticLookOwnerKind::External;
+    }
+    if (owner.feedback_token == 0U) {
+        owner.feedback_token = 0x454C000000000000ULL ^
+            (static_cast<std::uint64_t>(owner.kind) << 32U) ^
+            (static_cast<std::uint64_t>(look_index) + 1U);
+    }
+    return owner;
+}
+
 [[nodiscard]] std::uint64_t encode_autoloop_playback(
     const showcore::AutoloopPlaybackStatus* status) noexcept {
     if (status == nullptr) {
@@ -88,6 +115,25 @@ inline constexpr std::size_t kSoundSwitchControlOneOutputHealth = 5U;
          kPackedAutoloopRepeatShift) |
         ((progress & 0x03FFU) << kPackedAutoloopProgressShift) |
         (static_cast<std::uint64_t>(status->completed_cycles) << kPackedAutoloopCycleShift);
+}
+
+[[nodiscard]] std::uint64_t encode_autoloop_playback(
+    showcore::AutoloopAddress address,
+    showcore::AutoloopRepeat repeat,
+    float progress_value,
+    std::uint32_t completed_cycles) noexcept {
+    const auto encoded_address = encode_autoloop(address);
+    const auto packed_address = encoded_address < showcore::kMaxAutoloops
+        ? static_cast<std::uint64_t>(encoded_address)
+        : kPackedInvalidAutoloopAddress;
+    const auto progress = static_cast<std::uint64_t>(std::lround(
+        std::clamp(progress_value, 0.0F, 1.0F) * 1000.0F));
+    return packed_address |
+        ((static_cast<std::uint64_t>(repeat) & 0x03U) <<
+         kPackedAutoloopRepeatShift) |
+        ((progress & 0x03FFU) << kPackedAutoloopProgressShift) |
+        (static_cast<std::uint64_t>(completed_cycles) <<
+         kPackedAutoloopCycleShift);
 }
 
 void update_maximum(
@@ -136,6 +182,73 @@ constexpr std::array<showcore::Property, 12> kVisualBlackoutProperties{{
     showcore::Property::Lime,
     showcore::Property::Indigo}};
 
+[[nodiscard]] bool beat_to_musical_tick(
+    double beat_position,
+    std::int64_t& tick) noexcept {
+    constexpr long double kLowest = -0x1p63L;
+    constexpr long double kHighestExclusive = 0x1p63L;
+    if (!std::isfinite(beat_position)) {
+        return false;
+    }
+    const auto scaled = static_cast<long double>(beat_position) *
+        static_cast<long double>(kMusicalTicksPerQuarter);
+    const auto rounded = std::round(scaled);
+    if (!std::isfinite(rounded) || rounded < kLowest ||
+        rounded >= kHighestExclusive) {
+        return false;
+    }
+    tick = static_cast<std::int64_t>(rounded);
+    return true;
+}
+
+[[nodiscard]] showcore::AutoloopTransportState v2_transport(
+    const showcore::ClockSnapshot& clock,
+    bool track_playing,
+    bool discontinuity = false) noexcept {
+    showcore::AutoloopTransportState transport;
+    transport.phase_available =
+        clock.source != showcore::ClockSource::None &&
+        beat_to_musical_tick(clock.beat_position, transport.musical_tick);
+    transport.running = transport.phase_available;
+    transport.autonomous_eligible = true;
+    transport.discontinuity = discontinuity;
+    // Runner's current transport does not publish a stable track epoch. Keep
+    // TrackDuration explicitly degraded instead of guessing a boundary.
+    transport.track_boundary_available = false;
+    transport.track_active = track_playing;
+    transport.track_epoch = 0U;
+    return transport;
+}
+
+[[nodiscard]] showcore::AutoloopAddress next_v2_address(
+    const showcore::CompiledAutoloopPackage& package,
+    showcore::AutoloopAddress after,
+    std::uint64_t bank_mask,
+    bool reverse) noexcept {
+    const auto start = after.valid()
+        ? static_cast<std::size_t>(after.bank) * showcore::kAutoloopsPerBank +
+              after.slot
+        : (reverse ? 0U : showcore::kMaxAutoloops - 1U);
+    for (std::size_t offset = 1U; offset <= showcore::kMaxAutoloops; ++offset) {
+        const auto candidate = reverse
+            ? (start + showcore::kMaxAutoloops - offset) %
+                  showcore::kMaxAutoloops
+            : (start + offset) % showcore::kMaxAutoloops;
+        const auto bank = static_cast<std::uint16_t>(
+            candidate / showcore::kAutoloopsPerBank);
+        const showcore::AutoloopAddress address{
+            bank,
+            static_cast<std::uint8_t>(
+                candidate % showcore::kAutoloopsPerBank)};
+        const auto* placement = package.placement(address);
+        if ((bank_mask & (std::uint64_t{1U} << bank)) != 0U &&
+            placement != nullptr && placement->populated()) {
+            return address;
+        }
+    }
+    return {};
+}
+
 }  // namespace
 
 struct RunnerService::RuntimeState {
@@ -145,7 +258,12 @@ struct RunnerService::RuntimeState {
     showcore::StaticLookPlayer scripted_look{showcore::LayerId::TrackScript};
     showcore::AutoloopPlayer scripted_autoloop{showcore::LayerId::TrackScript};
     showcore::AutoloopPlayer manual_autoloop{showcore::LayerId::ManualAutoloop};
+    AutoloopRuntimeAdapter autoloop_v2{};
     std::array<bool, showcore::kMaxMidiMappings> mapping_toggles{};
+    std::array<StaticLookBindingLease, showcore::kMaxMidiMappings>
+        midi_static_look_leases{};
+    std::array<StaticLookBindingLease, kMaximumCompiledLooks>
+        os2l_static_look_leases{};
     std::array<std::array<float, showcore::kPropertyCount>, showcore::kMaxFixtures>
         manual_values{};
     std::array<std::array<bool, showcore::kPropertyCount>, showcore::kMaxFixtures>
@@ -158,13 +276,17 @@ struct RunnerService::RuntimeState {
     std::array<std::uint64_t, kJitterBucketCount> jitter_histogram{};
     std::uint64_t jitter_sample_count{0};
     showcore::AutoloopAddress selected_autoloop{};
-    std::int32_t selected_look{-1};
+    RunnerStaticLookActivation static_look_activation{};
     std::int32_t selected_track_script{-1};
     std::size_t next_track_cue{0};
     double track_script_start_beat{0.0};
     double last_track_script_beat{-1.0};
     bool track_playing{true};
     bool applied_work_light{false};
+    AutoloopTrackScriptOwner legacy_track_script_owner{
+        AutoloopTrackScriptOwner::None};
+    bool has_v2_transport_tick{false};
+    std::int64_t last_v2_transport_tick{0};
 };
 
 struct RunnerService::ActivationState {
@@ -185,6 +307,30 @@ std::uint64_t RunnerService::monotonic_ms() noexcept {
     return static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             SteadyClock::now().time_since_epoch()).count());
+}
+
+void RunnerService::publish_static_look_status(
+    const RunnerStaticLookActivation& activation) noexcept {
+    static_look_status_sequence_.fetch_add(1U, std::memory_order_acq_rel);
+    active_look_.store(activation.look_index, std::memory_order_relaxed);
+    static_look_package_generation_.store(
+        activation.package_generation, std::memory_order_relaxed);
+    static_look_activation_generation_.store(
+        activation.activation_generation, std::memory_order_relaxed);
+    static_look_owner_kind_.store(
+        activation.owner_kind, std::memory_order_relaxed);
+    static_look_owner_feedback_token_.store(
+        activation.owner_feedback_token, std::memory_order_relaxed);
+    static_look_behavior_.store(
+        activation.behavior, std::memory_order_relaxed);
+    static_look_activation_status_.store(
+        activation.status, std::memory_order_relaxed);
+    static_look_activated_at_ms_.store(
+        activation.activated_at_ms, std::memory_order_relaxed);
+    const auto progress = static_cast<std::uint16_t>(std::lround(
+        std::clamp(activation.transition_progress, 0.0F, 1.0F) * 1000.0F));
+    static_look_transition_milli_.store(progress, std::memory_order_relaxed);
+    static_look_status_sequence_.fetch_add(1U, std::memory_order_release);
 }
 
 bool RunnerService::start(
@@ -217,17 +363,48 @@ bool RunnerService::start(
     os2l_buttons_.reset();
     midi_actions_.reset();
     midi_monitor_.reset();
+    owner_losses_.reset();
     output_queue_.reset();
+    {
+        const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
+        latest_output_snapshot_ = {};
+        has_output_snapshot_ = false;
+    }
     stop_requested_.store(false, std::memory_order_release);
     blackout_requested_.store(false, std::memory_order_release);
     work_light_requested_.store(false, std::memory_order_release);
+    os2l_owner_session_token_.store(0U, std::memory_order_release);
     sync_state_.store(showcore::SyncState::Waiting, std::memory_order_relaxed);
     clock_source_.store(showcore::ClockSource::None, std::memory_order_relaxed);
     bpm_milli_.store(0, std::memory_order_relaxed);
     beat_milli_.store(0, std::memory_order_relaxed);
-    active_look_.store(-1, std::memory_order_relaxed);
+    publish_static_look_status({});
     active_autoloop_playback_.store(kPackedInvalidAutoloopAddress, std::memory_order_relaxed);
     active_autoloop_bank_mask_.store(~std::uint64_t{0}, std::memory_order_relaxed);
+    autoloop_v2_mode_.store(
+        AutoloopRuntimeMode::LegacyV1, std::memory_order_relaxed);
+    autoloop_v2_track_owner_.store(
+        AutoloopTrackScriptOwner::None, std::memory_order_relaxed);
+    autoloop_v2_track_suppressed_by_replace_.store(
+        false, std::memory_order_relaxed);
+    autoloop_v2_package_active_.store(false, std::memory_order_relaxed);
+    autoloop_v2_generation_.store(0U, std::memory_order_relaxed);
+    autoloop_v2_fault_.store(
+        showcore::AutoloopDirectorFault::None, std::memory_order_relaxed);
+    autoloop_v2_result_.store(
+        showcore::AutoloopDirectorResult::None, std::memory_order_relaxed);
+    autoloop_v2_source_.store(
+        showcore::AutoloopDirectorSource::None, std::memory_order_relaxed);
+    autoloop_v2_playback_mode_.store(
+        showcore::CompiledAutoloopPlaybackMode::Overlay,
+        std::memory_order_relaxed);
+    autoloop_v2_playback_.store(
+        kPackedInvalidAutoloopAddress, std::memory_order_relaxed);
+    autoloop_v2_active_bank_mask_.store(
+        ~std::uint64_t{0U}, std::memory_order_relaxed);
+    autoloop_v2_has_pending_bank_mask_.store(
+        false, std::memory_order_relaxed);
+    autoloop_v2_pending_bank_mask_.store(0U, std::memory_order_relaxed);
     active_track_script_.store(-1, std::memory_order_relaxed);
     active_track_script_beat_milli_.store(0, std::memory_order_relaxed);
     active_track_script_consumed_cues_.store(0U, std::memory_order_relaxed);
@@ -248,6 +425,9 @@ bool RunnerService::start(
     os2l_connections_.store(0, std::memory_order_relaxed);
     os2l_messages_.store(0, std::memory_order_relaxed);
     os2l_decode_errors_.store(0, std::memory_order_relaxed);
+    os2l_feedback_messages_.store(0, std::memory_order_relaxed);
+    os2l_feedback_errors_.store(0, std::memory_order_relaxed);
+    os2l_blackout_feedback_synchronized_.store(false, std::memory_order_relaxed);
     os2l_listen_port_.store(0, std::memory_order_relaxed);
     os2l_last_error_.store(0, std::memory_order_relaxed);
     os2l_discovery_last_error_.store(0, std::memory_order_relaxed);
@@ -440,6 +620,7 @@ void RunnerService::stop() noexcept {
         active_activation_.reset();
     }
     manual_override_count_.store(0U, std::memory_order_relaxed);
+    publish_static_look_status({});
     state_.store(RunnerState::Stopped, std::memory_order_release);
 }
 
@@ -469,7 +650,47 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.bpm = static_cast<double>(bpm_milli_.load(std::memory_order_relaxed)) / 1000.0;
     snapshot.beat_position =
         static_cast<double>(beat_milli_.load(std::memory_order_relaxed)) / 1000.0;
-    snapshot.active_look = active_look_.load(std::memory_order_relaxed);
+    std::uint32_t static_look_status_spins = 0U;
+    for (;;) {
+        const auto before =
+            static_look_status_sequence_.load(std::memory_order_acquire);
+        if ((before & 1U) != 0U) {
+            if (++static_look_status_spins == 16U) {
+                std::this_thread::yield();
+                static_look_status_spins = 0U;
+            }
+            continue;
+        }
+        snapshot.static_look.look_index =
+            active_look_.load(std::memory_order_relaxed);
+        snapshot.static_look.package_generation =
+            static_look_package_generation_.load(std::memory_order_relaxed);
+        snapshot.static_look.activation_generation =
+            static_look_activation_generation_.load(std::memory_order_relaxed);
+        snapshot.static_look.owner_kind =
+            static_look_owner_kind_.load(std::memory_order_relaxed);
+        snapshot.static_look.owner_feedback_token =
+            static_look_owner_feedback_token_.load(std::memory_order_relaxed);
+        snapshot.static_look.behavior =
+            static_look_behavior_.load(std::memory_order_relaxed);
+        snapshot.static_look.status =
+            static_look_activation_status_.load(std::memory_order_relaxed);
+        snapshot.static_look.activated_at_ms =
+            static_look_activated_at_ms_.load(std::memory_order_relaxed);
+        snapshot.static_look.transition_progress = static_cast<float>(
+            static_look_transition_milli_.load(std::memory_order_relaxed)) /
+            1000.0F;
+        const auto after =
+            static_look_status_sequence_.load(std::memory_order_acquire);
+        if (before == after) {
+            break;
+        }
+        if (++static_look_status_spins == 16U) {
+            std::this_thread::yield();
+            static_look_status_spins = 0U;
+        }
+    }
+    snapshot.active_look = snapshot.static_look.look_index;
     const auto active_autoloop_playback =
         active_autoloop_playback_.load(std::memory_order_relaxed);
     const auto encoded_autoloop = static_cast<std::uint16_t>(
@@ -514,6 +735,12 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.os2l_connections = os2l_connections_.load(std::memory_order_relaxed);
     snapshot.os2l_messages = os2l_messages_.load(std::memory_order_relaxed);
     snapshot.os2l_decode_errors = os2l_decode_errors_.load(std::memory_order_relaxed);
+    snapshot.os2l_feedback_messages =
+        os2l_feedback_messages_.load(std::memory_order_relaxed);
+    snapshot.os2l_feedback_errors =
+        os2l_feedback_errors_.load(std::memory_order_relaxed);
+    snapshot.os2l_blackout_feedback_synchronized =
+        os2l_blackout_feedback_synchronized_.load(std::memory_order_relaxed);
     snapshot.os2l_listen_port = os2l_listen_port_.load(std::memory_order_relaxed);
     snapshot.os2l_last_error = os2l_last_error_.load(std::memory_order_relaxed);
     snapshot.os2l_discovery_last_error =
@@ -539,7 +766,59 @@ RunnerStatus RunnerService::status() const noexcept {
     snapshot.package_activations = package_activations_.load(std::memory_order_relaxed);
     snapshot.package_activation_failures =
         package_activation_failures_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.mode =
+        autoloop_v2_mode_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.track_script_owner =
+        autoloop_v2_track_owner_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.track_script_suppressed_by_replace =
+        autoloop_v2_track_suppressed_by_replace_.load(
+            std::memory_order_relaxed);
+    snapshot.autoloop_v2.package_active =
+        autoloop_v2_package_active_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.package_generation =
+        autoloop_v2_generation_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.fault =
+        autoloop_v2_fault_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.last_result =
+        autoloop_v2_result_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.active_source =
+        autoloop_v2_source_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.active_mode =
+        autoloop_v2_playback_mode_.load(std::memory_order_relaxed);
+    const auto v2_playback =
+        autoloop_v2_playback_.load(std::memory_order_relaxed);
+    const auto v2_address = static_cast<std::uint16_t>(
+        v2_playback & kPackedAutoloopAddressMask);
+    snapshot.autoloop_v2.active_address =
+        v2_address < showcore::kMaxAutoloops
+        ? decode_autoloop(v2_address)
+        : showcore::AutoloopAddress{};
+    snapshot.autoloop_v2.active_repeat =
+        static_cast<showcore::AutoloopRepeat>(
+            (v2_playback >> kPackedAutoloopRepeatShift) & 0x03U);
+    snapshot.autoloop_v2.active_progress = static_cast<float>(
+        (v2_playback >> kPackedAutoloopProgressShift) & 0x03FFU) /
+        1000.0F;
+    snapshot.autoloop_v2.active_completed_cycles =
+        static_cast<std::uint32_t>(
+            v2_playback >> kPackedAutoloopCycleShift);
+    snapshot.autoloop_v2.active_bank_mask =
+        autoloop_v2_active_bank_mask_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.has_pending_bank_mask =
+        autoloop_v2_has_pending_bank_mask_.load(std::memory_order_relaxed);
+    snapshot.autoloop_v2.pending_bank_mask =
+        autoloop_v2_pending_bank_mask_.load(std::memory_order_relaxed);
     return snapshot;
+}
+
+bool RunnerService::latest_output_snapshot(
+    RunnerOutputSnapshot& snapshot) const noexcept {
+    const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
+    if (!has_output_snapshot_) {
+        return false;
+    }
+    snapshot = latest_output_snapshot_;
+    return true;
 }
 
 bool RunnerService::post(const RunnerCommand& command) noexcept {
@@ -559,19 +838,59 @@ void RunnerService::set_work_light(bool active) noexcept {
     work_light_requested_.store(active, std::memory_order_release);
 }
 
-bool RunnerService::trigger_look(std::uint16_t index) noexcept {
-    return post({RunnerCommandType::TriggerLook, index});
+bool RunnerService::trigger_look(
+    std::uint16_t index,
+    StaticLookOwnerContext owner) noexcept {
+    RunnerCommand command;
+    command.type = RunnerCommandType::TriggerLook;
+    command.target = index;
+    command.static_look_owner = owner;
+    command.static_look_behavior = StaticLookBehavior::Explicit;
+    return post(command);
 }
 
-bool RunnerService::toggle_look(std::uint16_t index) noexcept {
-    return post({RunnerCommandType::ToggleLook, index});
+bool RunnerService::toggle_look(
+    std::uint16_t index,
+    StaticLookOwnerContext owner) noexcept {
+    RunnerCommand command;
+    command.type = RunnerCommandType::ToggleLook;
+    command.target = index;
+    command.static_look_owner = owner;
+    command.static_look_behavior = StaticLookBehavior::Latch;
+    return post(command);
 }
 
-bool RunnerService::hold_look(std::uint16_t index, bool active) noexcept {
+bool RunnerService::hold_look(
+    std::uint16_t index,
+    bool active,
+    StaticLookOwnerContext owner) noexcept {
+    if (owner.kind == StaticLookOwnerKind::None ||
+        owner.feedback_token == 0U ||
+        (!active && (owner.expected_package_generation == 0U ||
+                     owner.expected_activation_generation == 0U))) {
+        return false;
+    }
     RunnerCommand command;
     command.type = RunnerCommandType::SetLookHeld;
     command.target = index;
     command.active = active;
+    command.static_look_owner = owner;
+    command.static_look_behavior = StaticLookBehavior::Hold;
+    return post(command);
+}
+
+bool RunnerService::notify_static_look_owner_lost(
+    StaticLookOwnerKind kind,
+    std::uint64_t owner_session_token,
+    std::uint64_t owner_feedback_token) noexcept {
+    if (kind == StaticLookOwnerKind::None || owner_session_token == 0U) {
+        return false;
+    }
+    RunnerCommand command;
+    command.type = RunnerCommandType::StaticLookOwnerLost;
+    command.static_look_owner.kind = kind;
+    command.static_look_owner.feedback_token = owner_feedback_token;
+    command.static_look_owner.owner_session_token = owner_session_token;
     return post(command);
 }
 
@@ -729,7 +1048,9 @@ void RunnerService::os2l_callback(
             const RunnerOs2lButtonEvent button{
                 event.button.name,
                 event.button.on,
-                activation->generation};
+                activation->generation,
+                service.os2l_owner_session_token_.load(
+                    std::memory_order_acquire)};
             if (!service.os2l_buttons_.try_push(button)) {
                 service.dropped_os2l_actions_.fetch_add(1, std::memory_order_relaxed);
             }
@@ -744,8 +1065,39 @@ void RunnerService::run_input() noexcept {
     bool os2l_open = false;
     bool midi_input_open = false;
     bool midi_output_open = false;
+    std::uint64_t os2l_owner_session = 0U;
+    std::uint64_t midi_owner_session = 0U;
     auto next_os2l_retry = SteadyClock::now();
     auto next_midi_retry = SteadyClock::now();
+    auto next_midi_health_probe = SteadyClock::now();
+
+    auto next_owner_session = [&]() noexcept {
+        auto next = input_owner_session_sequence_.fetch_add(
+                        1U, std::memory_order_relaxed) +
+            1U;
+        if (next == 0U) {
+            input_owner_session_sequence_.store(1U, std::memory_order_relaxed);
+            next = 1U;
+        }
+        return next;
+    };
+    auto queue_owner_loss = [&](StaticLookOwnerKind kind,
+                                std::uint64_t owner_session,
+                                std::uint64_t generation) noexcept {
+        if (owner_session == 0U) {
+            return;
+        }
+        if (!owner_losses_.try_push(
+                {kind, owner_session, 0U, generation})) {
+            if (kind == StaticLookOwnerKind::Midi) {
+                dropped_midi_actions_.fetch_add(1U, std::memory_order_relaxed);
+            } else {
+                dropped_os2l_actions_.fetch_add(1U, std::memory_order_relaxed);
+            }
+        }
+    };
+
+    os2l_owner_session_token_.store(0U, std::memory_order_release);
 
     while (!stop_requested_.load(std::memory_order_acquire)) {
         auto* activation = published_activation_.load(std::memory_order_acquire);
@@ -772,13 +1124,40 @@ void RunnerService::run_input() noexcept {
             next_os2l_retry = now + std::chrono::seconds(2);
         }
         if (os2l_open) {
+            const auto blackout =
+                blackout_requested_.load(std::memory_order_acquire);
+            if (os2l.state() == showcore::Os2lServerState::ClientConnected) {
+                static_cast<void>(os2l.queue_blackout_feedback(blackout));
+            }
             const auto poll = os2l.poll(&RunnerService::os2l_callback, this, 2);
+            if (poll == showcore::Os2lPollResult::ClientConnected) {
+                os2l_owner_session = next_owner_session();
+                os2l_owner_session_token_.store(
+                    os2l_owner_session, std::memory_order_release);
+                static_cast<void>(os2l.queue_blackout_feedback(
+                    blackout_requested_.load(std::memory_order_acquire)));
+            } else if (poll == showcore::Os2lPollResult::ClientDisconnected) {
+                queue_owner_loss(
+                    StaticLookOwnerKind::External,
+                    os2l_owner_session,
+                    activation->generation);
+                os2l_owner_session = 0U;
+                os2l_owner_session_token_.store(0U, std::memory_order_release);
+            }
             if (poll == showcore::Os2lPollResult::Error) {
                 const auto discovery_state = adapter_state(os2l.discovery_state());
                 const auto discovery_error = os2l.discovery_last_error();
                 const auto socket_error = os2l.last_error();
+                queue_owner_loss(
+                    StaticLookOwnerKind::External,
+                    os2l_owner_session,
+                    activation->generation);
+                os2l_owner_session = 0U;
+                os2l_owner_session_token_.store(0U, std::memory_order_release);
                 os2l.close();
                 os2l_open = false;
+                os2l_blackout_feedback_synchronized_.store(
+                    false, std::memory_order_relaxed);
                 os2l_listen_port_.store(0U, std::memory_order_relaxed);
                 os2l_last_error_.store(socket_error, std::memory_order_relaxed);
                 os2l_discovery_state_.store(
@@ -804,6 +1183,14 @@ void RunnerService::run_input() noexcept {
             os2l_connections_.store(stats.connections, std::memory_order_relaxed);
             os2l_messages_.store(stats.messages, std::memory_order_relaxed);
             os2l_decode_errors_.store(stats.decode_errors, std::memory_order_relaxed);
+            os2l_feedback_messages_.store(
+                stats.feedback_messages, std::memory_order_relaxed);
+            os2l_feedback_errors_.store(
+                stats.feedback_errors, std::memory_order_relaxed);
+            os2l_blackout_feedback_synchronized_.store(
+                os2l.blackout_feedback_synchronized(
+                    blackout_requested_.load(std::memory_order_acquire)),
+                std::memory_order_relaxed);
         }
 
         if (now >= next_midi_retry) {
@@ -811,6 +1198,10 @@ void RunnerService::run_input() noexcept {
                 midi_input_state_.store(AdapterState::Starting, std::memory_order_relaxed);
                 midi_input_open = midi_input.open(
                     static_cast<std::uint32_t>(connections_.midi_input_index), 1U);
+                if (midi_input_open) {
+                    midi_owner_session = next_owner_session();
+                    next_midi_health_probe = now + std::chrono::milliseconds(250);
+                }
                 midi_input_state_.store(
                     midi_input_open ? AdapterState::Ready : AdapterState::Fault,
                     std::memory_order_relaxed);
@@ -826,6 +1217,22 @@ void RunnerService::run_input() noexcept {
             next_midi_retry = now + std::chrono::seconds(2);
         }
 
+        if (midi_input_open && now >= next_midi_health_probe) {
+            if (!midi_input.connected(1U)) {
+                queue_owner_loss(
+                    StaticLookOwnerKind::Midi,
+                    midi_owner_session,
+                    activation->generation);
+                static_cast<void>(midi_input.close(1U));
+                midi_input_open = false;
+                midi_owner_session = 0U;
+                midi_input_state_.store(
+                    AdapterState::Fault, std::memory_order_relaxed);
+                next_midi_retry = now + std::chrono::seconds(2);
+            }
+            next_midi_health_probe = now + std::chrono::milliseconds(250);
+        }
+
         if (midi_input_open) {
             showcore::MidiMessage message;
             while (midi_input.poll(message)) {
@@ -834,7 +1241,10 @@ void RunnerService::run_input() noexcept {
                 std::array<showcore::MidiActionEvent, showcore::kMaxMidiActionsPerMessage> actions{};
                 const auto count = activation->show->midi_mappings().process(message, actions);
                 for (std::size_t index = 0; index < count; ++index) {
-                    if (!midi_actions_.try_push({actions[index], activation->generation})) {
+                    if (!midi_actions_.try_push({
+                            actions[index],
+                            activation->generation,
+                            midi_owner_session})) {
                         dropped_midi_actions_.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
@@ -844,6 +1254,8 @@ void RunnerService::run_input() noexcept {
     }
 
     os2l.close();
+    os2l_blackout_feedback_synchronized_.store(false, std::memory_order_relaxed);
+    os2l_owner_session_token_.store(0U, std::memory_order_release);
     os2l_listen_port_.store(0U, std::memory_order_relaxed);
     os2l_discovery_state_.store(AdapterState::Disabled, std::memory_order_relaxed);
     midi_input.close_all();
@@ -865,7 +1277,8 @@ void RunnerService::run_scheduler() noexcept {
         auto& runtime = *next->runtime;
         auto& engine = next->show->engine();
         auto& autoloops = next->show->autoloops();
-        std::int32_t selected_look = -1;
+        const auto* v2_package = next->show->autoloop_v2_package();
+        const bool v2_enabled = v2_package != nullptr;
         showcore::AutoloopAddress selected_autoloop{};
         std::uint64_t active_bank_mask = ~std::uint64_t{0};
         if (previous != nullptr) {
@@ -878,9 +1291,12 @@ void RunnerService::run_scheduler() noexcept {
             runtime.jitter_histogram = prior.jitter_histogram;
             runtime.jitter_sample_count = prior.jitter_sample_count;
             runtime.track_playing = prior.track_playing;
-            selected_look = prior.selected_look;
-            selected_autoloop = prior.selected_autoloop;
-            active_bank_mask = previous->show->autoloops().active_bank_mask();
+            if (!v2_enabled &&
+                previous->show->autoloop_v2_package() == nullptr) {
+                selected_autoloop = prior.selected_autoloop;
+                active_bank_mask =
+                    previous->show->autoloops().active_bank_mask();
+            }
         } else {
             runtime.sync.set_manual_bpm(connections_.manual_bpm, now_ms);
         }
@@ -905,24 +1321,23 @@ void RunnerService::run_scheduler() noexcept {
         spark_armed_.store(engine.safety().spark_armed, std::memory_order_relaxed);
 
         const auto clock = runtime.sync.tick(now_ms);
-        const auto default_address = next->show->autoloops().next_available();
-        if (default_address.valid()) {
-            static_cast<void>(runtime.autonomous.trigger(
-                next->show->autoloops(),
-                default_address,
-                showcore::AutoloopRepeat::Infinite,
-                clock.beat_position,
-                runtime.track_playing,
-                engine.layers()));
-        }
-        if (selected_look >= 0) {
-            const auto look_index = static_cast<std::size_t>(selected_look);
-            if (const auto* look = next->show->look(look_index); look != nullptr &&
-                runtime.static_look.trigger(*look, now_ms, 0U, engine.layers())) {
-                runtime.selected_look = selected_look;
+        if (v2_enabled) {
+            static_cast<void>(runtime.autoloop_v2.activate_package(
+                v2_package, next->generation, engine.layers()));
+        } else {
+            const auto default_address =
+                next->show->autoloops().next_available();
+            if (default_address.valid()) {
+                static_cast<void>(runtime.autonomous.trigger(
+                    next->show->autoloops(),
+                    default_address,
+                    showcore::AutoloopRepeat::Infinite,
+                    clock.beat_position,
+                    runtime.track_playing,
+                    engine.layers()));
             }
         }
-        if (selected_autoloop.valid() &&
+        if (!v2_enabled && selected_autoloop.valid() &&
             next->show->autoloops().get(selected_autoloop) != nullptr &&
             runtime.manual_autoloop.trigger(
                 next->show->autoloops(),
@@ -934,6 +1349,10 @@ void RunnerService::run_scheduler() noexcept {
             runtime.selected_autoloop = selected_autoloop;
         }
         runtime.applied_work_light = false;
+        // V0 intentionally does not preserve an activation across package
+        // generations. Stable-ID/content compatibility is not yet compiled
+        // into the activation contract, so clearing is the only safe policy.
+        publish_static_look_status(runtime.static_look_activation);
     };
 
     activation = published_activation_.load(std::memory_order_acquire);
@@ -964,6 +1383,8 @@ void RunnerService::run_scheduler() noexcept {
         auto& runtime = *activation->runtime;
         auto& engine = activation->show->engine();
         auto* show = activation->show.get();
+        const auto* v2_package = show->autoloop_v2_package();
+        const bool v2_enabled = v2_package != nullptr;
 
         std::uint64_t late_us = 0U;
         if (now > next_frame) {
@@ -1009,7 +1430,17 @@ void RunnerService::run_scheduler() noexcept {
             if (!address.valid()) {
                 return;
             }
-            if (runtime.manual_autoloop.trigger(
+            if (v2_enabled) {
+                const showcore::AutoloopLaunchRequest request{
+                    address, activation->generation};
+                static_cast<void>(runtime.autoloop_v2.launch_manual(
+                    request,
+                    v2_transport(clock, runtime.track_playing),
+                    engine.layers()));
+                if (runtime.autoloop_v2.director_status().manual.active) {
+                    runtime.selected_autoloop = address;
+                }
+            } else if (runtime.manual_autoloop.trigger(
                     show->autoloops(),
                     address,
                     show->autoloop_repeat(address),
@@ -1020,9 +1451,78 @@ void RunnerService::run_scheduler() noexcept {
             }
         };
 
-        auto clear_track_script = [&]() noexcept {
+        auto clear_manual_loop = [&]() noexcept {
+            if (v2_enabled) {
+                static_cast<void>(runtime.autoloop_v2.clear_manual(
+                    activation->generation, engine.layers()));
+            } else {
+                runtime.manual_autoloop.clear(engine.layers());
+            }
+            runtime.selected_autoloop = {};
+        };
+
+        auto adjacent_loop = [&](bool reverse) noexcept {
+            if (v2_enabled) {
+                return next_v2_address(
+                    *v2_package,
+                    runtime.selected_autoloop,
+                    runtime.autoloop_v2.director_status().active_bank_mask,
+                    reverse);
+            }
+            return reverse
+                ? show->autoloops().previous_available(
+                      runtime.selected_autoloop)
+                : show->autoloops().next_available(
+                      runtime.selected_autoloop);
+        };
+
+        auto select_all_banks = [&]() noexcept {
+            if (v2_enabled) {
+                static_cast<void>(runtime.autoloop_v2.request_all_banks(
+                    activation->generation));
+            } else {
+                show->autoloops().select_all_banks();
+            }
+        };
+
+        auto select_exclusive_bank = [&](std::uint16_t bank) noexcept {
+            if (v2_enabled) {
+                static_cast<void>(
+                    runtime.autoloop_v2.request_exclusive_bank(
+                        bank, activation->generation));
+            } else {
+                static_cast<void>(
+                    show->autoloops().select_exclusive_bank(bank));
+            }
+        };
+
+        auto set_bank_enabled = [&](std::uint16_t bank, bool enabled) noexcept {
+            if (v2_enabled) {
+                static_cast<void>(runtime.autoloop_v2.set_bank_enabled(
+                    bank, enabled, activation->generation));
+            } else {
+                static_cast<void>(
+                    show->autoloops().set_bank_enabled(bank, enabled));
+            }
+        };
+
+        auto clear_track_script_layers = [&]() noexcept {
             runtime.scripted_look.clear(now_ms, 0U, engine.layers());
             runtime.scripted_autoloop.clear(engine.layers());
+            if (v2_enabled) {
+                const auto owner =
+                    runtime.autoloop_v2.status().track_script_owner;
+                static_cast<void>(runtime.autoloop_v2.clear_scripted(
+                    activation->generation, engine.layers()));
+                runtime.autoloop_v2.release_legacy_track_script(
+                    owner, engine.layers());
+            }
+            runtime.legacy_track_script_owner =
+                AutoloopTrackScriptOwner::None;
+        };
+
+        auto clear_track_script = [&]() noexcept {
+            clear_track_script_layers();
             runtime.selected_track_script = -1;
             runtime.next_track_cue = 0U;
             runtime.track_script_start_beat = 0.0;
@@ -1040,29 +1540,76 @@ void RunnerService::run_scheduler() noexcept {
                     // layer. Triggering either is an intentional handoff, not an
                     // accidental whole-layer overwrite on the scheduler tick.
                     runtime.scripted_autoloop.clear(engine.layers());
-                    static_cast<void>(runtime.scripted_look.trigger(
-                        *look, now_ms, show->look_fade_ms(cue.target), engine.layers()));
+                    if (v2_enabled) {
+                        static_cast<void>(
+                            runtime.autoloop_v2.claim_legacy_track_script(
+                                AutoloopTrackScriptOwner::LegacyLook,
+                                engine.layers()));
+                    }
+                    if (runtime.scripted_look.trigger(
+                            *look,
+                            now_ms,
+                            show->look_fade_ms(cue.target),
+                            engine.layers())) {
+                        runtime.legacy_track_script_owner =
+                            AutoloopTrackScriptOwner::LegacyLook;
+                    }
                 }
                 break;
             case TrackCueAction::ClearLook:
                 runtime.scripted_look.clear(now_ms, 0U, engine.layers());
+                if (v2_enabled) {
+                    runtime.autoloop_v2.release_legacy_track_script(
+                        AutoloopTrackScriptOwner::LegacyLook,
+                        engine.layers());
+                }
+                if (runtime.legacy_track_script_owner ==
+                    AutoloopTrackScriptOwner::LegacyLook) {
+                    runtime.legacy_track_script_owner =
+                        AutoloopTrackScriptOwner::None;
+                }
                 break;
             case TrackCueAction::TriggerAutoloop: {
                 const auto address = decode_autoloop(cue.target);
                 if (address.valid()) {
                     runtime.scripted_look.clear(now_ms, 0U, engine.layers());
-                    static_cast<void>(runtime.scripted_autoloop.trigger(
-                        show->autoloops(),
-                        address,
-                        show->autoloop_repeat(address),
-                        beat_position,
-                        runtime.track_playing,
-                        engine.layers()));
+                    if (v2_enabled) {
+                        runtime.autoloop_v2.release_legacy_track_script(
+                            AutoloopTrackScriptOwner::LegacyLook,
+                            engine.layers());
+                        runtime.scripted_autoloop.clear(engine.layers());
+                        const showcore::AutoloopLaunchRequest request{
+                            address, activation->generation};
+                        static_cast<void>(
+                            runtime.autoloop_v2.launch_scripted(
+                                request,
+                                v2_transport(clock, runtime.track_playing),
+                                engine.layers()));
+                    } else if (runtime.scripted_autoloop.trigger(
+                                   show->autoloops(),
+                                   address,
+                                   show->autoloop_repeat(address),
+                                   beat_position,
+                                   runtime.track_playing,
+                                   engine.layers())) {
+                        runtime.legacy_track_script_owner =
+                            AutoloopTrackScriptOwner::LegacyAutoloop;
+                    }
                 }
                 break;
             }
             case TrackCueAction::ClearAutoloop:
-                runtime.scripted_autoloop.clear(engine.layers());
+                if (v2_enabled) {
+                    static_cast<void>(runtime.autoloop_v2.clear_scripted(
+                        activation->generation, engine.layers()));
+                } else {
+                    runtime.scripted_autoloop.clear(engine.layers());
+                    if (runtime.legacy_track_script_owner ==
+                        AutoloopTrackScriptOwner::LegacyAutoloop) {
+                        runtime.legacy_track_script_owner =
+                            AutoloopTrackScriptOwner::None;
+                    }
+                }
                 break;
             case TrackCueAction::Count:
                 break;
@@ -1083,8 +1630,7 @@ void RunnerService::run_scheduler() noexcept {
             constexpr double kSeekToleranceBeats = 0.001;
             if (runtime.last_track_script_beat >= 0.0 &&
                 relative_beat + kSeekToleranceBeats < runtime.last_track_script_beat) {
-                runtime.scripted_look.clear(now_ms, 0U, engine.layers());
-                runtime.scripted_autoloop.clear(engine.layers());
+                clear_track_script_layers();
                 runtime.next_track_cue = 0U;
             }
             while (runtime.next_track_cue < script->cue_count &&
@@ -1186,36 +1732,119 @@ void RunnerService::run_scheduler() noexcept {
             runtime.manual_override_count = 0U;
         };
 
-        auto activate_static_look = [&](std::uint16_t index) noexcept {
+        auto same_static_look_owner = [](
+            const RunnerStaticLookActivation& current,
+            const StaticLookOwnerContext& owner) noexcept {
+            return current.owner_kind == owner.kind &&
+                current.owner_feedback_token == owner.feedback_token &&
+                current.owner_session_token == owner.owner_session_token;
+        };
+
+        auto next_static_look_generation = [&]() noexcept {
+            if (static_look_activation_sequence_ ==
+                std::numeric_limits<std::uint64_t>::max()) {
+                return std::uint64_t{0U};
+            }
+            ++static_look_activation_sequence_;
+            return static_look_activation_sequence_;
+        };
+
+        auto activate_static_look = [&](std::uint16_t index,
+                                        StaticLookBehavior behavior,
+                                        StaticLookOwnerContext owner) noexcept {
+            auto& current = runtime.static_look_activation;
+            if (behavior == StaticLookBehavior::Hold) {
+                if (owner.kind == StaticLookOwnerKind::None ||
+                    owner.feedback_token == 0U) {
+                    return false;
+                }
+            } else {
+                owner = normalized_static_look_owner(owner, index);
+            }
+            if (behavior == StaticLookBehavior::Hold &&
+                current.look_index == static_cast<std::int32_t>(index) &&
+                current.behavior == StaticLookBehavior::Hold &&
+                current.status != StaticLookActivationStatus::None &&
+                current.status != StaticLookActivationStatus::Releasing &&
+                same_static_look_owner(current, owner)) {
+                // A duplicate press from one held control retains the exact
+                // generation so its matching release remains authoritative.
+                return true;
+            }
             const auto* look = show->look(index);
-            if (look == nullptr || !runtime.static_look.trigger(
+            if (look == nullptr) {
+                return false;
+            }
+            if (static_look_activation_sequence_ ==
+                std::numeric_limits<std::uint64_t>::max() ||
+                !runtime.static_look.trigger(
                     *look, now_ms, show->look_fade_ms(index), engine.layers())) {
                 return false;
             }
-            runtime.selected_look = static_cast<std::int32_t>(index);
+            const auto generation = next_static_look_generation();
+            current.look_index = static_cast<std::int32_t>(index);
+            current.package_generation = activation->generation;
+            current.activation_generation = generation;
+            current.owner_kind = owner.kind;
+            current.owner_feedback_token = owner.feedback_token;
+            current.owner_session_token = owner.owner_session_token;
+            current.behavior = behavior == StaticLookBehavior::None
+                ? StaticLookBehavior::Explicit
+                : behavior;
+            current.status = StaticLookActivationStatus::Activating;
+            current.activated_at_ms = now_ms;
+            current.transition_progress = 0.0F;
             return true;
         };
 
         auto clear_static_look = [&]() noexcept {
-            const auto fade_ms = runtime.selected_look >= 0
-                ? show->look_fade_ms(
-                    static_cast<std::size_t>(runtime.selected_look))
-                : 100U;
-            runtime.static_look.clear(now_ms, fade_ms, engine.layers());
-            runtime.selected_look = -1;
-        };
-
-        auto release_static_look = [&](std::uint16_t index) noexcept {
-            if (runtime.selected_look == static_cast<std::int32_t>(index)) {
-                clear_static_look();
+            auto& current = runtime.static_look_activation;
+            if (current.status == StaticLookActivationStatus::None ||
+                current.status == StaticLookActivationStatus::Releasing ||
+                current.look_index < 0) {
+                return false;
             }
+            const auto fade_ms = show->look_fade_ms(
+                static_cast<std::size_t>(current.look_index));
+            runtime.static_look.clear(now_ms, fade_ms, engine.layers());
+            current.status = StaticLookActivationStatus::Releasing;
+            current.transition_progress = 0.0F;
+            return true;
         };
 
-        auto toggle_static_look = [&](std::uint16_t index) noexcept {
-            if (runtime.selected_look == static_cast<std::int32_t>(index)) {
-                clear_static_look();
+        auto release_static_look = [&](std::uint16_t index,
+                                       const StaticLookOwnerContext& owner) noexcept {
+            const auto& current = runtime.static_look_activation;
+            if (current.look_index != static_cast<std::int32_t>(index) ||
+                current.behavior != StaticLookBehavior::Hold ||
+                current.status == StaticLookActivationStatus::None ||
+                current.status == StaticLookActivationStatus::Releasing ||
+                !same_static_look_owner(current, owner) ||
+                owner.expected_package_generation == 0U ||
+                owner.expected_package_generation != current.package_generation ||
+                owner.expected_activation_generation == 0U ||
+                owner.expected_activation_generation !=
+                    current.activation_generation) {
+                return false;
+            }
+            return clear_static_look();
+        };
+
+        auto toggle_static_look = [&](std::uint16_t index,
+                                      StaticLookOwnerContext owner) noexcept {
+            owner = normalized_static_look_owner(owner, index);
+            const auto& current = runtime.static_look_activation;
+            const bool same_active_look =
+                current.look_index == static_cast<std::int32_t>(index) &&
+                current.status != StaticLookActivationStatus::None &&
+                current.status != StaticLookActivationStatus::Releasing;
+            if (same_active_look &&
+                (same_static_look_owner(current, owner) ||
+                 current.behavior == StaticLookBehavior::Latch)) {
+                static_cast<void>(clear_static_look());
             } else {
-                static_cast<void>(activate_static_look(index));
+                static_cast<void>(activate_static_look(
+                    index, StaticLookBehavior::Latch, owner));
             }
         };
 
@@ -1270,27 +1899,67 @@ void RunnerService::run_scheduler() noexcept {
         };
 
         auto apply_action = [&](const showcore::MidiActionEvent& event,
-                                double beat_position) noexcept {
+                                double beat_position,
+                                std::uint64_t owner_session_token) noexcept {
             const auto& action = event.action;
             if (action.type == showcore::ActionType::TriggerLook) {
+                const StaticLookOwnerContext owner{
+                    StaticLookOwnerKind::Midi,
+                    static_cast<std::uint64_t>(event.mapping_index) + 1U,
+                    0U,
+                    0U,
+                    owner_session_token};
                 switch (event.behavior) {
                 case showcore::MappingBehavior::Toggle:
                     if (event.active) {
-                        toggle_static_look(action.target_id);
+                        toggle_static_look(action.target_id, owner);
                     }
                     break;
                 case showcore::MappingBehavior::Latch:
                     if (event.active) {
-                        static_cast<void>(activate_static_look(action.target_id));
+                        static_cast<void>(activate_static_look(
+                            action.target_id, StaticLookBehavior::Latch, owner));
                     }
                     break;
                 case showcore::MappingBehavior::Momentary:
                 case showcore::MappingBehavior::Continuous:
                 case showcore::MappingBehavior::Relative:
                     if (event.active) {
-                        static_cast<void>(activate_static_look(action.target_id));
+                        // A binding with an outstanding begin cannot safely
+                        // reinterpret a repeated begin after replacement: a
+                        // delayed release has no wire-level generation. Keep
+                        // the original stored generation until its release is
+                        // consumed; a later clean begin may reactivate.
+                        auto& lease = runtime.midi_static_look_leases
+                            [event.mapping_index];
+                        if (lease.outstanding()) {
+                            if (lease.owner_session_token ==
+                                owner.owner_session_token) {
+                                break;
+                            }
+                            lease.clear();
+                        }
+                        if (activate_static_look(
+                                action.target_id,
+                                StaticLookBehavior::Hold,
+                                owner)) {
+                            static_cast<void>(lease.record_begin(
+                                owner.feedback_token,
+                                runtime.static_look_activation
+                                    .package_generation,
+                                runtime.static_look_activation
+                                    .activation_generation,
+                                owner.owner_session_token));
+                        }
                     } else {
-                        release_static_look(action.target_id);
+                        auto release_owner =
+                            runtime.midi_static_look_leases[event.mapping_index]
+                                .consume_release(
+                                    owner.kind,
+                                    owner.feedback_token,
+                                    owner.owner_session_token);
+                        static_cast<void>(release_static_look(
+                            action.target_id, release_owner));
                     }
                     break;
                 }
@@ -1372,8 +2041,7 @@ void RunnerService::run_scheduler() noexcept {
                 if (active) {
                     trigger_loop(decode_autoloop(action.target_id), beat_position);
                 } else {
-                    runtime.manual_autoloop.clear(engine.layers());
-                    runtime.selected_autoloop = {};
+                    clear_manual_loop();
                 }
                 break;
             case showcore::ActionType::TriggerTrackScript:
@@ -1391,13 +2059,12 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             case showcore::ActionType::ClearLook:
                 if (active) {
-                    clear_static_look();
+                    static_cast<void>(clear_static_look());
                 }
                 break;
             case showcore::ActionType::ClearAutoloop:
                 if (active) {
-                    runtime.manual_autoloop.clear(engine.layers());
-                    runtime.selected_autoloop = {};
+                    clear_manual_loop();
                 }
                 break;
             case showcore::ActionType::ClearTrackScript:
@@ -1412,29 +2079,25 @@ void RunnerService::run_scheduler() noexcept {
                 break;
             case showcore::ActionType::SelectAutoloopBank:
                 if (active) {
-                    static_cast<void>(show->autoloops().select_exclusive_bank(action.target_id));
+                    select_exclusive_bank(action.target_id);
                 }
                 break;
             case showcore::ActionType::SelectAllAutoloopBanks:
                 if (active) {
-                    show->autoloops().select_all_banks();
+                    select_all_banks();
                 }
                 break;
             case showcore::ActionType::SetAutoloopBankEnabled:
-                static_cast<void>(show->autoloops().set_bank_enabled(action.target_id, active));
+                set_bank_enabled(action.target_id, active);
                 break;
             case showcore::ActionType::NextAutoloop:
                 if (active) {
-                    trigger_loop(
-                        show->autoloops().next_available(runtime.selected_autoloop),
-                        beat_position);
+                    trigger_loop(adjacent_loop(false), beat_position);
                 }
                 break;
             case showcore::ActionType::PreviousAutoloop:
                 if (active) {
-                    trigger_loop(
-                        show->autoloops().previous_available(runtime.selected_autoloop),
-                        beat_position);
+                    trigger_loop(adjacent_loop(true), beat_position);
                 }
                 break;
             case showcore::ActionType::WorkLight:
@@ -1452,6 +2115,36 @@ void RunnerService::run_scheduler() noexcept {
             case showcore::ActionType::None:
             case showcore::ActionType::Count:
                 break;
+            }
+        };
+
+        auto handle_static_look_owner_loss = [&]
+            (const RunnerStaticLookOwnerLossEvent& loss) noexcept {
+            if (loss.kind == StaticLookOwnerKind::None ||
+                loss.owner_session_token == 0U) {
+                return;
+            }
+            auto clear_matching_leases = [&](auto& leases) noexcept {
+                for (auto& lease : leases) {
+                    if (lease.belongs_to(
+                            loss.owner_session_token,
+                            loss.owner_feedback_token)) {
+                        lease.clear();
+                    }
+                }
+            };
+            if (loss.kind == StaticLookOwnerKind::Midi) {
+                clear_matching_leases(runtime.midi_static_look_leases);
+            } else if (loss.kind == StaticLookOwnerKind::External) {
+                clear_matching_leases(runtime.os2l_static_look_leases);
+            }
+
+            const auto& current = runtime.static_look_activation;
+            if (current.owner_kind == loss.kind &&
+                current.owner_session_token == loss.owner_session_token &&
+                (loss.owner_feedback_token == 0U ||
+                 current.owner_feedback_token == loss.owner_feedback_token)) {
+                static_cast<void>(clear_static_look());
             }
         };
 
@@ -1480,10 +2173,44 @@ void RunnerService::run_scheduler() noexcept {
                 const auto look_index = find_look_by_name(target_name);
                 if (look_index >= 0) {
                     const auto target = static_cast<std::uint16_t>(look_index);
+                    const StaticLookOwnerContext owner{
+                        StaticLookOwnerKind::External,
+                        static_look_feedback_token(target_name),
+                        0U,
+                        0U,
+                        os2l_button.owner_session_token};
+                    if (owner.owner_session_token == 0U) {
+                        continue;
+                    }
                     if (os2l_button.on) {
-                        static_cast<void>(activate_static_look(target));
+                        auto& lease =
+                            runtime.os2l_static_look_leases[target];
+                        if (lease.outstanding()) {
+                            if (lease.owner_session_token ==
+                                owner.owner_session_token) {
+                                continue;
+                            }
+                            lease.clear();
+                        }
+                        if (activate_static_look(
+                                target, StaticLookBehavior::Hold, owner)) {
+                            static_cast<void>(lease.record_begin(
+                                owner.feedback_token,
+                                runtime.static_look_activation
+                                    .package_generation,
+                                runtime.static_look_activation
+                                    .activation_generation,
+                                owner.owner_session_token));
+                        }
                     } else {
-                        release_static_look(target);
+                        auto release_owner =
+                            runtime.os2l_static_look_leases[target]
+                                .consume_release(
+                                    owner.kind,
+                                    owner.feedback_token,
+                                    owner.owner_session_token);
+                        static_cast<void>(release_static_look(
+                            target, release_owner));
                     }
                     continue;
                 }
@@ -1494,8 +2221,7 @@ void RunnerService::run_scheduler() noexcept {
                     if (os2l_button.on) {
                         trigger_loop(address, clock.beat_position);
                     } else if (runtime.selected_autoloop == address) {
-                        runtime.manual_autoloop.clear(engine.layers());
-                        runtime.selected_autoloop = {};
+                        clear_manual_loop();
                     }
                 }
             }
@@ -1508,47 +2234,49 @@ void RunnerService::run_scheduler() noexcept {
             }
             switch (command.type) {
             case RunnerCommandType::TriggerLook:
-                static_cast<void>(activate_static_look(command.target));
+                static_cast<void>(activate_static_look(
+                    command.target,
+                    command.static_look_behavior,
+                    command.static_look_owner));
                 break;
             case RunnerCommandType::ToggleLook:
-                toggle_static_look(command.target);
+                toggle_static_look(
+                    command.target, command.static_look_owner);
                 break;
             case RunnerCommandType::SetLookHeld:
                 if (command.active) {
-                    static_cast<void>(activate_static_look(command.target));
+                    static_cast<void>(activate_static_look(
+                        command.target,
+                        StaticLookBehavior::Hold,
+                        command.static_look_owner));
                 } else {
-                    release_static_look(command.target);
+                    static_cast<void>(release_static_look(
+                        command.target, command.static_look_owner));
                 }
                 break;
             case RunnerCommandType::ClearLook:
-                clear_static_look();
+                static_cast<void>(clear_static_look());
                 break;
             case RunnerCommandType::TriggerAutoloop:
                 trigger_loop(decode_autoloop(command.target), clock.beat_position);
                 break;
             case RunnerCommandType::ClearAutoloop:
-                runtime.manual_autoloop.clear(engine.layers());
-                runtime.selected_autoloop = {};
+                clear_manual_loop();
                 break;
             case RunnerCommandType::NextAutoloop:
-                trigger_loop(
-                    show->autoloops().next_available(runtime.selected_autoloop),
-                    clock.beat_position);
+                trigger_loop(adjacent_loop(false), clock.beat_position);
                 break;
             case RunnerCommandType::PreviousAutoloop:
-                trigger_loop(
-                    show->autoloops().previous_available(runtime.selected_autoloop),
-                    clock.beat_position);
+                trigger_loop(adjacent_loop(true), clock.beat_position);
                 break;
             case RunnerCommandType::SelectAllAutoloopBanks:
-                show->autoloops().select_all_banks();
+                select_all_banks();
                 break;
             case RunnerCommandType::SelectExclusiveAutoloopBank:
-                static_cast<void>(show->autoloops().select_exclusive_bank(command.target));
+                select_exclusive_bank(command.target);
                 break;
             case RunnerCommandType::SetAutoloopBankEnabled:
-                static_cast<void>(
-                    show->autoloops().set_bank_enabled(command.target, command.active));
+                set_bank_enabled(command.target, command.active);
                 break;
             case RunnerCommandType::TriggerTrackScript:
                 trigger_track_script(command.target, clock.beat_position);
@@ -1605,13 +2333,34 @@ void RunnerService::run_scheduler() noexcept {
                 }
                 break;
             }
+            case RunnerCommandType::StaticLookOwnerLost:
+                handle_static_look_owner_loss({
+                    command.static_look_owner.kind,
+                    command.static_look_owner.owner_session_token,
+                    command.static_look_owner.feedback_token,
+                    command.generation});
+                break;
             }
         }
 
         RunnerMidiActionEvent midi_action;
         while (midi_actions_.try_pop(midi_action)) {
             if (midi_action.generation == activation->generation) {
-                apply_action(midi_action.event, clock.beat_position);
+                apply_action(
+                    midi_action.event,
+                    clock.beat_position,
+                    midi_action.owner_session_token);
+            }
+        }
+
+        // Transport actions and lifecycle notices use independent SPSC queues.
+        // Drain owner loss last so a button/message already queued by the old
+        // connection cannot reactivate its Look after the disconnect cleanup.
+        // A reconnected source has a new session token and is not affected.
+        RunnerStaticLookOwnerLossEvent owner_loss;
+        while (owner_losses_.try_pop(owner_loss)) {
+            if (owner_loss.generation == activation->generation) {
+                handle_static_look_owner_loss(owner_loss);
             }
         }
 
@@ -1638,22 +2387,92 @@ void RunnerService::run_scheduler() noexcept {
         }
 
         clock = runtime.sync.tick(now_ms);
-        runtime.autonomous.tick(clock.beat_position, runtime.track_playing, engine.layers());
-        run_track_script(clock.beat_position);
-        if (runtime.scripted_autoloop.status().active) {
-            runtime.scripted_autoloop.tick(
-                clock.beat_position, runtime.track_playing, engine.layers());
+        if (v2_enabled) {
+            auto transport = v2_transport(clock, runtime.track_playing);
+            if (transport.phase_available &&
+                runtime.has_v2_transport_tick &&
+                transport.musical_tick < runtime.last_v2_transport_tick) {
+                transport.discontinuity = true;
+            }
+            // Track cues may hand TrackScript between a legacy look and V2.
+            // Apply that handoff first, then reconcile the private V2 stack so
+            // a legacy clear can never blank a live V2 contribution for one
+            // rendered frame.
+            run_track_script(clock.beat_position);
+            static_cast<void>(runtime.autoloop_v2.tick(
+                transport, engine.layers()));
+            if (transport.phase_available) {
+                runtime.has_v2_transport_tick = true;
+                runtime.last_v2_transport_tick = transport.musical_tick;
+            }
+            const auto owner =
+                runtime.autoloop_v2.status().track_script_owner;
+            const auto& v2_status =
+                runtime.autoloop_v2.director_status();
+            const bool manual_replaces_lower_layers =
+                v2_status.manual.active &&
+                v2_status.manual.mode ==
+                    showcore::CompiledAutoloopPlaybackMode::Replace;
+            if (!manual_replaces_lower_layers &&
+                owner == AutoloopTrackScriptOwner::LegacyAutoloop) {
+                runtime.scripted_autoloop.tick(
+                    clock.beat_position,
+                    runtime.track_playing,
+                    engine.layers());
+            } else if (!manual_replaces_lower_layers &&
+                       owner == AutoloopTrackScriptOwner::LegacyLook) {
+                runtime.scripted_look.tick(now_ms, engine.layers());
+            }
         } else {
-            runtime.scripted_look.tick(now_ms, engine.layers());
+            runtime.autonomous.tick(
+                clock.beat_position, runtime.track_playing, engine.layers());
+            run_track_script(clock.beat_position);
+            if (runtime.scripted_autoloop.status().active) {
+                runtime.scripted_autoloop.tick(
+                    clock.beat_position,
+                    runtime.track_playing,
+                    engine.layers());
+            } else {
+                runtime.scripted_look.tick(now_ms, engine.layers());
+            }
+            runtime.manual_autoloop.tick(
+                clock.beat_position,
+                runtime.track_playing,
+                engine.layers());
+            if (runtime.legacy_track_script_owner ==
+                    AutoloopTrackScriptOwner::LegacyAutoloop &&
+                !runtime.scripted_autoloop.status().active) {
+                runtime.legacy_track_script_owner =
+                    AutoloopTrackScriptOwner::None;
+            }
         }
-        runtime.manual_autoloop.tick(
-            clock.beat_position, runtime.track_playing, engine.layers());
         runtime.static_look.tick(now_ms, engine.layers());
+        {
+            auto& current = runtime.static_look_activation;
+            if (current.status != StaticLookActivationStatus::None) {
+                const auto player_status = runtime.static_look.status(now_ms);
+                current.transition_progress = player_status.transition_progress;
+                if (current.status == StaticLookActivationStatus::Releasing) {
+                    if (!player_status.transitioning) {
+                        current = {};
+                    }
+                } else {
+                    current.status = player_status.transitioning
+                        ? StaticLookActivationStatus::Activating
+                        : StaticLookActivationStatus::Active;
+                }
+            }
+        }
         engine.tick();
 
         OutputFrame output;
-        output.frames = engine.frames();
-        if (blackout_requested_.load(std::memory_order_acquire)) {
+        output.pre_blackout_frames = engine.frames();
+        output.frames = output.pre_blackout_frames;
+        output.attribution = engine.frame_attribution();
+        output.rendered_at_ms = now_ms;
+        output.blackout_applied =
+            blackout_requested_.load(std::memory_order_acquire);
+        if (output.blackout_applied) {
             output.frames.clear();
         }
         output.sequence = sequence;
@@ -1666,19 +2485,107 @@ void RunnerService::run_scheduler() noexcept {
             sequence = 1U;
         }
 
-        const auto& manual_status = runtime.manual_autoloop.status();
-        const auto& scripted_status = runtime.scripted_autoloop.status();
-        const auto& autonomous_status = runtime.autonomous.status();
-        const showcore::AutoloopPlaybackStatus* active_loop = manual_status.active
-            ? &manual_status
-            : (scripted_status.active ? &scripted_status
-                                      : (autonomous_status.active ? &autonomous_status : nullptr));
-        active_autoloop_playback_.store(
-            encode_autoloop_playback(active_loop), std::memory_order_relaxed);
-        active_autoloop_bank_mask_.store(
-            show->autoloops().active_bank_mask(), std::memory_order_relaxed);
+        if (v2_enabled) {
+            const auto& adapter_status = runtime.autoloop_v2.status();
+            const auto& director_status =
+                runtime.autoloop_v2.director_status();
+            const auto v2_playback = encode_autoloop_playback(
+                director_status.active.valid
+                    ? director_status.active.address
+                    : showcore::AutoloopAddress{},
+                director_status.active_repeat,
+                director_status.active_progress,
+                director_status.active_completed_cycles);
+            active_autoloop_playback_.store(
+                v2_playback, std::memory_order_relaxed);
+            active_autoloop_bank_mask_.store(
+                director_status.active_bank_mask,
+                std::memory_order_relaxed);
+            autoloop_v2_mode_.store(
+                adapter_status.mode, std::memory_order_relaxed);
+            autoloop_v2_track_owner_.store(
+                adapter_status.track_script_owner,
+                std::memory_order_relaxed);
+            autoloop_v2_track_suppressed_by_replace_.store(
+                adapter_status.track_script_suppressed_by_replace,
+                std::memory_order_relaxed);
+            autoloop_v2_package_active_.store(
+                director_status.package_active, std::memory_order_relaxed);
+            autoloop_v2_generation_.store(
+                director_status.package_generation,
+                std::memory_order_relaxed);
+            autoloop_v2_fault_.store(
+                director_status.fault, std::memory_order_relaxed);
+            autoloop_v2_result_.store(
+                adapter_status.last_result, std::memory_order_relaxed);
+            autoloop_v2_source_.store(
+                director_status.active_source, std::memory_order_relaxed);
+            autoloop_v2_playback_mode_.store(
+                director_status.active_mode, std::memory_order_relaxed);
+            autoloop_v2_playback_.store(
+                v2_playback, std::memory_order_relaxed);
+            autoloop_v2_active_bank_mask_.store(
+                director_status.active_bank_mask,
+                std::memory_order_relaxed);
+            autoloop_v2_has_pending_bank_mask_.store(
+                director_status.has_pending_bank_mask,
+                std::memory_order_relaxed);
+            autoloop_v2_pending_bank_mask_.store(
+                director_status.pending_bank_mask,
+                std::memory_order_relaxed);
+        } else {
+            const auto& manual_status = runtime.manual_autoloop.status();
+            const auto& scripted_status = runtime.scripted_autoloop.status();
+            const auto& autonomous_status = runtime.autonomous.status();
+            const showcore::AutoloopPlaybackStatus* active_loop =
+                manual_status.active
+                ? &manual_status
+                : (scripted_status.active
+                       ? &scripted_status
+                       : (autonomous_status.active
+                              ? &autonomous_status
+                              : nullptr));
+            active_autoloop_playback_.store(
+                encode_autoloop_playback(active_loop),
+                std::memory_order_relaxed);
+            active_autoloop_bank_mask_.store(
+                show->autoloops().active_bank_mask(),
+                std::memory_order_relaxed);
+            autoloop_v2_mode_.store(
+                AutoloopRuntimeMode::LegacyV1,
+                std::memory_order_relaxed);
+            autoloop_v2_track_owner_.store(
+                runtime.legacy_track_script_owner,
+                std::memory_order_relaxed);
+            autoloop_v2_track_suppressed_by_replace_.store(
+                false, std::memory_order_relaxed);
+            autoloop_v2_package_active_.store(
+                false, std::memory_order_relaxed);
+            autoloop_v2_generation_.store(0U, std::memory_order_relaxed);
+            autoloop_v2_fault_.store(
+                showcore::AutoloopDirectorFault::None,
+                std::memory_order_relaxed);
+            autoloop_v2_result_.store(
+                showcore::AutoloopDirectorResult::None,
+                std::memory_order_relaxed);
+            autoloop_v2_source_.store(
+                showcore::AutoloopDirectorSource::None,
+                std::memory_order_relaxed);
+            autoloop_v2_playback_mode_.store(
+                showcore::CompiledAutoloopPlaybackMode::Overlay,
+                std::memory_order_relaxed);
+            autoloop_v2_playback_.store(
+                kPackedInvalidAutoloopAddress,
+                std::memory_order_relaxed);
+            autoloop_v2_active_bank_mask_.store(
+                ~std::uint64_t{0U}, std::memory_order_relaxed);
+            autoloop_v2_has_pending_bank_mask_.store(
+                false, std::memory_order_relaxed);
+            autoloop_v2_pending_bank_mask_.store(
+                0U, std::memory_order_relaxed);
+        }
         manual_override_count_.store(runtime.manual_override_count, std::memory_order_relaxed);
-        active_look_.store(runtime.selected_look, std::memory_order_relaxed);
+        publish_static_look_status(runtime.static_look_activation);
         active_track_script_.store(runtime.selected_track_script, std::memory_order_relaxed);
         sync_state_.store(clock.state, std::memory_order_relaxed);
         clock_source_.store(clock.source, std::memory_order_relaxed);
@@ -1696,6 +2603,11 @@ void RunnerService::run_scheduler() noexcept {
             scheduler_resyncs_.fetch_add(1U, std::memory_order_relaxed);
             next_frame = now + frame_period;
         }
+    }
+    if (activation != nullptr &&
+        activation->show->autoloop_v2_package() != nullptr) {
+        static_cast<void>(activation->runtime->autoloop_v2.clear_package(
+            activation->show->engine().layers()));
     }
 #ifdef _WIN32
     static_cast<void>(::timeEndPeriod(1U));
@@ -1860,6 +2772,12 @@ void RunnerService::run_output() noexcept {
             continue;
         }
 
+        std::array<showcore::OutputBackendHealth, kRunnerOutputRouteCount>
+            route_before{};
+        for (std::size_t index = 0U; index < route_before.size(); ++index) {
+            route_before[index] = output_health_[index].snapshot();
+        }
+
         bool artnet_success = true;
         bool sacn_success = true;
         bool usb_success = true;
@@ -1960,6 +2878,38 @@ void RunnerService::run_output() noexcept {
                 output_health_[kSacnOutputHealth].mark_fault(0U);
                 sacn_state_.store(AdapterState::Fault, std::memory_order_relaxed);
             }
+        }
+        RunnerOutputSnapshot published;
+        published.generation = frame.generation;
+        published.sequence = frame.sequence;
+        published.rendered_at_ms = frame.rendered_at_ms;
+        published.pre_blackout_frames = frame.pre_blackout_frames;
+        published.routed_frames = frame.frames;
+        published.attribution = frame.attribution;
+        published.blackout_applied = frame.blackout_applied;
+        for (std::size_t index = 0U; index < published.routes.size(); ++index) {
+            const auto route_after = output_health_[index].snapshot();
+            const auto attempted_delta =
+                route_after.frames_attempted - route_before[index].frames_attempted;
+            const auto accepted_delta =
+                route_after.frames_accepted - route_before[index].frames_accepted;
+            published.routes[index] = {
+                route_after.kind,
+                route_after.first_source_universe,
+                route_after.source_universe_count,
+                route_after.configured,
+                static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                    attempted_delta,
+                    std::numeric_limits<std::uint8_t>::max())),
+                static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                    accepted_delta,
+                    std::numeric_limits<std::uint8_t>::max())),
+                route_after.last_error};
+        }
+        {
+            const std::lock_guard<std::mutex> lock(output_snapshot_mutex_);
+            latest_output_snapshot_ = published;
+            has_output_snapshot_ = true;
         }
         output_frames_.fetch_add(1, std::memory_order_relaxed);
     }

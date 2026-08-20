@@ -7,6 +7,7 @@ Examples:
 - `safe-live.layout.json`
 - `default-live-standard.layout.json`
 - `default-studio-standard.layout.json`
+- `default-studio-fixtures-looks-standard.layout.json` — binding first product-shaped replacement-shell slice from D-091
 - `reference-live-standard.layout.json`
 - `reference-studio-standard.layout.json`
 
@@ -36,6 +37,8 @@ The examples are subordinate to:
 - `../command-state-skin-contract-v0.md`;
 - `../native-component-contracts-v0.md`;
 - `../emberskin-package-and-safety-limits-v0.md`;
+- `../ui-course-correction-v1.json`;
+- `../../docs/44_UI_COURSE_CORRECTION_AND_REPLACEMENT_SHELL_GATE.md`;
 - `../../docs/24_DEFAULT_UI_INFORMATION_ARCHITECTURE_AND_JOURNEYS.md`;
 - `../../docs/20_SOUNDSWITCH_REFERENCE_SKIN_V0_SPEC.md`.
 

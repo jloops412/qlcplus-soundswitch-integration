@@ -39,9 +39,10 @@ struct SoundSwitchV1MigrationResult {
 [[nodiscard]] SoundSwitchV1MigrationResult create_soundswitch_v1_project(
     const std::filesystem::path& source_root);
 
-// Creates the same safe staged project without source provenance. This is used
-// for the installed starter template and never claims that source cues were
-// decoded.
+// Creates the same safe staged project without source provenance. The legacy
+// Autoloop collection remains empty; original EmberLights semantic V2 programs
+// are persisted instead. Source names are accepted only for API compatibility
+// and are never used to fabricate choreography.
 [[nodiscard]] ProjectDocument make_safe_color_rig_v1_template(
     const std::vector<std::string>& autoloop_names = {});
 
