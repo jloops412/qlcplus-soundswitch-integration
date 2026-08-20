@@ -99,6 +99,7 @@ add_library(showcore STATIC
     src/soundswitch_import.cpp
     src/soundswitch_source_binding.cpp
     src/soundswitch_v1.cpp
+    src/soundswitch_2026_autoloop.cpp
     src/soundswitch_migration_ir.cpp
     src/migration_portability_review.cpp
     src/studio_document.cpp
@@ -188,6 +189,10 @@ target_link_libraries(core_tests PRIVATE showcore)
 add_executable(soundswitch_micro_session_tests
     tests/test_soundswitch_micro_session.cpp)
 target_link_libraries(soundswitch_micro_session_tests PRIVATE showcore)
+
+add_executable(soundswitch_2026_autoloop_tests
+    tests/test_soundswitch_2026_autoloop.cpp)
+target_link_libraries(soundswitch_2026_autoloop_tests PRIVATE showcore)
 
 add_executable(raw_hardware_test_tests
     tests/test_raw_hardware_test.cpp)
@@ -519,6 +524,7 @@ if(WIN32)
 endif()
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_tests)
+add_test(NAME soundswitch_2026_autoloop_tests COMMAND soundswitch_2026_autoloop_tests)
 add_test(NAME raw_hardware_test_tests COMMAND raw_hardware_test_tests)
 add_test(NAME raw_hardware_test_operator_tests COMMAND raw_hardware_test_operator_tests)
 add_test(NAME connection_coordinator_tests COMMAND connection_coordinator_tests)
