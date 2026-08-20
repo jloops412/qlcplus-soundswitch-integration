@@ -29,6 +29,11 @@ service and state contracts become renderer-neutral.
 - Source commit: `4e7c71084f7d67ac5b796c64b9ee97895618b282`
 - Source tree: `9f1a14d1bc9581406e93d9bf2ea85f572f1795d0`
 - Draft integration PR: `#94`
+- Immutable GitHub artifact branch: `artifacts/windows-preview-103`
+- Artifact commit: `3a9faa8c4d492252bea0d89e1127cc9bc7baca47`
+- GitHub bundle: `EmberLights-0.1.0-preview.103.0-Windows-testing-preview.zip`
+- GitHub bundle SHA-256: `2acdf712d7382fb899170920a6e605008e76f436d46fcb363bb9670a11505a14`
+- GitHub bundle size: `2,022,580` bytes
 - Installer: `EmberLights-0.1.0-preview.103.0-Setup.exe`
 - Installer SHA-256: `b16476f577ea4b250d8fe359a7da0d4362b2bc2263981c4a5efa96618efde70c`
 - Installer size: `2,041,152` bytes
