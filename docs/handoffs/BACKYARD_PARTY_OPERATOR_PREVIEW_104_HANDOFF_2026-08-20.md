@@ -75,6 +75,12 @@ Evidence class: **contract-tested non-Windows unsigned testing preview**. This
 is not installed-tested, accessibility-qualified, physically qualified,
 gig-qualified, signed, or a public release.
 
+PR #95's Native core workflow was marked failed before either the Linux or
+Windows job created a single step; both installer jobs were consequently
+skipped. That matches the repository's existing hosted-runner/infrastructure
+gate and is neither product failure evidence nor passing CI. The local and
+cross-build evidence above remains the release basis.
+
 ## Joshua's test tonight
 
 1. Download the immutable Preview 104 bundle and check its SHA-256 with
