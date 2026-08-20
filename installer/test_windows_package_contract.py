@@ -268,6 +268,40 @@ class WindowsPackageContractTests(unittest.TestCase):
         self.assertIn('Delete "$INSTDIR\\unins???.exe"', installer)
         self.assertIn('Delete "$INSTDIR\\Tools\\os2l_capture.exe"', installer)
 
+    def test_installers_expose_manual_dmx_and_keep_qualification_separate(self) -> None:
+        nsis = (Path(__file__).parent / "EmberLights.nsi").read_text(
+            encoding="utf-8"
+        )
+        inno = (Path(__file__).parent / "EmberLights.iss").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'Advanced Manual DMX Test.lnk" '
+            '"$INSTDIR\\Tools\\soundswitch_micro_probe.exe" "--manual-dmx"',
+            nsis,
+        )
+        self.assertIn(
+            'EmberLights Hardware Test.lnk" '
+            '"$INSTDIR\\Tools\\soundswitch_micro_probe.exe" "--active-test"',
+            nsis,
+        )
+        self.assertIn(
+            'Delete "$SMPROGRAMS\\${AppName}\\Advanced Manual DMX Test.lnk"',
+            nsis,
+        )
+        self.assertIn(
+            'Name: "{group}\\Advanced Manual DMX Test"; '
+            'Filename: "{app}\\Tools\\soundswitch_micro_probe.exe"; '
+            'Parameters: "--manual-dmx"',
+            inno,
+        )
+        self.assertIn(
+            'Name: "{group}\\EmberLights Hardware Test"; '
+            'Filename: "{app}\\Tools\\soundswitch_micro_probe.exe"; '
+            'Parameters: "--active-test"',
+            inno,
+        )
+
     def test_windows_cmake_stages_end_user_tools_under_tools(self) -> None:
         cmake = (Path(__file__).parents[1] / "native-core/CMakeLists.txt").read_text(
             encoding="utf-8"
@@ -299,6 +333,7 @@ class WindowsPackageContractTests(unittest.TestCase):
         self.assertIn("--self-test", windows_job)
         self.assertIn("unins*.exe", windows_job)
         self.assertNotIn("--active-test", windows_job)
+        self.assertNotIn("--manual-dmx", windows_job)
         self.assertNotIn("--network-loopback", windows_job)
 
 

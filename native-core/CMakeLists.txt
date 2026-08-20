@@ -85,6 +85,7 @@ add_library(showcore STATIC
     src/hardware_qualification.cpp
     src/raw_hardware_test.cpp
     src/raw_hardware_test_operator.cpp
+    src/manual_dmx_test.cpp
     src/connection_layout.cpp
     src/connection_coordinator.cpp
     src/project_edit_history.cpp
@@ -202,6 +203,10 @@ target_link_libraries(raw_hardware_test_tests PRIVATE showcore)
 add_executable(raw_hardware_test_operator_tests
     tests/test_raw_hardware_test_operator.cpp)
 target_link_libraries(raw_hardware_test_operator_tests PRIVATE showcore)
+
+add_executable(manual_dmx_test_tests
+    tests/test_manual_dmx_test.cpp)
+target_link_libraries(manual_dmx_test_tests PRIVATE showcore)
 
 add_executable(connection_coordinator_tests
     tests/test_connection_coordinator.cpp)
@@ -461,6 +466,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/47_ADVANCED_MANUAL_DMX_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/IR4_6CH_RUNNER_FRAME_TEST.md"
         DESTINATION docs)
@@ -528,6 +534,7 @@ add_test(NAME soundswitch_micro_session_tests COMMAND soundswitch_micro_session_
 add_test(NAME soundswitch_2026_autoloop_tests COMMAND soundswitch_2026_autoloop_tests)
 add_test(NAME raw_hardware_test_tests COMMAND raw_hardware_test_tests)
 add_test(NAME raw_hardware_test_operator_tests COMMAND raw_hardware_test_operator_tests)
+add_test(NAME manual_dmx_test_tests COMMAND manual_dmx_test_tests)
 add_test(NAME connection_coordinator_tests COMMAND connection_coordinator_tests)
 add_test(NAME connection_layout_tests COMMAND connection_layout_tests)
 add_test(NAME soundswitch_control_one_tests COMMAND soundswitch_control_one_tests)

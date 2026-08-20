@@ -1,6 +1,6 @@
 # SoundSwitch Functional Parity Ledger
 
-Last audited: 2026-08-13 against SoundSwitch 2.10 public product/support documentation and the Both Lighting BO-IR4 manual.
+Last audited: 2026-08-20 against SoundSwitch 2.10 public product/support documentation and the Both Lighting BO-IR4 manual.
 
 ## Contract
 
@@ -30,7 +30,7 @@ Statuses:
 | FIX-10 | Stable repatching/replacement without cue loss | Partial | Stable IDs accepted; migration/relink tests pending. |
 | FIX-11 | DMX chart, address editing, overlap/range validation | Partial | Native patch editor and overlap/range checks exist; graphical universe chart and hardware evidence remain. |
 | FIX-12 | Two DMX universes | Partial | Fixed two-universe frames pass; complete output/hardware qualification pending. |
-| FIX-13 | Advanced manual DMX channel test for unknown/new fixtures | Partial | Bounded fail-to-blackout Raw Hardware Test plans and exact Runner-frame comparison exist for known fixture criteria. A general Advanced-only universe/channel/value tester with explicit arming, multi-channel presets, timeout, held-output visibility, adapter selection, and terminal blackout remains required; it must never become the ordinary fixture-authoring vocabulary or bypass profile/safety ownership. |
+| FIX-13 | Advanced manual DMX channel test for unknown/new fixtures | Partial | A fixture-agnostic core/session and installed `--manual-dmx` workflow now provide plan-bound arming, explicit SoundSwitch Micro universe selection, deterministic 64-channel presets, blackout-before replacement, exact held-output/frame-hash visibility, 1–30 second preset expiry, ten-minute session expiry, device-loss handling, and terminal blackout/close. It remains an Advanced diagnostic and does not modify profiles. Installed physical evidence, additional adapters, and a replacement-shell Advanced launcher remain. |
 
 ## Editing and authored content
 
@@ -107,7 +107,7 @@ Statuses:
 | OUT-02 | Art-Net output and third-party visualizer interoperability | Partial | ArtDMX golden bytes and exact loopback UDP delivery pass; real node/visualizer qualification and discovery remain. |
 | OUT-03 | sACN/E1.31 output | Partial | E1.31 packet construction, deterministic CID, unicast/multicast sender, byte-level tests, and UDP loopback pass; real receiver qualification remains. |
 | OUT-04 | QLC+ bridge for otherwise unsupported USB interfaces | Partial | Boundary specified; live loopback qualification pending. |
-| OUT-05 | Interface hot-plug, disconnect/reconnect, and visible status | Partial | Network, DMX USB Pro, and SoundSwitch Micro outputs retry independently. Diagnostics separates Micro open state, accepted/failed writes, last Windows error, exact routed frames, and per-frame route attempted/accepted outcomes; stale queued frames are superseded. The installed `--active-test` entry is wired to a strict one-fixture manifest/acknowledgement/audit/graduation operator using the production Micro session, bounded presence checks, cancellation/device-loss handling, terminal blackout/close, and post-attempt candidate re-hash. Installed-Windows execution, binding one successful raw attempt to the reopened Runner snapshot, owned-device disconnect/reconnect observations, and broader adapter qualification remain. |
+| OUT-05 | Interface hot-plug, disconnect/reconnect, and visible status | Partial | Network, DMX USB Pro, and SoundSwitch Micro outputs retry independently. Diagnostics separates Micro open state, accepted/failed writes, last Windows error, exact routed frames, and per-frame route attempted/accepted outcomes; stale queued frames are superseded. The installed `--active-test` path remains the strict one-fixture manifest/acknowledgement/audit/graduation workflow. The separate installed `--manual-dmx` path reuses the same production Micro session for bounded fixture-agnostic inspection with visible held output and fail-to-blackout lifecycle. Installed-Windows execution, binding one successful qualified attempt to the reopened Runner snapshot, owned-device disconnect/reconnect observations, and broader adapter qualification remain. |
 | OUT-06 | Philips Hue integration | Planned | Local bridge integration with latency/degradation tests. |
 | OUT-07 | Nanoleaf Shapes and Lines integration | Planned | Official local API capability/latency qualification. |
 | OUT-08 | Wireless DMX compatibility through transparent DMX transmitters | Planned | Documented transport guidance and representative hardware test. |

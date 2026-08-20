@@ -178,6 +178,7 @@ Section "EmberLights" MainSection
 
   CreateDirectory "$SMPROGRAMS\${AppName}"
   CreateShortCut "$SMPROGRAMS\${AppName}\${AppName}.lnk" "$INSTDIR\EmberLights.exe"
+  CreateShortCut "$SMPROGRAMS\${AppName}\Advanced Manual DMX Test.lnk" "$INSTDIR\Tools\soundswitch_micro_probe.exe" "--manual-dmx"
   CreateShortCut "$SMPROGRAMS\${AppName}\EmberLights Hardware Test.lnk" "$INSTDIR\Tools\soundswitch_micro_probe.exe" "--active-test"
   CreateShortCut "$SMPROGRAMS\${AppName}\Control One DMX Test.lnk" "$SYSDIR\cmd.exe" '/k $\"$INSTDIR\Tools\soundswitch_control_one_probe.exe$\" --help'
   CreateShortCut "$SMPROGRAMS\${AppName}\IR-4 6CH Editable Bench.lnk" "$INSTDIR\EmberLights.exe" '$\"$INSTDIR\Templates\EmberLights-IR4-6CH-Editable-Bench.emberlights$\"'
@@ -194,6 +195,7 @@ Section "Uninstall"
   ${EndIf}
 
   Delete "$SMPROGRAMS\${AppName}\${AppName}.lnk"
+  Delete "$SMPROGRAMS\${AppName}\Advanced Manual DMX Test.lnk"
   Delete "$SMPROGRAMS\${AppName}\EmberLights Hardware Test.lnk"
   Delete "$SMPROGRAMS\${AppName}\Control One DMX Test.lnk"
   Delete "$SMPROGRAMS\${AppName}\IR-4 6CH Editable Bench.lnk"
@@ -232,6 +234,7 @@ Section "Uninstall"
   Delete "$INSTDIR\docs\31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md"
   Delete "$INSTDIR\docs\32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
   Delete "$INSTDIR\docs\33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
+  Delete "$INSTDIR\docs\47_ADVANCED_MANUAL_DMX_TEST.md"
   Delete "$INSTDIR\docs\MORNING_HARDWARE_TEST.md"
   Delete "$INSTDIR\docs\IR4_6CH_RUNNER_FRAME_TEST.md"
   RMDir "$INSTDIR\docs"

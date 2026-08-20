@@ -11,6 +11,7 @@
 #include <usbiodef.h>
 #include <winusb.h>
 
+#include "emberlights/manual_dmx_test.hpp"
 #include "emberlights/raw_hardware_test_operator.hpp"
 #include "showcore/soundswitch_micro.hpp"
 
@@ -411,8 +412,8 @@ void enumerate_interface_guid(const GUID& guid, std::wostringstream& report) {
 }
 
 std::atomic_bool cancellation_requested{false};
-std::atomic_bool operator_session_active{false};
-std::atomic_bool operator_terminal_complete{true};
+std::atomic_bool output_session_active{false};
+std::atomic_bool output_terminal_complete{true};
 
 BOOL WINAPI console_control_handler(DWORD control) noexcept {
     switch (control) {
@@ -424,13 +425,13 @@ BOOL WINAPI console_control_handler(DWORD control) noexcept {
         cancellation_requested.store(true, std::memory_order_relaxed);
         if ((control == CTRL_CLOSE_EVENT || control == CTRL_LOGOFF_EVENT ||
              control == CTRL_SHUTDOWN_EVENT) &&
-            operator_session_active.load(std::memory_order_acquire)) {
+            output_session_active.load(std::memory_order_acquire)) {
             // Windows invokes this handler on a helper thread. Give the main
             // coordinator a bounded window to perform terminal blackout,
             // close, and audit append before the console is torn down.
             for (unsigned attempt = 0U;
                  attempt < 200U &&
-                 !operator_terminal_complete.load(std::memory_order_acquire);
+                 !output_terminal_complete.load(std::memory_order_acquire);
                  ++attempt) {
                 ::Sleep(20U);
             }
@@ -524,6 +525,163 @@ struct ObservationCommand {
     ObservationCommandKind kind{ObservationCommandKind::Invalid};
     std::string text;
 };
+
+enum class ManualDmxCommandKind : std::uint8_t {
+    Invalid,
+    Apply,
+    Set,
+    Clear,
+    Blackout,
+    Show,
+    Quit,
+    Cancel
+};
+
+struct ManualDmxCommand {
+    ManualDmxCommandKind kind{ManualDmxCommandKind::Invalid};
+    std::vector<emberlights::ManualDmxChannelValue> values;
+    std::uint16_t channel{0U};
+    std::uint8_t value{0U};
+    std::wstring message{L"Unknown command."};
+};
+
+[[nodiscard]] bool parse_unsigned(
+    std::wstring_view text,
+    std::uint32_t maximum,
+    std::uint32_t& value) noexcept {
+    if (text.empty()) {
+        return false;
+    }
+    std::uint32_t candidate = 0U;
+    for (const auto character : text) {
+        if (character < L'0' || character > L'9') {
+            return false;
+        }
+        const auto digit = static_cast<std::uint32_t>(character - L'0');
+        if (digit > maximum || candidate > (maximum - digit) / 10U) {
+            return false;
+        }
+        candidate = candidate * 10U + digit;
+    }
+    value = candidate;
+    return true;
+}
+
+[[nodiscard]] bool parse_manual_dmx_pair(
+    std::wstring_view token,
+    emberlights::ManualDmxChannelValue& value) noexcept {
+    const auto separator = token.find(L'=');
+    if (separator == std::wstring_view::npos || separator == 0U ||
+        separator + 1U >= token.size() ||
+        token.find(L'=', separator + 1U) != std::wstring_view::npos) {
+        return false;
+    }
+    std::uint32_t channel = 0U;
+    std::uint32_t level = 0U;
+    if (!parse_unsigned(token.substr(0U, separator), showcore::kUniverseSlots,
+                        channel) ||
+        channel == 0U ||
+        !parse_unsigned(token.substr(separator + 1U), 255U, level)) {
+        return false;
+    }
+    value.channel = static_cast<std::uint16_t>(channel);
+    value.value = static_cast<std::uint8_t>(level);
+    return true;
+}
+
+[[nodiscard]] ManualDmxCommand parse_manual_dmx_command(
+    std::wstring_view line) {
+    std::wistringstream input{std::wstring(line)};
+    std::wstring command_text;
+    input >> command_text;
+    const auto command = upper(std::move(command_text));
+    if (command.empty()) {
+        return {};
+    }
+
+    ManualDmxCommand result;
+    std::vector<std::wstring> arguments;
+    for (std::wstring argument; input >> argument;) {
+        arguments.push_back(std::move(argument));
+    }
+    if (command == L"APPLY") {
+        if (arguments.empty() ||
+            arguments.size() > emberlights::kManualDmxTestMaximumActiveChannels) {
+            result.message = L"APPLY needs 1 to 64 channel=value pairs.";
+            return result;
+        }
+        for (const auto& argument : arguments) {
+            emberlights::ManualDmxChannelValue item;
+            if (!parse_manual_dmx_pair(argument, item)) {
+                result.message =
+                    L"Every APPLY item must be channel=value (channel 1-512, value 0-255).";
+                return result;
+            }
+            result.values.push_back(item);
+        }
+        result.kind = ManualDmxCommandKind::Apply;
+        result.message.clear();
+        return result;
+    }
+    if (command == L"SET") {
+        if (arguments.size() != 2U) {
+            result.message = L"SET needs exactly: SET <channel> <value>.";
+            return result;
+        }
+        std::uint32_t channel = 0U;
+        std::uint32_t level = 0U;
+        if (!parse_unsigned(arguments[0], showcore::kUniverseSlots, channel) ||
+            channel == 0U || !parse_unsigned(arguments[1], 255U, level)) {
+            result.message = L"SET bounds are channel 1-512 and value 0-255.";
+            return result;
+        }
+        result.kind = ManualDmxCommandKind::Set;
+        result.channel = static_cast<std::uint16_t>(channel);
+        result.value = static_cast<std::uint8_t>(level);
+        result.message.clear();
+        return result;
+    }
+    if (command == L"CLEAR") {
+        std::uint32_t channel = 0U;
+        if (arguments.size() != 1U ||
+            !parse_unsigned(arguments[0], showcore::kUniverseSlots, channel) ||
+            channel == 0U) {
+            result.message = L"CLEAR needs exactly one channel from 1 through 512.";
+            return result;
+        }
+        result.kind = ManualDmxCommandKind::Clear;
+        result.channel = static_cast<std::uint16_t>(channel);
+        result.message.clear();
+        return result;
+    }
+    if (command == L"BLACKOUT" &&
+        (arguments.empty() ||
+         (arguments.size() == 1U && upper(arguments.front()) == L"NOW"))) {
+        result.kind = ManualDmxCommandKind::Blackout;
+        result.message.clear();
+        return result;
+    }
+    if (command == L"SHOW" && arguments.empty()) {
+        result.kind = ManualDmxCommandKind::Show;
+        result.message.clear();
+        return result;
+    }
+    if ((command == L"QUIT" || command == L"EXIT") && arguments.empty()) {
+        result.kind = ManualDmxCommandKind::Quit;
+        result.message.clear();
+        return result;
+    }
+    if (command == L"CANCEL") {
+        result.kind = ManualDmxCommandKind::Cancel;
+        result.message = arguments.empty()
+            ? L"Operator cancelled the manual DMX test."
+            : std::wstring(line.substr(line.find_first_of(L" \t") + 1U));
+        return result;
+    }
+    result.message =
+        L"Use APPLY, SET, CLEAR, BLACKOUT NOW, SHOW, or QUIT.";
+    return result;
+}
 
 [[nodiscard]] ObservationCommand parse_observation_command(
     std::wstring_view line) {
@@ -756,8 +914,8 @@ void drive_operator_session(
     prepared = std::move(refreshed);
 
     cancellation_requested.store(false, std::memory_order_relaxed);
-    operator_terminal_complete.store(false, std::memory_order_release);
-    operator_session_active.store(true, std::memory_order_release);
+    output_terminal_complete.store(false, std::memory_order_release);
+    output_session_active.store(true, std::memory_order_release);
     [[maybe_unused]] ConsoleControlRegistration control_registration;
     emberlights::SoundSwitchMicroRawHardwareTestTransport transport;
     emberlights::RawHardwareTestSession session;
@@ -774,8 +932,8 @@ void drive_operator_session(
     emberlights::RawHardwareTestOperatorCompletion completion;
     const auto finalized = emberlights::finalize_raw_hardware_test_operator_run(
         prepared, session, utc_now(), completion);
-    operator_terminal_complete.store(true, std::memory_order_release);
-    operator_session_active.store(false, std::memory_order_release);
+    output_terminal_complete.store(true, std::memory_order_release);
+    output_session_active.store(false, std::memory_order_release);
     if (!finalized.ok()) {
         print_operator_check(L"Terminal evidence handling failed", finalized);
         if (completion.audit_appended) {
@@ -804,6 +962,275 @@ void drive_operator_session(
     std::wcerr
         << L"The attempt was audited but did not graduate or authorize a project.\n";
     return 6;
+}
+
+[[nodiscard]] bool manual_dmx_phase_active(
+    emberlights::ManualDmxTestPhase phase) noexcept {
+    return phase == emberlights::ManualDmxTestPhase::Opening ||
+        phase == emberlights::ManualDmxTestPhase::ArmedBlackout ||
+        phase == emberlights::ManualDmxTestPhase::Holding;
+}
+
+void print_manual_dmx_check(
+    std::wstring_view context,
+    const emberlights::ManualDmxTestCheck& result) {
+    std::wcerr << context << L" ["
+               << wide(emberlights::manual_dmx_test_error_name(result.error))
+                      .value_or(L"unknown")
+               << L"]: " << wide(result.message).value_or(L"Invalid UTF-8 diagnostic")
+               << L"\n";
+}
+
+[[nodiscard]] std::int64_t rounded_seconds(
+    std::chrono::milliseconds value) noexcept {
+    return value.count() <= 0 ? 0 : (value.count() + 999) / 1000;
+}
+
+void print_manual_dmx_snapshot(
+    const emberlights::ManualDmxTestSnapshot& snapshot) {
+    std::wcout
+        << L"\nState: "
+        << wide(emberlights::manual_dmx_test_phase_name(snapshot.phase))
+               .value_or(L"unknown")
+        << L" | adapter: " << wide(snapshot.adapter_id).value_or(L"invalid")
+        << L" | universe: " << static_cast<unsigned int>(snapshot.universe)
+        << L"\nHeld output: ";
+    if (snapshot.held_values.empty()) {
+        std::wcout << L"BLACKOUT (all 512 channels = 0)";
+    } else {
+        for (std::size_t index = 0U; index < snapshot.held_values.size(); ++index) {
+            if (index != 0U) {
+                std::wcout << L", ";
+            }
+            std::wcout
+                << snapshot.held_values[index].channel << L"="
+                << static_cast<unsigned int>(snapshot.held_values[index].value);
+        }
+        std::wcout
+            << L"\nFrame SHA-256: "
+            << wide(snapshot.held_frame_sha256).value_or(L"invalid")
+            << L"\nAutomatic blackout in: "
+            << rounded_seconds(snapshot.hold_remaining) << L"s";
+    }
+    std::wcout
+        << L"\nArmed session remaining: "
+        << rounded_seconds(snapshot.session_remaining) << L"s"
+        << L"\nFrames accepted/attempted: " << snapshot.frames_accepted
+        << L"/" << snapshot.frames_attempted
+        << L" | explicit/automatic blackouts: "
+        << snapshot.explicit_blackouts << L"/" << snapshot.automatic_blackouts
+        << L"\n" << wide(snapshot.message).value_or(L"Invalid UTF-8 diagnostic")
+        << L"\n";
+}
+
+[[nodiscard]] std::vector<emberlights::ManualDmxChannelValue>
+manual_dmx_values_with_change(
+    const emberlights::ManualDmxTestSnapshot& snapshot,
+    std::uint16_t channel,
+    std::uint8_t value) {
+    auto values = snapshot.held_values;
+    values.erase(
+        std::remove_if(
+            values.begin(), values.end(),
+            [channel](const auto& item) { return item.channel == channel; }),
+        values.end());
+    if (value != 0U) {
+        values.push_back({channel, value});
+    }
+    return values;
+}
+
+void print_manual_dmx_prompt() {
+    std::wcout << L"> " << std::flush;
+}
+
+void drive_manual_dmx_session(
+    emberlights::ManualDmxTestSession& session,
+    emberlights::SoundSwitchMicroManualDmxTestTransport& transport) {
+    std::wstring input;
+    auto next_device_check =
+        emberlights::ManualDmxTestSession::TimePoint::clock::now();
+    auto previous = session.snapshot(next_device_check);
+    print_manual_dmx_snapshot(previous);
+    std::wcout
+        << L"\nCommands:\n"
+        << L"  SET <channel> <value>       merge one value; 0 clears it\n"
+        << L"  APPLY <ch=value> [...]     replace the entire multi-channel preset\n"
+        << L"  CLEAR <channel>            clear one held channel\n"
+        << L"  BLACKOUT NOW               zero every channel immediately\n"
+        << L"  SHOW                       display exact held output and timers\n"
+        << L"  QUIT                       terminal blackout and close\n"
+        << L"Escape/Ctrl+C also cancels with terminal blackout.\n";
+    print_manual_dmx_prompt();
+
+    while (manual_dmx_phase_active(previous.phase)) {
+        const auto now =
+            emberlights::ManualDmxTestSession::TimePoint::clock::now();
+        if (cancellation_requested.load(std::memory_order_relaxed)) {
+            static_cast<void>(session.cancel(
+                "Operator or console requested cancellation.", now));
+            break;
+        }
+        if (now >= next_device_check) {
+            next_device_check = now + std::chrono::milliseconds(250);
+            if (!find_target_device().has_value()) {
+                transport.close();
+            }
+        }
+        const auto polled = session.poll(now);
+        const auto after_poll = session.snapshot(now);
+        if (after_poll.automatic_blackouts != previous.automatic_blackouts) {
+            std::wcout << L"\n";
+            print_manual_dmx_snapshot(after_poll);
+            print_manual_dmx_prompt();
+            std::wcout << input << std::flush;
+        }
+        previous = after_poll;
+        if (!polled.ok()) {
+            break;
+        }
+
+        bool complete = false;
+        if (read_console_character(input, complete) && complete) {
+            const auto command = parse_manual_dmx_command(input);
+            input.clear();
+            emberlights::ManualDmxTestCheck result;
+            bool ran_session_command = true;
+            switch (command.kind) {
+            case ManualDmxCommandKind::Apply:
+                result = session.apply(command.values, now);
+                break;
+            case ManualDmxCommandKind::Set:
+                result = session.apply(
+                    manual_dmx_values_with_change(
+                        session.snapshot(now), command.channel, command.value),
+                    now);
+                break;
+            case ManualDmxCommandKind::Clear:
+                result = session.apply(
+                    manual_dmx_values_with_change(
+                        session.snapshot(now), command.channel, 0U),
+                    now);
+                break;
+            case ManualDmxCommandKind::Blackout:
+                result = session.blackout_now(now);
+                break;
+            case ManualDmxCommandKind::Show:
+                ran_session_command = false;
+                break;
+            case ManualDmxCommandKind::Quit:
+                result = session.stop(now);
+                break;
+            case ManualDmxCommandKind::Cancel: {
+                const auto reason = utf8(command.message).value_or(
+                    "Operator cancelled the manual DMX test.");
+                result = session.cancel(reason, now);
+                break;
+            }
+            case ManualDmxCommandKind::Invalid:
+                ran_session_command = false;
+                std::wcout << command.message << L"\n";
+                break;
+            }
+            if (ran_session_command && !result.ok() &&
+                result.error != emberlights::ManualDmxTestError::Cancelled) {
+                print_manual_dmx_check(L"Manual DMX command failed", result);
+            }
+            previous = session.snapshot(now);
+            if (command.kind != ManualDmxCommandKind::Invalid) {
+                print_manual_dmx_snapshot(previous);
+            }
+            if (manual_dmx_phase_active(previous.phase)) {
+                print_manual_dmx_prompt();
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+}
+
+[[nodiscard]] int run_manual_dmx_test() {
+    std::wcout
+        << L"\nADVANCED MANUAL DMX TEST\n"
+        << L"This mode bypasses fixture profiles and sends literal channel values.\n"
+        << L"Fully close SoundSwitch and EmberLights. Disconnect fog, haze, spark,\n"
+        << L"laser, motion, strobe-sensitive, and unrelated fixtures before arming.\n"
+        << L"Connect only the fixture(s) you intentionally want to inspect.\n\n"
+        << L"SoundSwitch Micro universe (1 or 2, default 1): ";
+    std::wstring entered;
+    std::getline(std::wcin, entered);
+    std::uint32_t universe = 1U;
+    if (!entered.empty() &&
+        (!parse_unsigned(entered, showcore::kV1UniverseCount, universe) ||
+         universe == 0U)) {
+        std::wcout << L"Invalid universe; no output device was opened.\n";
+        return 0;
+    }
+    std::wcout << L"Per-preset hold before automatic blackout (1-30 seconds, default 5): ";
+    entered.clear();
+    std::getline(std::wcin, entered);
+    std::uint32_t hold_seconds = 5U;
+    if (!entered.empty() &&
+        (!parse_unsigned(entered, 30U, hold_seconds) || hold_seconds == 0U)) {
+        std::wcout << L"Invalid hold time; no output device was opened.\n";
+        return 0;
+    }
+
+    emberlights::ManualDmxTestConfig config;
+    config.universe = static_cast<std::uint8_t>(universe);
+    config.adapter_id = "soundswitch-micro:u" + std::to_string(universe);
+    config.hold_timeout = std::chrono::seconds(hold_seconds);
+    config.session_timeout = std::chrono::minutes(10);
+    config.blackout_frame_repetitions = 3U;
+    config.maximum_active_channels =
+        emberlights::kManualDmxTestMaximumActiveChannels;
+    emberlights::ManualDmxTestPlan plan;
+    const auto planned = emberlights::build_manual_dmx_test_plan(config, plan);
+    if (!planned.ok()) {
+        print_manual_dmx_check(L"Manual DMX plan rejected", planned);
+        return 4;
+    }
+    const auto acknowledgement =
+        emberlights::manual_dmx_test_acknowledgement(plan);
+    std::wcout
+        << L"\nArmed adapter: " << wide(config.adapter_id).value_or(L"invalid")
+        << L"\nHold timeout: " << hold_seconds
+        << L" seconds; total session timeout: 10 minutes.\n"
+        << L"Every APPLY/SET replaces output only after blackout; each preset then\n"
+        << L"auto-blackouts. Type this exact line to arm raw output:\n"
+        << wide(acknowledgement).value_or(L"invalid") << L"\n> ";
+    std::wstring response;
+    std::getline(std::wcin, response);
+    const auto response_utf8 = utf8(response);
+    if (!response_utf8.has_value() ||
+        !emberlights::manual_dmx_test_acknowledged(plan, *response_utf8)) {
+        std::wcout << L"Acknowledgement did not match; no output device was opened.\n";
+        return 0;
+    }
+
+    cancellation_requested.store(false, std::memory_order_relaxed);
+    output_terminal_complete.store(false, std::memory_order_release);
+    output_session_active.store(true, std::memory_order_release);
+    [[maybe_unused]] ConsoleControlRegistration control_registration;
+    emberlights::SoundSwitchMicroManualDmxTestTransport transport;
+    emberlights::ManualDmxTestSession session;
+    const auto begun = session.begin(
+        std::move(plan), *response_utf8, transport,
+        emberlights::ManualDmxTestSession::TimePoint::clock::now());
+    if (begun.ok()) {
+        drive_manual_dmx_session(session, transport);
+    } else {
+        print_manual_dmx_check(L"Manual DMX session did not start", begun);
+    }
+    const auto terminal = session.snapshot(
+        emberlights::ManualDmxTestSession::TimePoint::clock::now());
+    output_terminal_complete.store(true, std::memory_order_release);
+    output_session_active.store(false, std::memory_order_release);
+    print_manual_dmx_snapshot(terminal);
+    if (terminal.phase == emberlights::ManualDmxTestPhase::Complete ||
+        terminal.phase == emberlights::ManualDmxTestPhase::Cancelled) {
+        return 0;
+    }
+    return terminal.phase == emberlights::ManualDmxTestPhase::TimedOut ? 6 : 7;
 }
 
 [[nodiscard]] std::filesystem::path report_path() {
@@ -902,6 +1329,31 @@ void drive_operator_session(
             ObservationCommandKind::Invalid) {
         return false;
     }
+    emberlights::ManualDmxTestPlan manual_plan;
+    const auto manual_planned = emberlights::build_manual_dmx_test_plan(
+        emberlights::ManualDmxTestConfig{}, manual_plan);
+    const auto manual_acknowledgement =
+        emberlights::manual_dmx_test_acknowledgement(manual_plan);
+    const auto manual_apply =
+        parse_manual_dmx_command(L"APPLY 1=255 128=64 512=0");
+    const auto manual_set = parse_manual_dmx_command(L"SET 42 127");
+    if (!manual_planned.ok() || manual_acknowledgement.empty() ||
+        !emberlights::manual_dmx_test_acknowledged(
+            manual_plan, manual_acknowledgement) ||
+        manual_apply.kind != ManualDmxCommandKind::Apply ||
+        manual_apply.values.size() != 3U ||
+        manual_apply.values[1].channel != 128U ||
+        manual_apply.values[1].value != 64U ||
+        manual_set.kind != ManualDmxCommandKind::Set ||
+        manual_set.channel != 42U || manual_set.value != 127U ||
+        parse_manual_dmx_command(L"APPLY 0=1").kind !=
+            ManualDmxCommandKind::Invalid ||
+        parse_manual_dmx_command(L"SET 513 1").kind !=
+            ManualDmxCommandKind::Invalid ||
+        parse_manual_dmx_command(L"SET 42949672961 1").kind !=
+            ManualDmxCommandKind::Invalid) {
+        return false;
+    }
     return true;
 }
 
@@ -917,28 +1369,32 @@ int wmain(int argc, wchar_t** argv) {
             << L"Usage:\n"
             << L"  soundswitch_micro_probe                 passive descriptor report\n"
             << L"  soundswitch_micro_probe --self-test     non-outputting software check\n"
+            << L"  soundswitch_micro_probe --manual-dmx    Advanced raw channel tester\n"
             << L"  soundswitch_micro_probe --active-test [operator-manifest-v1]\n\n"
-            << L"--active-test retains the installed shortcut entrypoint but now runs only\n"
-            << L"the evidence-bound one-fixture Raw Hardware Test. It never invokes Runner.\n";
+            << L"--manual-dmx is fixture-agnostic, explicitly armed, and time-bounded.\n"
+            << L"--active-test runs only the evidence-bound one-fixture qualification.\n"
+            << L"Neither active mode invokes Runner.\n";
         return 0;
     }
 
     const bool active_test =
         (argc == 2 || argc == 3) &&
         std::wstring_view(argv[1]) == L"--active-test";
-    if ((argc != 1 && !active_test) || argc > 3) {
+    const bool manual_test = argc == 2 &&
+        std::wstring_view(argv[1]) == L"--manual-dmx";
+    if ((argc != 1 && !active_test && !manual_test) || argc > 3) {
         std::wcerr << L"Unknown arguments. Use --help. No output was sent.\n";
         return 1;
     }
 
     std::wcout
-        << L"EmberLights Hardware Test\n"
-        << L"=========================\n\n"
+        << L"EmberLights Output & Hardware Test\n"
+        << L"==================================\n\n"
         << L"This tool only opens the SoundSwitch Micro device (VID 15E4, PID 0053).\n"
         << L"Descriptor collection is passive. EmberLights itself now owns the normal\n"
         << L"full-universe output path; this tool does not transmit unless launched\n"
-        << L"with --active-test, a valid one-fixture manifest, and an exact typed\n"
-        << L"acknowledgement. Default and --self-test never transmit.\n\n"
+        << L"with --manual-dmx or --active-test and an exact typed acknowledgement.\n"
+        << L"Default and --self-test never transmit.\n\n"
         << L"Plug the SoundSwitch Micro dongle into this PC now.\n"
         << L"Waiting up to 60 seconds...\n";
 
@@ -972,10 +1428,18 @@ int wmain(int argc, wchar_t** argv) {
 
     std::wcout << L"\nDetected: " << device->description
                << L"\nSaved descriptor report to:\n" << path.wstring() << L"\n";
-    if (!active_test) {
+    if (!active_test && !manual_test) {
         static_cast<void>(::ShellExecuteW(
             nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
         return 0;
+    }
+
+    if (manual_test) {
+        const auto result = run_manual_dmx_test();
+        std::wcout << L"Press Enter to close.";
+        std::wstring ignored;
+        std::getline(std::wcin, ignored);
+        return result;
     }
 
     std::filesystem::path manifest_path;

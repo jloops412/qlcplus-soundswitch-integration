@@ -17,13 +17,13 @@ The granular backlog below remains the long-range product inventory, but it is *
 
 ### Current beta release checkpoint — 2026-08-20
 
-The stacked Preview 104 candidate combines the Preview 103 application-owned OS2L service with #90's first exact current-2026 Autoloop slice and exposes that slice through the existing File import journey plus `emberlights_migrate convert-2026-red-smooth`. Its generated destination project is output-disabled, uses four IR-4 fixtures at U1 `001/011/021/031` and tube blocks at `041/121/201/281`, and creates no duplicate generic uplights.
+The Preview 105 candidate stacks Preview 104's application-owned OS2L service and first exact current-2026 Autoloop import slice with the Advanced-only FIX-13 manual DMX tester. The new fixture-agnostic core and installed `--manual-dmx` workflow reuse the production SoundSwitch Micro session, bind arming to one adapter/universe/timing-plan digest, support deterministic multi-channel presets, expose the exact held frame, and fail to repeated blackout plus close on timeout, cancellation, device loss, or write failure. It remains separate from normal fixture/Look vocabulary and from the sealed one-fixture `--active-test` qualification workflow.
 
 After Joshua's installed test, keep the next work in this order:
 
-1. reconcile native Windows/VirtualDJ evidence from Preview 103/104 and fix only reproduced #89 lifecycle or feedback defects;
-2. compare the single imported `Red - Smooth Pulse` source slice before expanding #90 to more loops or SoundSwitch Static Looks;
-3. add the Advanced-only manual universe/channel tester required by parity row FIX-13, reusing bounded output leases, timeout, visible ownership, and terminal blackout;
+1. reconcile native Windows/VirtualDJ evidence from Preview 103/104/105 and fix only reproduced #89 lifecycle or feedback defects;
+2. run the isolated installed manual-DMX walkthrough, retain exact observed channel/range behavior, and fix only reproduced safety/transport defects;
+3. compare the single imported `Red - Smooth Pulse` source slice before expanding #90 to more loops or SoundSwitch Static Looks;
 4. finish #37 and activate the first modern Fixtures + Static Looks Default journey with complete profile-backed controls, modern RGBWAUV picking, patch/profile workflows, save/Undo, and raw DMX kept behind Advanced;
 5. expand Autoloop/Static Look authoring UX, Live control, mappings, and then the visual `.emberskin`/Ember Actions designer over the shared registry—never as separate engines.
 
