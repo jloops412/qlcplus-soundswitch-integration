@@ -1,0 +1,3 @@
+2acdf712d7382fb899170920a6e605008e76f436d46fcb363bb9670a11505a14  EmberLights-0.1.0-preview.103.0-Windows-testing-preview.zip
+b16476f577ea4b250d8fe359a7da0d4362b2bc2263981c4a5efa96618efde70c  EmberLights-0.1.0-preview.103.0-Setup.exe (inside ZIP)
+6d2573550115314ea459616c04db6580042142e528f1fa854517a83fc60f4493  EmberLights-0.1.0-preview.103.0-Windows-payload-manifest.json (inside ZIP)

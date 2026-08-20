@@ -1,52 +1,30 @@
-# EmberLights
+# EmberLights Preview 103 — Windows x64 testing preview
 
-EmberLights is an independently owned, general-purpose, SoundSwitch-first DJ and event lighting workstation.
+This branch is an immutable artifact handoff. It is intentionally separate from the product source branches.
 
-## Product thesis
+## Download
 
-Build **at least the complete relevant SoundSwitch functional surface with an open controller/hardware model**, then exceed it with safer persistence, migration, portability, and event-aware tools. Joshua's hardware is the first qualification rig, not the product boundary.
+- `EmberLights-0.1.0-preview.103.0-Windows-testing-preview.zip`
+- ZIP SHA-256: `2acdf712d7382fb899170920a6e605008e76f436d46fcb363bb9670a11505a14`
 
-The system has two operational modes:
+The ZIP contains:
 
-- **Studio** prepares fixtures, venues, Autoloops, song scripts, controller mappings, migrations, and immutable show packages.
-- **Runner** performs a compiled show with a small deterministic engine and no internet, AI, waveform, or library-scanning dependency.
+- `EmberLights-0.1.0-preview.103.0-Setup.exe`
+- `EmberLights-0.1.0-preview.103.0-Windows-payload-manifest.json`
+- `EmberLights-0.1.0-preview.103.0-SHA256SUMS.txt`
 
-SoundSwitch is the primary product reference. Wolfmix is a secondary source of useful live-control ideas. QLC+ is an optional compatibility bridge and implementation reference, not the product model.
+## Identity
 
-## Binding V1 constraints
+- Version: `0.1.0-preview.103.0`
+- Packaged source commit: `4e7c71084f7d67ac5b796c64b9ee97895618b282`
+- Packaged source tree: `9f1a14d1bc9581406e93d9bf2ea85f572f1795d0`
+- Installer SHA-256: `b16476f577ea4b250d8fe359a7da0d4362b2bc2263981c4a5efa96618efde70c`
+- Payload-manifest SHA-256: `6d2573550115314ea459616c04db6580042142e528f1fa854517a83fc60f4493`
+- Owning PR: #94
+- Handoff record: `docs/handoffs/BACKYARD_PARTY_OPERATOR_PREVIEW_103_HANDOFF_2026-08-20.md` on PR #94
 
-- Windows-launch-first, offline-first, and exceptionally lean; macOS follows later without blocking Windows delivery.
-- Exactly two exposed DMX universes in V1.
-- VirtualDJ and OS2L first; Serato is the second direct DJ-integration priority; live-audio BPM is automatic fallback, not the normal clock.
-- Same-computer and separate-lighting-computer operation are equal requirements.
-- Device-agnostic MIDI with a bundled SoundSwitch Control One profile.
-- A scalable 64-bank/2,048-loop Autoloop library; four-bank controllers page through it.
-- SoundSwitch migration is a core adoption feature.
-- No AI or dynamic content generation in the live DMX path.
-- No licensing-server dependency.
+## Evidence boundary
 
-## Repository map
+This is a **contract-tested non-Windows unsigned testing preview**. The package contract, clean Windows x64 cross-build, deterministic NSIS rebuild, archive integrity, extraction, and staged-payload byte identity passed. Native Windows install/upgrade/launch/uninstall, real VirtualDJ lifecycle, physical hardware, and gig qualification are not yet claimed.
 
-- [`docs/00_START_HERE.md`](docs/00_START_HERE.md) — authority, status, and reading order.
-- [`docs/01_PRODUCT_REQUIREMENTS.md`](docs/01_PRODUCT_REQUIREMENTS.md) — product and user requirements.
-- [`docs/03_ARCHITECTURE.md`](docs/03_ARCHITECTURE.md) — Studio/Runner design and runtime contracts.
-- [`docs/04_V1_SCOPE_AND_ACCEPTANCE.md`](docs/04_V1_SCOPE_AND_ACCEPTANCE.md) — what V1 is and how it earns gig use.
-- [`docs/08_DECISIONS_AND_OPEN_QUESTIONS.md`](docs/08_DECISIONS_AND_OPEN_QUESTIONS.md) — decision log and questions for Joshua.
-- [`docs/13_SOUNDSWITCH_PARITY_LEDGER.md`](docs/13_SOUNDSWITCH_PARITY_LEDGER.md) — binding feature-parity and evidence checklist.
-- [`docs/14_RUNNER_LAB.md`](docs/14_RUNNER_LAB.md) — safe usage and limitations of the first end-to-end laboratory Runner.
-- [`docs/15_WINDOWS_V1_TESTING.md`](docs/15_WINDOWS_V1_TESTING.md) — installer, setup, safety, and qualification guidance for Windows testing builds.
-- [`docs/16_QLC_FIXTURE_IMPORT.md`](docs/16_QLC_FIXTURE_IMPORT.md) — safe QLC+ QXF fixture import workflow, conversion rules, and current limits.
-- [`docs/17_PRODUCTION_RELEASE_GATE.md`](docs/17_PRODUCTION_RELEASE_GATE.md) — evidence required for gig qualification, public beta, and parity-complete 1.0.
-- [`docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md`](docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md) — the owner-plus-three preview test and feedback checklist.
-- [`spec/showpack.schema.json`](spec/showpack.schema.json) — initial portable authoring/show-package schema.
-- [`native-core`](native-core) — dependency-light native reference engine and test harness.
-
-## Current milestone
-
-The current milestone is a coherent installable Windows V1 testing build. The native application now brings project creation, safe QLC+ `.qxf` fixture import, local fixture-profile editing, two-universe patching, reusable fixture groups and roles, Static Looks, a 64-by-32 Autoloop library, MIDI Learn, VirtualDJ/OS2L timing, Art-Net/sACN output, per-universe ENTTEC DMX USB Pro–compatible serial output, independently implemented native SoundSwitch Micro JLS1/WinUSB output pending physical qualification, and a contract-tested Control One two-port JLC1/JLS1 production Runner route with explicit experimental opt-in plus an installed fail-closed booth qualifier. Editable safety policy, live controls, diagnostics, validation, and recovery remain in one desktop shell. The first typed command/state facade now separates Live/safety behavior from the legacy Win32 presentation so later Default, Reference, controller, and user-skin surfaces can share the same actions. Installed builds also include a 128-fixture soak/qualification tool and machine-readable release evidence. The portable core remains independently tested and allocation-free on the DMX scheduling path.
-
-Every push is compiled and tested on Windows and Linux. The Windows packaging job stages a self-contained portable build, creates an Inno Setup installer, installs it, and launches the installed GUI and hardware probe smoke tests. Linux packaging creates an installable Debian package and portable archive, installs the Debian package, runs the installed Runner/qualification/migration/MIDI smoke tests, and removes it cleanly. Tagged commits publish both platforms with checksums and release manifests.
-
-`installer/EmberLights.nsi` is the limited-beta offline packaging fallback when the hosted Windows runner is unavailable; `installer/EmberLights.iss` and the installed-smoke workflow remain the authoritative release path.
-
-Do not use this at a live event until the acceptance gates in `docs/04_V1_SCOPE_AND_ACCEPTANCE.md` are satisfied.
+Keep physical output disabled for the initial installation and OS2L lifecycle test. Do not use this preview as the only lighting controller at an event.
