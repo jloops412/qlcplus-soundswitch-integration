@@ -1,5 +1,6 @@
 #include "emberlights/compiler.hpp"
 #include "emberlights/fixtures_looks_shell.hpp"
+#include "emberlights/live_view_model.hpp"
 #include "emberlights/os2l_service.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/static_look_authoring.hpp"
@@ -463,6 +464,57 @@ public:
         return runner_.status();
     }
 
+    void refresh_projection(
+        const emberlights::ProjectDocument& studio_project,
+        std::uint64_t studio_generation,
+        const emberlights::RunnerStatus& status) {
+        const bool live_project = active_project_.has_value();
+        if (live_project != projecting_live_project_ ||
+            (!live_project &&
+             (!projected_studio_generation_.has_value() ||
+              *projected_studio_generation_ != studio_generation))) {
+            live_view_.load_project(
+                live_project ? *active_project_ : studio_project);
+            projecting_live_project_ = live_project;
+            projected_studio_generation_ = studio_generation;
+        }
+        live_view_.update(status);
+    }
+
+    [[nodiscard]] const emberlights::LiveViewModel& live_view()
+        const noexcept {
+        return live_view_;
+    }
+
+    [[nodiscard]] bool select_autoloop_bank(std::uint16_t bank) noexcept {
+        return live_view_.select_autoloop_bank(bank);
+    }
+
+    [[nodiscard]] bool select_autoloop_page(std::uint16_t page) noexcept {
+        return live_view_.select_autoloop_page(page);
+    }
+
+    [[nodiscard]] bool select_autoloop_slot(std::uint8_t slot) noexcept {
+        return live_view_.select_autoloop_slot(slot);
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult launch_selected_autoloop()
+        noexcept {
+        const auto address = live_view_.selected_autoloop_address();
+        if (!address.valid()) {
+            return emberlights::UiInvocationResult::InvalidArguments;
+        }
+        const auto& pad = live_view_.autoloop_pads()[address.slot];
+        if (!pad.populated || pad.address != address) {
+            return emberlights::UiInvocationResult::NotFound;
+        }
+        emberlights::UiCommandInvocation invocation;
+        invocation.command = emberlights::UiCommandId::AutoloopLaunch;
+        invocation.target_id = pad.id;
+        invocation.autoloop_address = address;
+        return facade_.invoke(invocation);
+    }
+
     [[nodiscard]] bool selected_look_active(
         std::string_view look_id) const noexcept {
         if (!active_project_.has_value()) {
@@ -490,9 +542,12 @@ public:
                 static_cast<std::size_t>(live.static_look.look_index)].name;
         }
         if (live.active_autoloop.valid()) {
-            return "Autoloop • B" +
-                std::to_string(live.active_autoloop.bank + 1U) + " S" +
-                std::to_string(live.active_autoloop.slot + 1U);
+            const auto& active = live_view_.active_content();
+            const auto name = active.autoloop_name.empty()
+                ? "B" + std::to_string(live.active_autoloop.bank + 1U) +
+                    " S" + std::to_string(live.active_autoloop.slot + 1U)
+                : std::string(active.autoloop_name);
+            return "Autoloop • " + name;
         }
         if (active_project_.has_value() && live.active_track_script >= 0 &&
             static_cast<std::size_t>(live.active_track_script) <
@@ -558,6 +613,10 @@ public:
 
             active_project_ = snapshot.document;
             facade_.set_active_project(&*active_project_);
+            live_view_.load_project(*active_project_);
+            live_view_.update(runner_.status());
+            projecting_live_project_ = true;
+            projected_studio_generation_ = snapshot.generation;
             const auto recovery = emberlights::save_project_atomic(
                 emberlights::project_active_path(*state_.project_path),
                 *active_project_,
@@ -591,6 +650,9 @@ private:
     emberlights::RunnerService runner_;
     emberlights::UiCommandFacade facade_;
     std::optional<emberlights::ProjectDocument> active_project_;
+    emberlights::LiveViewModel live_view_;
+    std::optional<std::uint64_t> projected_studio_generation_;
+    bool projecting_live_project_{false};
 };
 
 [[nodiscard]] bool preview_busy(
@@ -688,6 +750,16 @@ private:
     return "Unavailable";
 }
 
+[[nodiscard]] const char* autoloop_repeat_text(
+    showcore::AutoloopRepeat repeat) noexcept {
+    switch (repeat) {
+    case showcore::AutoloopRepeat::Once: return "Once";
+    case showcore::AutoloopRepeat::Infinite: return "Loop";
+    case showcore::AutoloopRepeat::TrackDuration: return "Track";
+    }
+    return "Loop";
+}
+
 [[nodiscard]] std::string universe_health_text(
     const emberlights::RunnerStatus& status,
     std::uint8_t universe) {
@@ -722,7 +794,11 @@ private:
         std::to_string(static_cast<unsigned int>(status.static_look.status)) +
         ":" + std::to_string(status.active_track_script) + ":" +
         std::to_string(status.active_autoloop.bank) + ":" +
-        std::to_string(status.active_autoloop.slot);
+        std::to_string(status.active_autoloop.slot) + ":" +
+        std::to_string(static_cast<unsigned int>(
+            status.active_autoloop_progress * 100.0F + 0.5F)) + ":" +
+        std::to_string(status.active_autoloop_completed_cycles) + ":" +
+        std::to_string(status.active_autoloop_bank_mask);
     for (const auto& backend : status.output_backends) {
         token += ":" +
             std::to_string(static_cast<unsigned int>(backend.state));
@@ -1071,6 +1147,10 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     const auto live = state.live_host != nullptr
         ? state.live_host->status()
         : emberlights::RunnerStatus{};
+    if (state.live_host != nullptr) {
+        state.live_host->refresh_projection(
+            snapshot.document, snapshot.generation, live);
+    }
     state.live_status_token = live_status_token(live);
     const auto live_stopped = live.state == emberlights::RunnerState::Stopped;
     const auto live_running = live.state == emberlights::RunnerState::Running;
@@ -1177,6 +1257,97 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
         universe_health_text(live, 1U) + " • " +
         std::to_string(live.manual_override_count) +
         (live.manual_override_count == 1U ? " override" : " overrides")));
+
+    std::vector<AutoloopBankItem> autoloop_banks;
+    std::vector<AutoloopPadItem> autoloop_pads;
+    auto autoloop_page_label = std::string("Banks 1–4 • page 1/16");
+    auto autoloop_selected = std::string("No Autoloop selected");
+    auto autoloop_active_detail = std::string("No active Autoloop");
+    bool has_autoloops = false;
+    bool selected_autoloop_populated = false;
+    if (state.live_host != nullptr) {
+        const auto& view = state.live_host->live_view();
+        has_autoloops = view.autoloop_count() != 0U;
+        const auto page = view.autoloop_page();
+        const auto first_bank = static_cast<std::uint16_t>(
+            page * showcore::kAutoloopBanksPerControlPage);
+        autoloop_page_label =
+            "Banks " + std::to_string(first_bank + 1U) + "–" +
+            std::to_string(
+                first_bank + showcore::kAutoloopBanksPerControlPage) +
+            " • page " + std::to_string(page + 1U) + "/" +
+            std::to_string(showcore::kAutoloopControlPageCount);
+        autoloop_banks.reserve(view.autoloop_bank_window().size());
+        for (const auto& bank : view.autoloop_bank_window()) {
+            AutoloopBankItem item;
+            item.bank = static_cast<int>(bank.bank);
+            item.title = shared_string("B" + std::to_string(bank.bank + 1U));
+            item.selected = bank.selected;
+            item.enabled = bank.enabled_by_filter;
+            item.active = bank.contains_active;
+            autoloop_banks.push_back(std::move(item));
+        }
+        autoloop_pads.reserve(view.autoloop_pads().size());
+        for (const auto& pad : view.autoloop_pads()) {
+            AutoloopPadItem item;
+            item.slot = static_cast<int>(pad.address.slot);
+            item.title = shared_string(
+                "S" + std::to_string(pad.address.slot + 1U) + " • " +
+                (pad.populated ? std::string(pad.name) : std::string("Empty")));
+            auto detail = pad.populated
+                ? std::string(pad.detail) + " • " +
+                    autoloop_repeat_text(pad.repeat)
+                : std::string("Unassigned slot");
+            if (pad.active) {
+                detail += " • " + std::to_string(static_cast<unsigned int>(
+                    pad.progress * 100.0F + 0.5F)) + "%";
+            }
+            item.detail = shared_string(detail);
+            item.selected = pad.selected;
+            item.active = pad.active;
+            item.populated = pad.populated;
+            item.enabled = pad.enabled_by_filter;
+            item.progress_percent = static_cast<int>(
+                pad.progress * 100.0F + 0.5F);
+            if (pad.selected && pad.populated) {
+                selected_autoloop_populated = true;
+                autoloop_selected =
+                    "B" + std::to_string(pad.address.bank + 1U) + " / S" +
+                    std::to_string(pad.address.slot + 1U) + " • " +
+                    std::string(pad.name);
+            }
+            autoloop_pads.push_back(std::move(item));
+        }
+        if (live.active_autoloop.valid()) {
+            const auto& active = view.active_content();
+            autoloop_active_detail =
+                "Playing B" + std::to_string(live.active_autoloop.bank + 1U) +
+                " / S" + std::to_string(live.active_autoloop.slot + 1U) +
+                (active.autoloop_name.empty()
+                    ? std::string{}
+                    : " • " + std::string(active.autoloop_name)) +
+                " • " + std::to_string(static_cast<unsigned int>(
+                    live.active_autoloop_progress * 100.0F + 0.5F)) +
+                "% • cycle " +
+                std::to_string(live.active_autoloop_completed_cycles + 1U);
+        }
+    }
+    ui.set_autoloop_page_label(shared_string(autoloop_page_label));
+    ui.set_autoloop_selected(shared_string(autoloop_selected));
+    ui.set_autoloop_active_detail(shared_string(autoloop_active_detail));
+    ui.set_can_launch_autoloop(
+        kProductShell && live_running && selected_autoloop_populated);
+    ui.set_can_navigate_autoloops(
+        kProductShell && live_running && has_autoloops);
+    ui.set_can_clear_autoloop(
+        kProductShell && live_running && live.active_autoloop.valid());
+    ui.set_can_filter_autoloops(kProductShell && live_running);
+    ui.set_autoloop_bank_items(
+        std::make_shared<slint::VectorModel<AutoloopBankItem>>(
+            std::move(autoloop_banks)));
+    ui.set_autoloop_pad_items(
+        std::make_shared<slint::VectorModel<AutoloopPadItem>>(
+            std::move(autoloop_pads)));
     ui.set_profile_search(shared_string(state.profile_search));
     ui.set_look_search(shared_string(state.look_search));
     ui.set_parameter_search(shared_string(state.control_search));
@@ -2040,6 +2211,143 @@ int main(int argc, char** argv) {
                         std::string(emberlights::ui_invocation_result_name(result)) +
                         ".";
             }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_page_previous([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr) {
+                const auto page = state.live_host->live_view().autoloop_page();
+                const auto previous = page == 0U
+                    ? static_cast<std::uint16_t>(
+                        showcore::kAutoloopControlPageCount - 1U)
+                    : static_cast<std::uint16_t>(page - 1U);
+                static_cast<void>(
+                    state.live_host->select_autoloop_page(previous));
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_page_next([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr) {
+                const auto page = state.live_host->live_view().autoloop_page();
+                const auto next = static_cast<std::uint16_t>(
+                    (page + 1U) % showcore::kAutoloopControlPageCount);
+                static_cast<void>(state.live_host->select_autoloop_page(next));
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_select_bank([with_ui](int bank) {
+        with_ui([bank](const auto& component, auto& state) {
+            if (state.live_host == nullptr || bank < 0 ||
+                !state.live_host->select_autoloop_bank(
+                    static_cast<std::uint16_t>(bank))) {
+                state.operation_message =
+                    "That Autoloop bank is outside the supported 64-bank workspace.";
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_select_slot([with_ui](int slot) {
+        with_ui([slot](const auto& component, auto& state) {
+            if (state.live_host == nullptr || slot < 0 ||
+                !state.live_host->select_autoloop_slot(
+                    static_cast<std::uint8_t>(slot))) {
+                state.operation_message =
+                    "That Autoloop slot is outside the supported 32-slot bank.";
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_launch([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto result = state.live_host == nullptr
+                ? emberlights::UiInvocationResult::Unavailable
+                : state.live_host->launch_selected_autoloop();
+            state.operation_message = result ==
+                    emberlights::UiInvocationResult::Accepted
+                ? "Selected Autoloop launch queued through the canonical Live command path."
+                : "Autoloop launch rejected: " + std::string(
+                    emberlights::ui_invocation_result_name(result)) + ".";
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_previous([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto result = state.live_host == nullptr
+                ? emberlights::UiInvocationResult::Unavailable
+                : state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::AutoloopPrevious});
+            state.operation_message = result ==
+                    emberlights::UiInvocationResult::Accepted
+                ? "Previous enabled Autoloop queued."
+                : "Previous Autoloop rejected: " + std::string(
+                    emberlights::ui_invocation_result_name(result)) + ".";
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_next([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto result = state.live_host == nullptr
+                ? emberlights::UiInvocationResult::Unavailable
+                : state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::AutoloopNext});
+            state.operation_message = result ==
+                    emberlights::UiInvocationResult::Accepted
+                ? "Next enabled Autoloop queued."
+                : "Next Autoloop rejected: " + std::string(
+                    emberlights::ui_invocation_result_name(result)) + ".";
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_clear([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto result = state.live_host == nullptr
+                ? emberlights::UiInvocationResult::Unavailable
+                : state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::AutoloopClear});
+            state.operation_message = result ==
+                    emberlights::UiInvocationResult::Accepted
+                ? "Active Autoloop clear queued; lower layers remain authoritative."
+                : "Autoloop clear rejected: " + std::string(
+                    emberlights::ui_invocation_result_name(result)) + ".";
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_filter_all([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto result = state.live_host == nullptr
+                ? emberlights::UiInvocationResult::Unavailable
+                : state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::AutoloopBankFilterEnableAll});
+            state.operation_message = result ==
+                    emberlights::UiInvocationResult::Accepted ||
+                    result == emberlights::UiInvocationResult::NoChange
+                ? "Previous/Next navigation now includes all Autoloop banks."
+                : "Autoloop bank filter rejected: " + std::string(
+                    emberlights::ui_invocation_result_name(result)) + ".";
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_autoloop_filter_selected([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            auto result = emberlights::UiInvocationResult::Unavailable;
+            if (state.live_host != nullptr) {
+                emberlights::UiCommandInvocation invocation;
+                invocation.command = emberlights::UiCommandId::
+                    AutoloopBankFilterSelectExclusive;
+                invocation.bank =
+                    state.live_host->live_view().selected_autoloop_bank();
+                result = state.live_host->facade().invoke(invocation);
+            }
+            state.operation_message = result ==
+                    emberlights::UiInvocationResult::Accepted ||
+                    result == emberlights::UiInvocationResult::NoChange
+                ? "Previous/Next navigation is limited to the selected Autoloop bank."
+                : "Autoloop bank filter rejected: " + std::string(
+                    emberlights::ui_invocation_result_name(result)) + ".";
             refresh_ui(component, state);
         });
     });

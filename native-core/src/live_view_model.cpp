@@ -1,5 +1,6 @@
 #include "emberlights/live_view_model.hpp"
 
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/fixture_capabilities.hpp"
 
 #include <algorithm>
@@ -22,6 +23,18 @@ inline constexpr std::size_t kMissingIndex = std::numeric_limits<std::size_t>::m
     return found == project.fixtures.end()
         ? kMissingIndex
         : static_cast<std::size_t>(found - project.fixtures.begin());
+}
+
+[[nodiscard]] const char* provenance_label(
+    AutoloopProvenanceOrigin origin) noexcept {
+    switch (origin) {
+    case AutoloopProvenanceOrigin::Native: return "Native";
+    case AutoloopProvenanceOrigin::ContentPack: return "Content pack";
+    case AutoloopProvenanceOrigin::Generated: return "Generated";
+    case AutoloopProvenanceOrigin::Migrated: return "Migrated";
+    case AutoloopProvenanceOrigin::Count: break;
+    }
+    return "V2";
 }
 
 }  // namespace
@@ -69,11 +82,91 @@ void LiveViewModel::load_project(const ProjectDocument& active_project) {
     }
 
     autoloop_catalog_.clear();
-    autoloop_catalog_.reserve(active_project.autoloops.size());
-    for (const auto& loop : active_project.autoloops) {
-        const showcore::AutoloopAddress address{loop.bank, loop.slot};
-        if (address.valid()) {
-            autoloop_catalog_.push_back({loop.id, loop.name, address, loop.repeat});
+    const auto persisted = inspect_persisted_autoloop_source(active_project);
+    if (persisted && persisted.stamp.present) {
+        autoloop_catalog_.reserve(persisted.source.placements.size());
+        for (const auto& placement : persisted.source.placements) {
+            const showcore::AutoloopAddress address{
+                placement.bank, placement.slot};
+            if (!address.valid()) {
+                continue;
+            }
+            const auto asset = std::find_if(
+                persisted.source.assets.begin(),
+                persisted.source.assets.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == placement.asset_id;
+                });
+            if (asset == persisted.source.assets.end()) {
+                continue;
+            }
+            auto repeat = showcore::AutoloopRepeat::Infinite;
+            const auto launch = std::find_if(
+                persisted.source.launch_profiles.begin(),
+                persisted.source.launch_profiles.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == asset->launch_profile_id;
+                });
+            if (launch != persisted.source.launch_profiles.end()) {
+                repeat = launch->repeat;
+            }
+            auto detail = std::string("V2");
+            const auto provenance = std::find_if(
+                persisted.source.provenance.begin(),
+                persisted.source.provenance.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == asset->provenance_id;
+                });
+            if (provenance != persisted.source.provenance.end()) {
+                detail += " • ";
+                detail += provenance_label(provenance->origin);
+                if (!provenance->evidence_status.empty()) {
+                    detail += " • ";
+                    detail += provenance->evidence_status;
+                }
+            }
+            autoloop_catalog_.push_back({
+                placement.id,
+                asset->name,
+                std::move(detail),
+                address,
+                repeat});
+        }
+    } else if (persisted) {
+        autoloop_catalog_.reserve(active_project.autoloops.size());
+        for (const auto& loop : active_project.autoloops) {
+            const showcore::AutoloopAddress address{loop.bank, loop.slot};
+            if (address.valid()) {
+                autoloop_catalog_.push_back({
+                    loop.id,
+                    loop.name,
+                    "Project Autoloop",
+                    address,
+                    loop.repeat});
+            }
+        }
+    }
+    std::sort(
+        autoloop_catalog_.begin(),
+        autoloop_catalog_.end(),
+        [](const auto& first, const auto& second) {
+            return std::pair(first.address.bank, first.address.slot) <
+                std::pair(second.address.bank, second.address.slot);
+        });
+
+    const auto selected = showcore::AutoloopAddress{
+        selected_autoloop_bank_, selected_autoloop_slot_};
+    const auto selected_exists = std::any_of(
+        autoloop_catalog_.begin(),
+        autoloop_catalog_.end(),
+        [&](const auto& item) { return item.address == selected; });
+    if (!selected_exists) {
+        if (autoloop_catalog_.empty()) {
+            selected_autoloop_bank_ = 0U;
+            selected_autoloop_slot_ = 0xFFU;
+        } else {
+            selected_autoloop_bank_ = autoloop_catalog_.front().address.bank;
+            selected_autoloop_slot_ = autoloop_catalog_.front().address.slot;
         }
     }
 
@@ -254,6 +347,7 @@ void LiveViewModel::rebuild_autoloop_projection() noexcept {
         }
         pad.id = found->id;
         pad.name = found->name;
+        pad.detail = found->detail;
         pad.repeat = found->repeat;
         pad.populated = true;
         pad.available = runner_available;

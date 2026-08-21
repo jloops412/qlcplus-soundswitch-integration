@@ -40,9 +40,21 @@ blackout behavior.
 
 While Live owns output, Studio mutations and preview are locked. The operator
 may select a saved Static Look and take or release it over the advancing lower
-Autoloop/script layer. This is the narrow #33/#87 beta journey, not a claim that
-Autoloop selection, connection editing, migration, or full Live parity have
-crossed into the replacement shell.
+Autoloop/script layer.
+
+Preview 110 adds the bounded Autoloop Live surface under D-099. The default
+shell projects both format-1 and persisted Autoloops V2 through the existing
+toolkit-neutral `LiveViewModel`, including stable bank/slot identity, content
+name, V2 provenance/evidence label, repeat mode, active progress, and completed
+cycles. The operator can page the full 64-bank workspace, select one of 32
+slots in a bank, launch the selected populated slot, move Previous/Next through
+enabled banks, clear active Autoloop playback, and choose all-bank or
+selected-bank navigation. Every runtime action uses the existing canonical
+`UiCommandFacade`; the UI adds no playback engine, importer, or output path.
+
+This advances the narrow #33/#87 beta journey. It is not a claim that
+Autoloop authoring/placement, connection editing, migration review, or full
+Live parity have crossed into the replacement shell.
 
 The workspace chrome now separates project/runtime status from navigation and
 actions, uses narrower sidebars, and supports a 1024×640 minimum window while
@@ -52,7 +64,11 @@ Raw DMX remains an Advanced diagnostic. No renderer owns output, safety, fixture
 
 ## Compatibility Tools bridge
 
-The frozen Win32 application remains the compatibility route for Connections, migration, Autoloop selection, AutoScript, advanced Live operation, Diagnostics, hardware qualification, and the other workflows not yet accepted in the replacement shell. It receives only safety, defect, accessibility, and bridge-removal changes under D-091.
+The frozen Win32 application remains the compatibility route for Connections,
+migration, Autoloop authoring/placement, AutoScript, advanced Live operation,
+Diagnostics, hardware qualification, and the other workflows not yet accepted
+in the replacement shell. It receives only safety, defect, accessibility, and
+bridge-removal changes under D-091.
 
 The bridge is an explicit workspace handoff rather than a second concurrent
 application. The default shell first stops its active Runner and OS2L service, launches

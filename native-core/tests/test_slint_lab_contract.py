@@ -245,6 +245,34 @@ class SlintLabContractTests(unittest.TestCase):
         ):
             self.assertIn(text, self.surface, text)
 
+    def test_product_shell_projects_and_controls_persisted_autoloops(self):
+        for text in (
+            "LiveViewModel",
+            "refresh_projection",
+            "AutoloopLaunch",
+            "AutoloopPrevious",
+            "AutoloopNext",
+            "AutoloopClear",
+            "AutoloopBankFilterEnableAll",
+            "AutoloopBankFilterSelectExclusive",
+            "active_autoloop_progress",
+            "active_autoloop_completed_cycles",
+        ):
+            self.assertIn(text, self.adapter, text)
+        for text in (
+            "LIVE AUTOLOOPS",
+            "AutoloopBankChip",
+            "AutoloopPadTile",
+            "autoloop-page-previous",
+            "autoloop-page-next",
+            "autoloop-select-bank",
+            "autoloop-select-slot",
+            "autoloop-launch",
+            'text: "Only bank"',
+            'text: "Clear"',
+        ):
+            self.assertIn(text, self.surface, text)
+
     def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)
         self.assertIn("pull_request:", self.workflow)

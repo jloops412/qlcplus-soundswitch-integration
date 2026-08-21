@@ -1,4 +1,5 @@
 #include "emberlights/compiler.hpp"
+#include "emberlights/autoloop_persistence.hpp"
 #include "emberlights/live_view_model.hpp"
 #include "emberlights/project.hpp"
 #include "emberlights/ui_command.hpp"
@@ -257,6 +258,51 @@ void test_live_view_model(const emberlights::ProjectDocument& project) {
         static_cast<std::uint8_t>(showcore::kAutoloopsPerBank)));
 }
 
+void test_live_view_model_projects_persisted_v2(
+    emberlights::ProjectDocument project) {
+    auto source = emberlights::adapt_format1_autoloops(project);
+    CHECK(source.assets.size() == 1U);
+    CHECK(source.placements.size() == 1U);
+    if (source.assets.empty() || source.placements.empty()) {
+        return;
+    }
+    source.assets.front().name = "Persisted Blue Loop";
+    if (!source.provenance.empty()) {
+        source.provenance.front().origin =
+            emberlights::AutoloopProvenanceOrigin::Migrated;
+        source.provenance.front().evidence_status =
+            "DeterministicallyTranslated";
+    }
+    const auto stored =
+        emberlights::upsert_persisted_autoloop_source(project, source);
+    CHECK(stored);
+
+    emberlights::LiveViewModel view;
+    view.load_project(project);
+    CHECK(view.autoloop_count() == 1U);
+    CHECK(view.selected_autoloop_bank() == 2U);
+    CHECK((view.selected_autoloop_address() ==
+           showcore::AutoloopAddress{2U, 5U}));
+    const auto& pad = view.autoloop_pads()[5U];
+    CHECK(pad.populated);
+    CHECK(pad.selected);
+    CHECK(pad.id == source.placements.front().id);
+    CHECK(pad.name == "Persisted Blue Loop");
+    CHECK(pad.detail.find("V2") != std::string_view::npos);
+    CHECK(pad.detail.find("Migrated") != std::string_view::npos);
+    CHECK(pad.detail.find("DeterministicallyTranslated") !=
+          std::string_view::npos);
+
+    emberlights::RunnerStatus status;
+    status.state = emberlights::RunnerState::Running;
+    status.active_autoloop = {2U, 5U};
+    status.active_autoloop_progress = 0.625F;
+    view.update(status);
+    CHECK(view.autoloop_pads()[5U].active);
+    CHECK(std::abs(view.autoloop_pads()[5U].progress - 0.625F) < 0.001F);
+    CHECK(view.active_content().autoloop_name == "Persisted Blue Loop");
+}
+
 void test_live_commands(emberlights::ProjectDocument project) {
     const auto validation = emberlights::validate_project(project);
     CHECK(validation.ok());
@@ -461,6 +507,7 @@ void test_live_commands(emberlights::ProjectDocument project) {
 int main() {
     const auto project = make_live_project();
     test_live_view_model(project);
+    test_live_view_model_projects_persisted_v2(project);
     test_live_commands(project);
 
     CHECK(std::string_view(emberlights::ui_invocation_result_name(

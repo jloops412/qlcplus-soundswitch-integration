@@ -50,6 +50,7 @@ struct LiveAutoloopPad {
     showcore::AutoloopAddress address{};
     std::string_view id;
     std::string_view name;
+    std::string_view detail;
     showcore::AutoloopRepeat repeat{showcore::AutoloopRepeat::Once};
     float progress{0.0F};
     bool populated{false};
@@ -138,6 +139,9 @@ public:
     [[nodiscard]] std::uint16_t selected_autoloop_bank() const noexcept {
         return selected_autoloop_bank_;
     }
+    [[nodiscard]] std::size_t autoloop_count() const noexcept {
+        return autoloop_catalog_.size();
+    }
     [[nodiscard]] std::uint16_t autoloop_page() const noexcept {
         return static_cast<std::uint16_t>(
             selected_autoloop_bank_ / showcore::kAutoloopBanksPerControlPage);
@@ -148,6 +152,7 @@ private:
     struct AutoloopCatalogItem {
         std::string id;
         std::string name;
+        std::string detail;
         showcore::AutoloopAddress address{};
         showcore::AutoloopRepeat repeat{showcore::AutoloopRepeat::Once};
     };

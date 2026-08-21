@@ -13,6 +13,25 @@ export struct ShellListItem {
     warning: bool,
 }
 
+export struct AutoloopBankItem {
+    bank: int,
+    title: string,
+    selected: bool,
+    enabled: bool,
+    active: bool,
+}
+
+export struct AutoloopPadItem {
+    slot: int,
+    title: string,
+    detail: string,
+    selected: bool,
+    active: bool,
+    populated: bool,
+    enabled: bool,
+    progress-percent: int,
+}
+
 export struct ChoiceTileItem {
     choice-id: string,
     parameter-id: string,
@@ -112,6 +131,69 @@ component LibraryRow inherits Rectangle {
         }
     }
     touch := TouchArea { clicked => { root.selected(item.stable-id); } }
+}
+
+component AutoloopBankChip inherits Rectangle {
+    in property <AutoloopBankItem> item;
+    callback selected(int);
+    width: 62px;
+    height: 26px;
+    border-radius: 5px;
+    border-width: item.selected || item.active ? 1px : 0px;
+    border-color: item.active ? Theme.good : item.selected ? Theme.brand : #00000000;
+    background: item.selected ? Theme.brand-soft : touch.has-hover ? Theme.control-hover : Theme.control;
+    opacity: item.enabled ? 1 : 0.55;
+    accessible-role: button;
+    accessible-label: item.title + (item.active ? ", active Autoloop" : item.selected ? ", selected" : "");
+    accessible-enabled: true;
+    Text {
+        text: item.title + (item.enabled ? "" : " OFF");
+        color: item.active ? Theme.good : item.selected ? Theme.text : Theme.text-secondary;
+        font-size: 9px;
+        font-weight: item.selected || item.active ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea { clicked => { root.selected(item.bank); } }
+}
+
+component AutoloopPadTile inherits Rectangle {
+    in property <AutoloopPadItem> item;
+    callback selected(int);
+    width: 142px;
+    height: 48px;
+    border-radius: 6px;
+    border-width: item.selected || item.active ? 1px : 0px;
+    border-color: item.active ? Theme.good : item.selected ? Theme.brand : #00000000;
+    background: item.active ? #193829 : item.selected ? Theme.brand-soft : touch.has-hover && item.populated ? Theme.control-hover : Theme.control;
+    opacity: item.populated ? item.enabled ? 1 : 0.58 : 0.36;
+    accessible-role: button;
+    accessible-label: item.title + ". " + item.detail + (item.active ? ". Active" : item.selected ? ". Selected" : "");
+    accessible-enabled: item.populated;
+    VerticalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 5px;
+        padding-bottom: 4px;
+        spacing: 2px;
+        Text {
+            text: item.title;
+            color: item.active ? Theme.good : Theme.text;
+            font-size: 10px;
+            font-weight: item.active || item.selected ? 700 : 550;
+            overflow: elide;
+        }
+        Text {
+            text: item.detail;
+            color: item.active ? Theme.text-secondary : Theme.text-muted;
+            font-size: 8px;
+            overflow: elide;
+        }
+    }
+    touch := TouchArea {
+        enabled: item.populated;
+        clicked => { root.selected(item.slot); }
+    }
 }
 
 component ControlGroupChip inherits Rectangle {
@@ -642,6 +724,15 @@ export component FixturesLooksLab inherits Window {
     in property <bool> can-stop-live: false;
     in property <bool> can-live-look: false;
     in property <bool> live-look-active: false;
+    in property <[AutoloopBankItem]> autoloop-bank-items;
+    in property <[AutoloopPadItem]> autoloop-pad-items;
+    in property <string> autoloop-page-label: "Banks 1–4 • page 1/16";
+    in property <string> autoloop-selected: "No Autoloop selected";
+    in property <string> autoloop-active-detail: "No active Autoloop";
+    in property <bool> can-launch-autoloop: false;
+    in property <bool> can-navigate-autoloops: false;
+    in property <bool> can-clear-autoloop: false;
+    in property <bool> can-filter-autoloops: false;
     in property <string> history-state;
     in property <string> build-label;
     in property <bool> has-project-path: false;
@@ -700,6 +791,16 @@ export component FixturesLooksLab inherits Window {
     callback open-safe();
     callback live-toggle();
     callback live-look-toggle();
+    callback autoloop-page-previous();
+    callback autoloop-page-next();
+    callback autoloop-select-bank(int);
+    callback autoloop-select-slot(int);
+    callback autoloop-launch();
+    callback autoloop-previous();
+    callback autoloop-next();
+    callback autoloop-clear();
+    callback autoloop-filter-all();
+    callback autoloop-filter-selected();
     callback blackout-toggle();
     callback work-light-toggle();
     callback release-all();
@@ -711,7 +812,7 @@ export component FixturesLooksLab inherits Window {
 
     property <length> library-width: 250px;
     property <length> looks-width: 280px;
-    property <length> header-height: 142px;
+    property <length> header-height: root.product-shell ? 222px : 142px;
 
     VerticalLayout {
         spacing: 0px;
@@ -821,6 +922,71 @@ export component FixturesLooksLab inherits Window {
                         text: root.blackout-active ? "RELEASE BLACKOUT" : "BLACKOUT";
                         primary: root.blackout-active;
                         clicked => { root.blackout-toggle(); }
+                    }
+                }
+                if root.product-shell: Rectangle {
+                    height: 80px;
+                    background: Theme.canvas;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border-subtle;
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        padding-top: 6px;
+                        padding-bottom: 6px;
+                        spacing: 7px;
+                        VerticalLayout {
+                            width: 154px;
+                            spacing: 2px;
+                            Text { text: "LIVE AUTOLOOPS"; color: Theme.text; font-size: 10px; font-weight: 750; }
+                            Text { text: root.autoloop-page-label; color: Theme.text-muted; font-size: 8px; overflow: elide; }
+                            Text { text: root.autoloop-active-detail; color: Theme.good; font-size: 8px; overflow: elide; }
+                        }
+                        VerticalLayout {
+                            width: 270px;
+                            spacing: 4px;
+                            HorizontalLayout {
+                                spacing: 4px;
+                                Button { text: "‹"; clicked => { root.autoloop-page-previous(); } }
+                                Button { text: "›"; clicked => { root.autoloop-page-next(); } }
+                                Button { text: "All"; enabled: root.can-filter-autoloops; clicked => { root.autoloop-filter-all(); } }
+                            }
+                            HorizontalLayout {
+                                spacing: 4px;
+                                for item in root.autoloop-bank-items: AutoloopBankChip {
+                                    item: item;
+                                    selected(bank) => { root.autoloop-select-bank(bank); }
+                                }
+                            }
+                        }
+                        ScrollView {
+                            horizontal-stretch: 1;
+                            height: 58px;
+                            HorizontalLayout {
+                                spacing: 6px;
+                                for item in root.autoloop-pad-items: AutoloopPadTile {
+                                    item: item;
+                                    selected(slot) => { root.autoloop-select-slot(slot); }
+                                }
+                            }
+                        }
+                        VerticalLayout {
+                            width: 152px;
+                            spacing: 3px;
+                            Text { text: root.autoloop-selected; color: Theme.text-secondary; font-size: 8px; overflow: elide; }
+                            HorizontalLayout {
+                                spacing: 4px;
+                                Button { text: "Prev"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-previous(); } }
+                                Button { text: "Launch"; primary: true; enabled: root.can-launch-autoloop; clicked => { root.autoloop-launch(); } }
+                                Button { text: "Next"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-next(); } }
+                            }
+                            HorizontalLayout {
+                                spacing: 4px;
+                                Button { text: "Only bank"; enabled: root.can-filter-autoloops; clicked => { root.autoloop-filter-selected(); } }
+                                Button { text: "Clear"; enabled: root.can-clear-autoloop; clicked => { root.autoloop-clear(); } }
+                            }
+                        }
                     }
                 }
             }
