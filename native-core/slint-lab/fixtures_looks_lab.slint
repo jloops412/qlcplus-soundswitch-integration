@@ -594,8 +594,8 @@ export component FixturesLooksLab inherits Window {
     title: root.product-shell ? "EmberLights • Studio • Fixtures + Static Looks" : "EmberLights • Fixtures + Static Looks • Slint Lab";
     preferred-width: 1366px;
     preferred-height: 768px;
-    min-width: 1366px;
-    min-height: 768px;
+    min-width: 1024px;
+    min-height: 640px;
     background: Theme.app;
     default-font-family: "Segoe UI";
     default-font-size: 13px;
@@ -604,6 +604,10 @@ export component FixturesLooksLab inherits Window {
     in property <string> save-state: "Saved";
     in property <string> validation-state: "Validated";
     in property <string> output-state: "Dry run";
+    in property <string> os2l-state: "Starting";
+    in property <string> os2l-detail;
+    in property <bool> os2l-connected: false;
+    in property <bool> os2l-fault: false;
     in property <string> workspace-message;
     in property <string> preview-status;
     in property <string> preview-detail;
@@ -688,9 +692,9 @@ export component FixturesLooksLab inherits Window {
     callback duplicate-look();
     callback open-advanced();
 
-    property <length> library-width: 286px;
-    property <length> looks-width: 310px;
-    property <length> header-height: 64px;
+    property <length> library-width: 250px;
+    property <length> looks-width: 280px;
+    property <length> header-height: 96px;
 
     VerticalLayout {
         spacing: 0px;
@@ -698,13 +702,11 @@ export component FixturesLooksLab inherits Window {
             height: root.header-height;
             background: Theme.chrome;
             border-width: 0px;
-            HorizontalLayout {
+            VerticalLayout {
                 padding-left: 16px;
                 padding-right: 14px;
-                spacing: 14px;
-                alignment: center;
                 HorizontalLayout {
-                    width: root.library-width - 16px;
+                    height: 56px;
                     spacing: 10px;
                     alignment: center;
                     Rectangle {
@@ -722,29 +724,38 @@ export component FixturesLooksLab inherits Window {
                         }
                     }
                     VerticalLayout {
+                        width: root.library-width - 72px;
                         alignment: center;
                         spacing: 1px;
                         Text { text: "EMBERLIGHTS"; color: Theme.text; font-size: 11px; font-weight: 700; }
                         Text { text: root.project-name + "  •  " + root.save-state; color: Theme.text-muted; font-size: 10px; overflow: elide; }
                     }
+                    StatusPill { label: "Project"; state: root.validation-state; tone: root.validation-state == "Validated" ? Theme.good : Theme.warn; }
+                    StatusPill { label: "Output"; state: root.output-state; tone: root.preview-mode == "physical" ? Theme.warn : root.preview-mode == "simulation" ? Theme.good : Theme.text-muted; }
+                    if root.product-shell: StatusPill { label: "VirtualDJ"; state: root.os2l-state; tone: root.os2l-fault ? Theme.danger : root.os2l-connected ? Theme.good : Theme.warn; }
+                    Rectangle { horizontal-stretch: 1; background: #00000000; }
+                    StatusPill { label: "Surface"; state: root.product-shell ? "Studio beta" : "Studio lab"; tone: Theme.brand; }
                 }
-                StatusPill { label: "Project"; state: root.validation-state; tone: root.validation-state == "Validated" ? Theme.good : Theme.warn; }
-                StatusPill { label: "Surface"; state: root.product-shell ? "Studio beta" : "Studio lab"; tone: Theme.brand; }
-                StatusPill {
-                    label: "Output";
-                    state: root.output-state;
-                    tone: root.preview-mode == "physical" ? Theme.warn : root.preview-mode == "simulation" ? Theme.good : Theme.text-muted;
-                }
-                Rectangle { horizontal-stretch: 1; background: #00000000; }
-                if root.product-shell: Button { text: "New"; clicked => { root.new-project(); } }
-                if root.product-shell: Button { text: "Open"; clicked => { root.open-project(); } }
-                if root.product-shell: Button { text: "Safe / Live"; clicked => { root.open-safe(); } }
-                Button {
-                    text: root.advanced-open ? "Close Advanced" : "Advanced";
-                    enabled: root.advanced-available;
-                    clicked => {
-                        root.advanced-open = !root.advanced-open;
-                        root.open-advanced();
+                HorizontalLayout {
+                    height: 40px;
+                    spacing: 9px;
+                    alignment: center;
+                    VerticalLayout {
+                        spacing: 1px;
+                        Text { text: "STUDIO  /  FIXTURES + STATIC LOOKS"; color: Theme.text-secondary; font-size: 10px; font-weight: 700; }
+                        if root.product-shell: Text { text: "VirtualDJ " + root.os2l-detail; color: root.os2l-fault ? Theme.danger : Theme.text-muted; font-size: 9px; overflow: elide; }
+                    }
+                    Rectangle { horizontal-stretch: 1; background: #00000000; }
+                    if root.product-shell: Button { text: "New"; clicked => { root.new-project(); } }
+                    if root.product-shell: Button { text: "Open"; clicked => { root.open-project(); } }
+                    if root.product-shell: Button { text: "Switch to Safe / Live"; clicked => { root.open-safe(); } }
+                    Button {
+                        text: root.advanced-open ? "Close Advanced" : "Advanced";
+                        enabled: root.advanced-available;
+                        clicked => {
+                            root.advanced-open = !root.advanced-open;
+                            root.open-advanced();
+                        }
                     }
                 }
             }

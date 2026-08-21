@@ -1,4 +1,5 @@
 #include "emberlights/fixtures_looks_shell.hpp"
+#include "emberlights/os2l_service.hpp"
 #include "emberlights/project_io.hpp"
 #include "emberlights/static_look_authoring.hpp"
 #include "emberlights/static_look_preview_coordinator.hpp"
@@ -72,11 +73,83 @@ struct LabState {
     std::string control_search;
     std::optional<emberlights::FixtureParameterCategory> control_category;
     std::string preview_status_token;
+    std::string os2l_status_token;
     std::string operation_message;
     bool draft_dirty{false};
     unsigned int created_look_count{0U};
     LabPreviewCommandHost* preview_host{nullptr};
+    std::unique_ptr<emberlights::Os2lService> os2l_service;
 };
+
+void configure_product_os2l(LabState& state) noexcept {
+    if (!kProductShell) {
+        return;
+    }
+    if (!state.os2l_service) {
+        state.os2l_service = std::make_unique<emberlights::Os2lService>();
+    }
+    const auto snapshot = state.document.snapshot();
+    const auto& settings = snapshot.document.connections;
+    state.os2l_service->publish_blackout(true);
+    static_cast<void>(state.os2l_service->configure(
+        settings.os2l_enabled,
+        settings.os2l_bind,
+        settings.os2l_port));
+}
+
+[[nodiscard]] std::string os2l_state_text(
+    const emberlights::Os2lServiceStatus& status) {
+    if (!status.enabled) {
+        return "Disabled";
+    }
+    if (status.client_connected) {
+        return "Connected";
+    }
+    switch (status.listener) {
+    case showcore::Os2lServerState::Listening:
+        return "Listening";
+    case showcore::Os2lServerState::Fault:
+        return "Needs attention";
+    case showcore::Os2lServerState::ClientConnected:
+        return "Connected";
+    case showcore::Os2lServerState::Closed:
+        return status.running ? "Starting" : "Stopped";
+    }
+    return "Unavailable";
+}
+
+[[nodiscard]] std::string os2l_detail_text(
+    const emberlights::Os2lServiceStatus& status) {
+    if (!status.enabled) {
+        return "OS2L is disabled in this project";
+    }
+    const auto port = status.bound_port != 0U
+        ? status.bound_port
+        : status.configured_port;
+    auto detail = std::string(status.configured_bind.view()) + ":" +
+        std::to_string(port);
+    if (status.client_connected) {
+        detail += " • VirtualDJ session " +
+            std::to_string(status.session_epoch);
+    } else if (status.listener == showcore::Os2lServerState::Fault) {
+        detail += " • socket error " +
+            std::to_string(status.last_socket_error);
+    } else {
+        detail += " • waiting for VirtualDJ";
+    }
+    return detail;
+}
+
+[[nodiscard]] std::string os2l_status_token(
+    const emberlights::Os2lServiceStatus& status) {
+    return std::to_string(status.running) + ":" +
+        std::to_string(status.enabled) + ":" +
+        std::to_string(static_cast<unsigned int>(status.listener)) + ":" +
+        std::to_string(status.client_connected) + ":" +
+        std::to_string(status.session_epoch) + ":" +
+        std::to_string(status.bound_port) + ":" +
+        std::to_string(status.last_socket_error);
+}
 
 [[nodiscard]] emberlights::ChannelDefinition direct_channel(
     showcore::Property property,
@@ -791,6 +864,10 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
             : preview.physical_enabled && output_configured
                 ? std::string("Preview armed")
                 : std::string("No output");
+    const auto os2l_status = state.os2l_service
+        ? state.os2l_service->status()
+        : emberlights::Os2lServiceStatus{};
+    state.os2l_status_token = os2l_status_token(os2l_status);
 
     ui.set_project_name(shared_string(model.project_name));
     ui.set_product_shell(kProductShell);
@@ -802,6 +879,11 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     ui.set_save_state(shared_string(save_state));
     ui.set_validation_state(shared_string(model.validation_status));
     ui.set_output_state(shared_string(output_state));
+    ui.set_os2l_state(shared_string(os2l_state_text(os2l_status)));
+    ui.set_os2l_detail(shared_string(os2l_detail_text(os2l_status)));
+    ui.set_os2l_connected(os2l_status.client_connected);
+    ui.set_os2l_fault(
+        os2l_status.listener == showcore::Os2lServerState::Fault);
     ui.set_workspace_message(shared_string(state.operation_message.empty()
         ? model.message
         : state.operation_message));
@@ -1445,6 +1527,7 @@ int main(int argc, char** argv) {
         state->operation_message +=
             " Bounded fixture preview was explicitly armed for this lab process.";
     }
+    configure_product_os2l(*state);
     auto preview_host = std::make_unique<LabPreviewCommandHost>(
         *state, allow_physical_preview);
     state->preview_host = preview_host.get();
@@ -1678,6 +1761,7 @@ int main(int argc, char** argv) {
                     std::nullopt)) {
                 state.operation_message =
                     "New output-disabled demo project. Save Project As creates a durable file.";
+                configure_product_os2l(state);
             }
             refresh_ui(component, state);
         });
@@ -1702,6 +1786,7 @@ int main(int argc, char** argv) {
                     state.preview_host->stop_for_context_change();
                 }
                 static_cast<void>(open_project(state, *selected));
+                configure_product_os2l(state);
             }
             refresh_ui(component, state);
         });
@@ -1726,9 +1811,20 @@ int main(int argc, char** argv) {
                     return;
                 }
             }
-            state.operation_message = launch_safe_shell(state)
-                ? "Safe / Live opened in a separate window."
+            if (state.os2l_service) {
+                state.os2l_service->stop();
+            }
+            const auto launched = launch_safe_shell(state);
+            state.operation_message = launched
+                ? "Handed the project to the Safe / Live compatibility workspace."
                 : "Safe / Live could not be opened. Reinstall EmberLights and try again.";
+            if (!launched) {
+                configure_product_os2l(state);
+            } else {
+                slint::Timer::single_shot(
+                    std::chrono::milliseconds(120),
+                    [] { slint::quit_event_loop(); });
+            }
             refresh_ui(component, state);
         });
     });
@@ -1844,6 +1940,23 @@ int main(int argc, char** argv) {
                 refresh_ui(**locked, *state);
             }
         });
+    slint::Timer product_status_timer;
+    if (kProductShell) {
+        product_status_timer.start(
+            slint::TimerMode::Repeated,
+            std::chrono::milliseconds(500),
+            [weak_ui, state] {
+                const auto status = state->os2l_service
+                    ? state->os2l_service->status()
+                    : emberlights::Os2lServiceStatus{};
+                if (os2l_status_token(status) == state->os2l_status_token) {
+                    return;
+                }
+                if (const auto locked = weak_ui.lock()) {
+                    refresh_ui(**locked, *state);
+                }
+            });
+    }
     refresh_ui(*ui, *state);
     if (startup_smoke) {
         slint::Timer::single_shot(

@@ -120,8 +120,10 @@ class SlintLabContractTests(unittest.TestCase):
     def test_minimum_viewport_and_accessibility_contract_are_present(self):
         self.assertIn("preferred-width: 1366px", self.surface)
         self.assertIn("preferred-height: 768px", self.surface)
-        self.assertIn("min-width: 1366px", self.surface)
-        self.assertIn("min-height: 768px", self.surface)
+        self.assertIn("min-width: 1024px", self.surface)
+        self.assertIn("min-height: 640px", self.surface)
+        self.assertIn("property <length> library-width: 250px", self.surface)
+        self.assertIn("property <length> looks-width: 280px", self.surface)
         self.assertGreaterEqual(self.surface.count("accessible-role"), 6)
         self.assertGreaterEqual(self.surface.count("accessible-label"), 6)
 
@@ -198,6 +200,23 @@ class SlintLabContractTests(unittest.TestCase):
             "launch_safe_shell",
         ):
             self.assertIn(function, self.adapter)
+
+    def test_product_shell_owns_virtualdj_listener_and_safe_handoff(self):
+        for text in (
+            "Os2lService",
+            "configure_product_os2l",
+            "publish_blackout(true)",
+            "state.os2l_service->stop()",
+            "slint::quit_event_loop",
+        ):
+            self.assertIn(text, self.adapter)
+        for text in (
+            'label: "VirtualDJ"',
+            "os2l-state",
+            "os2l-detail",
+            'text: "Switch to Safe / Live"',
+        ):
+            self.assertIn(text, self.surface)
 
     def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)
