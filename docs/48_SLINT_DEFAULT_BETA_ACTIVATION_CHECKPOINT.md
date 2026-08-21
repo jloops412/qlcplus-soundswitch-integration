@@ -56,6 +56,22 @@ This advances the narrow #33/#87 beta journey. It is not a claim that
 Autoloop authoring/placement, connection editing, migration review, or full
 Live parity have crossed into the replacement shell.
 
+Preview 111 turns that bounded control set into a distinct Live performance
+workspace under D-100. Studio and Live are now explicit top-level modes rather
+than one crowded canvas. The pinned health/safety strip remains visible in
+both. Live presents the selected page as four rows of eight model-backed pads,
+with separate selected, active, disabled, and progress feedback, plus bank
+selection, page/filter controls, transport, Runner/sync/output health, and a
+saved Static Look take/release panel. Studio retains the accepted Fixtures +
+Static Looks authoring journey. Switching workspace is presentation-only and
+does not start Runner, change project state, or invoke output.
+
+The composition was checked against current public SoundSwitch Autoloop
+workflow documentation and QLC+ Virtual Console patterns. This is interaction
+research, not a vendor-source merge: the implementation uses existing
+EmberLights models and callbacks, copies no vendor code or assets, adds no Qt
+dependency, and preserves the existing Slint branding and safety boundaries.
+
 The workspace chrome now separates project/runtime status from navigation and
 actions, uses narrower sidebars, and supports a 1024×640 minimum window while
 retaining 1366×768 as the preferred operator canvas.

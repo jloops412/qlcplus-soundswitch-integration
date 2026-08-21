@@ -110,3 +110,67 @@ export component ValueReadout inherits Rectangle {
         vertical-alignment: center;
     }
 }
+
+// View-local workspace navigation. Selecting a tab never invokes a lighting
+// command or changes project/Runner state; it only changes presentation.
+export component WorkspaceTab inherits Rectangle {
+    in property <string> label;
+    in property <string> detail;
+    in property <bool> selected: false;
+    callback activated();
+    min-width: 116px;
+    height: 38px;
+    border-radius: 6px;
+    border-width: root.selected ? 1px : 0px;
+    border-color: root.selected ? Theme.brand : #00000000;
+    background: root.selected ? Theme.brand-soft : touch.has-hover ? Theme.control-hover : #00000000;
+    accessible-role: radio-button;
+    accessible-label: root.label + ". " + root.detail;
+    accessible-checked: root.selected;
+
+    VerticalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 0px;
+        Text {
+            text: root.label;
+            color: root.selected ? Theme.text : Theme.text-secondary;
+            font-size: 11px;
+            font-weight: root.selected ? 700 : 550;
+        }
+        Text {
+            text: root.detail;
+            color: Theme.text-muted;
+            font-size: 8px;
+            overflow: elide;
+        }
+    }
+    touch := TouchArea { clicked => { root.activated(); } }
+}
+
+// Compact, model-fed readout used by Studio and Live compositions. It owns no
+// timers or health logic; authoritative values are supplied by the adapter.
+export component HealthCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> detail;
+    in property <brush> tone: Theme.text-secondary;
+    min-width: 132px;
+    height: 72px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+    background: Theme.panel;
+    accessible-role: AccessibleRole.region;
+    accessible-label: root.label + ": " + root.value + ". " + root.detail;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 3px;
+        Text { text: root.label; color: Theme.text-muted; font-size: 9px; font-weight: 700; }
+        Text { text: root.value; color: root.tone; font-size: 15px; font-weight: 700; overflow: elide; }
+        Text { text: root.detail; color: Theme.text-secondary; font-size: 9px; overflow: elide; }
+    }
+}

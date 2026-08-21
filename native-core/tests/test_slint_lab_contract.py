@@ -137,10 +137,8 @@ class SlintLabContractTests(unittest.TestCase):
             "not wired",
         ):
             self.assertNotIn(inert_control, self.surface, inert_control)
-        self.assertIn(
-            'label: "Surface"; state: root.product-shell ? "Studio beta" : "Studio lab"',
-            self.surface,
-        )
+        self.assertIn('label: "Workspace"', self.surface)
+        self.assertIn('state: root.product-shell ? root.workspace-mode == "live"', self.surface)
         self.assertIn('"Blackout & stop"', self.surface)
         self.assertIn("Profile-backed RGBWA emitter preview", self.surface)
 
@@ -153,8 +151,26 @@ class SlintLabContractTests(unittest.TestCase):
             "export component SectionTitle",
             "export component StateBadge",
             "export component ValueReadout",
+            "export component WorkspaceTab",
+            "export component HealthCard",
         ):
             self.assertIn(primitive, self.primitives, primitive)
+
+    def test_product_shell_has_distinct_studio_and_live_workspaces(self):
+        for text in (
+            'in-out property <string> workspace-mode: "studio"',
+            'label: "STUDIO"',
+            'detail: "Build and rehearse"',
+            'label: "LIVE"',
+            'detail: "Perform the show"',
+            'root.workspace-mode == "studio"',
+            'root.workspace-mode == "live"',
+            'text: "LIVE PERFORMANCE"',
+            "HealthCard",
+        ):
+            self.assertIn(text, self.surface, text)
+        self.assertIn("root.product-shell ? 150px : 142px", self.surface)
+        self.assertNotIn("root.product-shell ? 222px", self.surface)
 
     def test_adapter_uses_domain_commands_and_keeps_output_behind_explicit_authority(self):
         for function in (
@@ -268,10 +284,21 @@ class SlintLabContractTests(unittest.TestCase):
             "autoloop-select-bank",
             "autoloop-select-slot",
             "autoloop-launch",
-            'text: "Only bank"',
-            'text: "Clear"',
+            'text: "Selected bank"',
+            'text: "Clear Autoloop"',
+            "autoloop-pad-row-one-items",
+            "autoloop-pad-row-two-items",
+            "autoloop-pad-row-three-items",
+            "autoloop-pad-row-four-items",
         ):
             self.assertIn(text, self.surface, text)
+        for text in (
+            "set_autoloop_pad_row_one_items",
+            "set_autoloop_pad_row_two_items",
+            "set_autoloop_pad_row_three_items",
+            "set_autoloop_pad_row_four_items",
+        ):
+            self.assertIn(text, self.adapter, text)
 
     def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)

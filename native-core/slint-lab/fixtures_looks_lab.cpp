@@ -1259,7 +1259,7 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
         (live.manual_override_count == 1U ? " override" : " overrides")));
 
     std::vector<AutoloopBankItem> autoloop_banks;
-    std::vector<AutoloopPadItem> autoloop_pads;
+    std::array<std::vector<AutoloopPadItem>, 4U> autoloop_pad_rows;
     auto autoloop_page_label = std::string("Banks 1–4 • page 1/16");
     auto autoloop_selected = std::string("No Autoloop selected");
     auto autoloop_active_detail = std::string("No active Autoloop");
@@ -1287,7 +1287,9 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
             item.active = bank.contains_active;
             autoloop_banks.push_back(std::move(item));
         }
-        autoloop_pads.reserve(view.autoloop_pads().size());
+        for (auto& row : autoloop_pad_rows) {
+            row.reserve(8U);
+        }
         for (const auto& pad : view.autoloop_pads()) {
             AutoloopPadItem item;
             item.slot = static_cast<int>(pad.address.slot);
@@ -1316,7 +1318,10 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
                     std::to_string(pad.address.slot + 1U) + " • " +
                     std::string(pad.name);
             }
-            autoloop_pads.push_back(std::move(item));
+            const auto row = std::min<std::size_t>(
+                static_cast<std::size_t>(pad.address.slot) / 8U,
+                autoloop_pad_rows.size() - 1U);
+            autoloop_pad_rows[row].push_back(std::move(item));
         }
         if (live.active_autoloop.valid()) {
             const auto& active = view.active_content();
@@ -1345,9 +1350,18 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     ui.set_autoloop_bank_items(
         std::make_shared<slint::VectorModel<AutoloopBankItem>>(
             std::move(autoloop_banks)));
-    ui.set_autoloop_pad_items(
+    ui.set_autoloop_pad_row_one_items(
         std::make_shared<slint::VectorModel<AutoloopPadItem>>(
-            std::move(autoloop_pads)));
+            std::move(autoloop_pad_rows[0U])));
+    ui.set_autoloop_pad_row_two_items(
+        std::make_shared<slint::VectorModel<AutoloopPadItem>>(
+            std::move(autoloop_pad_rows[1U])));
+    ui.set_autoloop_pad_row_three_items(
+        std::make_shared<slint::VectorModel<AutoloopPadItem>>(
+            std::move(autoloop_pad_rows[2U])));
+    ui.set_autoloop_pad_row_four_items(
+        std::make_shared<slint::VectorModel<AutoloopPadItem>>(
+            std::move(autoloop_pad_rows[3U])));
     ui.set_profile_search(shared_string(state.profile_search));
     ui.set_look_search(shared_string(state.look_search));
     ui.set_parameter_search(shared_string(state.control_search));

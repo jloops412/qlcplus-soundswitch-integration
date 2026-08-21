@@ -1,5 +1,5 @@
 import { Button, LineEdit, ScrollView, Slider } from "std-widgets.slint";
-import { Hairline, SectionTitle, StateBadge, StatusPill, Theme, ValueReadout } from "ember_ui_primitives.slint";
+import { Hairline, HealthCard, SectionTitle, StateBadge, StatusPill, Theme, ValueReadout, WorkspaceTab } from "ember_ui_primitives.slint";
 
 // Shared D-097 product/bounded-lab surface. Domain state is supplied by
 // FixturesLooksShellModel; this file owns presentation only, and the explicit
@@ -136,8 +136,8 @@ component LibraryRow inherits Rectangle {
 component AutoloopBankChip inherits Rectangle {
     in property <AutoloopBankItem> item;
     callback selected(int);
-    width: 62px;
-    height: 26px;
+    width: 72px;
+    height: 30px;
     border-radius: 5px;
     border-width: item.selected || item.active ? 1px : 0px;
     border-color: item.active ? Theme.good : item.selected ? Theme.brand : #00000000;
@@ -147,7 +147,7 @@ component AutoloopBankChip inherits Rectangle {
     accessible-label: item.title + (item.active ? ", active Autoloop" : item.selected ? ", selected" : "");
     accessible-enabled: true;
     Text {
-        text: item.title + (item.enabled ? "" : " OFF");
+        text: item.title + (item.active ? " LIVE" : item.enabled ? "" : " OFF");
         color: item.active ? Theme.good : item.selected ? Theme.text : Theme.text-secondary;
         font-size: 9px;
         font-weight: item.selected || item.active ? 700 : 500;
@@ -159,9 +159,10 @@ component AutoloopBankChip inherits Rectangle {
 
 component AutoloopPadTile inherits Rectangle {
     in property <AutoloopPadItem> item;
+    in property <length> tile-width: 142px;
     callback selected(int);
-    width: 142px;
-    height: 48px;
+    width: root.tile-width;
+    height: 64px;
     border-radius: 6px;
     border-width: item.selected || item.active ? 1px : 0px;
     border-color: item.active ? Theme.good : item.selected ? Theme.brand : #00000000;
@@ -173,15 +174,23 @@ component AutoloopPadTile inherits Rectangle {
     VerticalLayout {
         padding-left: 8px;
         padding-right: 8px;
-        padding-top: 5px;
-        padding-bottom: 4px;
-        spacing: 2px;
-        Text {
-            text: item.title;
-            color: item.active ? Theme.good : Theme.text;
-            font-size: 10px;
-            font-weight: item.active || item.selected ? 700 : 550;
-            overflow: elide;
+        padding-top: 6px;
+        padding-bottom: 7px;
+        spacing: 3px;
+        HorizontalLayout {
+            spacing: 4px;
+            Text {
+                text: item.title;
+                color: item.active ? Theme.good : Theme.text;
+                font-size: 10px;
+                font-weight: item.active || item.selected ? 700 : 550;
+                overflow: elide;
+            }
+            Rectangle { horizontal-stretch: 1; background: #00000000; }
+            if item.active || item.selected: StateBadge {
+                label: item.active ? "PLAYING" : "SELECTED";
+                tone: item.active ? Theme.good : Theme.brand;
+            }
         }
         Text {
             text: item.detail;
@@ -189,6 +198,14 @@ component AutoloopPadTile inherits Rectangle {
             font-size: 8px;
             overflow: elide;
         }
+    }
+    if item.active: Rectangle {
+        x: 5px;
+        y: parent.height - 4px;
+        height: 2px;
+        width: (parent.width - 10px) * item.progress-percent / 100;
+        border-radius: 1px;
+        background: Theme.good;
     }
     touch := TouchArea {
         enabled: item.populated;
@@ -673,7 +690,11 @@ component ParameterFamilyCard inherits Rectangle {
 
 export component FixturesLooksLab inherits Window {
     in property <bool> product-shell: false;
-    title: root.product-shell ? "EmberLights • Studio • Fixtures + Static Looks" : "EmberLights • Fixtures + Static Looks • Slint Lab";
+    title: root.product-shell
+        ? root.workspace-mode == "live"
+            ? "EmberLights • Live • Autoloops + Static Looks"
+            : "EmberLights • Studio • Fixtures + Static Looks"
+        : "EmberLights • Fixtures + Static Looks • Slint Lab";
     preferred-width: 1366px;
     preferred-height: 768px;
     min-width: 1024px;
@@ -725,7 +746,10 @@ export component FixturesLooksLab inherits Window {
     in property <bool> can-live-look: false;
     in property <bool> live-look-active: false;
     in property <[AutoloopBankItem]> autoloop-bank-items;
-    in property <[AutoloopPadItem]> autoloop-pad-items;
+    in property <[AutoloopPadItem]> autoloop-pad-row-one-items;
+    in property <[AutoloopPadItem]> autoloop-pad-row-two-items;
+    in property <[AutoloopPadItem]> autoloop-pad-row-three-items;
+    in property <[AutoloopPadItem]> autoloop-pad-row-four-items;
     in property <string> autoloop-page-label: "Banks 1–4 • page 1/16";
     in property <string> autoloop-selected: "No Autoloop selected";
     in property <string> autoloop-active-detail: "No active Autoloop";
@@ -737,6 +761,7 @@ export component FixturesLooksLab inherits Window {
     in property <string> build-label;
     in property <bool> has-project-path: false;
     in-out property <bool> advanced-open: false;
+    in-out property <string> workspace-mode: "studio";
     in-out property <string> profile-search;
     in-out property <string> look-search;
     in-out property <string> parameter-search;
@@ -812,7 +837,7 @@ export component FixturesLooksLab inherits Window {
 
     property <length> library-width: 250px;
     property <length> looks-width: 280px;
-    property <length> header-height: root.product-shell ? 222px : 142px;
+    property <length> header-height: root.product-shell ? 150px : 142px;
 
     VerticalLayout {
         spacing: 0px;
@@ -852,22 +877,48 @@ export component FixturesLooksLab inherits Window {
                     StatusPill { label: "Output"; state: root.output-state; tone: root.preview-mode == "physical" ? Theme.warn : root.preview-mode == "simulation" ? Theme.good : Theme.text-muted; }
                     if root.product-shell: StatusPill { label: "VirtualDJ"; state: root.os2l-state; tone: root.os2l-fault ? Theme.danger : root.os2l-connected ? Theme.good : Theme.warn; }
                     Rectangle { horizontal-stretch: 1; background: #00000000; }
-                    StatusPill { label: "Surface"; state: root.product-shell ? "Studio beta" : "Studio lab"; tone: Theme.brand; }
+                    StatusPill {
+                        label: "Workspace";
+                        state: root.product-shell ? root.workspace-mode == "live" ? "Live" : "Studio" : "Studio lab";
+                        tone: Theme.brand;
+                    }
                 }
                 HorizontalLayout {
                     height: 40px;
                     spacing: 9px;
                     alignment: center;
+                    if root.product-shell: WorkspaceTab {
+                        label: "STUDIO";
+                        detail: "Build and rehearse";
+                        selected: root.workspace-mode == "studio";
+                        activated => { root.workspace-mode = "studio"; }
+                    }
+                    if root.product-shell: WorkspaceTab {
+                        label: "LIVE";
+                        detail: "Perform the show";
+                        selected: root.workspace-mode == "live";
+                        activated => {
+                            root.advanced-open = false;
+                            root.workspace-mode = "live";
+                        }
+                    }
                     VerticalLayout {
                         spacing: 1px;
-                        Text { text: "STUDIO  /  FIXTURES + STATIC LOOKS"; color: Theme.text-secondary; font-size: 10px; font-weight: 700; }
+                        Text {
+                            text: root.product-shell && root.workspace-mode == "live"
+                                ? "LIVE  /  AUTOLOOPS + STATIC LOOKS"
+                                : "STUDIO  /  FIXTURES + STATIC LOOKS";
+                            color: Theme.text-secondary;
+                            font-size: 10px;
+                            font-weight: 700;
+                        }
                         if root.product-shell: Text { text: "VirtualDJ " + root.os2l-detail; color: root.os2l-fault ? Theme.danger : Theme.text-muted; font-size: 9px; overflow: elide; }
                     }
                     Rectangle { horizontal-stretch: 1; background: #00000000; }
                     if root.product-shell: Button { text: "New"; clicked => { root.new-project(); } }
                     if root.product-shell: Button { text: "Open"; clicked => { root.open-project(); } }
                     if root.product-shell: Button { text: "Compatibility Tools"; clicked => { root.open-safe(); } }
-                    Button {
+                    if !root.product-shell || root.workspace-mode == "studio": Button {
                         text: root.advanced-open ? "Close Advanced" : "Advanced";
                         enabled: root.advanced-available;
                         clicked => {
@@ -876,8 +927,14 @@ export component FixturesLooksLab inherits Window {
                         }
                     }
                 }
-                if root.product-shell: HorizontalLayout {
-                    height: 46px;
+                if root.product-shell: Rectangle {
+                    height: 54px;
+                    background: Theme.canvas;
+                    border-width: 1px;
+                    border-color: root.blackout-active ? Theme.danger : Theme.border-subtle;
+                    HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
                     spacing: 8px;
                     alignment: center;
                     StatusPill {
@@ -901,7 +958,10 @@ export component FixturesLooksLab inherits Window {
                         text: root.live-running ? "Stop Live" : "Start Live";
                         primary: !root.live-running;
                         enabled: root.live-running ? root.can-stop-live : root.can-start-live;
-                        clicked => { root.live-toggle(); }
+                        clicked => {
+                            if !root.live-running { root.workspace-mode = "live"; }
+                            root.live-toggle();
+                        }
                     }
                     Button {
                         text: root.live-look-active ? "Release Look" : "Take Look Live";
@@ -923,76 +983,12 @@ export component FixturesLooksLab inherits Window {
                         primary: root.blackout-active;
                         clicked => { root.blackout-toggle(); }
                     }
-                }
-                if root.product-shell: Rectangle {
-                    height: 80px;
-                    background: Theme.canvas;
-                    border-radius: 6px;
-                    border-width: 1px;
-                    border-color: Theme.border-subtle;
-                    HorizontalLayout {
-                        padding-left: 8px;
-                        padding-right: 8px;
-                        padding-top: 6px;
-                        padding-bottom: 6px;
-                        spacing: 7px;
-                        VerticalLayout {
-                            width: 154px;
-                            spacing: 2px;
-                            Text { text: "LIVE AUTOLOOPS"; color: Theme.text; font-size: 10px; font-weight: 750; }
-                            Text { text: root.autoloop-page-label; color: Theme.text-muted; font-size: 8px; overflow: elide; }
-                            Text { text: root.autoloop-active-detail; color: Theme.good; font-size: 8px; overflow: elide; }
-                        }
-                        VerticalLayout {
-                            width: 270px;
-                            spacing: 4px;
-                            HorizontalLayout {
-                                spacing: 4px;
-                                Button { text: "‹"; clicked => { root.autoloop-page-previous(); } }
-                                Button { text: "›"; clicked => { root.autoloop-page-next(); } }
-                                Button { text: "All"; enabled: root.can-filter-autoloops; clicked => { root.autoloop-filter-all(); } }
-                            }
-                            HorizontalLayout {
-                                spacing: 4px;
-                                for item in root.autoloop-bank-items: AutoloopBankChip {
-                                    item: item;
-                                    selected(bank) => { root.autoloop-select-bank(bank); }
-                                }
-                            }
-                        }
-                        ScrollView {
-                            horizontal-stretch: 1;
-                            height: 58px;
-                            HorizontalLayout {
-                                spacing: 6px;
-                                for item in root.autoloop-pad-items: AutoloopPadTile {
-                                    item: item;
-                                    selected(slot) => { root.autoloop-select-slot(slot); }
-                                }
-                            }
-                        }
-                        VerticalLayout {
-                            width: 152px;
-                            spacing: 3px;
-                            Text { text: root.autoloop-selected; color: Theme.text-secondary; font-size: 8px; overflow: elide; }
-                            HorizontalLayout {
-                                spacing: 4px;
-                                Button { text: "Prev"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-previous(); } }
-                                Button { text: "Launch"; primary: true; enabled: root.can-launch-autoloop; clicked => { root.autoloop-launch(); } }
-                                Button { text: "Next"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-next(); } }
-                            }
-                            HorizontalLayout {
-                                spacing: 4px;
-                                Button { text: "Only bank"; enabled: root.can-filter-autoloops; clicked => { root.autoloop-filter-selected(); } }
-                                Button { text: "Clear"; enabled: root.can-clear-autoloop; clicked => { root.autoloop-clear(); } }
-                            }
-                        }
                     }
                 }
             }
         }
         Hairline { }
-        HorizontalLayout {
+        if !root.product-shell || root.workspace-mode == "studio": HorizontalLayout {
             spacing: 0px;
             Rectangle {
                 width: root.library-width;
@@ -1264,6 +1260,202 @@ export component FixturesLooksLab inherits Window {
                 }
             }
         }
+        if root.product-shell && root.workspace-mode == "live": Rectangle {
+            vertical-stretch: 1;
+            background: Theme.canvas;
+            HorizontalLayout {
+                padding: 14px;
+                spacing: 14px;
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: #00000000;
+                    VerticalLayout {
+                        spacing: 12px;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                spacing: 3px;
+                                Text { text: "LIVE PERFORMANCE"; color: Theme.brand; font-size: 10px; font-weight: 700; }
+                                Text { text: root.autoloop-selected; color: Theme.text; font-size: 21px; font-weight: 650; overflow: elide; }
+                                Text { text: root.autoloop-active-detail; color: root.live-fault ? Theme.danger : Theme.text-muted; font-size: 10px; overflow: elide; }
+                            }
+                            Rectangle { horizontal-stretch: 1; background: #00000000; }
+                            StateBadge {
+                                label: root.live-running ? "RUNNING" : "STOPPED";
+                                tone: root.live-fault ? Theme.danger : root.live-running ? Theme.good : Theme.text-muted;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 9px;
+                            HealthCard {
+                                horizontal-stretch: 1;
+                                label: "RUNNER";
+                                value: root.live-state;
+                                detail: root.live-detail;
+                                tone: root.live-fault ? Theme.danger : root.live-running ? Theme.good : Theme.text-muted;
+                            }
+                            HealthCard {
+                                horizontal-stretch: 1;
+                                label: "SYNC";
+                                value: root.live-sync;
+                                detail: root.live-bpm;
+                                tone: root.live-sync == "OS2L locked" ? Theme.good : root.live-running ? Theme.warn : Theme.text-muted;
+                            }
+                            HealthCard {
+                                horizontal-stretch: 1;
+                                label: "OUTPUT";
+                                value: root.output-state;
+                                detail: root.preview-mode == "physical" ? "Physical preview is armed" : "Output remains explicit and opt-in";
+                                tone: root.preview-mode == "physical" ? Theme.warn : Theme.text-muted;
+                            }
+                        }
+                        Rectangle {
+                            vertical-stretch: 1;
+                            min-height: 342px;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: Theme.border-subtle;
+                            background: Theme.panel;
+                            VerticalLayout {
+                                padding: 12px;
+                                spacing: 9px;
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    VerticalLayout {
+                                        spacing: 2px;
+                                        Text { text: "LIVE AUTOLOOPS"; color: Theme.text; font-size: 13px; font-weight: 700; }
+                                        Text { text: root.autoloop-page-label; color: Theme.text-muted; font-size: 9px; }
+                                    }
+                                    Rectangle { horizontal-stretch: 1; background: #00000000; }
+                                    Button { text: "Previous page"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-page-previous(); } }
+                                    Button { text: "Next page"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-page-next(); } }
+                                }
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    for item in root.autoloop-bank-items: AutoloopBankChip {
+                                        item: item;
+                                        selected(bank) => { root.autoloop-select-bank(bank); }
+                                    }
+                                    Rectangle { horizontal-stretch: 1; background: #00000000; }
+                                    Button { text: "All banks"; enabled: root.can-filter-autoloops; clicked => { root.autoloop-filter-all(); } }
+                                    Button { text: "Selected bank"; enabled: root.can-filter-autoloops; clicked => { root.autoloop-filter-selected(); } }
+                                }
+                                ScrollView {
+                                    vertical-stretch: 1;
+                                    VerticalLayout {
+                                        spacing: 7px;
+                                        HorizontalLayout {
+                                            spacing: 7px;
+                                            for item in root.autoloop-pad-row-one-items: AutoloopPadTile {
+                                                item: item;
+                                                tile-width: 116px;
+                                                selected(slot) => { root.autoloop-select-slot(slot); }
+                                            }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 7px;
+                                            for item in root.autoloop-pad-row-two-items: AutoloopPadTile {
+                                                item: item;
+                                                tile-width: 116px;
+                                                selected(slot) => { root.autoloop-select-slot(slot); }
+                                            }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 7px;
+                                            for item in root.autoloop-pad-row-three-items: AutoloopPadTile {
+                                                item: item;
+                                                tile-width: 116px;
+                                                selected(slot) => { root.autoloop-select-slot(slot); }
+                                            }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 7px;
+                                            for item in root.autoloop-pad-row-four-items: AutoloopPadTile {
+                                                item: item;
+                                                tile-width: 116px;
+                                                selected(slot) => { root.autoloop-select-slot(slot); }
+                                            }
+                                        }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Button { text: "Previous"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-previous(); } }
+                                    Button { text: "Launch selected"; primary: true; enabled: root.can-launch-autoloop; clicked => { root.autoloop-launch(); } }
+                                    Button { text: "Next"; enabled: root.can-navigate-autoloops; clicked => { root.autoloop-next(); } }
+                                    Rectangle { horizontal-stretch: 1; background: #00000000; }
+                                    Button { text: "Clear Autoloop"; enabled: root.can-clear-autoloop; clicked => { root.autoloop-clear(); } }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle {
+                    width: 300px;
+                    background: Theme.panel;
+                    border-radius: 8px;
+                    border-width: 1px;
+                    border-color: Theme.border-subtle;
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+                        SectionTitle { title: "Static Looks"; detail: "Saved overrides ready for the room"; }
+                        LineEdit {
+                            text <=> root.look-search;
+                            placeholder-text: "Search Looks or target";
+                            edited => { root.look-search-changed(self.text); }
+                        }
+                        Text { text: "LOOK LIBRARY"; color: Theme.text-muted; font-size: 10px; font-weight: 700; }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                for item in root.look-items: LibraryRow {
+                                    item: item;
+                                    selected(id) => { root.select-look(id); }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            height: 76px;
+                            border-radius: 7px;
+                            border-width: 1px;
+                            border-color: root.live-look-active ? Theme.good : Theme.border-subtle;
+                            background: Theme.raised;
+                            VerticalLayout {
+                                padding: 10px;
+                                spacing: 4px;
+                                Text { text: root.selected-look-name; color: Theme.text; font-size: 12px; font-weight: 650; overflow: elide; }
+                                Text { text: root.selected-target-name; color: Theme.text-muted; font-size: 9px; overflow: elide; }
+                                Text { text: root.live-look-active ? "This Look currently owns its explicit properties." : "Autoloop continues on all released properties."; color: root.live-look-active ? Theme.good : Theme.text-secondary; font-size: 9px; overflow: elide; }
+                            }
+                        }
+                        Button {
+                            height: 38px;
+                            text: root.live-look-active ? "Release Live Look" : "Take Look Live";
+                            primary: !root.live-look-active;
+                            enabled: root.can-live-look;
+                            clicked => { root.live-look-toggle(); }
+                        }
+                        Rectangle {
+                            height: 98px;
+                            border-radius: 7px;
+                            border-width: 1px;
+                            border-color: Theme.border-subtle;
+                            background: Theme.raised;
+                            VerticalLayout {
+                                padding: 10px;
+                                spacing: 5px;
+                                Text { text: "OUTPUT OWNERSHIP"; color: Theme.text-muted; font-size: 9px; font-weight: 700; }
+                                Text { text: "Release"; color: Theme.text; font-size: 11px; font-weight: 600; }
+                                Text { text: "Track Script or Autoloop keeps control."; color: Theme.text-muted; font-size: 9px; }
+                                Text { text: "Set and Force zero remain explicit overrides."; color: Theme.text-secondary; font-size: 9px; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Hairline { }
         Rectangle {
             height: 28px;
@@ -1286,7 +1478,7 @@ export component FixturesLooksLab inherits Window {
         }
     }
 
-    if root.advanced-open: Rectangle {
+    if root.advanced-open && (!root.product-shell || root.workspace-mode == "studio"): Rectangle {
         x: parent.width - self.width;
         y: root.header-height + 1px;
         width: 420px;
