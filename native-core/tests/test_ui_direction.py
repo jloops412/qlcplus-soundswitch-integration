@@ -115,7 +115,11 @@ class UiDirectionTests(unittest.TestCase):
         self.assertEqual(first_slice["requiredViewports"], ["1366x768", "1920x1080"])
         self.assertIn("rawDmxAsOrdinaryControl", first_slice["primarySurfaceProhibitions"])
         self.assertFalse(direction["installerPolicy"]["modelOnlyChangesAdvancePreview"])
-        self.assertFalse(direction["replacementShellGate"]["toolkitSelected"])
+        replacement = direction["replacementShellGate"]
+        self.assertTrue(replacement["toolkitSelected"])
+        self.assertEqual(replacement["selectedToolkit"], "slint-1.17.1")
+        self.assertTrue(replacement["firstSliceActivated"])
+        self.assertEqual(replacement["safeLiveExecutable"], "EmberLights-Safe.exe")
 
     def test_canonical_docs_publish_the_course_correction(self):
         marker = "UI course correction (2026-08-14)"

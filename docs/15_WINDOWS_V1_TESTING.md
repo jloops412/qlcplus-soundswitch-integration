@@ -24,8 +24,10 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
 ## Safe first launch
 
 1. Install EmberLights or extract the portable ZIP.
-2. Start the app. All DMX output is disabled in a new project; OS2L listens only on `127.0.0.1` by default. After one successful open or save, EmberLights reopens that project automatically on later launches.
-3. Build and validate a project before enabling output:
+2. Start **EmberLights**. Preview 106 opens the replacement-shell beta at **Studio → Fixtures + Static Looks** with an output-disabled demo project. Use **New**, **Open**, **Save Project As**, Undo/Redo, profile-derived fixture controls, and offline **Simulate** directly in this shell. The footer identifies the exact build and the pinned Slint runtime.
+3. Choose **Safe / Live** in the header, or **Start → EmberLights → EmberLights Safe - Live**, for Connections, Autoloops, migration, Diagnostics, Live, hardware tools, and every legacy workflow that has not yet crossed the replacement-shell acceptance gate. This opens the frozen Win32 bridge as a separate process; it is deliberately not the default product presentation.
+4. All DMX output remains disabled in a new project. The replacement shell cannot open an output adapter unless it was explicitly launched with a project and the internal physical-preview authority was armed; ordinary installer/file-association launch keeps fixture preview locked. Safe / Live retains the established explicit Connections and Start Show controls.
+5. Build and validate a project before enabling output in Safe / Live:
    - choose or create a Fixture Profile, use **Import Fixture File (.qxf)...**, or search the official Open Fixture Library directly on Profiles and choose **Download + Import Selected**;
    - add each fixture under Patch with the correct universe, DMX address, and optional role tags;
    - create reusable Groups from the stable fixture IDs shown in Patch;
@@ -33,13 +35,13 @@ Only one EmberLights process runs per Windows session, preventing duplicate DMX 
    - create Autoloops from those look IDs;
    - save the project as an `.emberlights` file;
    - use **Show → Validate Project**.
-4. Use a visualizer or isolated test node before connecting production fixtures. Confirm universe numbering and address maps independently.
-5. Under Connections, choose one or more output paths:
+6. Use a visualizer or isolated test node before connecting production fixtures. Confirm universe numbering and address maps independently.
+7. Under Connections, choose one or more output paths:
    - enable Art-Net or sACN and enter the receiver address; sACN accepts `multicast` as its destination;
    - for an ENTTEC DMX USB Pro or compatible interface that Windows exposes as a COM port, choose its port for universe 1 or universe 2. Choose **Refresh MIDI + USB-DMX** after connecting a device. One single-universe device cannot be assigned to both universes, and projects using this adapter are capped at 40 Hz.
    - for the SoundSwitch Micro (`VID_15E4/PID_0053`), close SoundSwitch and assign **SoundSwitch Micro (WinUSB)** to universe 1 or 2. The protocol is fixed to **SoundSwitch native JLS1**; the disproved preview.310 A/B/C choices no longer appear.
    - press **Save & Apply Connections**. This validates and atomically saves every setting on the page into the project. If Runner is active and the adapter graph changed, EmberLights performs the normal zero-frame stop and restarts it from the saved settings.
-6. Start the show from Live. Confirm clock, adapter, frame, error, and jitter state under Diagnostics before triggering content.
+8. Start the show from Live. Confirm clock, adapter, frame, error, and jitter state under Diagnostics before triggering content.
 
 Imported QXF/OFL modes are read-only snapshots with recorded provenance. Duplicate one to make an editable local profile. Official catalog downloads retain the OFL key/source URLs, MIT attribution, exact QXF SHA-256, and adapter version, but remain **unreviewed** because catalog/import success cannot prove the selected physical mode or fixture behavior. Verify every imported channel against the fixture's official DMX chart—especially shared shutter/strobe functions, hazardous output, custom lanes, and multi-head fixtures—before enabling physical output. See `docs/16_QLC_FIXTURE_IMPORT.md` for the exact conversion and quarantine rules.
 

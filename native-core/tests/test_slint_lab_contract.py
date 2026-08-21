@@ -28,12 +28,20 @@ class SlintLabContractTests(unittest.TestCase):
         cls.cmake = CMAKE.read_text(encoding="utf-8")
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    def test_surface_is_explicitly_a_pinned_non_product_lab(self):
+    def test_surface_has_a_pinned_lab_and_an_accepted_product_mode(self):
         self.assertIn("Slint 1.17.1 LAB", self.surface)
         self.assertIn("not a product preview", self.surface)
         self.assertIn("find_package(Slint 1.17.1 EXACT", self.cmake)
         self.assertIn("EMBERLIGHTS_BUILD_SLINT_LAB", self.cmake)
         self.assertNotIn("install(TARGETS EmberLightsSlintLab", self.cmake)
+        self.assertIn("EMBERLIGHTS_BUILD_SLINT_DEFAULT", self.cmake)
+        self.assertIn("EMBERLIGHTS_PRODUCT_SHELL=1", self.cmake)
+        self.assertIn(
+            "install(TARGETS EmberLights EmberLightsSafe RUNTIME DESTINATION .)",
+            self.cmake,
+        )
+        self.assertIn("Powered by Slint 1.17.1", self.surface)
+        self.assertIn("EmberLights-Safe", self.cmake)
 
     def test_first_slice_has_real_fixture_and_static_look_workflows(self):
         required = (
@@ -127,7 +135,10 @@ class SlintLabContractTests(unittest.TestCase):
             "not wired",
         ):
             self.assertNotIn(inert_control, self.surface, inert_control)
-        self.assertIn('label: "Surface"; state: "Studio lab"', self.surface)
+        self.assertIn(
+            'label: "Surface"; state: root.product-shell ? "Studio beta" : "Studio lab"',
+            self.surface,
+        )
         self.assertIn('"Blackout & stop"', self.surface)
         self.assertIn("Profile-backed RGBWA emitter preview", self.surface)
 
@@ -161,6 +172,7 @@ class SlintLabContractTests(unittest.TestCase):
         ):
             self.assertIn(function, self.adapter)
         self.assertIn("--model-smoke", self.adapter)
+        self.assertIn("--startup-smoke", self.adapter)
         self.assertIn("--project", self.adapter)
         self.assertIn("state.document.undo", self.adapter)
         self.assertIn("state.document.redo", self.adapter)
@@ -171,6 +183,21 @@ class SlintLabContractTests(unittest.TestCase):
         self.assertNotIn("OutputBackend", self.adapter)
         self.assertNotIn("start_output", self.adapter)
         self.assertNotIn("RunnerService::start", self.adapter)
+
+    def test_product_file_workflows_and_safe_bridge_are_wired(self):
+        for callback in (
+            "new-project",
+            "open-project",
+            "save-project-as",
+            "open-safe",
+        ):
+            self.assertIn(callback, self.surface)
+        for function in (
+            "choose_project_path",
+            "save_studio_project_as",
+            "launch_safe_shell",
+        ):
+            self.assertIn(function, self.adapter)
 
     def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)

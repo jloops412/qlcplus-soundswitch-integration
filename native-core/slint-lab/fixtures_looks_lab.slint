@@ -1,8 +1,9 @@
 import { Button, LineEdit, ScrollView, Slider } from "std-widgets.slint";
 import { Hairline, SectionTitle, StateBadge, StatusPill, Theme, ValueReadout } from "ember_ui_primitives.slint";
 
-// Non-product issue #37 laboratory surface. Domain state is supplied by
-// FixturesLooksShellModel; this file owns presentation only.
+// Shared D-097 product/bounded-lab surface. Domain state is supplied by
+// FixturesLooksShellModel; this file owns presentation only, and the explicit
+// product-shell property selects the installed chrome or non-product lab label.
 export struct ShellListItem {
     stable-id: string,
     title: string,
@@ -589,7 +590,8 @@ component ParameterFamilyCard inherits Rectangle {
 }
 
 export component FixturesLooksLab inherits Window {
-    title: "EmberLights • Fixtures + Static Looks • Slint Lab";
+    in property <bool> product-shell: false;
+    title: root.product-shell ? "EmberLights • Studio • Fixtures + Static Looks" : "EmberLights • Fixtures + Static Looks • Slint Lab";
     preferred-width: 1366px;
     preferred-height: 768px;
     min-width: 1366px;
@@ -625,6 +627,8 @@ export component FixturesLooksLab inherits Window {
     in property <int> preview-fixture-count: 0;
     in property <bool> live-running: false;
     in property <string> history-state;
+    in property <string> build-label;
+    in property <bool> has-project-path: false;
     in-out property <bool> advanced-open: false;
     in-out property <string> profile-search;
     in-out property <string> look-search;
@@ -674,6 +678,10 @@ export component FixturesLooksLab inherits Window {
     callback preview-stop();
     callback save-look();
     callback save-project();
+    callback save-project-as();
+    callback new-project();
+    callback open-project();
+    callback open-safe();
     callback undo();
     callback redo();
     callback create-look();
@@ -721,13 +729,16 @@ export component FixturesLooksLab inherits Window {
                     }
                 }
                 StatusPill { label: "Project"; state: root.validation-state; tone: root.validation-state == "Validated" ? Theme.good : Theme.warn; }
-                StatusPill { label: "Surface"; state: "Studio lab"; tone: Theme.brand; }
+                StatusPill { label: "Surface"; state: root.product-shell ? "Studio beta" : "Studio lab"; tone: Theme.brand; }
                 StatusPill {
                     label: "Output";
                     state: root.output-state;
                     tone: root.preview-mode == "physical" ? Theme.warn : root.preview-mode == "simulation" ? Theme.good : Theme.text-muted;
                 }
                 Rectangle { horizontal-stretch: 1; background: #00000000; }
+                if root.product-shell: Button { text: "New"; clicked => { root.new-project(); } }
+                if root.product-shell: Button { text: "Open"; clicked => { root.open-project(); } }
+                if root.product-shell: Button { text: "Safe / Live"; clicked => { root.open-safe(); } }
                 Button {
                     text: root.advanced-open ? "Close Advanced" : "Advanced";
                     enabled: root.advanced-available;
@@ -798,7 +809,14 @@ export component FixturesLooksLab inherits Window {
                             Rectangle { horizontal-stretch: 1; background: #00000000; }
                             Button { text: "Undo"; enabled: root.can-undo; clicked => { root.undo(); } }
                             Button { text: "Redo"; enabled: root.can-redo; clicked => { root.redo(); } }
-                            Button { text: "Save Project"; enabled: root.can-save-project; clicked => { root.save-project(); } }
+                            Button {
+                                text: root.has-project-path ? "Save Project" : "Save Project As";
+                                enabled: root.has-project-path ? root.can-save-project : root.product-shell;
+                                clicked => {
+                                    if root.has-project-path { root.save-project(); }
+                                    else { root.save-project-as(); }
+                                }
+                            }
                             Button { text: "Duplicate"; enabled: root.can-edit && !root.can-save-look; clicked => { root.duplicate-look(); } }
                             Button { text: "Save Look"; primary: true; enabled: root.can-edit && root.can-save-look; clicked => { root.save-look(); } }
                         }
@@ -1011,7 +1029,12 @@ export component FixturesLooksLab inherits Window {
                 Text { text: root.workspace-message; color: Theme.text-muted; font-size: 10px; overflow: elide; }
                 Rectangle { horizontal-stretch: 1; background: #00000000; }
                 Text { text: root.history-state; color: Theme.text-secondary; font-size: 9px; }
-                Text { text: "Slint 1.17.1 LAB  •  not a product preview"; color: Theme.warn; font-size: 9px; font-weight: 700; }
+                Text {
+                    text: root.product-shell ? root.build-label + "  •  Powered by Slint 1.17.1" : "Slint 1.17.1 LAB  •  not a product preview";
+                    color: root.product-shell ? Theme.text-muted : Theme.warn;
+                    font-size: 9px;
+                    font-weight: root.product-shell ? 500 : 700;
+                }
             }
         }
     }

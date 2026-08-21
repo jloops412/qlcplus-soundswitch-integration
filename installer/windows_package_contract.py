@@ -25,6 +25,13 @@ PE_MACHINE_AMD64 = 0x8664
 
 REQUIRED_FILES = (
     "EmberLights.exe",
+    "EmberLights-Safe.exe",
+    "slint_cpp.dll",
+    "msvcp140.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "licenses/SLINT_LICENSE.md",
+    "licenses/SLINT_THIRDPARTY.md",
     "Tools/emberlights_migrate.exe",
     "Tools/emberlights_qualify.exe",
     "Tools/midi_capture.exe",
@@ -44,12 +51,15 @@ REQUIRED_FILES = (
     "docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md",
     "docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md",
     "docs/47_ADVANCED_MANUAL_DMX_TEST.md",
+    "docs/48_SLINT_DEFAULT_BETA_ACTIVATION_CHECKPOINT.md",
     "docs/MORNING_HARDWARE_TEST.md",
     "docs/IR4_6CH_RUNNER_FRAME_TEST.md",
 )
 
 SAFETY_BOUNDARY = {
     "releaseClaim": "testing-preview",
+    "defaultShell": "replacement-beta",
+    "safeLiveFallback": "included",
     "defaultOutput": "disabled",
     "selfTests": "non-outputting",
     "physicalQualification": "not-claimed",

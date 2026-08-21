@@ -127,20 +127,66 @@ target_compile_definitions(showcore PUBLIC
     EMBERLIGHTS_VERSION="${EMBERLIGHTS_VERSION}"
     EMBERLIGHTS_COMMIT="${EMBERLIGHTS_COMMIT}")
 
-# D-091 keeps this product-shaped Slint surface isolated as an issue #37 lab.
-# It is never installed or substituted for the legacy bridge by this option.
-# An accepted toolkit and a product activation decision remain separate gates.
+# D-097 activates the accepted first product-shaped replacement-shell slice on
+# Windows while retaining the previous application as an explicitly named Safe
+# bridge. The isolated issue #37 lab remains available for comparison builds.
+set(EMBERLIGHTS_SLINT_DEFAULT_DEFAULT OFF)
+if(WIN32)
+    set(EMBERLIGHTS_SLINT_DEFAULT_DEFAULT ON)
+endif()
+option(EMBERLIGHTS_BUILD_SLINT_DEFAULT
+    "Build the EmberLights Slint Default beta shell"
+    ${EMBERLIGHTS_SLINT_DEFAULT_DEFAULT})
 option(EMBERLIGHTS_BUILD_SLINT_LAB
     "Build the non-product Fixtures + Static Looks Slint evaluation lab" OFF)
-if(EMBERLIGHTS_BUILD_SLINT_LAB)
+if(EMBERLIGHTS_BUILD_SLINT_DEFAULT OR EMBERLIGHTS_BUILD_SLINT_LAB)
     if(CMAKE_VERSION VERSION_LESS 3.21)
         message(FATAL_ERROR
             "The Slint 1.17.1 C++ integration requires CMake 3.21 or newer")
     endif()
+    if(DEFINED ENV{EMBERLIGHTS_SLINT_PREFIX})
+        list(PREPEND CMAKE_PREFIX_PATH "$ENV{EMBERLIGHTS_SLINT_PREFIX}")
+    endif()
+    if(DEFINED ENV{EMBERLIGHTS_SLINT_COMPILER})
+        set(SLINT_COMPILER "$ENV{EMBERLIGHTS_SLINT_COMPILER}"
+            CACHE FILEPATH "Pinned Slint compiler" FORCE)
+    endif()
     find_package(Slint 1.17.1 EXACT CONFIG REQUIRED)
+    get_filename_component(EMBERLIGHTS_SLINT_PACKAGE_PREFIX
+        "${Slint_DIR}/../../.." ABSOLUTE)
+endif()
+
+if(EMBERLIGHTS_BUILD_SLINT_DEFAULT)
+    if(WIN32)
+        add_executable(EmberLights WIN32
+            slint-lab/fixtures_looks_lab.cpp
+            windows/EmberLights.rc)
+    else()
+        add_executable(EmberLights
+            slint-lab/fixtures_looks_lab.cpp)
+    endif()
+    target_link_libraries(EmberLights PRIVATE Slint::Slint showcore)
+    if(WIN32)
+        target_link_libraries(EmberLights PRIVATE comdlg32 shell32)
+        if(MSVC)
+            target_link_options(EmberLights PRIVATE /ENTRY:mainCRTStartup)
+        else()
+            target_link_options(EmberLights PRIVATE -Wl,--subsystem,windows)
+        endif()
+    endif()
+    target_compile_definitions(EmberLights PRIVATE
+        EMBERLIGHTS_PRODUCT_SHELL=1)
+    slint_target_sources(EmberLights
+        slint-lab/fixtures_looks_lab.slint)
+    set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
+endif()
+
+if(EMBERLIGHTS_BUILD_SLINT_LAB)
     add_executable(EmberLightsSlintLab
         slint-lab/fixtures_looks_lab.cpp)
     target_link_libraries(EmberLightsSlintLab PRIVATE showcore Slint::Slint)
+    target_compile_definitions(EmberLightsSlintLab PRIVATE
+        EMBERLIGHTS_PRODUCT_SHELL=0)
     slint_target_sources(EmberLightsSlintLab
         slint-lab/fixtures_looks_lab.slint)
     set_target_properties(EmberLightsSlintLab PROPERTIES
@@ -386,8 +432,8 @@ if(WIN32)
     if(NOT EMBERLIGHTS_SKIP_WINDOWS_RESOURCE)
         list(APPEND EMBERLIGHTS_WINDOWS_APP_SOURCES windows/EmberLights.rc)
     endif()
-    add_executable(EmberLights WIN32 ${EMBERLIGHTS_WINDOWS_APP_SOURCES})
-    target_link_libraries(EmberLights PRIVATE
+    add_executable(EmberLightsSafe WIN32 ${EMBERLIGHTS_WINDOWS_APP_SOURCES})
+    target_link_libraries(EmberLightsSafe PRIVATE
         showcore
         comctl32
         comdlg32
@@ -399,12 +445,16 @@ if(WIN32)
     if(MSVC)
         # The executable already embeds our explicit DPI/compatibility manifest
         # through EmberLights.rc; suppress the linker's second default manifest.
-        target_link_options(EmberLights PRIVATE /MANIFEST:NO)
+        target_link_options(EmberLightsSafe PRIVATE /MANIFEST:NO)
     elseif(MINGW)
-        target_link_options(EmberLights PRIVATE -municode -Wl,--subsystem,windows)
+        target_link_options(EmberLightsSafe PRIVATE -municode -Wl,--subsystem,windows)
     endif()
-    target_compile_definitions(EmberLights PRIVATE UNICODE _UNICODE)
-    set_target_properties(EmberLights PROPERTIES OUTPUT_NAME "EmberLights")
+    target_compile_definitions(EmberLightsSafe PRIVATE UNICODE _UNICODE)
+    set_target_properties(EmberLightsSafe PROPERTIES
+        OUTPUT_NAME "EmberLights-Safe")
+    if(EMBERLIGHTS_BUILD_SLINT_DEFAULT)
+        add_dependencies(EmberLights EmberLightsSafe)
+    endif()
 
     add_executable(soundswitch_micro_probe
         src/soundswitch_micro_probe.cpp)
@@ -447,7 +497,41 @@ if(WIN32)
             /W4 /WX /permissive-)
     endif()
 
-    install(TARGETS EmberLights RUNTIME DESTINATION .)
+    install(TARGETS EmberLights EmberLightsSafe RUNTIME DESTINATION .)
+    if(EMBERLIGHTS_BUILD_SLINT_DEFAULT)
+        if(DEFINED ENV{EMBERLIGHTS_MSVC_RUNTIME_DIR})
+            set(EMBERLIGHTS_MSVC_RUNTIME_DIR
+                "$ENV{EMBERLIGHTS_MSVC_RUNTIME_DIR}")
+        elseif(DEFINED ENV{VCToolsRedistDir})
+            set(EMBERLIGHTS_MSVC_RUNTIME_DIR
+                "$ENV{VCToolsRedistDir}/x64/Microsoft.VC143.CRT")
+        else()
+            message(FATAL_ERROR
+                "The Slint Windows runtime requires an app-local MSVC runtime. "
+                "Set EMBERLIGHTS_MSVC_RUNTIME_DIR or VCToolsRedistDir.")
+        endif()
+        foreach(EMBERLIGHTS_MSVC_RUNTIME_DLL IN ITEMS
+                msvcp140.dll vcruntime140.dll vcruntime140_1.dll)
+            if(NOT EXISTS
+                    "${EMBERLIGHTS_MSVC_RUNTIME_DIR}/${EMBERLIGHTS_MSVC_RUNTIME_DLL}")
+                message(FATAL_ERROR
+                    "Missing required app-local MSVC runtime: "
+                    "${EMBERLIGHTS_MSVC_RUNTIME_DIR}/${EMBERLIGHTS_MSVC_RUNTIME_DLL}")
+            endif()
+            install(FILES
+                "${EMBERLIGHTS_MSVC_RUNTIME_DIR}/${EMBERLIGHTS_MSVC_RUNTIME_DLL}"
+                DESTINATION .)
+        endforeach()
+        install(FILES
+            "${EMBERLIGHTS_SLINT_PACKAGE_PREFIX}/lib/slint_cpp.dll"
+            DESTINATION .)
+        install(FILES
+            "${EMBERLIGHTS_SLINT_PACKAGE_PREFIX}/licenses/LICENSE.md"
+            DESTINATION licenses RENAME SLINT_LICENSE.md)
+        install(FILES
+            "${EMBERLIGHTS_SLINT_PACKAGE_PREFIX}/licenses/THIRDPARTY.md"
+            DESTINATION licenses RENAME SLINT_THIRDPARTY.md)
+    endif()
     install(TARGETS midi_capture emberlights_qualify emberlights_migrate soundswitch_micro_probe
         soundswitch_control_one_probe os2l_capture
         RUNTIME DESTINATION Tools)
@@ -467,6 +551,7 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/47_ADVANCED_MANUAL_DMX_TEST.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../docs/48_SLINT_DEFAULT_BETA_ACTIVATION_CHECKPOINT.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/MORNING_HARDWARE_TEST.md"
         "${CMAKE_CURRENT_SOURCE_DIR}/../docs/IR4_6CH_RUNNER_FRAME_TEST.md"
         DESTINATION docs)
@@ -526,6 +611,8 @@ endif()
 if(WIN32)
     add_test(NAME windows_gui_startup COMMAND EmberLights --startup-smoke)
     set_tests_properties(windows_gui_startup PROPERTIES TIMEOUT 20)
+    add_test(NAME windows_safe_gui_startup COMMAND EmberLightsSafe --startup-smoke)
+    set_tests_properties(windows_safe_gui_startup PROPERTIES TIMEOUT 20)
     add_test(NAME soundswitch_micro_probe_self_test
         COMMAND soundswitch_micro_probe --self-test)
 endif()

@@ -27,3 +27,9 @@ The Windows preview draws documented Segoe Fluent Icons glyphs from the operatin
 ## SoundSwitch
 
 SoundSwitch is a product/workflow reference only. No SoundSwitch source, assets, fixture database, or trade dress are included. Future migration research must use user-owned exported/copied artifacts and preserve originals.
+
+## Slint
+
+The Windows replacement-shell beta uses the pinned Slint 1.17.1 C++ runtime under the Slint Royalty-free License. The application visibly identifies Slint in its footer. The installer includes the complete upstream `SLINT_LICENSE.md` and `SLINT_THIRDPARTY.md` files next to the runtime dependency; those bundled files are authoritative for the redistributed binary and its dependencies.
+
+The Slint Windows binary depends on the Microsoft Visual C++ 2015–2022 x64 runtime. EmberLights packages the required `msvcp140.dll`, `vcruntime140.dll`, and `vcruntime140_1.dll` app-locally from Microsoft's signed x64 redistributable so a per-user install does not silently depend on a machine-wide runtime. The Preview 106 build input is Microsoft's 14.44.35211 redistributable (`vc_redist.x64.exe`, SHA-256 `cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b`).

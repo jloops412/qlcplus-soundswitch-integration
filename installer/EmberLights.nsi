@@ -178,10 +178,11 @@ Section "EmberLights" MainSection
 
   CreateDirectory "$SMPROGRAMS\${AppName}"
   CreateShortCut "$SMPROGRAMS\${AppName}\${AppName}.lnk" "$INSTDIR\EmberLights.exe"
+  CreateShortCut "$SMPROGRAMS\${AppName}\EmberLights Safe - Live.lnk" "$INSTDIR\EmberLights-Safe.exe"
   CreateShortCut "$SMPROGRAMS\${AppName}\Advanced Manual DMX Test.lnk" "$INSTDIR\Tools\soundswitch_micro_probe.exe" "--manual-dmx"
   CreateShortCut "$SMPROGRAMS\${AppName}\EmberLights Hardware Test.lnk" "$INSTDIR\Tools\soundswitch_micro_probe.exe" "--active-test"
   CreateShortCut "$SMPROGRAMS\${AppName}\Control One DMX Test.lnk" "$SYSDIR\cmd.exe" '/k $\"$INSTDIR\Tools\soundswitch_control_one_probe.exe$\" --help'
-  CreateShortCut "$SMPROGRAMS\${AppName}\IR-4 6CH Editable Bench.lnk" "$INSTDIR\EmberLights.exe" '$\"$INSTDIR\Templates\EmberLights-IR4-6CH-Editable-Bench.emberlights$\"'
+  CreateShortCut "$SMPROGRAMS\${AppName}\IR-4 6CH Editable Bench.lnk" "$INSTDIR\EmberLights-Safe.exe" '$\"$INSTDIR\Templates\EmberLights-IR4-6CH-Editable-Bench.emberlights$\"'
   CreateShortCut "$SMPROGRAMS\${AppName}\Uninstall ${AppName}.lnk" "$INSTDIR\Uninstall.exe"
 
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
@@ -195,6 +196,7 @@ Section "Uninstall"
   ${EndIf}
 
   Delete "$SMPROGRAMS\${AppName}\${AppName}.lnk"
+  Delete "$SMPROGRAMS\${AppName}\EmberLights Safe - Live.lnk"
   Delete "$SMPROGRAMS\${AppName}\Advanced Manual DMX Test.lnk"
   Delete "$SMPROGRAMS\${AppName}\EmberLights Hardware Test.lnk"
   Delete "$SMPROGRAMS\${AppName}\Control One DMX Test.lnk"
@@ -213,6 +215,14 @@ Section "Uninstall"
   DeleteRegKey /ifempty HKCU "Software\${AppName}"
 
   Delete "$INSTDIR\EmberLights.exe"
+  Delete "$INSTDIR\EmberLights-Safe.exe"
+  Delete "$INSTDIR\slint_cpp.dll"
+  Delete "$INSTDIR\msvcp140.dll"
+  Delete "$INSTDIR\vcruntime140.dll"
+  Delete "$INSTDIR\vcruntime140_1.dll"
+  Delete "$INSTDIR\licenses\SLINT_LICENSE.md"
+  Delete "$INSTDIR\licenses\SLINT_THIRDPARTY.md"
+  RMDir "$INSTDIR\licenses"
   Delete "$INSTDIR\EmberLights-Windows-payload-manifest.json"
   Delete "$INSTDIR\Tools\emberlights_migrate.exe"
   Delete "$INSTDIR\Tools\emberlights_qualify.exe"
@@ -235,6 +245,7 @@ Section "Uninstall"
   Delete "$INSTDIR\docs\32_FIXTURE_TRUTH_AND_STATIC_LOOK_BUILDER_CHECKPOINT.md"
   Delete "$INSTDIR\docs\33_AUTOSCRIPT_STUDIO_E2E_TEST.md"
   Delete "$INSTDIR\docs\47_ADVANCED_MANUAL_DMX_TEST.md"
+  Delete "$INSTDIR\docs\48_SLINT_DEFAULT_BETA_ACTIVATION_CHECKPOINT.md"
   Delete "$INSTDIR\docs\MORNING_HARDWARE_TEST.md"
   Delete "$INSTDIR\docs\IR4_6CH_RUNNER_FRAME_TEST.md"
   RMDir "$INSTDIR\docs"

@@ -21,7 +21,9 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -33,7 +35,27 @@
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32)
+#include <windows.h>
+#include <commdlg.h>
+#include <shellapi.h>
+#endif
+
+#ifndef EMBERLIGHTS_PRODUCT_SHELL
+#define EMBERLIGHTS_PRODUCT_SHELL 0
+#endif
+
+#ifndef EMBERLIGHTS_VERSION
+#define EMBERLIGHTS_VERSION "0.1.0-dev"
+#endif
+
+#ifndef EMBERLIGHTS_COMMIT
+#define EMBERLIGHTS_COMMIT "unknown"
+#endif
+
 namespace {
+
+constexpr bool kProductShell = EMBERLIGHTS_PRODUCT_SHELL != 0;
 
 class LabPreviewCommandHost;
 
@@ -451,6 +473,31 @@ void select_available_look(LabState& state) {
         return false;
     }
     state.project_path = std::move(project_path);
+    const auto snapshot = state.document.snapshot();
+    const auto profile_exists = std::any_of(
+        snapshot.document.fixture_profiles.begin(),
+        snapshot.document.fixture_profiles.end(),
+        [&](const auto& profile) { return profile.id == state.selected_profile_id; });
+    if (!profile_exists) {
+        state.selected_profile_id = snapshot.document.fixture_profiles.empty()
+            ? std::string{}
+            : snapshot.document.fixture_profiles.front().id;
+    }
+    const auto fixture_exists = std::any_of(
+        snapshot.document.fixtures.begin(),
+        snapshot.document.fixtures.end(),
+        [&](const auto& fixture) { return fixture.id == state.selected_target_id; });
+    const auto group_exists = std::any_of(
+        snapshot.document.groups.begin(),
+        snapshot.document.groups.end(),
+        [&](const auto& group) { return group.id == state.selected_target_id; });
+    if (!fixture_exists && !group_exists) {
+        state.selected_target_id = !snapshot.document.groups.empty()
+            ? snapshot.document.groups.front().id
+            : snapshot.document.fixtures.empty()
+                ? std::string{}
+                : snapshot.document.fixtures.front().id;
+    }
     state.selected_choice_id.clear();
     state.draft_dirty = false;
     select_available_look(state);
@@ -460,10 +507,102 @@ void select_available_look(LabState& state) {
 
 [[nodiscard]] std::string path_label(const LabState& state) {
     if (!state.project_path.has_value()) {
-        return "unsaved lab document";
+        return kProductShell ? "unsaved project" : "unsaved lab document";
     }
     const auto filename = state.project_path->filename().string();
     return filename.empty() ? state.project_path->string() : filename;
+}
+
+[[nodiscard]] std::optional<std::filesystem::path> choose_project_path(
+    bool save,
+    const std::optional<std::filesystem::path>& current_path = std::nullopt) {
+#if defined(_WIN32)
+    std::array<wchar_t, 32'768> buffer{};
+    if (current_path.has_value()) {
+        const auto native = current_path->wstring();
+        const auto count = std::min(native.size(), buffer.size() - 1U);
+        std::copy_n(native.data(), count, buffer.data());
+    }
+    constexpr wchar_t filter[] =
+        L"EmberLights Projects (*.emberlights)\0*.emberlights\0"
+        L"All Files (*.*)\0*.*\0\0";
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.lpstrFilter = filter;
+    dialog.lpstrFile = buffer.data();
+    dialog.nMaxFile = static_cast<DWORD>(buffer.size());
+    dialog.lpstrDefExt = L"emberlights";
+    dialog.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR |
+        (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+    const auto accepted = save
+        ? GetSaveFileNameW(&dialog)
+        : GetOpenFileNameW(&dialog);
+    if (accepted == FALSE) {
+        return std::nullopt;
+    }
+    return std::filesystem::path(buffer.data());
+#else
+    static_cast<void>(save);
+    static_cast<void>(current_path);
+    return std::nullopt;
+#endif
+}
+
+[[nodiscard]] bool launch_safe_shell(const LabState& state) {
+#if defined(_WIN32)
+    std::array<wchar_t, 32'768> executable_path{};
+    const auto copied = GetModuleFileNameW(
+        nullptr,
+        executable_path.data(),
+        static_cast<DWORD>(executable_path.size()));
+    if (copied == 0U ||
+        static_cast<std::size_t>(copied) >= executable_path.size()) {
+        return false;
+    }
+    const auto safe_path = std::filesystem::path(executable_path.data())
+        .parent_path() / L"EmberLights-Safe.exe";
+    std::wstring arguments;
+    if (state.project_path.has_value()) {
+        arguments = L"\"" + state.project_path->wstring() + L"\"";
+    }
+    const auto safe_directory = safe_path.parent_path();
+    const auto result = ShellExecuteW(
+        nullptr,
+        L"open",
+        safe_path.c_str(),
+        arguments.empty() ? nullptr : arguments.c_str(),
+        safe_directory.c_str(),
+        SW_SHOWNORMAL);
+    return reinterpret_cast<std::intptr_t>(result) > 32;
+#else
+    static_cast<void>(state);
+    return false;
+#endif
+}
+
+[[nodiscard]] bool open_project(
+    LabState& state,
+    const std::filesystem::path& path) {
+    emberlights::ProjectDocument loaded;
+    const auto load_result = emberlights::load_project(path, loaded, true);
+    if (!load_result) {
+        state.operation_message = "Unable to open the project: " +
+            load_result.message;
+        return false;
+    }
+    if (!activate_project(
+            state,
+            std::move(loaded),
+            load_result.recovered_from_backup
+                ? emberlights::StudioDocumentBoundary::NewDocument
+                : emberlights::StudioDocumentBoundary::OpenedDocument,
+            path)) {
+        return false;
+    }
+    state.operation_message = load_result.recovered_from_backup
+        ? "Recovered the project backup. Save Project repairs the primary file."
+        : "Opened the project as the durable Studio baseline.";
+    return true;
 }
 
 [[nodiscard]] std::string string_from(const slint::SharedString& value) {
@@ -654,6 +793,12 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
                 : std::string("No output");
 
     ui.set_project_name(shared_string(model.project_name));
+    ui.set_product_shell(kProductShell);
+    ui.set_build_label(shared_string(
+        std::string("Beta ") + EMBERLIGHTS_VERSION + " • " +
+        std::string(EMBERLIGHTS_COMMIT).substr(
+            0U, std::min<std::size_t>(8U, std::string_view(EMBERLIGHTS_COMMIT).size()))));
+    ui.set_has_project_path(state.project_path.has_value());
     ui.set_save_state(shared_string(save_state));
     ui.set_validation_state(shared_string(model.validation_status));
     ui.set_output_state(shared_string(output_state));
@@ -1084,6 +1229,21 @@ void save_studio_project(LabState& state) {
         : acknowledged.message;
 }
 
+void save_studio_project_as(LabState& state) {
+    const auto selected = choose_project_path(true, state.project_path);
+    if (!selected.has_value()) {
+        state.operation_message = "Save Project As was canceled.";
+        return;
+    }
+    const auto previous_path = state.project_path;
+    state.project_path = *selected;
+    save_studio_project(state);
+    if (state.document.snapshot().dirty &&
+        state.operation_message.rfind("Project save failed:", 0U) == 0U) {
+        state.project_path = previous_path;
+    }
+}
+
 void invoke_preview(
     const FixturesLooksLab& ui,
     LabState& state,
@@ -1204,20 +1364,30 @@ int main(int argc, char** argv) {
 
     std::optional<std::filesystem::path> requested_project_path;
     bool allow_physical_preview = false;
+    bool startup_smoke = false;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument(argv[index]);
         if (argument == "--project" && index + 1 < argc) {
             requested_project_path = std::filesystem::path(argv[++index]);
         } else if (argument == "--allow-physical-preview") {
             allow_physical_preview = true;
+        } else if (argument == "--startup-smoke") {
+            startup_smoke = true;
         } else if (argument == "--help") {
             std::cout
-                << "Usage: EmberLights-Fixtures-Looks-Lab [--project <file>] "
-                   "[--allow-physical-preview]\n"
+                << "Usage: "
+                << (kProductShell
+                        ? "EmberLights"
+                        : "EmberLights-Fixtures-Looks-Lab")
+                << " [--project <file>] [--allow-physical-preview]"
+                   " [--startup-smoke]\n"
                 << "A missing --project file starts the sample as a new document; "
                    "Save Project creates it atomically. Physical preview also "
                    "requires --project and a configured output adapter.\n";
             return EXIT_SUCCESS;
+        } else if (!argument.empty() && argument.front() != '-' &&
+                   !requested_project_path.has_value()) {
+            requested_project_path = std::filesystem::path(argument);
         } else {
             std::cerr << "Unknown or incomplete argument: " << argument << '\n';
             return EXIT_FAILURE;
@@ -1240,27 +1410,12 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         if (exists) {
-            emberlights::ProjectDocument loaded;
-            const auto load_result = emberlights::load_project(
-                *requested_project_path, loaded, true);
-            if (!load_result ||
-                !activate_project(
-                    *state,
-                    std::move(loaded),
-                    load_result.recovered_from_backup
-                        ? emberlights::StudioDocumentBoundary::NewDocument
-                        : emberlights::StudioDocumentBoundary::OpenedDocument,
-                    requested_project_path)) {
+            if (!open_project(*state, *requested_project_path)) {
                 std::cerr << "Unable to open the requested project: "
-                          << (load_result
-                                  ? state->operation_message
-                                  : load_result.message)
+                          << state->operation_message
                           << '\n';
                 return EXIT_FAILURE;
             }
-            state->operation_message = load_result.recovered_from_backup
-                ? "Recovered the project backup. Save Project repairs the primary file."
-                : "Opened the project as the durable Studio baseline.";
         } else if (!activate_project(
                        *state,
                        make_lab_project(),
@@ -1282,8 +1437,9 @@ int main(int argc, char** argv) {
                   << state->operation_message << '\n';
         return EXIT_FAILURE;
     } else {
-        state->operation_message =
-            "Output-disabled sample. Launch with --project <file> to test durable save/history.";
+        state->operation_message = kProductShell
+            ? "Output-disabled demo project. Open a project or use Save Project As to create one."
+            : "Output-disabled sample. Launch with --project <file> to test durable save/history.";
     }
     if (allow_physical_preview) {
         state->operation_message +=
@@ -1492,6 +1648,90 @@ int main(int argc, char** argv) {
             refresh_ui(component, state);
         });
     });
+    ui->on_save_project_as([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            save_studio_project_as(state);
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_new_project([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto snapshot = state.document.snapshot();
+            const auto has_unsaved_user_edits = state.draft_dirty ||
+                (snapshot.dirty &&
+                 (state.project_path.has_value() || snapshot.can_undo));
+            if (has_unsaved_user_edits) {
+                state.operation_message =
+                    "Save or undo the current project edits before creating a new project.";
+                refresh_ui(component, state);
+                return;
+            }
+            if (state.preview_host != nullptr) {
+                state.preview_host->stop_for_context_change();
+            }
+            auto project = make_lab_project();
+            project.name = "EmberLights Demo Rig";
+            if (activate_project(
+                    state,
+                    std::move(project),
+                    emberlights::StudioDocumentBoundary::NewDocument,
+                    std::nullopt)) {
+                state.operation_message =
+                    "New output-disabled demo project. Save Project As creates a durable file.";
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_open_project([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto snapshot = state.document.snapshot();
+            const auto has_unsaved_user_edits = state.draft_dirty ||
+                (snapshot.dirty &&
+                 (state.project_path.has_value() || snapshot.can_undo));
+            if (has_unsaved_user_edits) {
+                state.operation_message =
+                    "Save or undo the current project edits before opening another project.";
+                refresh_ui(component, state);
+                return;
+            }
+            const auto selected = choose_project_path(false, state.project_path);
+            if (!selected.has_value()) {
+                state.operation_message = "Open Project was canceled.";
+            } else {
+                if (state.preview_host != nullptr) {
+                    state.preview_host->stop_for_context_change();
+                }
+                static_cast<void>(open_project(state, *selected));
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_open_safe([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            const auto snapshot = state.document.snapshot();
+            if (state.draft_dirty ||
+                (state.project_path.has_value() && snapshot.dirty)) {
+                state.operation_message =
+                    "Save or undo this project's edits before opening it in Safe / Live.";
+                refresh_ui(component, state);
+                return;
+            }
+            if (state.preview_host != nullptr) {
+                const auto preview = state.preview_host->status();
+                if (preview_busy(preview.state)) {
+                    state.preview_host->stop_for_context_change();
+                    state.operation_message =
+                        "Stopping preview and requesting blackout. Open Safe / Live again when preview is stopped.";
+                    refresh_ui(component, state);
+                    return;
+                }
+            }
+            state.operation_message = launch_safe_shell(state)
+                ? "Safe / Live opened in a separate window."
+                : "Safe / Live could not be opened. Reinstall EmberLights and try again.";
+            refresh_ui(component, state);
+        });
+    });
     ui->on_undo([with_ui]() {
         with_ui([](const auto& component, auto& state) {
             undo_studio_edit(state);
@@ -1605,6 +1845,11 @@ int main(int argc, char** argv) {
             }
         });
     refresh_ui(*ui, *state);
+    if (startup_smoke) {
+        slint::Timer::single_shot(
+            std::chrono::milliseconds(600),
+            [] { slint::quit_event_loop(); });
+    }
     ui->run();
     return EXIT_SUCCESS;
 }

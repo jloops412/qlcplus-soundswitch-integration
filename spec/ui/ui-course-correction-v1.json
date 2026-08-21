@@ -33,7 +33,11 @@
     "toolkitSpikeIssue": 37,
     "productionGateIssue": 38,
     "toolkitCandidates": ["slint", "winui3", "direct2dSafeBaseline"],
-    "toolkitSelected": false
+    "toolkitSelected": true,
+    "selectedToolkit": "slint-1.17.1",
+    "firstSliceActivated": true,
+    "safeLiveExecutable": "EmberLights-Safe.exe",
+    "activationDecision": "D-097"
   },
   "firstProductSlice": {
     "id": "studio.fixtures-static-looks",
@@ -63,6 +67,6 @@
   },
   "installerPolicy": {
     "modelOnlyChangesAdvancePreview": false,
-    "nextUiPreviewRequirement": "Activates the product-shaped first slice in a replacement-shell toolkit, or is labeled explicitly as a non-product lab build."
+    "nextUiPreviewRequirement": "Expand the activated replacement shell by complete user workflow; preserve Safe / Live until each legacy workflow crosses its acceptance gate."
   }
 }

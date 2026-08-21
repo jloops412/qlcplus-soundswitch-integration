@@ -306,7 +306,12 @@ class WindowsPackageContractTests(unittest.TestCase):
         cmake = (Path(__file__).parents[1] / "native-core/CMakeLists.txt").read_text(
             encoding="utf-8"
         )
-        self.assertIn("install(TARGETS EmberLights RUNTIME DESTINATION .)", cmake)
+        self.assertIn(
+            "install(TARGETS EmberLights EmberLightsSafe RUNTIME DESTINATION .)",
+            cmake,
+        )
+        self.assertIn("slint_cpp.dll", cmake)
+        self.assertIn("licenses/SLINT_LICENSE.md", contract.REQUIRED_FILES)
         self.assertIn(
             "install(TARGETS midi_capture emberlights_qualify emberlights_migrate",
             cmake,
