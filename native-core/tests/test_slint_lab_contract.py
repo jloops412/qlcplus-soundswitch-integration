@@ -214,9 +214,36 @@ class SlintLabContractTests(unittest.TestCase):
             'label: "VirtualDJ"',
             "os2l-state",
             "os2l-detail",
-            'text: "Switch to Safe / Live"',
+            'text: "Compatibility Tools"',
         ):
             self.assertIn(text, self.surface)
+
+    def test_product_shell_owns_a_canonical_live_control_strip(self):
+        for text in (
+            "ProductLiveCommandHost",
+            "compile_project_with_persisted_autoloops",
+            "project_active_path",
+            "UiCommandId::ShowToggleRunning",
+            "UiCommandId::BlackoutToggle",
+            "UiCommandId::WorkLightToggle",
+            "UiCommandId::ReleaseAllOverrides",
+            "UiCommandId::StaticLookToggle",
+            "Live owns output. Stop Live before editing Static Looks.",
+        ):
+            self.assertIn(text, self.adapter, text)
+        for text in (
+            'label: "Live"',
+            'label: "Sync"',
+            '"Start Live"',
+            '"Stop Live"',
+            '"Take Look Live"',
+            '"Work Light"',
+            'text: "Release Overrides"',
+            '"BLACKOUT"',
+            "live-toggle",
+            "live-look-toggle",
+        ):
+            self.assertIn(text, self.surface, text)
 
     def test_windows_artifact_route_is_scoped_pinned_and_non_product(self):
         self.assertIn("workflow_dispatch", self.workflow)

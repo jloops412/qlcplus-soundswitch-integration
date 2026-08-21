@@ -61,12 +61,14 @@ The integration lineage already contains substantial foundations that must be co
 
 Preview 101 is the latest identified installed legacy-shell test line. It is a deliberately small ownership-safety preview—not the replacement-shell product UI and not the current PR #86 source head.
 
-The current replacement-shell source checkpoint is Preview 108 on draft PR
+The current replacement-shell source checkpoint is Preview 109 on draft PR
 #99. It keeps Slint 1.17.1 as Default, makes the modern process own and display
-the VirtualDJ OS2L listener, and turns Safe / Live into a clean compatibility
-workspace handoff so two EmberLights processes do not compete for the OS2L
-port. Native installed-Windows, VirtualDJ packet, physical-output, and gig
-evidence remain open; the non-Windows package remains a testing preview.
+the VirtualDJ OS2L listener, and adds the first canonical Live strip for
+start/stop, sync and U1/U2 health, Blackout, Work Light, override release, and
+selected-Static-Look take/release. The Win32 shell is now an explicit
+Compatibility Tools handoff rather than the primary Live route. Native
+installed-Windows, VirtualDJ packet, physical-output, and gig evidence remain
+open; the non-Windows package remains a testing preview.
 
 The latest stacked beta candidate on 2026-08-20 is Preview 104: it preserves Preview 103's application-owned OS2L listener/capture path and adds the first product-callable #90 current-2026 import slice. The File import flow and migration CLI can create a separate output-disabled project containing exact `Medium / S1 / Red - Smooth Pulse` catalog/target/timeline evidence, mapped to four IR-4 fixtures at U1 `001/011/021/031` and four tube blocks at `041/121/201/281`, with no duplicate generic uplights. The unsigned Windows x64 testing bundle is bound to source commit `9e96c44dff794a16fbdfcb4f5efc68e2f02645fe`, published from draft PR #95, and recorded in `docs/handoffs/BACKYARD_PARTY_OPERATOR_PREVIEW_104_HANDOFF_2026-08-20.md`. It is one decoded loop, not broad SoundSwitch parity; installed Windows, VirtualDJ, physical output, and the other source content remain open evidence gates.
 

@@ -1,3 +1,4 @@
+#include "emberlights/compiler.hpp"
 #include "emberlights/fixtures_looks_shell.hpp"
 #include "emberlights/os2l_service.hpp"
 #include "emberlights/project_io.hpp"
@@ -59,6 +60,10 @@ namespace {
 constexpr bool kProductShell = EMBERLIGHTS_PRODUCT_SHELL != 0;
 
 class LabPreviewCommandHost;
+class ProductLiveCommandHost;
+
+[[nodiscard]] bool preview_busy(
+    emberlights::StaticLookPreviewCoordinatorState state) noexcept;
 
 struct LabState {
     emberlights::StudioDocumentService document;
@@ -74,10 +79,12 @@ struct LabState {
     std::optional<emberlights::FixtureParameterCategory> control_category;
     std::string preview_status_token;
     std::string os2l_status_token;
+    std::string live_status_token;
     std::string operation_message;
     bool draft_dirty{false};
     unsigned int created_look_count{0U};
     LabPreviewCommandHost* preview_host{nullptr};
+    ProductLiveCommandHost* live_host{nullptr};
     std::unique_ptr<emberlights::Os2lService> os2l_service;
 };
 
@@ -441,6 +448,151 @@ private:
     emberlights::UiCommandFacade facade_;
 };
 
+class ProductLiveCommandHost final : public emberlights::UiAppCommandHost {
+public:
+    explicit ProductLiveCommandHost(LabState& state)
+        : state_(state),
+          runner_(state.os2l_service.get()),
+          facade_(runner_, *this) {}
+
+    [[nodiscard]] emberlights::UiCommandFacade& facade() noexcept {
+        return facade_;
+    }
+
+    [[nodiscard]] emberlights::RunnerStatus status() const noexcept {
+        return runner_.status();
+    }
+
+    [[nodiscard]] bool selected_look_active(
+        std::string_view look_id) const noexcept {
+        if (!active_project_.has_value()) {
+            return false;
+        }
+        const auto index = look_index_for(*active_project_, look_id);
+        if (!index.has_value()) {
+            return false;
+        }
+        const auto live = runner_.status();
+        return live.static_look.look_index ==
+                static_cast<std::int32_t>(*index) &&
+            live.static_look.status !=
+                emberlights::StaticLookActivationStatus::None &&
+            live.static_look.status !=
+                emberlights::StaticLookActivationStatus::Releasing;
+    }
+
+    [[nodiscard]] std::string active_content_text() const {
+        const auto live = runner_.status();
+        if (active_project_.has_value() && live.static_look.look_index >= 0 &&
+            static_cast<std::size_t>(live.static_look.look_index) <
+                active_project_->looks.size()) {
+            return "Look • " + active_project_->looks[
+                static_cast<std::size_t>(live.static_look.look_index)].name;
+        }
+        if (live.active_autoloop.valid()) {
+            return "Autoloop • B" +
+                std::to_string(live.active_autoloop.bank + 1U) + " S" +
+                std::to_string(live.active_autoloop.slot + 1U);
+        }
+        if (active_project_.has_value() && live.active_track_script >= 0 &&
+            static_cast<std::size_t>(live.active_track_script) <
+                active_project_->track_scripts.size()) {
+            return "Script • " + active_project_->track_scripts[
+                static_cast<std::size_t>(live.active_track_script)].name;
+        }
+        return live.state == emberlights::RunnerState::Running
+            ? "Base layers"
+            : "No active content";
+    }
+
+    void stop_for_context_change() noexcept {
+        static_cast<void>(facade_.invoke(
+            {emberlights::UiCommandId::ShowStop}));
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult ui_start_show()
+        noexcept override {
+        try {
+            const auto snapshot = state_.document.snapshot();
+            if (!state_.project_path.has_value()) {
+                state_.operation_message =
+                    "Save the project before starting Live so EmberLights can maintain a last-known-good activation.";
+                return emberlights::UiInvocationResult::Unavailable;
+            }
+            if (snapshot.dirty || state_.draft_dirty) {
+                state_.operation_message =
+                    "Save or undo project edits before starting Live.";
+                return emberlights::UiInvocationResult::Unavailable;
+            }
+            if (state_.preview_host != nullptr &&
+                preview_busy(state_.preview_host->status().state)) {
+                state_.operation_message =
+                    "Stop the Studio preview before starting Live.";
+                return emberlights::UiInvocationResult::Unavailable;
+            }
+
+            auto compilation =
+                emberlights::compile_project_with_persisted_autoloops(
+                    snapshot.document);
+            if (!compilation) {
+                const auto first_error = std::find_if(
+                    compilation.validation.issues.begin(),
+                    compilation.validation.issues.end(),
+                    [](const auto& issue) {
+                        return issue.severity ==
+                            emberlights::ProjectIssueSeverity::Error;
+                    });
+                state_.operation_message = first_error ==
+                        compilation.validation.issues.end()
+                    ? "Live preflight failed. Review project validation before retrying."
+                    : "Live preflight failed: " + first_error->subject +
+                        " • " + first_error->message;
+                return emberlights::UiInvocationResult::ValidationFailed;
+            }
+            if (!runner_.start(
+                    std::move(compilation.show), snapshot.document)) {
+                state_.operation_message =
+                    "Runner could not start. Review Connections and stop any other EmberLights instance.";
+                return emberlights::UiInvocationResult::InternalError;
+            }
+
+            active_project_ = snapshot.document;
+            facade_.set_active_project(&*active_project_);
+            const auto recovery = emberlights::save_project_atomic(
+                emberlights::project_active_path(*state_.project_path),
+                *active_project_,
+                false);
+            state_.operation_message = recovery
+                ? "Live starting from the validated saved project."
+                : "Live started, but the last-known-good activation snapshot could not be saved.";
+            return emberlights::UiInvocationResult::Accepted;
+        } catch (...) {
+            runner_.stop();
+            facade_.set_active_project(nullptr);
+            active_project_.reset();
+            state_.operation_message =
+                "Live start failed closed before Runner ownership could be established.";
+            return emberlights::UiInvocationResult::InternalError;
+        }
+    }
+
+    [[nodiscard]] emberlights::UiInvocationResult ui_stop_show()
+        noexcept override {
+        runner_.stop();
+        facade_.set_active_project(nullptr);
+        active_project_.reset();
+        state_.operation_message =
+            "Live stopped. EmberLights requested terminal blackout frames on active outputs.";
+        return emberlights::UiInvocationResult::Accepted;
+    }
+
+private:
+    LabState& state_;
+    emberlights::RunnerService runner_;
+    emberlights::UiCommandFacade facade_;
+    std::optional<emberlights::ProjectDocument> active_project_;
+};
+
 [[nodiscard]] bool preview_busy(
     emberlights::StaticLookPreviewCoordinatorState state) noexcept {
     return state == emberlights::StaticLookPreviewCoordinatorState::Starting ||
@@ -509,6 +661,73 @@ private:
         std::to_string(status.sequence) + "|" +
         std::to_string(status.update_count) + "|" + status.frame_sha256 + "|" +
         status.error;
+}
+
+[[nodiscard]] std::string runner_state_text(
+    emberlights::RunnerState state) {
+    switch (state) {
+    case emberlights::RunnerState::Stopped: return "Stopped";
+    case emberlights::RunnerState::Starting: return "Starting";
+    case emberlights::RunnerState::Running: return "Running";
+    case emberlights::RunnerState::Stopping: return "Stopping";
+    case emberlights::RunnerState::Fault: return "Fault";
+    }
+    return "Unavailable";
+}
+
+[[nodiscard]] std::string sync_state_text(showcore::SyncState state) {
+    switch (state) {
+    case showcore::SyncState::Waiting: return "Waiting";
+    case showcore::SyncState::Os2lHealthy: return "OS2L locked";
+    case showcore::SyncState::PredictiveHold: return "Predictive hold";
+    case showcore::SyncState::AudioFallback: return "Audio fallback";
+    case showcore::SyncState::Recovering: return "Recovering";
+    case showcore::SyncState::Manual: return "Manual";
+    case showcore::SyncState::SafeUnsynchronized: return "Unsynced";
+    }
+    return "Unavailable";
+}
+
+[[nodiscard]] std::string universe_health_text(
+    const emberlights::RunnerStatus& status,
+    std::uint8_t universe) {
+    bool configured = false;
+    bool ready = false;
+    bool fault = false;
+    for (const auto& backend : status.output_backends) {
+        if (!backend.configured || backend.source_universe_count == 0U ||
+            universe < backend.first_source_universe ||
+            universe >= backend.first_source_universe +
+                backend.source_universe_count) {
+            continue;
+        }
+        configured = true;
+        ready = ready ||
+            backend.state == showcore::OutputHealthState::Ready;
+        fault = fault ||
+            backend.state == showcore::OutputHealthState::Fault;
+    }
+    return ready ? "ready" : fault ? "fault" : configured ? "opening" : "off";
+}
+
+[[nodiscard]] std::string live_status_token(
+    const emberlights::RunnerStatus& status) {
+    auto token = std::to_string(static_cast<unsigned int>(status.state)) + ":" +
+        std::to_string(status.blackout) + ":" +
+        std::to_string(status.work_light) + ":" +
+        std::to_string(status.manual_override_count) + ":" +
+        std::to_string(static_cast<unsigned int>(status.sync_state)) + ":" +
+        std::to_string(static_cast<unsigned int>(status.bpm + 0.5)) + ":" +
+        std::to_string(status.static_look.look_index) + ":" +
+        std::to_string(static_cast<unsigned int>(status.static_look.status)) +
+        ":" + std::to_string(status.active_track_script) + ":" +
+        std::to_string(status.active_autoloop.bank) + ":" +
+        std::to_string(status.active_autoloop.slot);
+    for (const auto& backend : status.output_backends) {
+        token += ":" +
+            std::to_string(static_cast<unsigned int>(backend.state));
+    }
+    return token;
 }
 
 [[nodiscard]] bool reload_selected_look_draft(LabState& state) {
@@ -784,6 +1003,8 @@ void select_available_look(LabState& state) {
     query.control_category = state.control_category;
     query.include_advanced = advanced_open;
     query.advanced_open = advanced_open;
+    query.live_running = state.live_host != nullptr &&
+        state.live_host->status().state != emberlights::RunnerState::Stopped;
     query.viewport_width = 1366;
     query.viewport_height = 768;
     return query;
@@ -847,14 +1068,23 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
         }
     }
     state.preview_status_token = preview_status_token(preview);
+    const auto live = state.live_host != nullptr
+        ? state.live_host->status()
+        : emberlights::RunnerStatus{};
+    state.live_status_token = live_status_token(live);
+    const auto live_stopped = live.state == emberlights::RunnerState::Stopped;
+    const auto live_running = live.state == emberlights::RunnerState::Running;
     const auto output_configured =
         emberlights::static_look_physical_preview_output_configured(
             project.connections);
     const auto active_preview = preview_busy(preview.state);
     const auto physical_ready = state.preview_host != nullptr &&
-        !active_preview && state.preview_host->physical_available(project);
-    const auto output_state =
-        preview.mode == emberlights::StaticLookPreviewMode::Physical &&
+        live_stopped && !active_preview &&
+        state.preview_host->physical_available(project);
+    const auto output_state = !live_stopped
+        ? "Live • U1 " + universe_health_text(live, 0U) +
+            " / U2 " + universe_health_text(live, 1U)
+        : preview.mode == emberlights::StaticLookPreviewMode::Physical &&
             active_preview
         ? "Preview " + std::to_string(static_cast<unsigned int>(
               preview.output_cap * 100.0F + 0.5F)) + "%"
@@ -887,9 +1117,12 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     ui.set_workspace_message(shared_string(state.operation_message.empty()
         ? model.message
         : state.operation_message));
-    ui.set_preview_status(shared_string(preview_status_text(preview)));
-    ui.set_preview_detail(shared_string(
-        preview_detail_text(preview, output_configured)));
+    ui.set_preview_status(shared_string(live_running
+        ? "Live owns output • editing locked"
+        : preview_status_text(preview)));
+    ui.set_preview_detail(shared_string(live_running
+        ? "Take or release the selected saved Static Look over advancing lower content."
+        : preview_detail_text(preview, output_configured)));
     ui.set_preview_state(shared_string(
         emberlights::static_look_preview_coordinator_state_name(
             preview.state)));
@@ -908,12 +1141,42 @@ void refresh_ui(const FixturesLooksLab& ui, LabState& state) {
     ui.set_can_edit(model.can_edit);
     ui.set_can_save_look(state.draft_dirty);
     ui.set_can_save_project(
-        state.project_path.has_value() && modified);
-    ui.set_can_undo(state.draft_dirty || snapshot.can_undo);
-    ui.set_can_redo(!state.draft_dirty && snapshot.can_redo);
+        live_stopped && state.project_path.has_value() && modified);
+    ui.set_can_undo(live_stopped && (state.draft_dirty || snapshot.can_undo));
+    ui.set_can_redo(
+        live_stopped && !state.draft_dirty && snapshot.can_redo);
     ui.set_advanced_available(model.advanced_available);
     ui.set_history_state(shared_string(history_state));
-    ui.set_live_running(model.live_running);
+    ui.set_live_running(!live_stopped);
+    ui.set_live_state(shared_string(runner_state_text(live.state)));
+    ui.set_live_fault(live.state == emberlights::RunnerState::Fault);
+    ui.set_blackout_active(live.blackout);
+    ui.set_work_light_active(live.work_light);
+    ui.set_can_start_live(
+        kProductShell && live_stopped && !active_preview && !modified &&
+        state.project_path.has_value() &&
+        model.state == emberlights::FixturesLooksShellState::Ready);
+    ui.set_can_stop_live(kProductShell && !live_stopped);
+    ui.set_can_live_look(
+        kProductShell && live_running && !state.selected_look_id.empty());
+    ui.set_live_look_active(
+        state.live_host != nullptr &&
+        state.live_host->selected_look_active(state.selected_look_id));
+    ui.set_live_sync(shared_string(sync_state_text(live.sync_state)));
+    ui.set_live_bpm(shared_string(
+        live_stopped || live.bpm <= 0.0
+            ? std::string("-- BPM")
+            : std::to_string(static_cast<unsigned int>(live.bpm + 0.5)) +
+                " BPM"));
+    ui.set_live_active_content(shared_string(
+        state.live_host != nullptr
+            ? state.live_host->active_content_text()
+            : std::string("No active content")));
+    ui.set_live_detail(shared_string(
+        "U1 " + universe_health_text(live, 0U) + " • U2 " +
+        universe_health_text(live, 1U) + " • " +
+        std::to_string(live.manual_override_count) +
+        (live.manual_override_count == 1U ? " override" : " overrides")));
     ui.set_profile_search(shared_string(state.profile_search));
     ui.set_look_search(shared_string(state.look_search));
     ui.set_parameter_search(shared_string(state.control_search));
@@ -1177,6 +1440,13 @@ void mutate_selected_look(
     const FixturesLooksLab& ui,
     LabState& state,
     Mutation mutation) {
+    if (state.live_host != nullptr &&
+        state.live_host->status().state != emberlights::RunnerState::Stopped) {
+        state.operation_message =
+            "Live owns output. Stop Live before editing Static Looks.";
+        refresh_ui(ui, state);
+        return;
+    }
     if (!state.selected_look_draft.has_value() &&
         !reload_selected_look_draft(state)) {
         state.operation_message = "Select a Static Look before editing.";
@@ -1242,6 +1512,11 @@ void mutate_selected_look(
 }
 
 void undo_studio_edit(LabState& state) {
+    if (state.live_host != nullptr &&
+        state.live_host->status().state != emberlights::RunnerState::Stopped) {
+        state.operation_message = "Stop Live before changing project history.";
+        return;
+    }
     if (state.preview_host != nullptr) {
         state.preview_host->stop_for_context_change();
     }
@@ -1268,6 +1543,11 @@ void undo_studio_edit(LabState& state) {
 }
 
 void redo_studio_edit(LabState& state) {
+    if (state.live_host != nullptr &&
+        state.live_host->status().state != emberlights::RunnerState::Stopped) {
+        state.operation_message = "Stop Live before changing project history.";
+        return;
+    }
     if (state.preview_host != nullptr) {
         state.preview_host->stop_for_context_change();
     }
@@ -1284,6 +1564,12 @@ void redo_studio_edit(LabState& state) {
 }
 
 void save_studio_project(LabState& state) {
+    if (state.live_host != nullptr &&
+        state.live_host->status().state != emberlights::RunnerState::Stopped) {
+        state.operation_message =
+            "Stop Live before saving Studio changes in this beta slice.";
+        return;
+    }
     if (!state.project_path.has_value()) {
         state.operation_message =
             "This sample has no project path. Launch with --project <file> to test atomic save/history.";
@@ -1531,6 +1817,11 @@ int main(int argc, char** argv) {
     auto preview_host = std::make_unique<LabPreviewCommandHost>(
         *state, allow_physical_preview);
     state->preview_host = preview_host.get();
+    std::unique_ptr<ProductLiveCommandHost> live_host;
+    if (kProductShell) {
+        live_host = std::make_unique<ProductLiveCommandHost>(*state);
+        state->live_host = live_host.get();
+    }
     auto ui = FixturesLooksLab::create();
     const slint::ComponentWeakHandle<FixturesLooksLab> weak_ui(ui);
 
@@ -1715,6 +2006,93 @@ int main(int argc, char** argv) {
             stop_preview(component, state);
         });
     });
+    ui->on_live_toggle([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host == nullptr) {
+                state.operation_message = "The Live command host is unavailable.";
+            } else {
+                const auto result = state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::ShowToggleRunning});
+                if (result != emberlights::UiInvocationResult::Accepted &&
+                    result != emberlights::UiInvocationResult::NoChange &&
+                    state.operation_message.empty()) {
+                    state.operation_message = "Live request rejected: " +
+                        std::string(emberlights::ui_invocation_result_name(result)) +
+                        ".";
+                }
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_live_look_toggle([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host == nullptr) {
+                state.operation_message = "The Live command host is unavailable.";
+            } else {
+                emberlights::UiCommandInvocation invocation;
+                invocation.command = emberlights::UiCommandId::StaticLookToggle;
+                invocation.target_id = state.selected_look_id;
+                const auto result = state.live_host->facade().invoke(invocation);
+                state.operation_message = result ==
+                        emberlights::UiInvocationResult::Accepted
+                    ? "Selected Static Look toggle queued through the canonical Live command path."
+                    : "Static Look request rejected: " +
+                        std::string(emberlights::ui_invocation_result_name(result)) +
+                        ".";
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_blackout_toggle([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr) {
+                const auto result = state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::BlackoutToggle});
+                const auto blackout = state.live_host->status().blackout;
+                state.operation_message = result ==
+                        emberlights::UiInvocationResult::Accepted
+                    ? blackout
+                        ? "BLACKOUT latched through the canonical emergency command."
+                        : "Blackout released; active Live content may resume output."
+                    : "Blackout request rejected: " +
+                        std::string(emberlights::ui_invocation_result_name(result)) +
+                        ".";
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_work_light_toggle([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr) {
+                const auto result = state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::WorkLightToggle});
+                state.operation_message = result ==
+                        emberlights::UiInvocationResult::Accepted
+                    ? state.live_host->status().work_light
+                        ? "Work Light enabled."
+                        : "Work Light cleared."
+                    : "Work Light request rejected: " +
+                        std::string(emberlights::ui_invocation_result_name(result)) +
+                        ".";
+            }
+            refresh_ui(component, state);
+        });
+    });
+    ui->on_release_all([with_ui]() {
+        with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr) {
+                const auto result = state.live_host->facade().invoke(
+                    {emberlights::UiCommandId::ReleaseAllOverrides});
+                state.operation_message = result ==
+                        emberlights::UiInvocationResult::Accepted
+                    ? "All manual fixture and group overrides were queued for release."
+                    : "Override release rejected: " +
+                        std::string(emberlights::ui_invocation_result_name(result)) +
+                        ".";
+            }
+            refresh_ui(component, state);
+        });
+    });
     ui->on_save_look([with_ui]() {
         with_ui([](const auto& component, auto& state) {
             const auto outcome = commit_selected_look(state);
@@ -1739,6 +2117,14 @@ int main(int argc, char** argv) {
     });
     ui->on_new_project([with_ui]() {
         with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr &&
+                state.live_host->status().state !=
+                    emberlights::RunnerState::Stopped) {
+                state.operation_message =
+                    "Stop Live before creating a new project.";
+                refresh_ui(component, state);
+                return;
+            }
             const auto snapshot = state.document.snapshot();
             const auto has_unsaved_user_edits = state.draft_dirty ||
                 (snapshot.dirty &&
@@ -1768,6 +2154,14 @@ int main(int argc, char** argv) {
     });
     ui->on_open_project([with_ui]() {
         with_ui([](const auto& component, auto& state) {
+            if (state.live_host != nullptr &&
+                state.live_host->status().state !=
+                    emberlights::RunnerState::Stopped) {
+                state.operation_message =
+                    "Stop Live before opening another project.";
+                refresh_ui(component, state);
+                return;
+            }
             const auto snapshot = state.document.snapshot();
             const auto has_unsaved_user_edits = state.draft_dirty ||
                 (snapshot.dirty &&
@@ -1810,6 +2204,11 @@ int main(int argc, char** argv) {
                     refresh_ui(component, state);
                     return;
                 }
+            }
+            if (state.live_host != nullptr &&
+                state.live_host->status().state !=
+                    emberlights::RunnerState::Stopped) {
+                state.live_host->stop_for_context_change();
             }
             if (state.os2l_service) {
                 state.os2l_service->stop();
@@ -1949,7 +2348,11 @@ int main(int argc, char** argv) {
                 const auto status = state->os2l_service
                     ? state->os2l_service->status()
                     : emberlights::Os2lServiceStatus{};
-                if (os2l_status_token(status) == state->os2l_status_token) {
+                const auto live = state->live_host != nullptr
+                    ? state->live_host->status()
+                    : emberlights::RunnerStatus{};
+                if (os2l_status_token(status) == state->os2l_status_token &&
+                    live_status_token(live) == state->live_status_token) {
                     return;
                 }
                 if (const auto locked = weak_ui.lock()) {

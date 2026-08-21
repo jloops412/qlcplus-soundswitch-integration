@@ -630,6 +630,18 @@ export component FixturesLooksLab inherits Window {
     in property <int> preview-output-cap-percent: 0;
     in property <int> preview-fixture-count: 0;
     in property <bool> live-running: false;
+    in property <string> live-state: "Stopped";
+    in property <string> live-detail: "U1 off • U2 off • 0 overrides";
+    in property <string> live-sync: "Waiting";
+    in property <string> live-bpm: "-- BPM";
+    in property <string> live-active-content: "No active content";
+    in property <bool> live-fault: false;
+    in property <bool> blackout-active: false;
+    in property <bool> work-light-active: false;
+    in property <bool> can-start-live: false;
+    in property <bool> can-stop-live: false;
+    in property <bool> can-live-look: false;
+    in property <bool> live-look-active: false;
     in property <string> history-state;
     in property <string> build-label;
     in property <bool> has-project-path: false;
@@ -686,6 +698,11 @@ export component FixturesLooksLab inherits Window {
     callback new-project();
     callback open-project();
     callback open-safe();
+    callback live-toggle();
+    callback live-look-toggle();
+    callback blackout-toggle();
+    callback work-light-toggle();
+    callback release-all();
     callback undo();
     callback redo();
     callback create-look();
@@ -694,7 +711,7 @@ export component FixturesLooksLab inherits Window {
 
     property <length> library-width: 250px;
     property <length> looks-width: 280px;
-    property <length> header-height: 96px;
+    property <length> header-height: 142px;
 
     VerticalLayout {
         spacing: 0px;
@@ -748,7 +765,7 @@ export component FixturesLooksLab inherits Window {
                     Rectangle { horizontal-stretch: 1; background: #00000000; }
                     if root.product-shell: Button { text: "New"; clicked => { root.new-project(); } }
                     if root.product-shell: Button { text: "Open"; clicked => { root.open-project(); } }
-                    if root.product-shell: Button { text: "Switch to Safe / Live"; clicked => { root.open-safe(); } }
+                    if root.product-shell: Button { text: "Compatibility Tools"; clicked => { root.open-safe(); } }
                     Button {
                         text: root.advanced-open ? "Close Advanced" : "Advanced";
                         enabled: root.advanced-available;
@@ -756,6 +773,54 @@ export component FixturesLooksLab inherits Window {
                             root.advanced-open = !root.advanced-open;
                             root.open-advanced();
                         }
+                    }
+                }
+                if root.product-shell: HorizontalLayout {
+                    height: 46px;
+                    spacing: 8px;
+                    alignment: center;
+                    StatusPill {
+                        label: "Live";
+                        state: root.live-state;
+                        tone: root.live-fault ? Theme.danger : root.live-running ? Theme.good : Theme.text-muted;
+                    }
+                    StatusPill {
+                        label: "Sync";
+                        state: root.live-sync;
+                        tone: root.live-sync == "OS2L locked" ? Theme.good : root.live-running ? Theme.warn : Theme.text-muted;
+                    }
+                    Text { text: root.live-bpm; color: Theme.text-secondary; font-size: 10px; font-weight: 650; }
+                    VerticalLayout {
+                        spacing: 1px;
+                        Text { text: root.live-active-content; color: Theme.text; font-size: 10px; font-weight: 600; overflow: elide; }
+                        Text { text: root.live-detail; color: Theme.text-muted; font-size: 9px; overflow: elide; }
+                    }
+                    Rectangle { horizontal-stretch: 1; background: #00000000; }
+                    Button {
+                        text: root.live-running ? "Stop Live" : "Start Live";
+                        primary: !root.live-running;
+                        enabled: root.live-running ? root.can-stop-live : root.can-start-live;
+                        clicked => { root.live-toggle(); }
+                    }
+                    Button {
+                        text: root.live-look-active ? "Release Look" : "Take Look Live";
+                        enabled: root.can-live-look;
+                        clicked => { root.live-look-toggle(); }
+                    }
+                    Button {
+                        text: root.work-light-active ? "Clear Work Light" : "Work Light";
+                        enabled: root.live-running;
+                        clicked => { root.work-light-toggle(); }
+                    }
+                    Button {
+                        text: "Release Overrides";
+                        enabled: root.live-running;
+                        clicked => { root.release-all(); }
+                    }
+                    Button {
+                        text: root.blackout-active ? "RELEASE BLACKOUT" : "BLACKOUT";
+                        primary: root.blackout-active;
+                        clicked => { root.blackout-toggle(); }
                     }
                 }
             }
@@ -868,7 +933,7 @@ export component FixturesLooksLab inherits Window {
                                 }
                             }
                             Rectangle { horizontal-stretch: 1; background: #00000000; }
-                            if !root.preview-active: HorizontalLayout {
+                            if !root.preview-active && !root.live-running: HorizontalLayout {
                                 spacing: 7px;
                                 Button {
                                     text: "Simulate";
@@ -884,6 +949,11 @@ export component FixturesLooksLab inherits Window {
                             if root.preview-active: Button {
                                 text: root.preview-mode == "physical" ? "Blackout & stop" : "Stop simulation";
                                 clicked => { root.preview-stop(); }
+                            }
+                            if root.live-running && !root.preview-active: Button {
+                                text: root.live-look-active ? "Release Live Look" : "Take Look Live";
+                                enabled: root.can-live-look;
+                                clicked => { root.live-look-toggle(); }
                             }
                         }
                     }
