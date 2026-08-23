@@ -1,52 +1,37 @@
-# EmberLights
+# EmberLights / QLC+ SoundSwitch Integration
 
-EmberLights is an independently owned, general-purpose, SoundSwitch-first DJ and event lighting workstation.
+EmberLights is now the working name for a QLC+ show project and a focused SoundSwitch hardware integration. The former standalone EmberLights lighting application is archived; it is reference material only and is not part of the live runtime.
 
-## Product thesis
+The target runtime is deliberately simple:
 
-Build **at least the complete relevant SoundSwitch functional surface with an open controller/hardware model**, then exceed it with safer persistence, migration, portability, and event-aware tools. Joshua's hardware is the first qualification rig, not the product boundary.
+```text
+VirtualDJ -- OS2L --> QLC+
+Control One -- MIDI --> QLC+
+QLC+ -- SoundSwitch Hardware plug-in --> Micro or Control One DMX
+```
 
-The system has two operational modes:
+QLC+ owns fixtures, Scenes, Chasers, beat timing, the Virtual Console, project persistence, and output routing. The custom plug-in is limited to SoundSwitch USB transport, Control One MIDI translation and feedback, reconnect handling, the full-frame Priority Look selector, and the current rig's temporary intensity scaling.
 
-- **Studio** prepares fixtures, venues, Autoloops, song scripts, controller mappings, migrations, and immutable show packages.
-- **Runner** performs a compiled show with a small deterministic engine and no internet, AI, waveform, or library-scanning dependency.
+## Current release candidate
 
-SoundSwitch is the primary product reference. Wolfmix is a secondary source of useful live-control ideas. QLC+ is an optional compatibility bridge and implementation reference, not the product model.
+The latest staged set is V20:
 
-## Binding V1 constraints
+- `releases/qlcplus-control-one/v20/IR4-TUBES-CONTROL-ONE-V20-UIUX-PORTABLE.qxw` — portable QLC+ workspace;
+- `releases/qlcplus-control-one/v20/SoundSwitch-Control-One-Performance.qxi` — QLC+ input profile;
+- `releases/qlcplus-control-one/v20/soundswitch.dll` — matched Windows plug-in binary from the tested DJ-PC build;
+- `qlcplus/plugins/soundswitch/` — current plug-in source and smoke tests.
 
-- Windows-launch-first, offline-first, and exceptionally lean; macOS follows later without blocking Windows delivery.
-- Exactly two exposed DMX universes in V1.
-- VirtualDJ and OS2L first; Serato is the second direct DJ-integration priority; live-audio BPM is automatic fallback, not the normal clock.
-- Same-computer and separate-lighting-computer operation are equal requirements.
-- Device-agnostic MIDI with a bundled SoundSwitch Control One profile.
-- A scalable 64-bank/2,048-loop Autoloop library; four-bank controllers page through it.
-- SoundSwitch migration is a core adoption feature.
-- No AI or dynamic content generation in the live DMX path.
-- No licensing-server dependency.
+`.qxw` is the QLC+ workspace/project extension. `.qxi` is an input profile. The portable workspace has the original Micro USB serial removed, so the desired output must be selected once in QLC+ Input/Output.
 
-## Repository map
+V20 is a release candidate, not a community-ready release. Its XML and reference structure have been audited, and the core V19 behavior was preserved, but the final V20 UI pass still needs physical regression testing.
 
-- [`docs/00_START_HERE.md`](docs/00_START_HERE.md) — authority, status, and reading order.
-- [`docs/01_PRODUCT_REQUIREMENTS.md`](docs/01_PRODUCT_REQUIREMENTS.md) — product and user requirements.
-- [`docs/03_ARCHITECTURE.md`](docs/03_ARCHITECTURE.md) — Studio/Runner design and runtime contracts.
-- [`docs/04_V1_SCOPE_AND_ACCEPTANCE.md`](docs/04_V1_SCOPE_AND_ACCEPTANCE.md) — what V1 is and how it earns gig use.
-- [`docs/08_DECISIONS_AND_OPEN_QUESTIONS.md`](docs/08_DECISIONS_AND_OPEN_QUESTIONS.md) — decision log and questions for Joshua.
-- [`docs/13_SOUNDSWITCH_PARITY_LEDGER.md`](docs/13_SOUNDSWITCH_PARITY_LEDGER.md) — binding feature-parity and evidence checklist.
-- [`docs/14_RUNNER_LAB.md`](docs/14_RUNNER_LAB.md) — safe usage and limitations of the first end-to-end laboratory Runner.
-- [`docs/15_WINDOWS_V1_TESTING.md`](docs/15_WINDOWS_V1_TESTING.md) — installer, setup, safety, and qualification guidance for Windows testing builds.
-- [`docs/16_QLC_FIXTURE_IMPORT.md`](docs/16_QLC_FIXTURE_IMPORT.md) — safe QLC+ QXF fixture import workflow, conversion rules, and current limits.
-- [`docs/17_PRODUCTION_RELEASE_GATE.md`](docs/17_PRODUCTION_RELEASE_GATE.md) — evidence required for gig qualification, public beta, and parity-complete 1.0.
-- [`docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md`](docs/31_LIMITED_BETA_OS2L_AND_INSTALLER_TEST.md) — the owner-plus-three preview test and feedback checklist.
-- [`spec/showpack.schema.json`](spec/showpack.schema.json) — initial portable authoring/show-package schema.
-- [`native-core`](native-core) — dependency-light native reference engine and test harness.
+## Start here
 
-## Current milestone
+- [Current status and next-session plan](docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
+- [V20 release notes](docs/qlcplus-control-one/V20_RELEASE_NOTES.md)
+- [Control One workflow](docs/qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md)
+- [Architecture and discoveries](docs/qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md)
+- [MIDI/logical-channel map](docs/qlcplus-control-one/MAPPING_REFERENCE.md)
+- [Validation and maintenance](docs/qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md)
 
-The current milestone is a coherent installable Windows V1 testing build. The native application now brings project creation, safe QLC+ `.qxf` fixture import, local fixture-profile editing, two-universe patching, reusable fixture groups and roles, Static Looks, a 64-by-32 Autoloop library, MIDI Learn, VirtualDJ/OS2L timing, Art-Net/sACN output, per-universe ENTTEC DMX USB Pro–compatible serial output, independently implemented native SoundSwitch Micro JLS1/WinUSB output pending physical qualification, and a contract-tested Control One two-port JLC1/JLS1 production Runner route with explicit experimental opt-in plus an installed fail-closed booth qualifier. Editable safety policy, live controls, diagnostics, validation, and recovery remain in one desktop shell. The first typed command/state facade now separates Live/safety behavior from the legacy Win32 presentation so later Default, Reference, controller, and user-skin surfaces can share the same actions. Installed builds also include a 128-fixture soak/qualification tool and machine-readable release evidence. The portable core remains independently tested and allocation-free on the DMX scheduling path.
-
-Every push is compiled and tested on Windows and Linux. The Windows packaging job stages a self-contained portable build, creates an Inno Setup installer, installs it, and launches the installed GUI and hardware probe smoke tests. Linux packaging creates an installable Debian package and portable archive, installs the Debian package, runs the installed Runner/qualification/migration/MIDI smoke tests, and removes it cleanly. Tagged commits publish both platforms with checksums and release manifests.
-
-`installer/EmberLights.nsi` is the limited-beta offline packaging fallback when the hosted Windows runner is unavailable; `installer/EmberLights.iss` and the installed-smoke workflow remain the authoritative release path.
-
-Do not use this at a live event until the acceptance gates in `docs/04_V1_SCOPE_AND_ACCEPTANCE.md` are satisfied.
+This is independent community interoperability work and is not an official SoundSwitch, inMusic, or QLC+ release.

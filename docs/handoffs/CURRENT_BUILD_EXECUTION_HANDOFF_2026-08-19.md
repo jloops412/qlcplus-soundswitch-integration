@@ -1,5 +1,7 @@
 # EmberLights Current Build Execution Handoff — 2026-08-19
 
+> **Archived/superseded on 2026-08-23.** The owner retired the standalone EmberLights application and selected QLC+ plus a focused SoundSwitch hardware plug-in as the active architecture. Preserve this document as historical provenance only. Current work starts at [`docs/00_START_HERE.md`](../00_START_HERE.md) and [`docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md`](../qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md).
+
 **Status:** Binding coordination document until issue #87 Gate A lands one accepted implementation anchor on `main`.
 
 **Primary trackers:** #87 (convergence), #90 (current SoundSwitch 2026 source adapter), #89 (OS2L/VirtualDJ reliability), #52/#79 (fixture and physical evidence), #37/#32/#33 (replacement shell and first product slice), #88 (perceptual fade quality).
