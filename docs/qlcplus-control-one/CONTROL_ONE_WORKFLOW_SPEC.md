@@ -36,6 +36,8 @@ Autoplay is independent from manual repeat-one playback.
 
 The current compact gesture uses shifted Bank presses to start a Bank scope and the shared scope control to move between Bank and All. The Virtual Console also exposes clickable Bank, order, dwell, and start controls so the show remains usable without hardware.
 
+V21 completes the essential mouse fallback on the Live page: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
+
 ## Overrides and performance buttons
 
 - Red, Orange, Yellow, Green, Cyan, Blue, Purple, Pink, and Full Color are exclusive color-only latches.
@@ -58,4 +60,5 @@ The current compact gesture uses shifted Bank presses to start a Bank scope and 
 - Stop All remains the emergency global stop.
 - Hardware LEDs should reflect mode, bank, active loop/scope, Priority Look, color override, transport state, and selected intensity layer.
 - Control One MIDI is expected to reconnect without restarting QLC+; QLC+ Function state remains playback authority.
+- On reconnect, transient held-button state is cleared while bank, mode, playback owner, dwell, speed, order, latches, and intensity target are retained and their known LEDs are restored.
 - OLED and custom firmware are deferred.

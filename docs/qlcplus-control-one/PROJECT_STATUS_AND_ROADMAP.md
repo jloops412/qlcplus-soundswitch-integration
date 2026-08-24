@@ -21,14 +21,16 @@ The baseline behavior through V19 was physically exercised and the user confirme
 
 V20 is the same functional base with UI-state additions; it passed structural validation but awaits the owner's next hands-on regression. Both Control One ports operating simultaneously, long hot-plug/soak behavior, and a pinned QLC+ build package remain unqualified.
 
+V21 is staged as a reliability/control candidate, not yet the creative baseline. It adds WinMM stale-handle recovery and LED retry/restore, corrects VirtualDJ to the local QLC+ OS2L endpoint with a lightweight reconnect keepalive, completes the essential mouse controls, and supplies a hash-pinned install/rollback package built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. It still needs the short owner physical pass before replacing V20.
+
 ## Owner-confirmed priority order — 2026-08-23
 
 The current Autoloops feel good enough for this milestone. Do not spend primary engineering time polishing loops or Scenes yet.
 
-1. Make Control One MIDI/LED and VirtualDJ OS2L reconnect automatically and reliably.
-2. Complete the important Control One controls and SoundSwitch-familiar workflow parity.
-3. Make every essential show operation available and understandable from the Virtual Console as a mouse fallback.
-4. Pin the plug-in to an exact QLC+ build and create a repeatable install/rollback package.
+1. Make Control One MIDI/LED and VirtualDJ OS2L reconnect automatically and reliably. **V21 candidate implemented; physical hot-plug pass pending.**
+2. Complete the important Control One controls and SoundSwitch-familiar workflow parity. **Essential current-rig controls implemented; mover/smoke/OLED roles remain deferred.**
+3. Make every essential show operation available and understandable from the Virtual Console as a mouse fallback. **V21 candidate implemented.**
+4. Pin the plug-in to an exact QLC+ build and create a repeatable install/rollback package. **V21 candidate implemented.**
 5. Build purposeful event-ready Priority Looks.
 6. Later, meticulously grade and improve every Autoloop and Scene.
 

@@ -14,6 +14,8 @@
 10. Check Global, Group 1 IR-4, and Group 3 Tubes intensity; reserved groups must not affect fixtures.
 11. Confirm VirtualDJ OS2L BPM and Control One LEDs.
 
+For the V21 candidate, the shortest meaningful physical pass is: launch VirtualDJ before QLC+ and confirm OS2L connects within five seconds; unplug/replug Control One while a manual loop is selected; confirm MIDI returns without restarting QLC+, the known LEDs restore, Play/Pause works, and DMX resumes. Then repeat with QLC+ launched first.
+
 ## Automated structural checks
 
 - Parse workspace and profile XML.
@@ -35,7 +37,9 @@
 
 ## Upgrade rule
 
-The DLL is not a version-independent drop-in. Pin one official QLC+ release or commit, build the plug-in with the same compiler/Qt/runtime set, and keep the executable, QLC plug-ins, Qt DLLs, FFmpeg/runtime DLLs, `.qxi`, and `.qxw` as one rollback bundle.
+The DLL is not a version-independent drop-in. V21 pins QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c` and the installed core executable hash. Keep the executable, QLC plug-ins, Qt DLLs, FFmpeg/runtime DLLs, `.qxi`, and `.qxw` as one rollback bundle.
+
+Use the release installer only while QLC+ is closed. It verifies the core and plug-in hashes, saves the previous DLL with a receipt, and verifies the installed copy. Use the paired rollback script to restore that receipt-backed DLL. For a newer official QLC+ build, install side-by-side and rebuild first; do not force the old DLL into the new core for show use.
 
 Never solve missing-DLL or corrupted-text problems by mixing files from different QLC+ builds. Use a complete, coherent installation.
 

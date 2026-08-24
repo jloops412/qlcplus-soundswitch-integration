@@ -17,7 +17,7 @@ The SoundSwitch plug-in handles only the capabilities QLC+ does not provide for 
 
 No bridge, daemon, EmberLights process, custom lighting engine, or firmware replacement is required during a show.
 
-## Current rig encoded in V20
+## Current rig encoded in V20/V21
 
 - Four Both Lighting IR-4 fixtures, 10-channel mode, DMX addresses 1, 11, 21, and 31.
 - Four Both Lighting BO-TUBE192 fixtures, 40-channel mode, DMX addresses 175, 215, 255, and 295.
@@ -32,5 +32,6 @@ The BO-TUBE192 40-channel mode is eight RGBWY zones and has no master dimmer. Th
 - `STATE_MODEL_AND_ARCHITECTURE.md` — ownership model and hard-won implementation findings.
 - `MAPPING_REFERENCE.md` — stable QLC+ logical channels and Control One roles.
 - `V20_RELEASE_NOTES.md` — exactly what V20 contains.
+- `releases/qlcplus-control-one/v21/README.md` — pinned V21 reconnect/control candidate and rollback package.
 - `VALIDATION_AND_MAINTENANCE.md` — regression, hot-plug, upgrade, and release checks.
 - `PROJECT_STATUS_AND_ROADMAP.md` — verified status, unresolved risks, and prioritized work.

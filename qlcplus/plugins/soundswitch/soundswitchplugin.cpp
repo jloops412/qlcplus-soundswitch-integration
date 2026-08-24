@@ -408,6 +408,7 @@ void SoundSwitchPlugin::midiValueChanged(quint32 channel, uchar value)
             routedValues.append(qMakePair(
                 static_cast<quint32>(511),
                 m_intensityLevels[static_cast<std::size_t>(m_intensityTarget)]));
+            m_midiInput->setIntensityTarget(m_intensityTarget);
         }
 
         if (channel == 511)

@@ -32,6 +32,7 @@ public:
     void closeFeedback();
     bool sendFeedback(quint32 channel, uchar value);
     void applyFeedback(quint32 channel, uchar value);
+    void setIntensityTarget(int target);
     static bool isPresent();
 
 signals:
@@ -47,14 +48,23 @@ private:
     static void CALLBACK midiCallback(HMIDIIN handle, UINT message,
                                       DWORD_PTR instance, DWORD_PTR param1,
                                       DWORD_PTR param2);
+    static void CALLBACK midiOutputCallback(HMIDIOUT handle, UINT message,
+                                            DWORD_PTR instance, DWORD_PTR param1,
+                                            DWORD_PTR param2);
+    void handleInputDisconnected(HMIDIIN handle);
+    void handleOutputDisconnected(HMIDIOUT handle);
     void handleShortMessage(DWORD packedMessage);
     void postValue(quint32 channel, uchar value);
     void postPulse(quint32 channel);
     void postPlaybackState(quint32 channel);
+    void togglePerformanceMode();
+    void toggleOrder();
+    void togglePlayback();
     void dispatchAutoplay(int bank, bool allBanks, bool randomized,
                           bool restoreStaticMode);
     void dispatchManual(int bank, int pad, bool restoreStaticMode);
     void restoreLogicalState();
+    void restoreHardwareFeedback();
 
 private:
     mutable QMutex m_mutex;
@@ -75,6 +85,7 @@ private:
     bool m_transportPaused{false};
     int m_latchedStaticNote{-1};
     int m_latchedOverrideNote{-1};
+    int m_intensityTarget{0};
     QSet<quint8> m_pressedNotes;
     QSet<quint8> m_shiftedPressedNotes;
     QSet<quint8> m_latchedShiftNotes;

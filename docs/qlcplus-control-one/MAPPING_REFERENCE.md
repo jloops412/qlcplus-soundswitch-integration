@@ -32,6 +32,11 @@ The `.qxi` profile is authoritative. This condensed map documents the stable log
 | 600–631 | Priority Look pads 1–32 and LED feedback |
 | 632 | Absolute seek within the active Autoplay parent |
 | 800–803 | V20 clickable bank-bar UI feedback/commands |
+| 804–808 | V20 clickable dwell UI feedback/commands |
+| 809 | V21 mouse Play/Pause command |
+| 810 | V21 mouse Sequential/Random command |
+| 811 | V21 mouse Autoloop/Priority Looks mode command |
+| 812–816 | V21 mouse chase-speed commands: 0.25x through 4x |
 
 Base pad channels are intentionally page-relative. The active bank is carried separately; do not remap later bank pages to 32–127 inside nested frames.
 
@@ -42,3 +47,5 @@ Base pad channels are intentionally page-relative. The active bank is carried se
 - Tilt/Color: cataloged; Tilt and color-encoder workflow remain future work.
 - Movement, Strobe, Hue, Smoke, Back, Link, and position pads: mapped or reserved, but not all have useful Functions for the current fixture set.
 - OLED: unsupported and out of scope.
+
+V21 restores the hardware LEDs for the selected bank, transport, order, mode, color override, intensity target, shifted White/Black/UV latches, and any manual/Priority pad whose owner is known after a MIDI-output reconnect. During native Autoplay, the running QLC+ child Function remains authoritative for the active pad.

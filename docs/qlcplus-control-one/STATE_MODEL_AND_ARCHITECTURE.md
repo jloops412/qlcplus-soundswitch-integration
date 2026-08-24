@@ -63,6 +63,8 @@ The plug-in implements:
 - Control One (`VID 15E4`, `PID 0054`) DMX ports 1 and 2;
 - Control One WinMM MIDI input/output translation and LED feedback;
 - periodic two-second rescan and hot-plug recovery;
+- WinMM handle validation by device ID, close-callback invalidation, and one-shot LED-write reconnect/retry;
+- logical-state/known-LED restoration after a replacement MIDI handle opens;
 - stable advertised output lines within a plug-in instance;
 - newest-frame-wins USB output behavior;
 - private Priority Look frame selection.
@@ -71,4 +73,4 @@ The source currently also contains rig-specific intensity addresses for the four
 
 ## Version boundary
 
-The plug-in source branch began at QLC+ 5.2.2. The current DJ-PC application/profile identifies QLC+ `5.3.0 GIT a124abe`. The DLL works in the present installation, but no ABI promise should be made across arbitrary QLC+/Qt builds. A distributable package must rebuild and qualify the plug-in against the exact supported QLC+ release or pinned commit.
+The plug-in source branch began at QLC+ 5.2.2. V21 is now compiled against the exact current DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`. The release installer also pins the installed `qlcplus5.exe` hash. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.

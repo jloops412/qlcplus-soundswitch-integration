@@ -26,12 +26,15 @@ int main(int argc, char *argv[])
     if (argc != 2 && argc != 3)
     {
         std::cerr << "usage: soundswitch_plugin_smoke_tests <plugin> "
-                     "[--open-check]\n";
+                     "[--open-check|--allow-no-hardware]\n";
         return 2;
     }
     const bool openCheck = argc == 3 &&
         QString::fromLocal8Bit(argv[2]) == QStringLiteral("--open-check");
-    if (argc == 3 && !openCheck)
+    const bool allowNoHardware = argc == 3 &&
+        QString::fromLocal8Bit(argv[2]) ==
+            QStringLiteral("--allow-no-hardware");
+    if (argc == 3 && !openCheck && !allowNoHardware)
     {
         std::cerr << "unknown option\n";
         return 2;
@@ -86,7 +89,7 @@ int main(int argc, char *argv[])
         std::cerr << "priority layer binding is unavailable\n";
         return 6;
     }
-    if (!microValid && !controlOneValid)
+    if (!microValid && !controlOneValid && !allowNoHardware)
     {
         std::cerr << "no supported SoundSwitch hardware was enumerated\n";
         return 7;
@@ -102,6 +105,12 @@ int main(int argc, char *argv[])
     plugin->closeOutput(static_cast<quint32>(priorityIndex), 2U);
 
     std::cout << "Loaded: " << plugin->name().toStdString() << '\n';
+    if (!microValid && !controlOneValid)
+    {
+        std::cout << "PASS: plug-in ABI and virtual priority output; "
+                     "no physical hardware attached\n";
+        return 0;
+    }
     const qsizetype primaryIndex = microValid ? microIndex : controlOneIndex;
     std::cout << "Output: " << names.at(primaryIndex).toStdString() << '\n';
     std::cout << "UID: " << uids.at(primaryIndex).toStdString() << '\n';
