@@ -62,4 +62,4 @@ Use precise labels:
 
 V21 is structurally validated and software-tested against its pinned QLC+ build. The preceding baseline has physical evidence for Micro, each Control One DMX port independently, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. Repeated V21 hot-plug/LED restoration, simultaneous ports, and the combined two-hour workload remain pending.
 
-The old `.github/workflows/native-core.yml` workflow is manual-only and its release job is disabled. Do not re-enable it for QLC+ tags. V21 is validated and published by `.github/workflows/qlcplus-v21.yml`.
+The old `.github/workflows/native-core.yml` workflow is manual-only and its release job is disabled. Do not re-enable it for QLC+ tags. `.github/workflows/qlcplus-v21.yml` records the V21 validation/package publisher but is manual-only because this repository currently fails Actions jobs before runner allocation. V21 was locally validated and published through GitHub's authenticated release API; the workflow can be replayed from the `v21` tag if runners become available.

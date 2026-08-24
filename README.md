@@ -1,7 +1,5 @@
 # EmberLights QLC+ SoundSwitch Integration
 
-[![QLC+ V21 validation](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-v21.yml/badge.svg)](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-v21.yml)
-
 Use SoundSwitch Micro and Control One hardware directly from QLC+, with a SoundSwitch-familiar Control One workflow, VirtualDJ OS2L beat timing, four Autoloop banks, full-frame Priority Looks, parameter overrides, group intensity, LED feedback, and a complete mouse fallback.
 
 At show time there is one lighting application: **QLC+**. The former standalone EmberLights application is archived and is not part of this runtime.

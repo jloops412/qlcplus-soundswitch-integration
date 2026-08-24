@@ -21,7 +21,7 @@ The baseline behavior through V19 was physically exercised and the user confirme
 
 V20 is the protected creative rollback baseline. Its Functions are preserved exactly inside V21.
 
-V21 is the published reliability/control release. It adds WinMM stale-handle recovery and LED retry/restore, corrects VirtualDJ to the local QLC+ OS2L endpoint with a lightweight reconnect keepalive, completes the essential mouse controls, and supplies a self-testing, hash-pinned install/rollback package built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. V21 is structurally validated and software-tested but still needs the short owner physical pass before replacing V20 on a production show.
+V21 is the published reliability/control release. It adds WinMM stale-handle recovery and LED retry/restore, corrects VirtualDJ to the local QLC+ OS2L endpoint with a lightweight reconnect keepalive, completes the essential mouse controls, and supplies a self-testing, hash-pinned install/rollback package built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. V21 is structurally validated and software-tested but still needs the short owner physical pass before replacing V20 on a production show. GitHub Actions did not allocate a runner during publication, so the exact package validator was run locally and the release archive was published through GitHub's authenticated API; the workflow remains manual-only for future replay.
 
 ## Owner-confirmed priority order — 2026-08-23
 
