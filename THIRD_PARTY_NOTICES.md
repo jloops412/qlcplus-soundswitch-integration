@@ -1,25 +1,45 @@
-# Third-Party Notices and Protocol Attributions
+# Third-Party Notices and Distribution Boundary
 
-This project has not selected its final distribution license. Do not distribute a product build until the dependency/license inventory is completed.
-
-## Art-Net
-
-This reference implementation emits Art-Net packets from the public Art-Net 4 specification.
-
-Required product documentation credit under the current official terms:
-
-> Art-Net™ Designed by and Copyright Artistic Licence Engineering Ltd.
-
-A distributing product also requires an OEM Code from Artistic Licence. See [the official Art-Net site](https://art-net.org.uk/).
-
-## Open Fixture Library
-
-Open Fixture Library is the preferred upstream fixture source and is MIT licensed. No OFL fixture dataset is bundled in this checkpoint. Studio recognizes QXF files produced by OFL's QLC+ export plugin and retains OFL provenance in the converted native profile. Preserve per-fixture source metadata and required notices when a fixture corpus is added.
+The supported distributable in this repository is the QLC+ SoundSwitch V21 package under `releases/qlcplus-control-one/v21/`. Historical standalone EmberLights code and installers remain archived development provenance and are not part of the V21 runtime or release.
 
 ## QLC+
 
-QLC+ is Apache 2.0 licensed. This checkpoint does not copy or link QLC+ or Qt source. It includes an independently implemented, Studio-only compatibility adapter for the documented QLC+ Fixture Definition (`.qxf`) XML contract and an optional standards-based Art-Net bridge to a separately installed QLC+ application. QLC+ remains neither a runtime dependency nor the EmberLights show model. If QLC+ code is later copied or adapted, preserve its license, copyright/attribution notices, NOTICE content if present, and prominent modified-file notices.
+QLC+ is licensed under Apache License 2.0. The V21 `soundswitch.dll` is built as a QLC+ I/O plugin against exact QLC+ source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c` and compiles the QLC+ plugin-interface implementation used by the matched core.
 
-## SoundSwitch
+The V21 package includes a complete copy of Apache License 2.0 as `LICENSE-APACHE-2.0.txt`. The custom SoundSwitch plugin source files also carry Apache 2.0 notices. No QLC+ executable, Qt runtime, fixture library, or full QLC+ source tree is distributed in the V21 archive; the user supplies the separately installed, exactly matched QLC+ core.
 
-SoundSwitch is a product/workflow reference only. No SoundSwitch source, assets, fixture database, or trade dress are included. Future migration research must use user-owned exported/copied artifacts and preserve originals.
+QLC+ project: <https://www.qlcplus.org/>
+
+QLC+ source: <https://github.com/mcallegari/qlcplus>
+
+## Qt and Windows libraries
+
+The plugin dynamically uses the Qt runtime and Windows system libraries supplied by the compatible QLC+ installation and Windows. Those runtimes are not bundled in the V21 archive. The compatibility tuple in the V21 README records the headers and installed runtime against which this binary was qualified.
+
+Qt licensing information: <https://www.qt.io/licensing/>
+
+## SoundSwitch and inMusic
+
+SoundSwitch, Control One, and related product names are used only to identify compatible user-owned hardware and the performer workflow being recreated. This project contains no SoundSwitch application source, firmware, fixture database, branding assets, or proprietary project content.
+
+The hardware protocol implementation is independent interoperability work informed by testing against user-owned devices and prior project findings. This project is not affiliated with or endorsed by SoundSwitch or inMusic.
+
+## Both Lighting fixtures
+
+Both Lighting product names identify the fixtures patched in the example workspace. The project does not distribute the manufacturer’s manuals or branding assets. Fixture modes and addresses are represented only as user-created QLC+ project/fixture metadata required to operate the user-owned rig.
+
+## Open Fixture Library
+
+Open Fixture Library is a preferred upstream source for portable fixture definitions and is MIT licensed. No bulk OFL dataset is included in V21. Preserve source metadata and required notices if OFL definitions are added later.
+
+Open Fixture Library: <https://open-fixture-library.org/>
+
+## Art-Net
+
+The V21 QLC+ SoundSwitch package does not require or bundle the retired standalone project’s Art-Net implementation. Historical source may still reference Art-Net and is outside the V21 release boundary.
+
+Art-Net™ is designed by and copyright Artistic Licence Engineering Ltd. See <https://art-net.org.uk/> for its current specification and attribution terms.
+
+## Project licensing scope
+
+The V21 plugin source and binary are distributed under Apache License 2.0 as stated in their source headers and packaged license. Do not infer that every historical file elsewhere in this repository has been relicensed; archived components retain their own file-level notices and dependency obligations.

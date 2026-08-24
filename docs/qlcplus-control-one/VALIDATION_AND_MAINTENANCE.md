@@ -14,9 +14,18 @@
 10. Check Global, Group 1 IR-4, and Group 3 Tubes intensity; reserved groups must not affect fixtures.
 11. Confirm VirtualDJ OS2L BPM and Control One LEDs.
 
-For the V21 candidate, the shortest meaningful physical pass is: launch VirtualDJ before QLC+ and confirm OS2L connects within five seconds; unplug/replug Control One while a manual loop is selected; confirm MIDI returns without restarting QLC+, the known LEDs restore, Play/Pause works, and DMX resumes. Then repeat with QLC+ launched first.
+For the published V21 release, the shortest meaningful physical pass is: launch VirtualDJ before QLC+ and confirm OS2L connects within five seconds; unplug/replug Control One while a manual loop is selected; confirm MIDI returns without restarting QLC+, the known LEDs restore, Play/Pause works, and DMX resumes. Then repeat with QLC+ launched first.
 
 ## Automated structural checks
+
+Run the same check used by GitHub Actions from the repository root:
+
+```powershell
+releases/qlcplus-control-one/v21/Test-V21Package.ps1 `
+  -BaselineWorkspace releases/qlcplus-control-one/v20/IR4-TUBES-CONTROL-ONE-V20-UIUX-PORTABLE.qxw
+```
+
+The packaged script is also safe to run without `-BaselineWorkspace` after downloading the standalone release archive.
 
 - Parse workspace and profile XML.
 - Require unique Function IDs and actual Virtual Console widget IDs.

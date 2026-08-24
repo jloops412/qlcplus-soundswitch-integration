@@ -33,7 +33,7 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 
 ## Workspace rules
 
-- The current release candidate is `releases/qlcplus-control-one/v20/IR4-TUBES-CONTROL-ONE-V20-UIUX-PORTABLE.qxw`.
+- The current published release is `releases/qlcplus-control-one/v21/IR4-TUBES-CONTROL-ONE-V21-RELIABILITY.qxw`. V20 remains the protected creative rollback baseline.
 - Preserve public Function IDs and logical channels used by Control One, OS2L, and the Virtual Console.
 - Resolve Scene fixture IDs from the workspace; do not infer them from names or addresses.
 - Back up before edits. Validate XML, fixture patch/modes, Function references, and ID uniqueness afterward.
@@ -47,7 +47,8 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 - Keep custom code limited to SoundSwitch USB transport, Control One MIDI translation/feedback, reconnect, and behavior QLC+ cannot cleanly express.
 - Do not add a bridge, daemon, second runtime application, firmware replacement, or new lighting engine.
 - Treat the current DLL as build-matched, not ABI-stable across QLC+/Qt versions.
-- Before a distributable release, rebuild against one exact QLC+ release/commit and qualify Micro, Control One DMX 1/2, simultaneous MIDI/feedback, hot-plug, and combined DJ workload.
+- V21 is built against exact QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. Preserve and update the complete compatibility tuple, package hashes, installer receipt, rollback path, and `Test-V21Package.ps1` for later releases.
+- Before calling a release gig-qualified, qualify Micro, Control One DMX 1/2 together, simultaneous MIDI/feedback, repeated hot-plug, and the combined DJ workload.
 - Move the current hard-coded rig intensity ranges into workspace/configuration before calling the plug-in general-purpose.
 
 ## Claim boundaries
@@ -59,4 +60,6 @@ Use precise labels:
 - **Physical-output-tested:** the named device/port/fixture visibly responded.
 - **Gig-qualified:** soak, fault recovery, audio/OS2L/MIDI/DMX, and operator workflow passed.
 
-V20 is structurally validated. The preceding baseline has physical evidence for Micro, Control One DMX 1, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. DMX 2, simultaneous ports, long hot-plug/soak, and V20 UI regression remain pending.
+V21 is structurally validated and software-tested against its pinned QLC+ build. The preceding baseline has physical evidence for Micro, each Control One DMX port independently, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. Repeated V21 hot-plug/LED restoration, simultaneous ports, and the combined two-hour workload remain pending.
+
+The old `.github/workflows/native-core.yml` workflow is manual-only and its release job is disabled. Do not re-enable it for QLC+ tags. V21 is validated and published by `.github/workflows/qlcplus-v21.yml`.

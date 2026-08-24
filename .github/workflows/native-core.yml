@@ -1,8 +1,6 @@
-name: Native core
+name: Archived standalone EmberLights (manual only)
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -288,8 +286,8 @@ jobs:
           path: release-artifacts-linux/*
 
   release:
-    name: Publish tagged release
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    name: Archived release path (disabled)
+    if: ${{ false }}
     needs: [package-windows, package-linux]
     runs-on: ubuntu-latest
     permissions:

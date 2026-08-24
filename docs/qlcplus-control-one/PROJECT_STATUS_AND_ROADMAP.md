@@ -19,18 +19,18 @@ The original question was whether to keep building EmberLights, run a separate b
 
 The baseline behavior through V19 was physically exercised and the user confirmed the key workflow: all four pad banks, override colors, page switching, Priority Look takeover/release, and underlying Autoloop continuation. Micro DMX plus Control One DMX 1 and DMX 2 have each produced live fixture output. OS2L and the Control One surface have worked.
 
-V20 is the same functional base with UI-state additions; it passed structural validation but awaits the owner's next hands-on regression. Both Control One ports operating simultaneously, long hot-plug/soak behavior, and a pinned QLC+ build package remain unqualified.
+V20 is the protected creative rollback baseline. Its Functions are preserved exactly inside V21.
 
-V21 is staged as a reliability/control candidate, not yet the creative baseline. It adds WinMM stale-handle recovery and LED retry/restore, corrects VirtualDJ to the local QLC+ OS2L endpoint with a lightweight reconnect keepalive, completes the essential mouse controls, and supplies a hash-pinned install/rollback package built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. It still needs the short owner physical pass before replacing V20.
+V21 is the published reliability/control release. It adds WinMM stale-handle recovery and LED retry/restore, corrects VirtualDJ to the local QLC+ OS2L endpoint with a lightweight reconnect keepalive, completes the essential mouse controls, and supplies a self-testing, hash-pinned install/rollback package built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. V21 is structurally validated and software-tested but still needs the short owner physical pass before replacing V20 on a production show.
 
 ## Owner-confirmed priority order — 2026-08-23
 
 The current Autoloops feel good enough for this milestone. Do not spend primary engineering time polishing loops or Scenes yet.
 
-1. Make Control One MIDI/LED and VirtualDJ OS2L reconnect automatically and reliably. **V21 candidate implemented; physical hot-plug pass pending.**
+1. Make Control One MIDI/LED and VirtualDJ OS2L reconnect automatically and reliably. **Published in V21; physical hot-plug pass pending.**
 2. Complete the important Control One controls and SoundSwitch-familiar workflow parity. **Essential current-rig controls implemented; mover/smoke/OLED roles remain deferred.**
-3. Make every essential show operation available and understandable from the Virtual Console as a mouse fallback. **V21 candidate implemented.**
-4. Pin the plug-in to an exact QLC+ build and create a repeatable install/rollback package. **V21 candidate implemented.**
+3. Make every essential show operation available and understandable from the Virtual Console as a mouse fallback. **Published in V21.**
+4. Pin the plug-in to an exact QLC+ build and create a repeatable install/rollback package. **Published in V21 with self-test and automated release validation.**
 5. Build purposeful event-ready Priority Looks.
 6. Later, meticulously grade and improve every Autoloop and Scene.
 
@@ -38,7 +38,7 @@ The current Autoloops feel good enough for this milestone. Do not spend primary 
 
 Keep this short and physical. Do not redesign anything until these pass.
 
-1. Load V20 and reselect the desired Micro or Control One output if using the portable file.
+1. Keep V20 untouched, install V21 into the pinned side-by-side QLC+ directory, and open the V21 workspace. Reselect the desired Micro or Control One output if needed.
 2. Confirm the clickable Bank bar, 4×8 pad layout, active-loop highlight, now-playing status, and 1/2/4/8/16 dwell controls.
 3. Run one manual pad in each bank; same-pad off and cross-pad replacement.
 4. Run Auto Bank and Auto All, sequential and random; seek with a pad and change dwell while running.
@@ -46,16 +46,16 @@ Keep this short and physical. Do not redesign anything until these pass.
 6. Confirm color overrides plus Global, Group 1, and Group 3 intensity.
 7. Unplug/replug Control One once while QLC+ stays open and confirm MIDI/LED recovery.
 
-If all seven pass, mark V20 as the known-good creative baseline before changing loops or Looks.
+If all seven pass, promote V21 to the production baseline while retaining V20 and the installer-created plug-in backup for rollback.
 
 ## Required engineering before community release
 
-1. Rebuild the plug-in against one exact supported QLC+ release or pinned commit; publish the full compatibility tuple.
+1. ~~Rebuild the plug-in against one exact supported QLC+ release or pinned commit; publish the full compatibility tuple.~~ **Completed in V21.**
 2. Qualify both Control One DMX ports simultaneously with MIDI/feedback active. Each port already works independently.
 3. Complete the two-hour combined DJ workload soak and repeated hot-plug tests.
 4. Move hard-coded IR-4/tube intensity addresses out of the reusable plug-in into workspace/configuration.
-5. Add deterministic automated workspace checks and plug-in CI/smoke builds.
-6. Create a clean install/rollback package and a short first-plug guide for another DJ.
+5. Deterministic package/workspace validation and local plug-in protocol/ABI smoke tests are present. Add a reproducible public plugin build job when the exact QLC+/Qt dependency acquisition is stable.
+6. ~~Create a clean install/rollback package and a short first-plug guide for another DJ.~~ **Completed in V21.**
 7. Decide whether to maintain a minimal QLC+ fork or prepare an upstreamable plug-in contribution.
 
 ## Creative work after V20 is frozen
