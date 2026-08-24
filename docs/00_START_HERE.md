@@ -17,4 +17,17 @@ For the current system, use these documents in order:
 
 The V23 alpha-candidate workspace, profile, plug-in, installer, rollback, package test, and hashes are under `releases/qlcplus-control-one/v23/`. V22 remains the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline. Plug-in source is under `qlcplus/plugins/soundswitch/`; deterministic workspace tools are under `qlcplus/workspace-tools/`.
 
+## Dedicated booth-node deployment
+
+The ReadyNet private booth LAN, separate Windows QLC+ host, headless browser operation, network OS2L, recording architecture, and recovery gates are documented separately so they do not change the QLC+ control architecture:
+
+1. [Booth node start here](booth-node/00_START_HERE.md)
+2. [Windows deployment runbook](booth-node/01_WINDOWS_DEPLOYMENT_RUNBOOK.md)
+3. [Network, headless control, and OS2L](booth-node/02_NETWORK_HEADLESS_AND_OS2L.md)
+4. [Highest-quality event recording](booth-node/03_EVENT_RECORDING_ARCHITECTURE.md)
+5. [Validation, recovery, and rollback](booth-node/04_VALIDATION_RECOVERY_AND_ROLLBACK.md)
+6. [Backlog and decisions](booth-node/05_BACKLOG_AND_DECISIONS.md)
+
+The booth node is a deployment wrapper around the pinned V23 system. It does not revive EmberLights, add a bridge daemon, or introduce another show-time lighting application.
+
 Historical handoffs under `docs/handoffs/` explain how the native QLC+ direction was chosen. They are retained for provenance, but this page and the V23 documents are authoritative when they differ.
