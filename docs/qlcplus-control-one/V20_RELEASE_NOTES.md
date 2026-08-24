@@ -38,7 +38,7 @@ No creative Autoloop, manual Collection, Autoplay parent, Priority Look, fixture
 Verified during the preceding V19/control-layer work:
 
 - SoundSwitch Micro DMX output;
-- Control One DMX 1 output;
+- Control One DMX 1 and DMX 2 output, each physically verified independently;
 - Control One MIDI input and page/bank/pad workflow;
 - Control One LED feedback;
 - manual Autoloop latch and same-pad off across all four banks;
@@ -52,7 +52,7 @@ Verified during the preceding V19/control-layer work:
 Still pending before V20 can be called gig-qualified:
 
 - physical V20 UI regression test;
-- Control One DMX 2 and both DMX ports simultaneously;
+- both Control One DMX ports simultaneously;
 - sustained unplug/replug testing;
 - a two-hour combined VirtualDJ/audio/OS2L/MIDI/DMX soak;
 - rebuild against one exact supported QLC+ release/commit.

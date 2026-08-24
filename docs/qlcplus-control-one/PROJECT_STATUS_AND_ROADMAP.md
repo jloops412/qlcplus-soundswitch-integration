@@ -17,9 +17,20 @@ The original question was whether to keep building EmberLights, run a separate b
 
 ## Current confidence
 
-The baseline behavior through V19 was physically exercised and the user confirmed the key workflow: all four pad banks, override colors, page switching, Priority Look takeover/release, and underlying Autoloop continuation. Micro DMX and Control One DMX 1 have produced live fixture output. OS2L and the Control One surface have worked.
+The baseline behavior through V19 was physically exercised and the user confirmed the key workflow: all four pad banks, override colors, page switching, Priority Look takeover/release, and underlying Autoloop continuation. Micro DMX plus Control One DMX 1 and DMX 2 have each produced live fixture output. OS2L and the Control One surface have worked.
 
-V20 is the same functional base with UI-state additions; it passed structural validation but awaits the next hands-on regression. Control One DMX 2, both ports together, long hot-plug/soak behavior, and a pinned QLC+ build package remain unqualified.
+V20 is the same functional base with UI-state additions; it passed structural validation but awaits the owner's next hands-on regression. Both Control One ports operating simultaneously, long hot-plug/soak behavior, and a pinned QLC+ build package remain unqualified.
+
+## Owner-confirmed priority order — 2026-08-23
+
+The current Autoloops feel good enough for this milestone. Do not spend primary engineering time polishing loops or Scenes yet.
+
+1. Make Control One MIDI/LED and VirtualDJ OS2L reconnect automatically and reliably.
+2. Complete the important Control One controls and SoundSwitch-familiar workflow parity.
+3. Make every essential show operation available and understandable from the Virtual Console as a mouse fallback.
+4. Pin the plug-in to an exact QLC+ build and create a repeatable install/rollback package.
+5. Build purposeful event-ready Priority Looks.
+6. Later, meticulously grade and improve every Autoloop and Scene.
 
 ## Next session: do these first
 
@@ -38,7 +49,7 @@ If all seven pass, mark V20 as the known-good creative baseline before changing 
 ## Required engineering before community release
 
 1. Rebuild the plug-in against one exact supported QLC+ release or pinned commit; publish the full compatibility tuple.
-2. Qualify Control One DMX 2 and both DMX ports with MIDI/feedback active.
+2. Qualify both Control One DMX ports simultaneously with MIDI/feedback active. Each port already works independently.
 3. Complete the two-hour combined DJ workload soak and repeated hot-plug tests.
 4. Move hard-coded IR-4/tube intensity addresses out of the reusable plug-in into workspace/configuration.
 5. Add deterministic automated workspace checks and plug-in CI/smoke builds.
