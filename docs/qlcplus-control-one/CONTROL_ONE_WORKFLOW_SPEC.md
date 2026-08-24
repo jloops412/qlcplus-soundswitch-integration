@@ -36,7 +36,9 @@ Autoplay is independent from manual repeat-one playback.
 
 The current compact gesture uses shifted Bank presses to start a Bank scope and the shared scope control to move between Bank and All. The Virtual Console also exposes clickable Bank, order, dwell, and start controls so the show remains usable without hardware.
 
-V21 completes the essential mouse fallback on the Live page: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
+The Live page provides the essential mouse fallback: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
+
+V22 adds a read-only active-loop outline beneath the 4×8 pad grid. Because every outline button observes the raw Chaser instead of starting an owner, it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. The outline advances as the active Chaser changes; the native Now Playing strip remains the authoritative name/bank readout.
 
 ## Overrides and performance buttons
 

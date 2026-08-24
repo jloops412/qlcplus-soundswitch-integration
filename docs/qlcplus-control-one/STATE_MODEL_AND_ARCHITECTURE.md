@@ -31,6 +31,8 @@ Autoplay parents are long-running native QLC+ Chasers. Five shared native SpeedD
 
 During Autoplay, a pad emits an absolute seek value on logical channel 632. That moves the active 32-step or 128-step parent to the requested loop while preserving the parent owner and its dwell/order state.
 
+V22 displays the active loop through a separate disabled monitor frame behind the real pad surface. The frame contains one read-only Button for every raw Chaser, has no external Inputs, and is outside the owner SoloFrame. QLC+ therefore applies its native Monitoring state to the outline whether the raw Chaser was started manually or by an Autoplay parent, without introducing another playback owner or recreating the one-second flash failure.
+
 ## Failure modes discovered
 
 ### Hidden handoff Scene caused the one-second flash
@@ -73,4 +75,4 @@ The source currently also contains rig-specific intensity addresses for the four
 
 ## Version boundary
 
-The plug-in source branch began at QLC+ 5.2.2. V21 is now compiled against the exact current DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`. The release installer also pins the installed `qlcplus5.exe` hash. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.
+The plug-in source branch began at QLC+ 5.2.2. The V21 binary was compiled against the exact current DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`; V22 reuses that binary unchanged. The installer also pins the installed `qlcplus5.exe` hash. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.

@@ -7,35 +7,37 @@
 3. Click every Bank and confirm the 4×8 pad grid changes while pad inputs remain 0–31.
 4. Latch one manual loop in every bank; confirm Note Off does not stop it, same-pad stops it, and another pad replaces it.
 5. Start Auto Bank and Auto All in sequential and random modes.
-6. While Autoplay runs, change dwell through 1/2/4/8/16 and seek with several pads. The parent must remain running.
+6. While Autoplay runs, confirm the active-loop outline advances, change dwell through 1/2/4/8/16, and seek with several pads. The parent must remain running and the outline must follow the new raw Chaser.
 7. Change chase speed separately through 0.25x–4x.
 8. Apply and release a still and moving Priority Look. It must be sole authority while the underlying loop continues.
 9. Apply every color override and confirm non-color behavior continues.
 10. Check Global, Group 1 IR-4, and Group 3 Tubes intensity; reserved groups must not affect fixtures.
 11. Confirm VirtualDJ OS2L BPM and Control One LEDs.
 
-For the published V21 release, the shortest meaningful physical pass is: launch VirtualDJ before QLC+ and confirm OS2L connects within five seconds; unplug/replug Control One while a manual loop is selected; confirm MIDI returns without restarting QLC+, the known LEDs restore, Play/Pause works, and DMX resumes. Then repeat with QLC+ launched first.
+For V22, first confirm one manual pad per bank, advancing Auto Bank/Auto All outlines, live dwell changes, one still and one moving Priority Look, color overrides, Global/IR-4/tube intensity, and the selected DMX output. Then launch VirtualDJ before QLC+ and confirm OS2L connects within five seconds; unplug/replug Control One while a manual loop is selected; confirm MIDI returns without restarting QLC+, the known LEDs restore, Play/Pause works, and DMX resumes. Repeat once with QLC+ launched first.
 
 ## Automated structural checks
 
-Run the same check used by GitHub Actions from the repository root:
+Run the V22 local release check from the repository root. V22 is intentionally published without GitHub Actions:
 
 ```powershell
-releases/qlcplus-control-one/v21/Test-V21Package.ps1 `
-  -BaselineWorkspace releases/qlcplus-control-one/v20/IR4-TUBES-CONTROL-ONE-V20-UIUX-PORTABLE.qxw
+releases/qlcplus-control-one/v22/Test-V22Package.ps1 `
+  -HostWorkspace releases/qlcplus-control-one/v21/IR4-TUBES-CONTROL-ONE-V21-RELIABILITY.qxw
 ```
 
-The packaged script is also safe to run without `-BaselineWorkspace` after downloading the standalone release archive.
+The packaged script is also safe to run without `-HostWorkspace` after downloading the standalone release archive.
 
 - Parse workspace and profile XML.
 - Require unique Function IDs and actual Virtual Console widget IDs.
 - Resolve all Chaser/Collection Function references and all Scene fixture IDs.
-- Require exactly 128 raw Autoloops, 128 manual owner Collections, and ten Autoplay owners.
+- Require exactly 128 raw Autoloops, 128 manual owner Collections, ten Autoplay controls, and ten Autoplay parents.
+- Require the exact 22 Variety Pro roots, their 176 imported Scene steps, and no unintended changes to existing V21 Functions.
+- Require the disabled active-loop monitor to cover all 128 raw Chasers exactly once, remain outside the owner SoloFrame, and own no external Input.
 - Require the four physical IR-4 fixtures at addresses 1/11/21/31 in 10-channel mode.
 - Require the four physical BO-TUBE192 fixtures at 175/215/255/295 in 40-channel mode.
 - Require matching private Priority Layer duplicates on Universe 3.
 - Reject personal paths, usernames, hardware serials, tokens, or secrets from published artifacts.
-- Compare creative Function signatures before and after control/UI-only changes.
+- Preserve the V21 fixture/I/O/Priority Look XML and compare the complete existing Function set against the allowed V22 creative delta.
 
 ## Hardware qualification
 
@@ -46,7 +48,7 @@ The packaged script is also safe to run without `-BaselineWorkspace` after downl
 
 ## Upgrade rule
 
-The DLL is not a version-independent drop-in. V21 pins QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c` and the installed core executable hash. Keep the executable, QLC plug-ins, Qt DLLs, FFmpeg/runtime DLLs, `.qxi`, and `.qxw` as one rollback bundle.
+The DLL is not a version-independent drop-in. V22 reuses the V21 binary pinned to QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c` and the installed core executable hash. Keep the executable, QLC plug-ins, Qt DLLs, FFmpeg/runtime DLLs, `.qxi`, and `.qxw` as one rollback bundle.
 
 Use the release installer only while QLC+ is closed. It verifies the core and plug-in hashes, saves the previous DLL with a receipt, and verifies the installed copy. Use the paired rollback script to restore that receipt-backed DLL. For a newer official QLC+ build, install side-by-side and rebuild first; do not force the old DLL into the new core for show use.
 
