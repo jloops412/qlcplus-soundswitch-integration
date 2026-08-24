@@ -21,7 +21,7 @@ QLC+ -- SoundSwitch Hardware plug-in --> Micro or Control One DMX
 3. `docs/qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md`
 4. `docs/qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md`
 5. `docs/qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md`
-6. For ReadyNet, separate-computer, headless, network OS2L, or recording work: `docs/booth-node/00_START_HERE.md` and the ordered documents it links.
+6. For ReadyNet, separate-computer, headless, network OS2L, recording, or Booth hardware work: `docs/booth-node/00_START_HERE.md`, `07_OWNER_SYSTEM_GUIDE.md`, and the ordered documents they link.
 
 Historical handoffs and issues remain useful provenance, but these current QLC+ documents supersede their standalone-app sequencing whenever they differ.
 
@@ -54,27 +54,54 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 
 ## Booth-node deployment rules
 
-The ReadyNet/private-LAN and separate Windows booth-node work is a deployment layer around V23, not a change in lighting ownership.
+The ReadyNet/private-LAN and separate Windows Booth Node work is a deployment layer around V23, not a change in lighting ownership.
 
-- The DJ laptop and booth node use wired Ethernet for show control.
-- The booth node runs QLC+; Control One and the selected SoundSwitch DMX hardware connect directly to it.
-- Normal operation is headless and uses QLC+'s authenticated built-in web interface from the DJ laptop.
+- The DJ laptop and Booth Node use wired Ethernet for show control.
+- The Booth Node runs QLC+; Control One and the selected SoundSwitch DMX hardware connect directly to it.
+- Normal operation is headless and uses QLC+ authenticated built-in web interface from the DJ laptop.
 - Keep the show LAN routed/NAT, stable, private, and independent of venue DHCP or Internet availability. Reject a repeater/bridge mode that renumbers local devices.
 - Never expose QLC+ web control to WAN/LTE or place guests on the show segment.
-- Prepared scripts under `tools/booth-node/` are one-shot startup, preflight, and verified-copy helpers. Do not turn them into a second runtime controller or watchdog without explicit owner approval.
-- The primary event recording writes to the DJ laptop's local SSD through the REV7 record return; a completed file may be copied to the booth node only after SHA-256 verification. Do not make the only recording depend on SMB or live network audio.
-- Keep real-time feedback-suppression DSP on a separate dedicated audio node during beta work. QLC+ must not depend on it.
-- Preserve the DJ-laptop QLC+ setup as a rehearsed rollback until the booth node passes all documented headless, fault-recovery, combined-soak, and pilot gates.
-- Do not call the booth system gig-qualified before `docs/booth-node/04_VALIDATION_RECOVERY_AND_ROLLBACK.md` passes for the exact hardware topology.
+- Prepared scripts under `tools/booth-node/` are one-shot inventory, startup, preflight, and verified-copy helpers. Do not turn them into a second runtime controller or watchdog without explicit owner approval.
+- The primary event recording writes to the DJ laptop local SSD through the REV7 record return; a completed file may be copied to the Booth Node only after SHA-256 verification. Do not make the only recording depend on SMB or live network audio.
+- Preserve the DJ-laptop QLC+ setup as a rehearsed rollback until the Booth Node passes all documented headless, fault-recovery, combined-soak, and pilot gates.
+- Do not call the Booth system gig-qualified before `docs/booth-node/04_VALIDATION_RECOVERY_AND_ROLLBACK.md` passes for the exact hardware topology.
+
+## Booth scope boundary
+
+The Booth project includes only the dedicated lighting appliance, private ReadyNet show LAN, wired OS2L/browser control, Control One/Micro integration, recording/verified-copy workflow, recovery, later simple emergency playback, and minimal Booth health evidence.
+
+Do not add, stage, document as Booth backlog, or make the Booth Node depend on:
+
+- Twenty, CRM, Portal, or business-management infrastructure;
+- event cache/synchronization or client-data authority;
+- surveys, quizzes, forms, requests, or guest-facing application flows;
+- Guestbook Hotline, telephony, voice-request processing, EmberShare, guest Wi-Fi, or captive portals;
+- staff chat/PTT/voice systems;
+- feedback-suppression DSP;
+- cross-system orchestration;
+- general-purpose containers, databases, or service hosting.
+
+If the owner reopens one of those ideas, route it to its own project/plan/hardware decision. Do not let it enter this repository branch through “future idea” documentation.
+
+## Evidence and continuity rules
+
+- Run `tools/booth-node/Get-LLEBoothInventory.ps1` before physical-machine changes and at documented checkpoints.
+- Generated machine inventories, router exports, label photographs, MAC addresses, device identifiers, credentials, client recordings, and qualification folders remain private; never commit them.
+- Update the relevant runbook, `05_BACKLOG_AND_DECISIONS.md`, validation gates, compatibility tuple/hashes, PR description/status, and rollback record in the same change whenever behavior or scope changes.
+- A future agent must distinguish repository evidence from physical evidence and must not infer hardware success from scripts or documentation.
+- Keep PR #100 draft until the exact machine/topology passes the documented gates.
 
 ## Claim boundaries
 
 Use precise labels:
 
+- **Configured:** settings/files are present.
 - **Structurally validated:** XML/references/IDs pass automated checks.
 - **Software-tested:** deterministic plug-in/workspace tests passed.
 - **Physical-output-tested:** the named device/port/fixture visibly responded.
-- **Gig-qualified:** soak, fault recovery, audio/OS2L/MIDI/DMX, and operator workflow passed.
+- **Headless-qualified:** cold/warm boot and normal browser operation passed without a Booth display.
+- **Combined-soak-qualified:** the exact intended DJ/network/USB/DMX workload passed the defined duration.
+- **Gig-qualified:** soak, fault recovery, audio/OS2L/MIDI/DMX, operator workflow, controlled pilot, and rehearsed rollback passed.
 
 V23 is structurally validated and inherits the software-tested V21/V22 runtime against its pinned QLC+ build. The preceding baseline has physical evidence for Micro, each Control One DMX port independently, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. The corrected live rails, persistent mode switch, and refreshed console need the short owner observation. Repeated hot-plug/LED restoration, simultaneous ports, and the combined two-hour workload remain pending.
 

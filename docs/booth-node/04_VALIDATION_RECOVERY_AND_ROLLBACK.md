@@ -24,7 +24,7 @@ C:\LLE\Qualification\YYYY-MM-DD-booth-node
 
 Store:
 
-- inventory capture;
+- timestamped Booth/DJ inventory captures plus completed manual observations;
 - Windows/driver versions;
 - ReadyNet model/firmware and private config backup location;
 - QLC+ core/workspace/plug-in hashes;
@@ -43,7 +43,8 @@ Do not commit credentials, SIM details, IMEI, serial numbers, client recordings,
 
 Required:
 
-- [ ] booth computer inventory captured;
+- [ ] Booth Node and DJ-laptop rollback inventories captured with `Get-LLEBoothInventory.ps1`;
+- [ ] exact ReadyNet label model/hardware revision/firmware recorded privately;
 - [ ] storage health/free space acceptable;
 - [ ] Windows update is not pending a forced restart;
 - [ ] wired Ethernet adapter is identified;

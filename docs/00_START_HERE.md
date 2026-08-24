@@ -27,6 +27,8 @@ The ReadyNet private booth LAN, separate Windows QLC+ host, headless browser ope
 4. [Highest-quality event recording](booth-node/03_EVENT_RECORDING_ARCHITECTURE.md)
 5. [Validation, recovery, and rollback](booth-node/04_VALIDATION_RECOVERY_AND_ROLLBACK.md)
 6. [Backlog and decisions](booth-node/05_BACKLOG_AND_DECISIONS.md)
+7. [Hardware inventory and evidence](booth-node/06_HARDWARE_INVENTORY_AND_EVIDENCE.md)
+8. [Owner and operator system guide](booth-node/07_OWNER_SYSTEM_GUIDE.md)
 
 The booth node is a deployment wrapper around the pinned V23 system. It does not revive EmberLights, add a bridge daemon, or introduce another show-time lighting application.
 

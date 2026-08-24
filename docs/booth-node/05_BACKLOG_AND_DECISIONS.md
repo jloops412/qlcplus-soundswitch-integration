@@ -2,80 +2,177 @@
 
 Last updated: 2026-08-24
 
-This ledger prevents good ideas from being forgotten without turning all of them into immediate scope.
+This ledger keeps the Booth project focused. It records the accepted architecture, exact execution order, hardware-day unknowns, and explicit exclusions so unrelated Love & Light systems do not enter the Booth install or backlog.
+
+## Booth project boundary
+
+### Included
+
+- ReadyNet routed/private show LAN;
+- dedicated Windows Booth Node;
+- exact pinned QLC+ V23 deployment;
+- Control One MIDI/LED behavior;
+- SoundSwitch Micro and Control One DMX output;
+- wired VirtualDJ OS2L;
+- authenticated built-in QLC+ browser operation;
+- headless startup and recovery;
+- primary REV7/VirtualDJ event recording plus verified Booth copy;
+- a deliberately simple emergency audio-playback capability after lighting is qualified;
+- minimal read-only Booth/network/QLC+ health evidence;
+- power, cable, configuration-backup, and rollback hardening.
+
+### Not part of this Booth project
+
+- Twenty or any CRM/business-data stack;
+- Portal hosting or business-manager infrastructure;
+- event-data cache/synchronization;
+- surveys, quizzes, forms, or guest requests;
+- Guestbook Hotline, voice-request processing, or telephony;
+- EmberShare, guest Wi-Fi, captive portals, or guest-facing pages;
+- offline staff chat, voice, or push-to-talk;
+- feedback-suppression DSP;
+- cross-system show orchestration;
+- a general-purpose application, container, database, or service host.
+
+These exclusions are not “later Booth features.” They require separate plans, owners, threat/failure models, and—where appropriate—separate hardware. Do not install or stage them on the Booth Node merely because it is available.
 
 ## Controlling architecture decisions
 
 | Decision | Status | Rationale |
 |---|---|---|
-| ReadyNet becomes the permanent booth gateway/switch/upstream failover device | Accepted | Stable event network and reuse of existing hardware |
-| DJ laptop and booth node use wired Ethernet | Accepted | Show control should not depend on Wi-Fi |
-| QLC+ runs on the booth node | Accepted; deployment pending | Removes lighting workload and USB complexity from the DJ laptop |
-| Control One connects directly to the booth node | Accepted | QLC+ is its current consumer; avoids network MIDI forwarding |
-| Micro/Control One DMX connects directly to booth node | Accepted | Keeps lighting I/O with lighting runtime |
-| QLC+ remains the only lighting application | Binding | No bridge daemon or revived EmberLights runtime |
-| Normal booth-node operation requires no local monitor | Binding | DJ laptop browser is the operating surface |
-| Built-in QLC+ web UI is the first control interface | Accepted | Avoid custom dashboard until a real gap is proven |
-| Show LAN remains routed/NAT and private | Binding | Venue DHCP/bridge behavior cannot own show addressing |
-| Guest traffic never shares the show segment | Binding | Security, stability, and LTE-cost protection |
-| Primary event recording writes to DJ-laptop local SSD | Accepted for validation | Capture remains independent of booth/router failure |
-| Primary archival format begins with 24-bit FLAC | Accepted for validation | Lossless quality and smaller files than WAV |
-| Booth receives a hash-verified completed-file copy | Accepted for validation | Redundancy with no quality loss or live transport dependency |
-| Live feedback suppression is a separate audio appliance | Accepted | Experimental DSP must not threaten QLC+ or DJ playback |
-| Automatic software/driver/firmware updates are frozen after qualification | Binding | Reproducible show system and rollback integrity |
+| ReadyNet is the Booth gateway/switch/upstream failover device | Accepted | Stable local production network using existing hardware |
+| ReadyNet remains routed/NAT and DHCP authority | Binding | Venue networks cannot own or renumber show devices |
+| DJ laptop and Booth Node use wired Ethernet | Binding | Primary show control must not depend on Wi-Fi |
+| QLC+ V23 runs on the Booth Node | Accepted; hardware deployment pending | Removes lighting workload and show USB devices from the DJ laptop |
+| QLC+ remains the only lighting application | Binding | No second runtime, bridge daemon, or revived EmberLights app |
+| Control One connects directly to Booth Node | Accepted | QLC+ is its consumer; avoids network MIDI forwarding |
+| Micro/Control One DMX connects directly to Booth Node | Accepted | Keeps lighting I/O with the lighting runtime |
+| Universe 1 is physical; Universe 3 stays private/internal | Binding | Preserves the full-frame Priority Look design without duplicate physical output |
+| Normal Booth operation has no local monitor | Binding | DJ-laptop browser is the normal visual surface |
+| Built-in QLC+ web UI is the first/only planned console | Binding for current phase | No custom dashboard until a proven Booth-only gap exists |
+| Guest/untrusted devices never share the show segment | Binding | Security and stability |
+| QLC+ web is never exposed to WAN/LTE | Binding | Basic HTTP auth is acceptable only on the isolated private LAN |
+| Primary recording writes to DJ-laptop local SSD | Accepted for validation | Capture survives Booth/router failure |
+| Primary archival format starts at 24-bit FLAC | Accepted for validation | Lossless quality with lower storage cost than WAV |
+| Booth copy happens only after file close and SHA-256 match | Accepted for validation | Redundancy without live-network dependence or quality loss |
+| Automatic software/driver/firmware updates freeze after qualification | Binding | Reproducible show system and rollback integrity |
+| DJ-laptop QLC+ remains installed until Booth promotion | Binding | Physical rehearsed rollback is mandatory |
 
 ## Current execution order
 
-### Priority 0 — Preserve current V23 truth
+### Priority 0 — Preserve V23 truth and rollback
 
-- keep V20/V21/V22/V23 and installer receipt;
-- do not redesign QLC+ control ownership;
-- finish the short V23 owner observation;
-- preserve exact compatibility hashes;
-- keep DJ-laptop lighting as rollback.
+Deliverables:
 
-### Priority 1 — Dedicated lighting appliance
+- preserve V20, V21, V22, and V23;
+- preserve the exact compatibility hashes;
+- preserve the plug-in installer receipt/backup;
+- finish the short owner V23 console observation;
+- keep the current DJ-laptop QLC+ path intact;
+- do not redesign QLC+ Function ownership, public IDs, logical channels, fixture patch, or private Universe 3 behavior.
+
+Exit gate: the source package and both software/hardware rollback paths are identifiable and recoverable before Booth changes begin.
+
+### Priority 1 — Inventory exact hardware
+
+Use `Get-LLEBoothInventory.ps1` on the Booth Node and DJ laptop, then complete the generated manual worksheet.
+
+Required facts:
+
+- computer make/model, Windows edition/build, CPU/RAM, storage/free space/health;
+- wired NIC and USB-controller/physical-port topology;
+- exact ReadyNet label model, hardware revision, firmware, mode, and config-backup location;
+- QLC+ source/package/workspace/rollback locations and hashes;
+- Control One/Micro Windows driver/device state;
+- cable and power-supply identities;
+- sensitive values stored privately, not in Git.
+
+Exit gate: claim only **inventory captured**. No firmware or production-host change occurs from assumptions.
+
+### Priority 2 — Dedicated lighting appliance
 
 Deliverable:
 
 ```text
-power/login booth node
-  -> exact V23 opens
+power/login Booth Node
+  -> exact pinned QLC+ V23 opens
   -> Control One works
-  -> selected SoundSwitch DMX works
-  -> QLC web works
-  -> no second monitor
+  -> one selected SoundSwitch DMX output works
+  -> built-in QLC+ web works
+  -> normal operation needs no Booth monitor
 ```
 
-Acceptance is controlled by the deployment and validation runbooks.
+Required order:
 
-### Priority 2 — Wired network OS2L and headless browser operation
+1. copy the complete coherent QLC+ folder;
+2. validate the V23 package;
+3. install the build-matched plug-in with QLC+ closed;
+4. reproduce V23 locally with a temporary display;
+5. prove physical Universe 1 output and keep Universe 3 un-routed;
+6. prove authenticated web operation manually;
+7. install guarded at-logon startup only after manual success;
+8. cold/warm boot without a display.
 
-Deliverable:
+Exit gate: Gates A, B, and D in the validation runbook pass on the exact Booth computer.
 
-- stable private IP reservations;
-- OS2L direct target on booth node;
-- five-second reconnect keepalive;
-- authenticated V23 browser console on DJ laptop;
-- no dependence on venue Internet;
-- LAN survives WAN/LTE changes.
+### Priority 3 — Private ReadyNet LAN and wired OS2L
 
-### Priority 3 — Highest-quality event recording
+Deliverables:
 
-Deliverable:
+- stable routed private subnet;
+- ReadyNet DHCP reservations for DJ and Booth;
+- wired DJ-to-ReadyNet-to-Booth path;
+- QLC+ OS2L TCP 9996 and web TCP 9999 restricted to the Private local subnet;
+- VirtualDJ direct target on Booth address;
+- five-second unmapped `QLC KEEPALIVE` reconnect mapper;
+- local lighting/browser/OS2L operation with WAN, LTE, and all Internet removed;
+- upstream changes never renumber local devices.
 
-- verified REV7 `MIX(REC OUT)` source;
-- 24-bit local FLAC/WAV capture;
-- microphone/source routing and headroom test;
-- sufficient storage;
-- post-close SHA-256-verified booth copy;
-- privacy/retention decision before standard production use.
+Upstream qualification order:
 
-This was moved ahead of generalized monitoring/cache work because the owner specifically values archival quality and the REV7 provides a low-complexity digital path.
+1. venue Ethernet into ReadyNet WAN;
+2. LTE;
+3. no Internet while the LAN remains operating;
+4. Wi-Fi-as-WAN only after the exact ReadyNet proves it remains routed/NAT.
 
-### Priority 4 — Emergency backup playback
+Exit gate: Gates C and E plus the ReadyNet fault rows pass. Reject bridge/repeater behavior that hands addressing to the venue.
 
-Goal: allow the booth node to play critical event audio through an independent mixer input if the DJ laptop fails.
+### Priority 4 — Hardware recovery and combined soak
+
+Deliverables:
+
+- Control One starts before/after QLC+;
+- Control One unplug/replug restores MIDI and known LEDs without QLC+ restart;
+- Micro unplug/replug recovers;
+- Control One DMX 1 and DMX 2 are proven separately;
+- any intended simultaneous-output topology is proven exactly as used;
+- DJ Ethernet, ReadyNet, WAN/LTE/no-Internet, browser, and QLC+ recovery drills are recorded;
+- rehearsed Booth-to-DJ-laptop rollback;
+- two-hour combined VirtualDJ/audio/OS2L/QLC+/MIDI/LED/DMX/browser soak.
+
+Exit gate: Gates F and G pass with no unexplained audio dropout, QLC+ crash/starvation, DMX corruption, USB error storm, frozen Control One, or LAN packet loss.
+
+### Priority 5 — Highest-quality event recording
+
+Deliverables:
+
+- REV7 `USB 5/6 Mixer Output = MIX(REC OUT)` physically verified;
+- VirtualDJ primary capture to DJ-laptop local SSD;
+- 24-bit FLAC default, or WAV only for a specific downstream requirement;
+- intended microphones/sources present and no worst-case clipping;
+- adequate free space;
+- recording survives Booth shutdown and ReadyNet reboot;
+- completed-file copy to Booth only after close/finalization;
+- source/destination SHA-256 match and manifest;
+- privacy/consent/retention decision before standard production use.
+
+The later REV7 USB-B independent recorder experiment is allowed only as a secondary capture and only after it proves simultaneous driver exposure and no effect on DJ audio/controller operation.
+
+Exit gate: Gate H passes for the primary capture and verified copy.
+
+### Priority 6 — Emergency backup playback
+
+Goal: allow deliberate playback of a small critical-event audio set through an independent labeled mixer input if the DJ laptop fails.
 
 First scope only:
 
@@ -85,248 +182,115 @@ First scope only:
 - parent dances;
 - cake/anniversary/last dance;
 - a small emergency background/open-dance set;
-- simple, obvious playback interface from the DJ laptop;
-- separate inexpensive audio output into a labeled mixer channel.
+- verified local files;
+- simple manual playback control;
+- inexpensive independent Booth audio output;
+- output muted until deliberately selected.
 
 Guardrails:
 
-- no attempt to make the booth node a second full DJ workstation initially;
-- no auto-failover that can unexpectedly play audio;
-- files synced and verified before leaving;
-- emergency output stays muted until deliberately selected;
-- QLC+ receives priority over non-critical services.
+- never auto-play or auto-failover;
+- do not make Booth a second full DJ workstation;
+- QLC+ retains resource and recovery priority;
+- the playback application must be lightweight and independently stoppable;
+- file sync/verification occurs before departure, never by assumption;
+- failure cannot disturb QLC+, Control One, DMX, OS2L, or DJ-laptop audio;
+- this capability receives its own two-hour combined test before event use.
 
-### Priority 5 — Minimal booth health visibility
+No playback application is selected until the Booth machine inventory and lighting soak establish available OS/audio endpoints and headroom.
 
-Start with evidence, not a custom platform:
+### Priority 7 — Minimal Booth health visibility
 
-- ReadyNet reachable;
-- booth ping/packet loss;
-- QLC TCP 9996/9999;
-- QLC process state;
-- disk free space;
-- recording-copy status;
-- Control One/Micro device presence where Windows exposes it;
-- WAN/LTE state if the ReadyNet offers a safe supported status interface.
+Start with evidence and existing interfaces:
 
-A small read-only page may be justified later. It must not become a second control authority or require a database/container stack merely to display green checks.
+- ReadyNet gateway reachable;
+- Booth ping/loss/latency;
+- QLC+ TCP 9996/9999;
+- QLC+ process count/state;
+- Booth disk free space;
+- scheduled-task/launch-log state;
+- recording-copy verification status;
+- Control One/Micro presence where Windows exposes it;
+- WAN/LTE state only if the exact ReadyNet provides a safe supported read-only method.
 
-### Priority 6 — Local event resilience/cache
-
-Goal: retain a read-only last-known-good event pack locally while the DJ laptop continues using Twenty, EmberShare, Drive, and normal web tools.
-
-Potential cached fields:
-
-- event name/date/locations;
-- timeline;
-- client and venue contacts;
-- vendor contacts;
-- introductions and pronunciation notes;
-- special songs;
-- ceremony notes;
-- announcements;
-- emergency/contingency details;
-- selected files/attachments.
+The existing inventory and connection-test scripts are the first implementation. A small read-only Booth-only status page may be considered later only if these tools and QLC+ web leave a proven operational gap.
 
 Guardrails:
 
-- read-only cache first;
-- no second CRM or conflicting write authority;
-- encrypted/private data at rest where appropriate;
-- clear “last synchronized” timestamp;
-- event purge/retention policy;
-- useful from the DJ laptop browser when Internet is absent.
+- no second control authority;
+- no database/container stack merely for green checks;
+- no business/event/client data;
+- no WAN exposure;
+- no watchdog that restarts QLC+ during a live moment;
+- no polling load that affects audio, OS2L, MIDI, or DMX.
 
-## Parked easy wins
+### Priority 8 — Operations hardening
 
-### Guestbook Hotline analog phone
+After the Booth is stable:
 
-The ReadyNet FXS ports and existing Guestbook Hotline configuration make this a likely easy win. It remains parked until lighting deployment is stable.
+- small qualified UPS for ReadyNet/Booth;
+- labeled power sequence and boot-after-power-loss test;
+- cable map and tested spares;
+- ReadyNet config export stored privately;
+- complete coherent QLC+ folder and V23/V22 recovery copies;
+- Windows task/firewall/power-state export;
+- periodic inventory comparison;
+- controlled Windows/driver/firmware maintenance windows;
+- recovery-USB integrity check;
+- ventilation, transport, mounting, and strain-relief plan.
 
-Potential deployment:
+These improve the Booth appliance itself and remain within scope.
 
-```text
-physical phone -> ReadyNet FXS/SIP -> Guestbook Hotline
-```
-
-### Voice request line -> Ask The DJ
-
-Owner concept:
-
-```text
-caller message
-  -> transcription
-  -> request-intent extraction
-  -> artist/title cleanup
-  -> fuzzy catalog resolution
-  -> explicit/duplicate/spam checks
-  -> VirtualDJ Ask The DJ
-```
-
-Most business-side pieces may already exist. It remains parked to avoid mixing telephony/NLP work into the lighting deployment.
-
-### EmberShare event Wi-Fi entry point
-
-Potential guest flow:
-
-```text
-event SSID / QR
-  -> protected, isolated, rate-limited guest network
-  -> optional LLE/event landing page
-  -> event-specific EmberShare guest page
-```
-
-Requirements before work:
-
-- a truly isolated guest segment;
-- bandwidth and LTE-usage limits;
-- no route to QLC+, SMB, router administration, or show devices;
-- captive-portal behavior tested across modern phones;
-- offline behavior defined;
-- client-facing copy/branding decision.
-
-The current ReadyNet may not provide all isolation/captive-portal controls safely enough. No guest SSID is created on the production show segment.
-
-### Offline staff voice/chat/PTT
-
-Goal: local communications without Twilio, cellular data, or paid per-minute service.
-
-Possible future approaches:
-
-- ReadyNet FXS/SIP for wired analog extensions;
-- local SIP PBX and phone apps;
-- browser/PWA text and push-to-talk;
-- WebRTC voice rooms;
-- dedicated local walkie-talkie-style interface.
-
-Required characteristics:
-
-- fully local operation;
-- simple join/identity flow;
-- no guest access;
-- clear push-to-talk behavior;
-- usable on staff phones;
-- does not consume the lighting node's critical resources;
-- no assumption that phone OS background restrictions will permit reliable PTT without testing.
-
-### Physical emergency/operations phone
-
-A wired analog phone on the ReadyNet remains attractive for:
-
-- Guestbook Hotline test/use;
-- operations line;
-- emergency backup contact path;
-- later local extension/intercom.
-
-Parked pending telephony inventory and exact ReadyNet model/VoLTE/SIP configuration.
-
-## Separate-project integration boundary: feedback suppression
-
-The wireless/remote automatic feedback-suppression project is valuable but technically riskier than QLC+ separation.
-
-Architecture boundary:
-
-```text
-ceremony microphones/receiver
-  -> dedicated audio interface
-  -> dedicated feedback-suppression audio node
-  -> PA/mixer
-
-booth LAN -> remote UI/status only
-```
-
-Rules:
-
-- do not run real-time feedback suppression on the lighting node during the beta;
-- do not route primary DJ playback through experimental DSP;
-- fail safely/bypass cleanly;
-- preserve a direct analog recovery path;
-- measure end-to-end latency, sound quality, CPU headroom, feedback detection, false positives, and crash behavior;
-- the booth system may later show status/control, but QLC+ must not depend on it.
-
-## Practical future ideas worth retaining
-
-### Power resilience
-
-- small UPS for ReadyNet and booth node;
-- graceful shutdown policy;
-- labeled power sequence;
-- router/booth power separated from lighting fixtures when practical;
-- surge protection and strain relief;
-- boot-after-power-loss behavior.
-
-### Configuration backups
-
-- ReadyNet config export;
-- complete QLC+ pinned folder;
-- V23/V22 workspaces;
-- Control One profile;
-- plug-in installer receipt/backup;
-- Windows task/firewall export;
-- recording manifests;
-- hardware inventory and cable map.
-
-### Local names
-
-Human-friendly names such as `lighting.lle` or `booth.lle` would be convenient, but raw reserved IP bookmarks are the first reliable baseline. Local DNS/mDNS is deferred until it can be made deterministic without adding another fragile service.
-
-### Event/system log
-
-A local append-only event log could eventually record:
-
-- boot/shutdown;
-- QLC start/stop;
-- OS2L connect/disconnect;
-- WAN/LTE changes;
-- Control One/Micro reconnects;
-- recording start/stop/copy verification;
-- operator timeline markers.
-
-Do not log client content, credentials, or more personal data than needed.
-
-### Show-state integration
-
-Longer-term cross-system actions remain interesting:
-
-```text
-FIRST DANCE
-  -> select QLC+ Priority Look
-  -> display the relevant event notes
-  -> add a recording marker
-  -> optionally update the guest-facing event state
-```
-
-This remains explicitly deferred. First establish reliable independent systems and manual authority. Do not build an orchestration engine before the underlying services are stable.
-
-## Explicitly rejected for the current phase
+## Explicitly rejected
 
 - reviving standalone EmberLights;
 - running QLC+ plus another lighting runtime;
-- a custom bridge daemon for normal show operation;
+- a custom bridge/daemon for normal show operation;
 - replacement Control One firmware;
-- Docker/Kubernetes merely to host a status page;
-- direct primary recording to an SMB/network path;
-- live AI processing in the QLC+/DMX path;
+- direct primary recording to SMB/network storage;
+- live network audio as the only/master recorder;
+- unqualified USB hubs, docks, extenders, or long runs;
 - guest devices on the show LAN;
 - exposing QLC+ web control to WAN/LTE;
-- auto-updating QLC+, the SoundSwitch plug-in, device drivers, or ReadyNet firmware;
-- moving timelines/CRM editing into the booth node merely because it exists;
-- building all future features before the lighting node is gig-qualified.
+- bridge/repeater mode that delegates DHCP to the venue;
+- automatic QLC+, plug-in, Windows driver, or ReadyNet firmware updates;
+- installing CRM/Portal/event-cache/guest/telephony/staff-chat systems on Booth;
+- Docker/Kubernetes/database infrastructure on Booth;
+- live AI/DSP in the QLC+/DMX or primary DJ audio path;
+- cross-system orchestration before each independent system is qualified;
+- calling the Booth “working” or “gig-qualified” from documentation/software evidence alone.
 
 ## Hardware-day unknowns to close
 
-- exact booth computer make/model and Windows edition/build;
-- CPU/RAM/storage and free capacity;
-- wired NIC and USB topology;
-- exact ReadyNet unit: LTE520 vs LTE520S and firmware/hardware revision;
-- whether its Wi-Fi repeater mode preserves routed NAT/DHCP;
-- final private LAN subnet/reservations;
-- exact path of the working pinned QLC+ folder;
-- Control One/Micro driver state on the booth computer;
-- Windows interactive autologon approach;
-- full remote Windows administration choice;
-- booth recording share/credential design;
-- whether REV7 USB B exposes simultaneous `MIX(REC OUT)` to an independent recorder;
-- whether a small UPS is already available.
+- exact Booth computer make/model and Windows edition/build;
+- CPU/RAM/storage type, health, and capacity;
+- wired NIC and USB controller/physical port topology;
+- exact ReadyNet variant: LTE520 versus LTE520S;
+- ReadyNet hardware revision and firmware;
+- whether its Wi-Fi upstream mode preserves routed NAT/DHCP;
+- final stable private subnet and reservations;
+- exact path/source of the working complete QLC+ folder;
+- Control One/Micro manufacturer driver state;
+- QLC+ web-auth behavior on the pinned Windows build;
+- interactive Booth-account/autologon security approach;
+- full Windows remote-administration choice, if any;
+- recording-share storage and least-privilege credential design;
+- microphone/aux inclusion in the REV7 recording return;
+- whether REV7 USB B exposes simultaneous independent `MIX(REC OUT)`;
+- whether a suitable UPS and independent Booth audio output already exist.
 
-Close these through observation and bench tests, not assumptions.
+Close these by observation and bench evidence, not inference.
+
+## Continuity rule after each work session
+
+Update, in the same change:
+
+1. the relevant runbook when steps or behavior change;
+2. this ledger when priority/scope/decision state changes;
+3. the validation document when a new failure mode or gate appears;
+4. exact hashes/compatibility tuple when a runtime artifact changes;
+5. private qualification evidence for physical tests;
+6. PR status/description with precise claim language;
+7. rollback location and rehearsal status.
+
+Do not record private machine identifiers or client data in Git. Do not let a future idea silently become a Booth dependency.

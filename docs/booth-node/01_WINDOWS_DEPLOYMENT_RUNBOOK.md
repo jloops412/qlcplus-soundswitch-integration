@@ -20,45 +20,43 @@ For the first session, place the following together where they can remain powere
 
 Use direct USB ports during qualification. Do not introduce an unqualified hub, extender, dock, or long USB run yet.
 
-## 2. Record the booth computer before changing it
+## 2. Capture both computers before changing them
 
-Open an elevated PowerShell window and run:
+Use the prepared read-only inventory helper rather than maintaining an ad hoc command transcript. It records machine, Windows, storage, wired-network, USB/device, power, QLC+ artifact, task, and listener facts; creates an owner-readable summary and manual worksheet; and changes no Windows or ReadyNet setting.
+
+From an elevated PowerShell window on the Booth Node, run from the repository root:
 
 ```powershell
-$InventoryRoot = 'C:\LLE\Inventory'
-New-Item -ItemType Directory -Path $InventoryRoot -Force | Out-Null
+Set-ExecutionPolicy -Scope Process Bypass
 
-Get-Date | Out-File "$InventoryRoot\captured-at.txt"
-Get-ComputerInfo | Out-File "$InventoryRoot\computer-info.txt" -Width 240
-Get-NetAdapter | Format-List * | Out-File "$InventoryRoot\network-adapters.txt" -Width 240
-Get-NetIPConfiguration | Format-List * | Out-File "$InventoryRoot\network-config.txt" -Width 240
-Get-PnpDevice | Sort-Object Class,FriendlyName |
-  Format-Table Status,Class,FriendlyName,InstanceId -AutoSize |
-  Out-File "$InventoryRoot\pnp-devices.txt" -Width 300
-Get-CimInstance Win32_DiskDrive |
-  Select-Object Model,SerialNumber,MediaType,Size,Status |
-  Format-Table -AutoSize |
-  Out-File "$InventoryRoot\storage.txt" -Width 240
-powercfg /a | Out-File "$InventoryRoot\power-capabilities.txt"
+.\tools\booth-node\Get-LLEBoothInventory.ps1 `
+  -MachineRole BoothNode `
+  -OutputRoot 'C:\LLE\Inventory'
 ```
 
-Also record manually in `C:\LLE\Inventory\hardware-notes.txt`:
+Open the generated timestamped folder and read:
 
-- computer make/model;
-- Windows edition, version, and build from `winver`;
-- CPU and installed RAM;
-- free space on the intended system and recording drives;
-- Ethernet adapter make/model;
-- number and type of USB ports;
-- power adapter rating;
-- ReadyNet model exactly as printed on its label;
-- ReadyNet firmware version;
-- current ReadyNet LAN address/subnet and DHCP range;
-- current QLC+ folder on the DJ laptop;
-- SoundSwitch driver/software version;
-- Control One and Micro device status in Device Manager.
+- `INVENTORY_SUMMARY.md`;
+- `MANUAL_OBSERVATIONS.md`;
+- `inventory.json`;
+- `SHA256SUMS.txt`.
 
-Do not publish hardware serial numbers, IMEI, SIM identifiers, passwords, or personal paths to GitHub.
+Complete the manual worksheet before router firmware, driver, network, or QLC+ changes. In particular, physically identify the ReadyNet model as printed on its label, then confirm hardware revision and firmware in its administration UI. Software cannot safely infer LTE520 versus LTE520S.
+
+Run the same helper on the DJ laptop with `-MachineRole DJLaptop` and its actual QLC+/workspace/package paths. That capture documents the rollback that must remain intact.
+
+After ReadyNet reservations are configured, rerun the Booth capture with the actual expected network facts. For the recommended clean subnet:
+
+```powershell
+.\tools\booth-node\Get-LLEBoothInventory.ps1 `
+  -MachineRole BoothNode `
+  -ExpectedGateway '10.52.0.1' `
+  -ExpectedAddressPrefix '10.52.0.'
+```
+
+MAC addresses are omitted by default. If a private reservation record requires them, use `-IncludeMacAddresses` and keep that capture out of GitHub and public/shared folders.
+
+Do not publish generated inventories, router exports/credentials, label photographs, hardware serials, IMEI/SIM identifiers, MAC addresses, client content, or personal paths. Full field-by-field instructions are in `06_HARDWARE_INVENTORY_AND_EVIDENCE.md`.
 
 ## 3. Prepare durable folders
 
@@ -366,6 +364,7 @@ The booth node is not headless-qualified if any required step still depends on a
 
 Before any production trial, place these on the DJ laptop and a separate USB drive:
 
+- private pre/post inventory captures and completed manual observations;
 - complete V23 release folder;
 - V22 workspace/package;
 - complete pinned QLC+ folder;

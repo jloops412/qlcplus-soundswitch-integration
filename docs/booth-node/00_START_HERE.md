@@ -1,31 +1,39 @@
 # LLE Booth Node — Start Here
 
-Status: **pre-hardware deployment plan; not yet gig-qualified**  
+Status: **pre-hardware deployment staged; not yet gig-qualified**  
 Last updated: 2026-08-24
 
 ## Purpose
 
-The LLE booth node is a dedicated Windows computer on the ReadyNet booth LAN. Its first and controlling purpose is to remove lighting from the DJ laptop without creating another lighting application or bridge.
+The LLE Booth Node is a dedicated Windows lighting computer on the ReadyNet private Booth LAN. Its first and controlling purpose is to remove lighting from the DJ laptop without creating another lighting application or bridge.
 
 At show time, the supported lighting path remains:
 
 ```text
-VirtualDJ on DJ laptop -- wired LAN / OS2L --> QLC+ on booth node
-Control One -- USB MIDI --------------------> QLC+ on booth node
+VirtualDJ on DJ laptop -- wired LAN / OS2L --> QLC+ on Booth Node
+Control One -- USB MIDI --------------------> QLC+ on Booth Node
 QLC+ -- SoundSwitch plug-in ----------------> Micro or Control One DMX
+DJ-laptop browser -- private LAN -----------> QLC+ built-in web console
 ```
 
 The active lighting application is QLC+ only. The retired standalone EmberLights runtime, a second lighting daemon, replacement firmware, and an all-in-one show engine remain out of scope.
 
+## Scope boundary
+
+This repository section covers Booth hardware, ReadyNet networking, QLC+ V23, Control One/Micro, wired OS2L, headless browser operation, recovery, primary recording/verified copy, later emergency playback, and minimal Booth health evidence.
+
+It does **not** cover Twenty, CRM/business data, the Portal, event caches, surveys/quizzes/forms, Guestbook/telephony/voice requests, guest Wi-Fi/captive portals, EmberShare, staff chat/PTT, feedback suppression, or cross-system orchestration. Those are separate projects and must not be installed or staged on the Booth Node.
+
 ## Non-negotiable operating rules
 
-1. **No dedicated booth-node monitor is required during normal operation.** QLC+ must be controllable from the DJ laptop through its built-in web interface.
-2. **DJ-to-booth show control is wired Ethernet.** Wi-Fi is allowed for upstream Internet and non-critical phones/tablets, not for the primary OS2L path.
-3. **The show LAN is private and stable.** Venue Wi-Fi, venue Ethernet, and LTE are upstream choices; none may renumber the DJ laptop or booth node.
+1. **No dedicated Booth monitor is required during normal operation.** QLC+ must be controllable from the DJ laptop through its built-in web interface.
+2. **DJ-to-Booth show control is wired Ethernet.** Wi-Fi is allowed only as a separately qualified upstream Internet method, not for the primary OS2L path.
+3. **The show LAN is private and stable.** Venue Wi-Fi, venue Ethernet, and LTE are upstream choices; none may renumber the DJ laptop or Booth Node.
 4. **QLC+ and its SoundSwitch plug-in remain one pinned compatibility bundle.** Do not mix QLC+/Qt/runtime files or move the DLL into an arbitrary newer build.
-5. **Lighting remains useful without Internet.** LTE/WAN loss must not interrupt OS2L, MIDI, QLC+, DMX, or browser control on the local LAN.
-6. **Secondary services earn their way onto the node.** Nothing is added if it can starve, destabilize, or complicate recovery of QLC+.
-7. **Every production change has a rollback.** V20, V21, V22, V23, the installer receipt, the plug-in backup, and a known-good DJ-laptop fallback remain preserved.
+5. **Lighting remains useful without Internet.** LTE/WAN loss must not interrupt local OS2L, MIDI, QLC+, DMX, or browser control.
+6. **The Booth Node is not a general app server.** Only Booth-critical capabilities may be considered, and QLC+ retains resource/recovery priority.
+7. **Every production change has a rollback.** V20, V21, V22, V23, the installer receipt, plug-in backup, coherent QLC+ folder, and known-good DJ-laptop fallback remain preserved.
+8. **Claims follow evidence.** Files and plans do not make the machine headless-, soak-, or gig-qualified.
 
 ## Current lighting baseline
 
@@ -50,17 +58,19 @@ V23 is pinned to:
 - `soundswitch.dll` SHA-256: `AC6BE24B6B8FA252E0C426D68248F99326B43EC1E2569C7B7EDB15511F2ED54D`
 - V23 workspace SHA-256: `E953C3483EB09D2E600D32495887B27A03021DC47EF7BA5797552C4F5A21547B`
 
-V23 is structurally validated and inherits the software-tested V21/V22 plug-in runtime. It is not yet gig-qualified on the separate booth node.
+V23 is structurally validated and inherits the software-tested V21/V22 plug-in runtime. It is not yet gig-qualified on the separate Booth Node.
 
 ## Build order
 
 ### Milestone 0 — Inventory and freeze
 
-Capture the booth computer model, Windows edition/build, CPU, RAM, storage health/free space, Ethernet adapter, USB controllers, power supply, QLC+ location, SoundSwitch driver version, and attached device identities. Do not make the booth node the production default yet.
+Run `Get-LLEBoothInventory.ps1` on both the Booth Node and DJ laptop, complete the generated manual worksheet, identify the exact ReadyNet label/hardware revision/firmware, and preserve the existing QLC+ rollback before changing anything.
 
-### Milestone 1 — Stable private booth LAN
+Claim after completion: **inventory captured**.
 
-Keep the ReadyNet in routed/NAT mode with a persistent LLE subnet. Reserve addresses for the router, DJ laptop, and booth node. Prove that changing the upstream connection between venue Ethernet, venue Wi-Fi/repeater, LTE, and no Internet does not change or interrupt the local show LAN.
+### Milestone 1 — Stable private Booth LAN
+
+Keep ReadyNet in routed/NAT mode with a persistent LLE subnet. Reserve addresses for the router, DJ laptop, and Booth Node. Prove that changing upstream state between venue Ethernet, LTE, and no Internet does not change or interrupt the local show LAN. Qualify Wi-Fi-as-WAN only if the exact router preserves routed DHCP/NAT.
 
 ### Milestone 2 — Reproduce V23 locally
 
@@ -68,42 +78,49 @@ Install the exact pinned QLC+ build as one coherent folder, validate the V23 pac
 
 ### Milestone 3 — Headless operation
 
-Enable the authenticated QLC+ web interface, create an at-logon startup task, prevent sleep on AC power, and prove that a cold boot reaches a usable browser console without attaching a display.
+Enable the authenticated QLC+ web interface, create the guarded at-logon startup task, prevent sleep on AC power, and prove that cold/warm boot reaches a usable browser console without attaching a display.
 
 ### Milestone 4 — Network OS2L
 
-Change VirtualDJ from localhost to the reserved booth-node address, preserve the five-second keepalive/reconnect mapper, and validate beat/BPM behavior over wired Ethernet.
+Change VirtualDJ from localhost to the reserved Booth address, preserve the five-second keepalive/reconnect mapper, and validate beat/BPM behavior over wired Ethernet.
 
 ### Milestone 5 — Hardware and recovery qualification
 
-Qualify Control One MIDI/LED recovery, Micro, Control One DMX 1, Control One DMX 2, any intended simultaneous outputs, cable/hot-plug behavior, QLC+ restart, booth-node reboot, router reboot, and rollback to the DJ laptop.
+Qualify Control One MIDI/LED recovery, Micro, Control One DMX 1, Control One DMX 2, intended simultaneous outputs, cable/hot-plug behavior, QLC+ restart, Booth reboot, router reboot, and rollback to the DJ laptop.
 
 ### Milestone 6 — Combined soak
 
-Run VirtualDJ audio, OS2L, QLC+, Control One MIDI/feedback, and the intended DMX output for at least two hours. Observe audio, UI responsiveness, dropped network packets, USB errors, LED state, and visible DMX output.
+Run VirtualDJ audio, OS2L, QLC+, Control One MIDI/feedback, the intended DMX output, and the browser for at least two hours. Observe audio, QLC+ responsiveness, network loss/latency, USB errors, LED state, and visible DMX output.
 
 ### Milestone 7 — Highest-quality event recording
 
-Use the REV7's digital record return and VirtualDJ's 24-bit FLAC or WAV recorder as the primary capture. Record to the DJ laptop's local SSD, then make a hash-verified copy to the booth node. A second independent digital capture through the REV7's unused USB port is a later physical experiment, not an assumed capability.
+Use the REV7 digital record return and VirtualDJ 24-bit FLAC (or WAV for a specific requirement) as the primary capture. Record to the DJ laptop local SSD, then make a hash-verified completed-file copy to the Booth Node. A second independent digital capture through the REV7 unused USB port is a later physical experiment, not an assumed capability.
 
-## Documents in this section
+### Milestone 8 — Controlled pilot and promotion decision
 
-1. `01_WINDOWS_DEPLOYMENT_RUNBOOK.md` — exact hardware-day setup sequence.
-2. `02_NETWORK_HEADLESS_AND_OS2L.md` — LAN, ports, browser control, and VirtualDJ targeting.
-3. `03_EVENT_RECORDING_ARCHITECTURE.md` — archival-quality recording and redundancy.
-4. `04_VALIDATION_RECOVERY_AND_ROLLBACK.md` — acceptance gates and failure drills.
-5. `05_BACKLOG_AND_DECISIONS.md` — ordered future capabilities and parked ideas.
+Run the exact qualified topology at a representative controlled event with the rehearsed DJ-laptop rollback kit present. Record what actually happened before promoting the Booth Node to normal lighting host.
+
+## Read these at the Booth machine
+
+1. `07_OWNER_SYSTEM_GUIDE.md` — what the system is, every major component/file, normal operation, and failure cheat sheet.
+2. `06_HARDWARE_INVENTORY_AND_EVIDENCE.md` — exact first capture and evidence handling.
+3. `01_WINDOWS_DEPLOYMENT_RUNBOOK.md` — ordered hardware-day build.
+4. `02_NETWORK_HEADLESS_AND_OS2L.md` — ReadyNet, addresses, ports, browser, and VirtualDJ target.
+5. `04_VALIDATION_RECOVERY_AND_ROLLBACK.md` — gates, fault drills, soak, and DJ-laptop fallback.
+6. `03_EVENT_RECORDING_ARCHITECTURE.md` — primary recording and verified Booth copy.
+7. `05_BACKLOG_AND_DECISIONS.md` — binding scope, execution order, exclusions, and unknowns.
 
 ## Prepared helper scripts
 
 The scripts under `tools/booth-node/` are deliberately narrow:
 
+- `Get-LLEBoothInventory.ps1` creates a private, sanitized before/after evidence package and changes no system setting.
 - `Install-LLEBoothNode.ps1` validates the pinned files, creates local-only firewall rules, installs an at-logon QLC+ launch task, and optionally prevents AC sleep.
-- `Test-LLEBoothConnection.ps1` runs from the DJ laptop and verifies address reachability plus the QLC+ OS2L and web ports.
-- `Copy-LLERecording.ps1` copies a completed recording to the booth node and verifies SHA-256 equality before calling the copy successful.
+- `Test-LLEBoothConnection.ps1` runs from the DJ laptop and verifies address reachability plus QLC+ OS2L/web ports.
+- `Copy-LLERecording.ps1` copies a completed recording to the Booth Node and verifies SHA-256 equality before calling the copy successful.
 
-They do not install another show runtime, change the ReadyNet configuration, store passwords in Git, or automatically promote the booth node to production.
+They do not install another show runtime, change ReadyNet configuration, store passwords in Git, configure Windows autologon, or automatically promote the Booth Node to production.
 
 ## Promotion rule
 
-The booth node becomes the default lighting host only after every required gate in `04_VALIDATION_RECOVERY_AND_ROLLBACK.md` passes and the existing DJ-laptop setup remains available as a tested rollback. Until then, all claims must remain precise: configured, structurally validated, software-tested, physical-output-tested, or gig-qualified.
+The Booth Node becomes the default lighting host only after every required gate in `04_VALIDATION_RECOVERY_AND_ROLLBACK.md` passes and the existing DJ-laptop setup remains available as a tested rollback. Until then, use precise claims: configured, structurally validated, software-tested, physical-output-tested, headless-qualified, combined-soak-qualified, or gig-qualified.
