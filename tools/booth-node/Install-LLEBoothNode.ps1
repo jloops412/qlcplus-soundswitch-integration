@@ -161,6 +161,11 @@ catch {
 }
 '@
 
+# PowerShell represents a literal double quote inside a single-quoted string as '"'.
+# The two replacements below intentionally convert the JSON-escaped source text into
+# a normal PowerShell double-quote character in the generated launcher.
+$launcherTemplate = $launcherTemplate.Replace("'\"'", "'`"'")
+
 $launcherContent = $launcherTemplate
 $launcherContent = $launcherContent.Replace('__QLC_EXECUTABLE__', $escapedQlc)
 $launcherContent = $launcherContent.Replace('__WORKSPACE_PATH__', $escapedWorkspace)
