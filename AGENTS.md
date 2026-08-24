@@ -21,6 +21,7 @@ QLC+ -- SoundSwitch Hardware plug-in --> Micro or Control One DMX
 3. `docs/qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md`
 4. `docs/qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md`
 5. `docs/qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md`
+6. For ReadyNet, separate-computer, headless, network OS2L, or recording work: `docs/booth-node/00_START_HERE.md` and the ordered documents it links.
 
 Historical handoffs and issues remain useful provenance, but these current QLC+ documents supersede their standalone-app sequencing whenever they differ.
 
@@ -50,6 +51,21 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 - V23 reuses the exact V21/V22 plug-in built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. Preserve and update the complete compatibility tuple, package hashes, installer receipt, rollback path, and release validator for later releases.
 - Before calling a release gig-qualified, qualify Micro, Control One DMX 1/2 together, simultaneous MIDI/feedback, repeated hot-plug, and the combined DJ workload.
 - Move the current hard-coded rig intensity ranges into workspace/configuration before calling the plug-in general-purpose.
+
+## Booth-node deployment rules
+
+The ReadyNet/private-LAN and separate Windows booth-node work is a deployment layer around V23, not a change in lighting ownership.
+
+- The DJ laptop and booth node use wired Ethernet for show control.
+- The booth node runs QLC+; Control One and the selected SoundSwitch DMX hardware connect directly to it.
+- Normal operation is headless and uses QLC+'s authenticated built-in web interface from the DJ laptop.
+- Keep the show LAN routed/NAT, stable, private, and independent of venue DHCP or Internet availability. Reject a repeater/bridge mode that renumbers local devices.
+- Never expose QLC+ web control to WAN/LTE or place guests on the show segment.
+- Prepared scripts under `tools/booth-node/` are one-shot startup, preflight, and verified-copy helpers. Do not turn them into a second runtime controller or watchdog without explicit owner approval.
+- The primary event recording writes to the DJ laptop's local SSD through the REV7 record return; a completed file may be copied to the booth node only after SHA-256 verification. Do not make the only recording depend on SMB or live network audio.
+- Keep real-time feedback-suppression DSP on a separate dedicated audio node during beta work. QLC+ must not depend on it.
+- Preserve the DJ-laptop QLC+ setup as a rehearsed rollback until the booth node passes all documented headless, fault-recovery, combined-soak, and pilot gates.
+- Do not call the booth system gig-qualified before `docs/booth-node/04_VALIDATION_RECOVERY_AND_ROLLBACK.md` passes for the exact hardware topology.
 
 ## Claim boundaries
 
