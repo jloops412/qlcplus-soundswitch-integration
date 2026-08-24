@@ -1,6 +1,6 @@
 # Control One Mapping Reference
 
-The `.qxi` profile is authoritative. This condensed map documents the stable logical channels used by the V20 workspace and plug-in.
+The `.qxi` profile is authoritative. This condensed map documents the stable logical channels retained through V23.
 
 | Channels | Role |
 |---|---|
@@ -48,4 +48,4 @@ Base pad channels are intentionally page-relative. The active bank is carried se
 - Movement, Strobe, Hue, Smoke, Back, Link, and position pads: mapped or reserved, but not all have useful Functions for the current fixture set.
 - OLED: unsupported and out of scope.
 
-V21 restores the hardware LEDs for the selected bank, transport, order, mode, color override, intensity target, shifted White/Black/UV latches, and any manual/Priority pad whose owner is known after a MIDI-output reconnect. During native Autoplay, the running QLC+ child Function remains authoritative for the active pad. V22 adds no logical channel: its on-screen active-loop outline observes the 128 raw Chaser Functions directly, so it follows manual, Auto Bank, Auto All, and seek without changing the public mapping contract.
+V21 restores the hardware LEDs for the selected bank, transport, order, mode, color override, intensity target, shifted White/Black/UV latches, and any manual/Priority pad whose owner is known after a MIDI-output reconnect. During native Autoplay, the running QLC+ child Function remains authoritative for the active pad. V23 adds no logical channel: its on-screen four-bank live rails observe the 128 raw Chaser Functions directly, so manual, Auto Bank, Auto All, and seek remain inside the existing public mapping contract. Exactly one mouse mode switch uses channel `811` and Function `1993`.

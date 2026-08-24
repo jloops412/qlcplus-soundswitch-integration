@@ -38,7 +38,9 @@ The current compact gesture uses shifted Bank presses to start a Bank scope and 
 
 The Live page provides the essential mouse fallback: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
 
-V22 adds a read-only active-loop outline beneath the 4×8 pad grid. Because every outline button observes the raw Chaser instead of starting an owner, it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. The outline advances as the active Chaser changes; the native Now Playing strip remains the authoritative name/bank readout.
+V23 presents a read-only four-bank live rail beside every pad. Each indicator observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. The indicators for Banks 1–4 are top-to-bottom; QLC+'s amber Monitoring border marks the active Chaser. The enlarged native tracker remains the authoritative full name/bank/step readout.
+
+The mouse `AUTOLOOPS ⇄ PRIORITY LOOKS` control is one persistent Button outside the mode-paged frame. It retains public Function `1993` and logical channel `811`; do not recreate separate page-specific copies.
 
 ## Overrides and performance buttons
 

@@ -1,5 +1,6 @@
 native-core/build/
 native-core/build-*/
+qlcplus/workspace-tools/backups/
 .vs/
 .vscode/
 .idea/
