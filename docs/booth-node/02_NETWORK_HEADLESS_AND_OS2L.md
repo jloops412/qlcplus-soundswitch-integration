@@ -157,7 +157,7 @@ Never mark arbitrary venue Wi-Fi networks Private on the DJ laptop. The private 
 
 QLC+ supports OS2L from VirtualDJ on the same computer or another computer. For this deployment:
 
-1. open the V23 workspace on the booth node;
+1. open the V24 workspace on the booth node;
 2. open QLC+ Input/Output;
 3. enable the OS2L input plug-in on the intended universe;
 4. open OS2L configuration;
@@ -235,7 +235,7 @@ QLC+ includes its own web server and browser-based Virtual Console. Start the pi
   -wp 9999 `
   -wa `
   -a 'C:\ProgramData\LLEBooth\qlc-web-auth' `
-  -o 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw'
+  -o 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw'
 ```
 
 Arguments:
@@ -245,7 +245,7 @@ Arguments:
 - `-wp 9999`: select the web port;
 - `-wa`: enable users/authentication;
 - `-a`: store credentials in the designated local file;
-- `-o`: open the exact V23 workspace.
+- `-o`: open the exact V24 workspace.
 
 Kiosk mode (`-k`) is intentionally omitted from the first deployment. Add it only after manual and web control are proven, because kiosk mode can make local troubleshooting less convenient.
 
@@ -255,7 +255,7 @@ From the DJ laptop:
 http://10.52.0.20:9999
 ```
 
-Bookmark it as **LLE Lighting Console**. The browser page mirrors the V23 Virtual Console and remains the normal show-time display/control surface.
+Bookmark it as **LLE Lighting Console**. The browser page mirrors the V24 Runtime Feedback Virtual Console and remains the normal show-time display/control surface.
 
 Create two QLC+ web users:
 
@@ -274,7 +274,7 @@ QLC+ uses basic HTTP authentication and does not provide HTTPS certificates. The
 
 The browser is sufficient for normal QLC+ operation:
 
-- V23 pads, Priority Looks, color overrides, intensity, transport, dwell, speed, and trackers;
+- V24 banks, Autoloops/Priority modes, latched starts, live-loop indicators, pads, color overrides, intensity, transport, independent dwell, and chase multiplier;
 - QLC+ I/O/configuration checks when logged in as administrator;
 - live state feedback.
 

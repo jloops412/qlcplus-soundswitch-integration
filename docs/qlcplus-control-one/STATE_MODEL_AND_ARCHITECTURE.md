@@ -31,9 +31,15 @@ Autoplay parents are long-running native QLC+ Chasers. Five shared native SpeedD
 
 During Autoplay, a pad emits an absolute seek value on logical channel 632. That moves the active 32-step or 128-step parent to the requested loop while preserving the parent owner and its dwell/order state.
 
-V23 displays the active loop through a separate disabled monitor frame behind the real pad surface. The frame contains one read-only Button for every raw Chaser, has no external Inputs, and is outside the owner SoloFrame. Four banks use four non-overlapping indicators beside each physical pad; this avoids the V22 paint-order defect where inactive overlapping later-bank monitors could hide the active Chaser. QLC+ applies its native Monitoring state whether the raw Chaser was started manually or by an Autoplay parent, without introducing another playback owner or recreating the one-second flash failure.
+V24 displays the active loop through 32 small disabled monitor frames above the pad backgrounds. Each frame contains four read-only Buttons—one raw Chaser per bank for that physical pad—has no external Inputs, and remains outside the owner SoloFrame. This fixes both the V22 overlapping-monitor paint defect and the V23 hidden-behind-opaque-frames defect. QLC+ applies its native Monitoring state whether the raw Chaser was started manually or by an Autoplay parent, without introducing another playback owner or recreating the one-second flash failure.
 
-The ten existing native CueLists remain bound to Autoplay parents `788–797`. V23 enlarges them so `currentStepChanged` auto-scroll/selection is visible as a second authoritative readout. No QLC+ core change or new logical channel is required.
+The ten existing native CueLists remain bound to Autoplay parents `788–797`. The enlarged tracker makes `currentStepChanged` auto-scroll/selection visible as a second authoritative readout. No QLC+ core change or new logical channel is required.
+
+### QLC+ allows one feedback destination per universe
+
+V23 declared both Surface Feedback and Priority feedback on Universe 2. QLC+ retained only the later patch, so mouse channels `800–816` could miss the plug-in. V24 leaves one Surface patch. The plug-in consumes Priority Look ownership channels `600–631` on that same route while the separate private Priority output still buffers overlay DMX.
+
+Empty command Scenes start and stop immediately, producing a positive value followed by zero. Bank, dwell, transport, order, mode, and speed commands act only on the positive edge. Processing both edges causes exactly the double-toggle behavior V24 removes.
 
 ## Failure modes discovered
 
@@ -75,8 +81,8 @@ The plug-in implements:
 
 The source currently also contains rig-specific intensity addresses for the four IR-4 master channels and the 160 BO-TUBE192 emitter channels. That works now but should move to workspace/configuration before a general release.
 
-V23's mode-switch correction is workspace-only: one persistent Virtual Console Button targets Function `1993` and channel `811`. The plug-in's existing edge-agnostic feedback handler remains unchanged.
+V24 keeps one persistent Virtual Console Button targeting Function `1993` and channel `811`. Its plug-in feedback handler is positive-edge gated and shares one Surface line with Priority ownership. The Surface output is hardware-independent; Control One MIDI/LED feedback may reconnect without taking mouse commands offline.
 
 ## Version boundary
 
-The plug-in source branch began at QLC+ 5.2.2. The V21 binary was compiled against the exact current DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`; V22 and V23 reuse that binary unchanged. The installer also pins the installed `qlcplus5.exe` hash. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.
+The plug-in source branch began at QLC+ 5.2.2. V24 is compiled against the exact current DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`. The installer pins both the installed `qlcplus5.exe` and V24 plug-in hashes. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.

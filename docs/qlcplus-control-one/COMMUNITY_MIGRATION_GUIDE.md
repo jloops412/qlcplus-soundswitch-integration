@@ -19,7 +19,7 @@ You need:
 - Windows x64;
 - SoundSwitch Micro and/or Control One;
 - the complete pinned QLC+ `5.3.0 GIT a124abe` installation;
-- the V23 release archive; and
+- the V24 release archive; and
 - fixtures already set to known DMX modes and addresses.
 
 First confirm the SoundSwitch device appears normally in Windows with its manufacturer software/driver. Then close SoundSwitch. Only one program can own the hardware at a time.
@@ -29,13 +29,13 @@ Do not use a generic USB-driver tool on the entire Control One composite device.
 ## Install in ten steps
 
 1. Install the complete pinned QLC+ build in its own folder.
-2. Extract the complete V23 archive.
+2. Extract the complete V24 archive.
 3. Open PowerShell in the extracted folder.
 4. Run:
 
    ```powershell
    Set-ExecutionPolicy -Scope Process Bypass
-   .\Test-V23Package.ps1
+   .\Test-V24Package.ps1
    ```
 
 5. Close QLC+ and install the plug-in:
@@ -44,13 +44,13 @@ Do not use a generic USB-driver tool on the entire Control One composite device.
    .\Install-SoundSwitchPlugin.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
    ```
 
-6. Open `IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw`.
+6. Open `IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw`.
 7. Open QLC+ Input/Output and choose a SoundSwitch output for the desired universe.
 8. For Control One, choose the SoundSwitch Control One MIDI input and associate `SoundSwitch-Control-One-Performance.qxi` if required.
 9. Switch QLC+ to Operate mode and open the Live Virtual Console page.
 10. Run one manual pad before connecting a full lighting rig.
 
-If V21 or V22 already works, skip plug-in installation and open the V23 workspace directly.
+V24 includes a new plug-in. Install it even when V21, V22, or V23 already works.
 
 ## Pick the output
 
@@ -93,7 +93,7 @@ Set the physical fixtures to those modes/addresses, connect DMX, and use the sho
 
 ## Adapt it to another fixture rig
 
-Treat V23 as a template, not a universal fixture show.
+Treat V24 as a template, not a universal fixture show.
 
 1. Save a new workspace name before editing.
 2. Patch the new physical fixtures in QLC+.
@@ -125,8 +125,8 @@ Never fix a missing DLL or corrupted text by copying random Qt/FFmpeg files betw
 | Device does not appear | Close SoundSwitch; reconnect USB; confirm the manufacturer driver/device still appears in Windows |
 | Control One DMX works but MIDI does not | Confirm the composite MIDI device remains present and the `.qxi` profile is associated |
 | Micro/Control One sends no light | Confirm QLC+ universe output, fixture address/mode, cable direction, and wireless transmitter channel |
-| Auto Loop/Priority button does nothing | Confirm V23 is open and there is exactly one SoundSwitch Surface Feedback output |
-| Auto Bank/All runs but no pad feedback | Confirm the V23 Live page is open; look at the four-dot rail and native tracker |
+| Bank or Auto Loop/Priority button does nothing | Confirm V24 and its packaged DLL are installed together, with exactly one SoundSwitch Surface Feedback output |
+| Auto Bank/All runs but no pad feedback | Confirm the V24 Live page is open; look at the four-position rail and native tracker |
 | OS2L does not reconnect | Apply the included VirtualDJ keepalive mapping and verify both apps use localhost |
 | QLC+ text is corrupted or a runtime DLL is missing | Reinstall one complete coherent QLC+ build; do not mix runtime files |
 

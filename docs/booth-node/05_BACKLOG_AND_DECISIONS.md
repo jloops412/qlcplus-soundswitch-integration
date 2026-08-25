@@ -10,7 +10,7 @@ This ledger keeps the Booth project focused. It records the accepted architectur
 
 - ReadyNet routed/private show LAN;
 - dedicated Windows Booth Node;
-- exact pinned QLC+ V23 deployment;
+- exact pinned QLC+ V24 deployment;
 - Control One MIDI/LED behavior;
 - SoundSwitch Micro and Control One DMX output;
 - wired VirtualDJ OS2L;
@@ -43,7 +43,7 @@ These exclusions are not “later Booth features.” They require separate plans
 | ReadyNet is the Booth gateway/switch/upstream failover device | Accepted | Stable local production network using existing hardware |
 | ReadyNet remains routed/NAT and DHCP authority | Binding | Venue networks cannot own or renumber show devices |
 | DJ laptop and Booth Node use wired Ethernet | Binding | Primary show control must not depend on Wi-Fi |
-| QLC+ V23 runs on the Booth Node | Accepted; hardware deployment pending | Removes lighting workload and show USB devices from the DJ laptop |
+| QLC+ V24 runs on the Booth Node | Accepted; hardware deployment pending | Removes lighting workload and show USB devices from the DJ laptop |
 | QLC+ remains the only lighting application | Binding | No second runtime, bridge daemon, or revived EmberLights app |
 | Control One connects directly to Booth Node | Accepted | QLC+ is its consumer; avoids network MIDI forwarding |
 | Micro/Control One DMX connects directly to Booth Node | Accepted | Keeps lighting I/O with the lighting runtime |
@@ -60,14 +60,14 @@ These exclusions are not “later Booth features.” They require separate plans
 
 ## Current execution order
 
-### Priority 0 — Preserve V23 truth and rollback
+### Priority 0 — Preserve V24 truth and rollback
 
 Deliverables:
 
-- preserve V20, V21, V22, and V23;
+- preserve the V24 source package and V23, V22, V21, and V20 rollback lineage;
 - preserve the exact compatibility hashes;
 - preserve the plug-in installer receipt/backup;
-- finish the short owner V23 console observation;
+- finish the short owner V24 console observation;
 - keep the current DJ-laptop QLC+ path intact;
 - do not redesign QLC+ Function ownership, public IDs, logical channels, fixture patch, or private Universe 3 behavior.
 
@@ -95,7 +95,7 @@ Deliverable:
 
 ```text
 power/login Booth Node
-  -> exact pinned QLC+ V23 opens
+  -> exact pinned QLC+ V24 opens
   -> Control One works
   -> one selected SoundSwitch DMX output works
   -> built-in QLC+ web works
@@ -105,9 +105,9 @@ power/login Booth Node
 Required order:
 
 1. copy the complete coherent QLC+ folder;
-2. validate the V23 package;
+2. validate the V24 package;
 3. install the build-matched plug-in with QLC+ closed;
-4. reproduce V23 locally with a temporary display;
+4. reproduce V24 locally with a temporary display;
 5. prove physical Universe 1 output and keep Universe 3 un-routed;
 6. prove authenticated web operation manually;
 7. install guarded at-logon startup only after manual success;
@@ -232,7 +232,7 @@ After the Booth is stable:
 - labeled power sequence and boot-after-power-loss test;
 - cable map and tested spares;
 - ReadyNet config export stored privately;
-- complete coherent QLC+ folder and V23/V22 recovery copies;
+- complete coherent QLC+ folder and V24/V23 recovery copies;
 - Windows task/firewall/power-state export;
 - periodic inventory comparison;
 - controlled Windows/driver/firmware maintenance windows;

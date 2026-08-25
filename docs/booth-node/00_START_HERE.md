@@ -20,7 +20,7 @@ The active lighting application is QLC+ only. The retired standalone EmberLights
 
 ## Scope boundary
 
-This repository section covers Booth hardware, ReadyNet networking, QLC+ V23, Control One/Micro, wired OS2L, headless browser operation, recovery, primary recording/verified copy, later emergency playback, and minimal Booth health evidence.
+This repository section covers Booth hardware, ReadyNet networking, QLC+ V24, Control One/Micro, wired OS2L, headless browser operation, recovery, primary recording/verified copy, later emergency playback, and minimal Booth health evidence.
 
 It does **not** cover Twenty, CRM/business data, the Portal, event caches, surveys/quizzes/forms, Guestbook/telephony/voice requests, guest Wi-Fi/captive portals, EmberShare, staff chat/PTT, feedback suppression, or cross-system orchestration. Those are separate projects and must not be installed or staged on the Booth Node.
 
@@ -32,33 +32,36 @@ It does **not** cover Twenty, CRM/business data, the Portal, event caches, surve
 4. **QLC+ and its SoundSwitch plug-in remain one pinned compatibility bundle.** Do not mix QLC+/Qt/runtime files or move the DLL into an arbitrary newer build.
 5. **Lighting remains useful without Internet.** LTE/WAN loss must not interrupt local OS2L, MIDI, QLC+, DMX, or browser control.
 6. **The Booth Node is not a general app server.** Only Booth-critical capabilities may be considered, and QLC+ retains resource/recovery priority.
-7. **Every production change has a rollback.** V20, V21, V22, V23, the installer receipt, plug-in backup, coherent QLC+ folder, and known-good DJ-laptop fallback remain preserved.
+7. **Every production change has a rollback.** Preserve the V24 source package plus V23/V22/V21/V20 rollback material, installer receipt, plug-in backup, coherent QLC+ folder, and known-good DJ-laptop fallback.
 8. **Claims follow evidence.** Files and plans do not make the machine headless-, soak-, or gig-qualified.
 
 ## Current lighting baseline
 
-The deployment target is the V23 alpha-candidate package:
+The deployment target is the published V24 Runtime Feedback alpha-candidate package:
 
 ```text
-releases/qlcplus-control-one/v23/
-  IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw
+releases/qlcplus-control-one/v24/
+  IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw
   SoundSwitch-Control-One-Performance.qxi
   soundswitch.dll
   Install-SoundSwitchPlugin.ps1
   Rollback-SoundSwitchPlugin.ps1
-  Test-V23Package.ps1
+  Test-V24Package.ps1
   SHA256SUMS.txt
 ```
 
-V23 is pinned to:
+V24 is pinned to:
 
+- Published commit: `ed50f76001866d5e0279dc14011e380d68646104`
+- Release tag: `v24`
+- Canonical package: `releases/qlcplus-control-one/v24/`
 - QLC+ UI: `5.3.0 GIT a124abe`
 - QLC+ source commit: `a124abebe0b5ad6077727c561a5a0e1f3730810c`
 - `qlcplus5.exe` SHA-256: `16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533`
-- `soundswitch.dll` SHA-256: `AC6BE24B6B8FA252E0C426D68248F99326B43EC1E2569C7B7EDB15511F2ED54D`
-- V23 workspace SHA-256: `E953C3483EB09D2E600D32495887B27A03021DC47EF7BA5797552C4F5A21547B`
+- `soundswitch.dll` SHA-256: `2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC`
+- V24 workspace SHA-256: `DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF`
 
-V23 is structurally validated and inherits the software-tested V21/V22 plug-in runtime. It is not yet gig-qualified on the separate Booth Node.
+V24 is structurally validated and software-tested against the pinned QLC+ build. Physical lights, the separate Booth Node, headless operation, fault recovery, and combined soak remain unqualified.
 
 ## Build order
 
@@ -72,9 +75,9 @@ Claim after completion: **inventory captured**.
 
 Keep ReadyNet in routed/NAT mode with a persistent LLE subnet. Reserve addresses for the router, DJ laptop, and Booth Node. Prove that changing upstream state between venue Ethernet, LTE, and no Internet does not change or interrupt the local show LAN. Qualify Wi-Fi-as-WAN only if the exact router preserves routed DHCP/NAT.
 
-### Milestone 2 — Reproduce V23 locally
+### Milestone 2 — Reproduce V24 locally
 
-Install the exact pinned QLC+ build as one coherent folder, validate the V23 package, install the bundled plug-in with the existing installer, load the V23 workspace, and reproduce current Micro/Control One behavior before adding headless startup.
+Install the exact pinned QLC+ build as one coherent folder, run the no-argument V24 validator, install the bundled V24 plug-in even if V21–V23 previously worked, load the V24 workspace, and reproduce the V24 runtime-feedback behavior before adding headless startup.
 
 ### Milestone 3 — Headless operation
 

@@ -15,7 +15,7 @@ For the first session, place the following together where they can remain powere
 - SoundSwitch Micro and its normal USB cable;
 - one safe test fixture/DMX path;
 - the complete working QLC+ folder from the DJ laptop;
-- the complete V23 release folder;
+- the complete V24 release folder;
 - a separate copy of V22 and the current known-good DJ-laptop workspace.
 
 Use direct USB ports during qualification. Do not introduce an unqualified hub, extender, dock, or long USB run yet.
@@ -80,8 +80,8 @@ $Folders | ForEach-Object {
 Copy, do not move:
 
 - the complete pinned QLC+ installation into `C:\LLE\QLC\5.3.0-GIT-a124abe\`;
-- the complete V23 release folder into `C:\LLE\Packages\qlcplus-control-one-v23\`;
-- the V23 `.qxw` into `C:\LLE\Projects\`;
+- the complete V24 release folder into `C:\LLE\Packages\qlcplus-control-one-v24\`;
+- the V24 `.qxw` into `C:\LLE\Projects\`;
 - V22 and the current known-good fallback package into `C:\LLE\Recovery\`.
 
 **Copy the entire coherent QLC+ folder.** Do not collect `qlcplus5.exe`, Qt DLLs, FFmpeg/runtime DLLs, and plug-ins from different installations.
@@ -118,19 +118,19 @@ Install the normal manufacturer driver/software required for the Micro and/or Co
 
 The custom QLC+ plug-in handles the supported USB transport. SoundSwitch itself must not run at show time.
 
-## 6. Validate and install the V23 package
+## 6. Validate and install the V24 package
 
 Open PowerShell in:
 
 ```text
-C:\LLE\Packages\qlcplus-control-one-v23
+C:\LLE\Packages\qlcplus-control-one-v24
 ```
 
 Run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\Test-V23Package.ps1
+.\Test-V24Package.ps1
 ```
 
 The package test must pass. With QLC+ closed, install the plug-in:
@@ -157,18 +157,18 @@ Get-FileHash `
 Required SHA-256:
 
 ```text
-AC6BE24B6B8FA252E0C426D68248F99326B43EC1E2569C7B7EDB15511F2ED54D
+2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC
 ```
 
-## 7. Open V23 manually before enabling autostart
+## 7. Open V24 manually before enabling autostart
 
 Start QLC+ and open:
 
 ```text
-C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw
+C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw
 ```
 
-Confirm the project shows the expected V23 Live Console. Do not creatively edit the workspace during deployment qualification.
+Confirm the project shows the expected V24 Runtime Feedback console. Do not creatively edit the workspace during deployment qualification.
 
 ### Output routing
 
@@ -188,17 +188,21 @@ In QLC+ Input/Output:
 - associate `SoundSwitch-Control-One-Performance.qxi` if QLC+ did not retain it;
 - verify pads, banks, mode, Play/Pause, Stop, intensity, and LED feedback.
 
-### Five-minute V23 observation
+### Five-minute V24 observation
 
-Complete the V23 release test before moving on:
+Complete the V24 release test before moving on:
 
-1. Toggle `AUTOLOOPS ⇄ PRIORITY LOOKS` twice.
-2. Latch one manual pad in each bank.
-3. Start Auto Bank and Auto All; confirm the amber rail and tracker advance.
-4. Change dwell and chase speed while Autoplay remains running.
-5. Apply and release one still and one moving Priority Look.
-6. Test one color override and Global/IR-4/tube intensity.
-7. Confirm the selected DMX output visibly reaches the fixture.
+1. With Control One disconnected, use the mouse to select Banks 1–4 and confirm each bank changes on screen.
+2. Toggle `AUTOLOOPS ⇄ PRIORITY LOOKS` in both directions and confirm the visible mode follows.
+3. Latch `Start Bank` and `Start All`; confirm each remains active until deliberately stopped.
+4. During manual and automatic playback, confirm the live highlight follows the loop actually playing.
+5. Change chase multiplier through `0.25x / 0.5x / 1x / 2x / 4x` without changing Autoplay dwell.
+6. Change Autoplay dwell through `1 / 2 / 4 / 8 / 16 measures` without changing chase multiplier.
+7. Apply and release one still and one moving Priority Look; confirm the underlying loop continues.
+8. Test one color override and Global/IR-4/tube intensity.
+9. Confirm the selected DMX output visibly reaches the fixture.
+
+Trailing-zero double-dispatch is covered by the deterministic V24 software test. Do not invent a second beat source to test timing; VirtualDJ/OS2L remains the only beat source.
 
 If this fails locally, stop. Network OS2L and headless startup cannot repair a local QLC+/hardware failure.
 
@@ -246,7 +250,7 @@ Close QLC+. Then run this manually from the booth computer:
 
 ```powershell
 $Qlc = 'C:\LLE\QLC\5.3.0-GIT-a124abe\qlcplus5.exe'
-$Workspace = 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw'
+$Workspace = 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw'
 $AuthFile = 'C:\ProgramData\LLEBooth\qlc-web-auth'
 
 & $Qlc `
@@ -286,7 +290,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 .\tools\booth-node\Install-LLEBoothNode.ps1 `
   -QlcRoot 'C:\LLE\QLC\5.3.0-GIT-a124abe' `
-  -WorkspacePath 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw' `
+  -WorkspacePath 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw' `
   -AuthFile 'C:\ProgramData\LLEBooth\qlc-web-auth' `
   -ConfigureFirewall `
   -PreventSleep
@@ -355,7 +359,7 @@ Only after manual operation passes:
 6. power on the booth computer;
 7. sign in normally for the first qualification session;
 8. from the DJ laptop, wait for the QLC+ web page;
-9. verify the V23 workspace, Control One, selected DMX output, and OS2L;
+9. verify the V24 workspace, Control One, selected DMX output, and OS2L;
 10. reboot the booth computer once from a warm state and repeat.
 
 The booth node is not headless-qualified if any required step still depends on attaching a monitor.
@@ -365,7 +369,7 @@ The booth node is not headless-qualified if any required step still depends on a
 Before any production trial, place these on the DJ laptop and a separate USB drive:
 
 - private pre/post inventory captures and completed manual observations;
-- complete V23 release folder;
+- complete V24 release folder;
 - V22 workspace/package;
 - complete pinned QLC+ folder;
 - current known-good DJ-laptop QLC+ setup;

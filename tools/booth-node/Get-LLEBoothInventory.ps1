@@ -7,9 +7,9 @@ param(
 
     [string]$QlcRoot = 'C:\LLE\QLC\5.3.0-GIT-a124abe',
 
-    [string]$WorkspacePath = 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw',
+    [string]$WorkspacePath = 'C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw',
 
-    [string]$PackageRoot = 'C:\LLE\Packages\qlcplus-control-one-v23',
+    [string]$PackageRoot = 'C:\LLE\Packages\qlcplus-control-one-v24',
 
     [ValidateRange(1, 4096)]
     [int]$MinimumFreeGB = 25,
@@ -25,9 +25,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ExpectedCoreSha256 = '16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533'
-$ExpectedPluginSha256 = 'AC6BE24B6B8FA252E0C426D68248F99326B43EC1E2569C7B7EDB15511F2ED54D'
-$ExpectedWorkspaceSha256 = 'E953C3483EB09D2E600D32495887B27A03021DC47EF7BA5797552C4F5A21547B'
-$ExpectedTaskName = 'LLE Booth - QLC+ V23'
+$ExpectedPluginSha256 = '2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC'
+$ExpectedWorkspaceSha256 = 'DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF'
+$ExpectedTaskName = 'LLE Booth - QLC+ V24'
 
 $warnings = [Collections.Generic.List[string]]::new()
 $collectionNotes = [Collections.Generic.List[string]]::new()
@@ -108,7 +108,7 @@ function Get-FileEvidence {
             if ($ExpectedSha256) {
                 $hashMatches = ($actualSha256 -eq $ExpectedSha256.ToUpperInvariant())
                 if (-not $hashMatches) {
-                    Add-InventoryWarning "$Label exists but its SHA-256 does not match the pinned V23 value. Do not install or promote this copy."
+                    Add-InventoryWarning "$Label exists but its SHA-256 does not match the pinned V24 value. Do not install or promote this copy."
                 }
             }
         }
@@ -439,23 +439,23 @@ if ($pendingRestart.Pending) {
 
 $qlcExecutable = Join-Path $QlcRoot 'qlcplus5.exe'
 $installedPlugin = Join-Path $QlcRoot 'Plugins\soundswitch.dll'
-$packageWorkspace = Join-Path $PackageRoot 'IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw'
+$packageWorkspace = Join-Path $PackageRoot 'IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw'
 $packageProfile = Join-Path $PackageRoot 'SoundSwitch-Control-One-Performance.qxi'
 $packagePlugin = Join-Path $PackageRoot 'soundswitch.dll'
-$packageValidator = Join-Path $PackageRoot 'Test-V23Package.ps1'
+$packageValidator = Join-Path $PackageRoot 'Test-V24Package.ps1'
 $packageInstaller = Join-Path $PackageRoot 'Install-SoundSwitchPlugin.ps1'
 $packageRollback = Join-Path $PackageRoot 'Rollback-SoundSwitchPlugin.ps1'
 
 $qlcArtifacts = @(
     Get-FileEvidence -Label 'Pinned QLC+ core' -Path $qlcExecutable -ExpectedSha256 $ExpectedCoreSha256
     Get-FileEvidence -Label 'Installed SoundSwitch plug-in' -Path $installedPlugin -ExpectedSha256 $ExpectedPluginSha256
-    Get-FileEvidence -Label 'Active V23 workspace' -Path $WorkspacePath -ExpectedSha256 $ExpectedWorkspaceSha256
-    Get-FileEvidence -Label 'Packaged V23 workspace' -Path $packageWorkspace -ExpectedSha256 $ExpectedWorkspaceSha256
+    Get-FileEvidence -Label 'Active V24 workspace' -Path $WorkspacePath -ExpectedSha256 $ExpectedWorkspaceSha256
+    Get-FileEvidence -Label 'Packaged V24 workspace' -Path $packageWorkspace -ExpectedSha256 $ExpectedWorkspaceSha256
     Get-FileEvidence -Label 'Packaged Control One profile' -Path $packageProfile
     Get-FileEvidence -Label 'Packaged SoundSwitch plug-in' -Path $packagePlugin -ExpectedSha256 $ExpectedPluginSha256
-    Get-FileEvidence -Label 'V23 package validator' -Path $packageValidator
-    Get-FileEvidence -Label 'V23 plug-in installer' -Path $packageInstaller
-    Get-FileEvidence -Label 'V23 plug-in rollback helper' -Path $packageRollback
+    Get-FileEvidence -Label 'V24 package validator' -Path $packageValidator
+    Get-FileEvidence -Label 'V24 plug-in installer' -Path $packageInstaller
+    Get-FileEvidence -Label 'V24 plug-in rollback helper' -Path $packageRollback
 )
 
 $qlcProcesses = @()
@@ -768,7 +768,7 @@ Qualify direct ports before considering a hub, dock, extender, or long cable.
 - Source location of complete coherent DJ-laptop QLC+ folder:
 - Private location of untouched DJ-laptop rollback:
 - Private location of V22 rollback:
-- Private location of V23 package:
+- Private location of V24 package:
 - Private location of plug-in installer receipt/backup:
 - Recovery USB drive prepared and labeled:
 

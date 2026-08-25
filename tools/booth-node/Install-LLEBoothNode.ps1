@@ -14,7 +14,7 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Os2lPort = 9996,
 
-    [string]$TaskName = 'LLE Booth - QLC+ V23',
+    [string]$TaskName = 'LLE Booth - QLC+ V24',
 
     [string]$RunAsUser = "$env:USERDOMAIN\$env:USERNAME",
 
@@ -30,8 +30,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ExpectedCoreSha256 = '16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533'
-$ExpectedPluginSha256 = 'AC6BE24B6B8FA252E0C426D68248F99326B43EC1E2569C7B7EDB15511F2ED54D'
-$ExpectedWorkspaceSha256 = 'E953C3483EB09D2E600D32495887B27A03021DC47EF7BA5797552C4F5A21547B'
+$ExpectedPluginSha256 = '2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC'
+$ExpectedWorkspaceSha256 = 'DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF'
 
 function Assert-WindowsAdministrator {
     if ($env:OS -ne 'Windows_NT') {
@@ -67,7 +67,7 @@ if (-not (Test-Path -LiteralPath $qlcExecutable -PathType Leaf)) {
     throw "Pinned QLC+ executable not found: $qlcExecutable"
 }
 if (-not (Test-Path -LiteralPath $pluginPath -PathType Leaf)) {
-    throw "SoundSwitch plug-in not found: $pluginPath. Run the V23 installer first."
+    throw "SoundSwitch plug-in not found: $pluginPath. Run the V24 installer first."
 }
 
 $coreHash = Get-NormalizedSha256 -Path $qlcExecutable
@@ -82,7 +82,7 @@ if ($pluginHash -ne $ExpectedPluginSha256) {
 
 $workspaceHash = Get-NormalizedSha256 -Path $resolvedWorkspace
 if ($workspaceHash -ne $ExpectedWorkspaceSha256 -and -not $AllowModifiedWorkspace) {
-    throw "V23 workspace hash mismatch. Expected $ExpectedWorkspaceSha256; found $workspaceHash. Preserve the exact release and run structural validation before using -AllowModifiedWorkspace for an intentional machine-specific copy."
+    throw "V24 workspace hash mismatch. Expected $ExpectedWorkspaceSha256; found $workspaceHash. Preserve the exact release and run structural validation before using -AllowModifiedWorkspace for an intentional machine-specific copy."
 }
 
 $boothRoot = Join-Path $env:ProgramData 'LLEBooth'
@@ -243,7 +243,7 @@ if ($PSCmdlet.ShouldProcess($TaskName, "Register at-logon task for $RunAsUser"))
         -Trigger $taskTrigger `
         -Principal $taskPrincipal `
         -Settings $taskSettings `
-        -Description 'Starts the pinned LLE QLC+ V23 workspace with authenticated web control after interactive logon.' `
+        -Description 'Starts the pinned LLE QLC+ V24 workspace with authenticated web control after interactive logon.' `
         -Force | Out-Null
 }
 

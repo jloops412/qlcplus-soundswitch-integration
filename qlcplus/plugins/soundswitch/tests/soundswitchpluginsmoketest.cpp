@@ -19,6 +19,7 @@
 #include <QCoreApplication>
 #include <QPluginLoader>
 #include <QStringList>
+#include <QVector>
 
 int main(int argc, char *argv[])
 {
@@ -84,25 +85,162 @@ int main(int argc, char *argv[])
         uids.at(controlOneIndex).startsWith(QStringLiteral("soundswitch:control-one:")) &&
         uids.at(controlOneSecondIndex).startsWith(QStringLiteral("soundswitch:control-one:")) &&
         uids.at(feedbackIndex) == QStringLiteral("soundswitch:controlone:surface");
+    const bool surfaceValid = feedbackIndex >= 0 &&
+        uids.at(feedbackIndex) == QStringLiteral("soundswitch:controlone:surface");
     if (!priorityValid)
     {
         std::cerr << "priority layer binding is unavailable\n";
         return 6;
     }
+    if (!surfaceValid)
+    {
+        std::cerr << "hardware-independent surface command line is unavailable\n";
+        return 7;
+    }
     if (!microValid && !controlOneValid && !allowNoHardware)
     {
         std::cerr << "no supported SoundSwitch hardware was enumerated\n";
-        return 7;
+        return 8;
     }
 
     if (!plugin->openOutput(static_cast<quint32>(priorityIndex), 2U))
     {
         std::cerr << "priority layer did not open as a virtual output\n";
-        return 8;
+        return 9;
     }
     plugin->writeUniverse(2U, static_cast<quint32>(priorityIndex),
                           QByteArray(334, '\0'), true);
     plugin->closeOutput(static_cast<quint32>(priorityIndex), 2U);
+
+    if (!plugin->openOutput(static_cast<quint32>(feedbackIndex), 1U))
+    {
+        std::cerr << "surface command line requires attached hardware\n";
+        return 10;
+    }
+
+    if (!plugin->openInput(0U, 1U))
+    {
+        std::cerr << "logical Control One input did not open without hardware\n";
+        return 11;
+    }
+    QVector<QPair<quint32, uchar>> routedValues;
+    QObject::connect(plugin, &QLCIOPlugin::valueChanged,
+        [&routedValues](quint32 universe, quint32 input, quint32 channel,
+                        uchar value, const QString &) {
+            if (universe == 1U && input == 0U)
+                routedValues.append(qMakePair(channel, value));
+        });
+
+    // Priority ownership and Virtual Console commands share QLC+'s single
+    // feedback patch. Ownership channels must be consumed by the plug-in and
+    // must not leak back into the logical Control One input.
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         600U, 255U, QVariant());
+    QCoreApplication::processEvents();
+    if (!routedValues.isEmpty())
+    {
+        std::cerr << "priority ownership leaked into surface input\n";
+        return 12;
+    }
+
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         811U, 255U, QVariant());
+    QCoreApplication::processEvents();
+    const QVector<QPair<quint32, uchar>> expectedModePulse{
+        qMakePair(510U, static_cast<uchar>(255)),
+        qMakePair(510U, static_cast<uchar>(0)),
+        qMakePair(502U, static_cast<uchar>(255)),
+        qMakePair(502U, static_cast<uchar>(0))
+    };
+    if (routedValues != expectedModePulse)
+    {
+        std::cerr << "positive mode command did not emit one page change\n";
+        return 13;
+    }
+
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         811U, 0U, QVariant());
+    QCoreApplication::processEvents();
+    if (routedValues != expectedModePulse)
+    {
+        std::cerr << "trailing UI Scene zero repeated the mode command\n";
+        return 14;
+    }
+
+    routedValues.clear();
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         811U, 255U, QVariant());
+    QCoreApplication::processEvents();
+    const QVector<QPair<quint32, uchar>> expectedAutoloopPulse{
+        qMakePair(510U, static_cast<uchar>(255)),
+        qMakePair(510U, static_cast<uchar>(0)),
+        qMakePair(60U, static_cast<uchar>(255)),
+        qMakePair(60U, static_cast<uchar>(0)),
+        qMakePair(32U, static_cast<uchar>(255)),
+        qMakePair(32U, static_cast<uchar>(0))
+    };
+    if (routedValues != expectedAutoloopPulse)
+    {
+        std::cerr << "second mode command did not return to Autoloops\n";
+        return 15;
+    }
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         811U, 0U, QVariant());
+    QCoreApplication::processEvents();
+    if (routedValues != expectedAutoloopPulse)
+    {
+        std::cerr << "trailing mode zero repeated the Autoloops command\n";
+        return 16;
+    }
+
+    routedValues.clear();
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         802U, 255U, QVariant());
+    QCoreApplication::processEvents();
+    const QVector<QPair<quint32, uchar>> expectedBankPulse{
+        qMakePair(34U, static_cast<uchar>(255)),
+        qMakePair(34U, static_cast<uchar>(0))
+    };
+    if (routedValues != expectedBankPulse)
+    {
+        std::cerr << "Bank 3 UI command did not select native bank page 3\n";
+        return 17;
+    }
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         802U, 0U, QVariant());
+    QCoreApplication::processEvents();
+    if (routedValues != expectedBankPulse)
+    {
+        std::cerr << "trailing bank zero repeated the selection command\n";
+        return 18;
+    }
+
+    routedValues.clear();
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         815U, 255U, QVariant());
+    QCoreApplication::processEvents();
+    const QVector<QPair<quint32, uchar>> expectedSpeedPulse{
+        qMakePair(473U, static_cast<uchar>(255)),
+        qMakePair(473U, static_cast<uchar>(0))
+    };
+    if (routedValues != expectedSpeedPulse)
+    {
+        std::cerr << "2x chase-speed UI command did not select preset 3\n";
+        return 19;
+    }
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         815U, 0U, QVariant());
+    QCoreApplication::processEvents();
+    if (routedValues != expectedSpeedPulse)
+    {
+        std::cerr << "trailing speed zero repeated the preset command\n";
+        return 20;
+    }
+
+    plugin->sendFeedBack(1U, static_cast<quint32>(feedbackIndex),
+                         600U, 0U, QVariant());
+    plugin->closeInput(0U, 1U);
+    plugin->closeOutput(static_cast<quint32>(feedbackIndex), 1U);
 
     std::cout << "Loaded: " << plugin->name().toStdString() << '\n';
     if (!microValid && !controlOneValid)

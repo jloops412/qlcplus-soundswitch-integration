@@ -28,15 +28,15 @@ Default Booth Node paths checked by the tool:
 
 ```text
 C:\LLE\QLC\5.3.0-GIT-a124abe
-C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw
-C:\LLE\Packages\qlcplus-control-one-v23
+C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw
+C:\LLE\Packages\qlcplus-control-one-v24
 ```
 
-The tool knows the pinned V23 hashes for:
+The tool knows the pinned V24 hashes for:
 
 - `qlcplus5.exe`;
 - installed and packaged `soundswitch.dll`;
-- the V23 `.qxw` workspace.
+- the V24 `.qxw` workspace.
 
 It checks presence only for the profile, package test, installer, and rollback helper because those files do not form the runtime compatibility tuple by themselves.
 
@@ -142,10 +142,10 @@ The DJ-laptop capture proves what must remain available for rollback. Supply its
   -OutputRoot 'C:\LLE\Inventory' `
   -QlcRoot 'D:\ACTUAL\PATH\TO\PINNED-QLC' `
   -WorkspacePath 'D:\ACTUAL\PATH\TO\KNOWN-GOOD.qxw' `
-  -PackageRoot 'D:\ACTUAL\PATH\TO\V23-PACKAGE'
+  -PackageRoot 'D:\ACTUAL\PATH\TO\V24-PACKAGE'
 ```
 
-Do not copy those example paths literally. Browse to the actual files first. A DJ-laptop workspace can intentionally differ from the exact V23 release; record that as rollback evidence rather than using a bypass to call it V23.
+Do not copy those example paths literally. Browse to the actual files first. A DJ-laptop workspace can intentionally differ from the exact V24 release; record that as rollback evidence rather than using a bypass to call it V24.
 
 ## Private MAC-address capture
 
@@ -218,11 +218,11 @@ Hashes the JSON, summary, and manual worksheet at capture time. After completing
 | Result | Meaning | Action |
 |---|---|---|
 | Exists `False` | File was not at the supplied path | Locate/copy the coherent package; do not invent a path |
-| Exists `True`, HashMatches `True` | File matches the pinned V23 value | Preserve it and continue to package validation |
-| Exists `True`, HashMatches `False` | File differs from pinned V23 | Stop; do not install/promote it as V23 |
+| Exists `True`, HashMatches `True` | File matches the pinned V24 value | Preserve it and continue to package validation |
+| Exists `True`, HashMatches `False` | File differs from pinned V24 | Stop; do not install/promote it as V24 |
 | HashMatches blank/not pinned | Presence/hash recorded, but no release hash is asserted by this tool | Use the official package test and release manifest |
 
-The helper does not run the V23 package validator or install the plug-in. Those are separate deliberate steps in the deployment runbook.
+The helper does not run the V24 package validator or install the plug-in. Those are separate deliberate steps in the deployment runbook.
 
 ## What must stay private
 
@@ -282,7 +282,7 @@ Check the active adapter, `ipconfig /all`, ReadyNet DHCP authority, reservation,
 
 ### QLC+ hash mismatch appears
 
-Do not use a compatibility bypass. Restore the complete coherent `5.3.0-GIT-a124abe` folder and exact V23 package, then rerun the package validator and inventory.
+Do not use a compatibility bypass. Restore the complete coherent `5.3.0-GIT-a124abe` folder and exact V24 package, then rerun the package validator and inventory.
 
 ### ReadyNet model is still uncertain
 

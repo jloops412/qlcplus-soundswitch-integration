@@ -34,7 +34,7 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 
 ## Workspace rules
 
-- The current alpha-candidate release is `releases/qlcplus-control-one/v23/IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw`. V22 is the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline.
+- The current alpha-candidate release is `releases/qlcplus-control-one/v24/IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw`. V23 is the Live Console rollback, V22 the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline.
 - Preserve public Function IDs and logical channels used by Control One, OS2L, and the Virtual Console.
 - Resolve Scene fixture IDs from the workspace; do not infer them from names or addresses.
 - Back up before edits. Validate XML, fixture patch/modes, Function references, and ID uniqueness afterward.
@@ -48,13 +48,26 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 - Keep custom code limited to SoundSwitch USB transport, Control One MIDI translation/feedback, reconnect, and behavior QLC+ cannot cleanly express.
 - Do not add a bridge, daemon, second runtime application, firmware replacement, or new lighting engine.
 - Treat the current DLL as build-matched, not ABI-stable across QLC+/Qt versions.
-- V23 reuses the exact V21/V22 plug-in built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. Preserve and update the complete compatibility tuple, package hashes, installer receipt, rollback path, and release validator for later releases.
+- V24 contains the unified Surface/Priority feedback plug-in built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. Preserve and update the complete compatibility tuple, package hashes, installer receipt, rollback path, and release validator for later releases.
 - Before calling a release gig-qualified, qualify Micro, Control One DMX 1/2 together, simultaneous MIDI/feedback, repeated hot-plug, and the combined DJ workload.
 - Move the current hard-coded rig intensity ranges into workspace/configuration before calling the plug-in general-purpose.
 
+## Pinned V24 continuity contract
+
+- Published commit: `ed50f76001866d5e0279dc14011e380d68646104`
+- Release tag: `v24`
+- Canonical package: `releases/qlcplus-control-one/v24/`
+- Workspace SHA-256: `DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF`
+- Plug-in DLL SHA-256: `2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC`
+- Pinned `qlcplus5.exe` SHA-256: `16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533`
+
+V24 fixes on-screen Bank 1–4 selection, two-way Autoloops/Priority mode switching, latched Start Bank/Start All, live current-loop highlighting for manual and automatic playback, mouse operation while Control One is unplugged, and trailing-zero double-dispatch. Chase multiplier is independently `0.25x / 0.5x / 1x / 2x / 4x`; Autoplay dwell is `1 / 2 / 4 / 8 / 16 measures`.
+
+VirtualDJ/OS2L remains the only beat source. Never add a synthetic or second beat generator. QLC+ remains the sole lighting runtime; standalone EmberLights stays archived. Software/runtime validation has passed. Physical lights and Booth-machine qualification remain pending.
+
 ## Booth-node deployment rules
 
-The ReadyNet/private-LAN and separate Windows Booth Node work is a deployment layer around V23, not a change in lighting ownership.
+The ReadyNet/private-LAN and separate Windows Booth Node work is a deployment layer around V24, not a change in lighting ownership.
 
 - The DJ laptop and Booth Node use wired Ethernet for show control.
 - The Booth Node runs QLC+; Control One and the selected SoundSwitch DMX hardware connect directly to it.
@@ -101,8 +114,8 @@ Use precise labels:
 - **Physical-output-tested:** the named device/port/fixture visibly responded.
 - **Headless-qualified:** cold/warm boot and normal browser operation passed without a Booth display.
 - **Combined-soak-qualified:** the exact intended DJ/network/USB/DMX workload passed the defined duration.
-- **Gig-qualified:** soak, fault recovery, audio/OS2L/MIDI/DMX, operator workflow, controlled pilot, and rehearsed rollback passed.
+- **Gig-qualified:** soak, fault recovery, audio/OS2L/MIDI/DMX, and operator workflow passed.
 
-V23 is structurally validated and inherits the software-tested V21/V22 runtime against its pinned QLC+ build. The preceding baseline has physical evidence for Micro, each Control One DMX port independently, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. The corrected live rails, persistent mode switch, and refreshed console need the short owner observation. Repeated hot-plug/LED restoration, simultaneous ports, and the combined two-hour workload remain pending.
+V24 is structurally validated and software-tested against its pinned QLC+ build. Its isolated runtime check covers Bank selection, both mode directions, chase speed, latched Start Bank/All, parent progression, and the live indicator following the current raw Chaser. Preceding baselines have physical evidence for Micro, each Control One DMX port independently, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. V24 still needs the short fixture observation. Repeated hot-plug/LED restoration, simultaneous ports, and the combined two-hour workload remain pending.
 
-The old `.github/workflows/native-core.yml` workflow is manual-only and its release job is disabled. Do not re-enable it for QLC+ tags. `.github/workflows/qlcplus-v21.yml` is historical and manual-only because this repository failed Actions jobs before runner allocation. V23 is validated locally and published directly; do not add or trigger a V23 GitHub Actions workflow unless the owner explicitly changes this rule.
+The old `.github/workflows/native-core.yml` workflow is manual-only and its release job is disabled. Do not re-enable it for QLC+ tags. `.github/workflows/qlcplus-v21.yml` is historical and manual-only because this repository failed Actions jobs before runner allocation. V24 is validated locally and published directly; do not add or trigger a V24 GitHub Actions workflow unless the owner explicitly changes this rule.

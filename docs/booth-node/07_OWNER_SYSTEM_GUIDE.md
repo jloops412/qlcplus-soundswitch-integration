@@ -6,7 +6,7 @@ This is the plain-language map of what the Booth project is, what every major co
 
 ## The one-sentence definition
 
-The Booth Node is a dedicated Windows lighting computer on a private ReadyNet LAN that runs the exact pinned QLC+ V23 system, receives VirtualDJ beat/control data over wired Ethernet, receives Control One commands over USB MIDI, and sends DMX through the SoundSwitch hardware plug-in while remaining controllable from the DJ laptop browser.
+The Booth Node is a dedicated Windows lighting computer on a private ReadyNet LAN that runs the exact pinned QLC+ V24 system, receives VirtualDJ beat/control data over wired Ethernet, receives Control One commands over USB MIDI, and sends DMX through the SoundSwitch hardware plug-in while remaining controllable from the DJ laptop browser.
 
 ## What this project is not
 
@@ -28,16 +28,16 @@ Those systems can have their own projects and hardware. They are not dependencie
 ```text
 VirtualDJ on DJ laptop
   -- wired Ethernet / OS2L TCP 9996 -->
-QLC+ V23 on Booth Node
+QLC+ V24 on Booth Node
   -- build-matched SoundSwitch plug-in -->
 SoundSwitch Micro or Control One DMX
   --> fixtures
 
 Control One
-  -- direct USB MIDI -------------------> QLC+ V23
+  -- direct USB MIDI -------------------> QLC+ V24
 
 DJ-laptop browser
-  -- authenticated TCP 9999 -----------> QLC+ V23 web console
+  -- authenticated TCP 9999 -----------> QLC+ V24 web console
 ```
 
 The ReadyNet provides the private routed LAN. Venue Ethernet, LTE, and later-qualified Wi-Fi-as-WAN are optional upstream Internet paths. Internet is not part of the lighting path.
@@ -47,7 +47,7 @@ The ReadyNet provides the private routed LAN. Venue Ethernet, LTE, and later-qua
 | Component | What it is for | Normal connection | If it fails |
 |---|---|---|---|
 | DJ laptop | Runs VirtualDJ, audio performance, primary event recording, and the browser lighting console | Wired Ethernet to ReadyNet; REV7 USB | DJ/audio and OS2L are affected; Booth QLC+ can still be operated manually through Control One |
-| Booth Node | Dedicated Windows host for QLC+ V23 | Wired Ethernet to ReadyNet; Control One/Micro USB | Use the rehearsed DJ-laptop QLC+ rollback |
+| Booth Node | Dedicated Windows host for QLC+ V24 | Wired Ethernet to ReadyNet; Control One/Micro USB | Use the rehearsed DJ-laptop QLC+ rollback |
 | ReadyNet LTE520/LTE520S | Private Booth gateway, DHCP authority, small Ethernet switch, and optional WAN/LTE failover | DJ and Booth on LAN; venue Ethernet on WAN when available | Local browser/OS2L disappear during LAN outage; QLC+/Control One can continue locally |
 | Control One | Physical QLC+ performance surface and optional DMX output | Direct USB to Booth Node | Use the QLC+ browser; test reconnect only when operationally safe |
 | SoundSwitch Micro | Compact optional DMX output | Direct USB to Booth Node | Use qualified Control One DMX port or rollback output path |
@@ -55,7 +55,7 @@ The ReadyNet provides the private routed LAN. Venue Ethernet, LTE, and later-qua
 | Ethernet cables | Deterministic OS2L and browser transport | DJ -> ReadyNet LAN; Booth -> ReadyNet LAN | Replace with labeled tested spare; do not substitute show-control Wi-Fi |
 | USB cables | Direct Control One/Micro connection | Known physical ports recorded in qualification evidence | Replace one cable/port only when safe; avoid unqualified hubs/docks |
 | Temporary display/keyboard/mouse | First install and recovery only | Direct to Booth Node during bench work | Normal gigs must not require them after headless qualification |
-| Recovery USB drive | Offline copy of coherent QLC+, V23/V22, docs, receipts, and rollback material | Stored with show kit, not normally attached | Rebuild becomes slower and riskier; verify the kit before each pilot |
+| Recovery USB drive | Offline copy of coherent QLC+, V24/V23, docs, receipts, and rollback material | Stored with show kit, not normally attached | Rebuild becomes slower and riskier; verify the kit before each pilot |
 | Optional UPS | Keeps ReadyNet/Booth power stable during short interruptions | Qualified power path only | System still needs a known power-up sequence and DJ-laptop rollback |
 
 ## Network identity
@@ -80,6 +80,27 @@ An already stable private subnet may be retained. The real requirements are:
 - no guest device joins the show segment;
 - TCP 9996/9999 are never exposed to WAN/LTE.
 
+## Canonical V24 lighting contract
+
+This is the exact release the Booth staging plan targets:
+
+| Item | Pinned value |
+|---|---|
+| Published commit | `ed50f76001866d5e0279dc14011e380d68646104` |
+| Release tag | `v24` |
+| Package | `releases/qlcplus-control-one/v24/` |
+| Workspace | `IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw` |
+| Workspace SHA-256 | `DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF` |
+| Plug-in SHA-256 | `2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC` |
+| QLC+ | `5.3.0 GIT a124abe` |
+| `qlcplus5.exe` SHA-256 | `16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533` |
+
+V24 fixes on-screen Bank 1–4 selection, two-way Autoloops/Priority switching, latched Start Bank/Start All, live current-loop highlighting for manual and automatic playback, mouse operation with Control One unplugged, and trailing-zero double-dispatch. Chase multiplier is `0.25x / 0.5x / 1x / 2x / 4x`; Autoplay dwell is `1 / 2 / 4 / 8 / 16 measures`. These controls are independent.
+
+VirtualDJ/OS2L is the only beat source. Do not enable, add, or stage a synthetic or second beat generator. QLC+ is the only lighting runtime; standalone EmberLights remains archived.
+
+Software/runtime validation has passed. Physical lights and Booth-machine qualification remain pending, so this release is staged only and must not be physically deployed before inventory/hardware day.
+
 ## Software catalog
 
 ### QLC+ `5.3.0 GIT a124abe`
@@ -100,29 +121,29 @@ Pinned `qlcplus5.exe` SHA-256:
 16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533
 ```
 
-### V23 workspace `.qxw`
+### V24 workspace `.qxw`
 
 Purpose: contains the actual lighting fixture patch, Autoloops, Priority Looks, overrides, intensity behavior, Control One/Virtual Console mappings, and QLC+ I/O configuration.
 
 Expected Booth path:
 
 ```text
-C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw
+C:\LLE\Projects\IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw
 ```
 
 Pinned SHA-256:
 
 ```text
-E953C3483EB09D2E600D32495887B27A03021DC47EF7BA5797552C4F5A21547B
+DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF
 ```
 
-V23 is the alpha-candidate target. V22 is the creative rollback, V21 the reliability rollback, and V20 the protected creative baseline. Do not creatively edit the deployment copy while qualifying the machine.
+V24 is the alpha-candidate target. V23 is the Live Console rollback, V22 the creative rollback, V21 the reliability rollback, and V20 the protected creative baseline. Do not creatively edit the deployment copy while qualifying the machine.
 
 ### `SoundSwitch-Control-One-Performance.qxi`
 
 Purpose: tells QLC+ how Control One MIDI inputs/outputs and feedback map to logical controls.
 
-It is a QLC+ input profile, not firmware and not a standalone program. Associate it only where the V23 workflow requires it.
+It is a QLC+ input profile, not firmware and not a standalone program. Associate it only where the V24 workflow requires it.
 
 ### `soundswitch.dll`
 
@@ -137,26 +158,26 @@ C:\LLE\QLC\5.3.0-GIT-a124abe\Plugins\soundswitch.dll
 Pinned SHA-256:
 
 ```text
-AC6BE24B6B8FA252E0C426D68248F99326B43EC1E2569C7B7EDB15511F2ED54D
+2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC
 ```
 
 This DLL is build-matched. It is not a universal drop-in for a newer QLC+ installation.
 
-### V23 package folder
+### V24 package folder
 
 Expected Booth path:
 
 ```text
-C:\LLE\Packages\qlcplus-control-one-v23\
+C:\LLE\Packages\qlcplus-control-one-v24\
 ```
 
 It is the install source and immutable release reference. Do not use the package folder as the editable project workspace.
 
-## Every V23 package helper
+## Every V24 package helper
 
-### `Test-V23Package.ps1`
+### `Test-V24Package.ps1`
 
-Purpose: validates the release structure before installation. It parses the workspace/profile, verifies IDs and references, checks the exact fixture patch and V23 console invariants, rejects personal/secrets content, and verifies the allowed V22-to-V23 boundary.
+Purpose: validates the release structure before installation. It parses the workspace/profile, verifies IDs and references, checks the exact fixture patch and V24 console invariants, rejects personal/secrets content, and verifies the allowed V23-to-V24 boundary.
 
 Run it before installing. A failure is a stop condition, not something to bypass.
 
@@ -243,7 +264,7 @@ Generated by `Install-LLEBoothNode.ps1`. It waits briefly after login, refuses t
 
 Do not hand-edit it as the normal configuration method. Rerun the installer helper with deliberate parameters so the generated state is reproducible.
 
-### Scheduled task `LLE Booth - QLC+ V23`
+### Scheduled task `LLE Booth - QLC+ V24`
 
 Starts the generated launcher at interactive logon for the chosen Booth account. It is intentionally at-logon, not an unproven pre-login service, because QLC+ is a desktop application and Control One/web behavior must be qualified in that session.
 
@@ -292,7 +313,7 @@ Both are limited to `LocalSubnet` and the Windows Private profile. SMB recording
 5. Wait for the at-logon QLC+ task.
 6. On the DJ laptop, connect wired Ethernet to ReadyNet.
 7. Open the bookmarked `http://10.52.0.20:9999` using the operator account.
-8. Confirm the exact V23 console and one QLC+ instance.
+8. Confirm the exact V24 console and one QLC+ instance.
 9. Confirm Control One input/LED state and the selected DMX output.
 10. Start VirtualDJ and confirm direct OS2L reaches port 9996.
 11. Start primary event recording locally on the DJ laptop only after its own pre-event test.
@@ -302,7 +323,7 @@ Use the actual reserved Booth address if different.
 ## What “normal” looks like
 
 - ReadyNet, DJ, and Booth keep the same private addresses with or without Internet.
-- The browser opens the V23 Virtual Console and asks for credentials.
+- The browser opens the V24 Runtime Feedback Virtual Console and asks for credentials.
 - Control One pads, banks, mode, transport, intensity, and known LEDs respond.
 - A selected Autoloop or Autoplay owner continues normally.
 - Priority Looks temporarily own the complete physical frame, then reveal the still-advancing underlying loop.
@@ -319,7 +340,7 @@ Before doors/program start:
 
 - [ ] labeled ReadyNet/DJ/Booth Ethernet cables connected;
 - [ ] ReadyNet gateway and Booth browser reachable;
-- [ ] one QLC+ process and exact V23 workspace;
+- [ ] one QLC+ process and exact V24 workspace;
 - [ ] Universe 3 not routed physically;
 - [ ] Control One input and known LEDs;
 - [ ] selected DMX output and safe fixture response;
@@ -359,7 +380,7 @@ The exact microphone/source route must be proven with a physical playback test. 
 |---|---|---|---|
 | Browser unavailable, lighting works | Control One | ping, TCP 9999, reopen/re-authenticate | diagnose after critical program moment |
 | OS2L unavailable, QLC+ works | safe manual Autoloop/Priority Look | Ethernet, ping, TCP 9996, keepalive | DJ-laptop local QLC+ if unstable for production |
-| Control One unavailable, QLC+ works | browser V23 console | one safe USB reseat, allow rescan | finish with browser; diagnose later |
+| Control One unavailable, QLC+ works | browser V24 console | one safe USB reseat, allow rescan | finish with browser; diagnose later |
 | Booth QLC+ stopped | safest fixture state/manual recovery | confirm no duplicate, launch prepared task once | rehearse DJ-laptop rollback instead of repeated experiments |
 | Booth computer failed | DJ-laptop QLC+ rollback | move labeled USB/DMX, set OS2L localhost | resume with simple safe look first |
 | ReadyNet Internet failed | local QLC+/Control One/browser/OS2L | local gateway and LAN state | continue offline; Internet is non-critical |
@@ -376,7 +397,7 @@ Do not restart working lighting during a critical song merely to restore a non-c
 - Windows build, driver, power, login, firewall, or scheduled-task state;
 - QLC+ executable/runtime folder;
 - SoundSwitch plug-in;
-- V23 workspace/I/O mapping;
+- V24 workspace/I/O mapping;
 - Control One/Micro port or cable layout;
 - VirtualDJ OS2L target/offset/mapper;
 - recording format/input/path;
@@ -423,9 +444,9 @@ Current Booth claim: **pre-hardware deployment staged; not gig-qualified**.
 1. Capture both machines and exact ReadyNet with `Get-LLEBoothInventory.ps1`.
 2. Complete manual hardware/router/port/cable evidence.
 3. Establish routed private ReadyNet LAN and DHCP reservations.
-4. Copy the complete coherent pinned QLC+ folder and V23 package.
-5. Run V23 validation; install the build-matched plug-in with QLC+ closed.
-6. Reproduce local V23, Control One, and one physical DMX output.
+4. Copy the complete coherent pinned QLC+ folder and V24 package.
+5. Run V24 validation; install the build-matched plug-in with QLC+ closed.
+6. Reproduce local V24, Control One, and one physical DMX output.
 7. Prove authenticated QLC+ browser control manually.
 8. Install guarded at-logon startup/firewall/power settings.
 9. Point VirtualDJ direct OS2L to the Booth reservation and preserve the keepalive.

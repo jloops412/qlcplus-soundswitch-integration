@@ -28,7 +28,7 @@ Store:
 - Windows/driver versions;
 - ReadyNet model/firmware and private config backup location;
 - QLC+ core/workspace/plug-in hashes;
-- V23 package-test output;
+- V24 package-test output;
 - selected QLC+ I/O mappings;
 - VirtualDJ OS2L target and mapper evidence;
 - ping/port test output;
@@ -41,6 +41,16 @@ Do not commit credentials, SIM details, IMEI, serial numbers, client recordings,
 
 ## Gate A — Exact package and machine baseline
 
+Canonical V24 identity:
+
+- commit `ed50f76001866d5e0279dc14011e380d68646104`;
+- tag `v24`;
+- package `releases/qlcplus-control-one/v24/`;
+- workspace SHA-256 `DAA76DAEB2CD8BA0C964C8A82B283A1FE9640E6A9E0B6180BD9E802A77632ACF`;
+- plug-in SHA-256 `2DC776DD97A322D64E3923D22CBCF39A53E4DC6121B56EDCAF815A4A49F470AC`;
+- `qlcplus5.exe` SHA-256 `16DFC419BF878AC4802D88684253D12602DBAAAB94579E88FD55519A1FB09533`.
+
+
 Required:
 
 - [ ] Booth Node and DJ-laptop rollback inventories captured with `Get-LLEBoothInventory.ps1`;
@@ -50,11 +60,11 @@ Required:
 - [ ] wired Ethernet adapter is identified;
 - [ ] Windows connection profile for ReadyNet Ethernet is Private;
 - [ ] pinned QLC+ folder is complete and coherent;
-- [ ] `qlcplus5.exe` hash matches V23;
-- [ ] V23 workspace hash matches the release;
-- [ ] installed `soundswitch.dll` hash matches V23;
-- [ ] `Test-V23Package.ps1` passes;
-- [ ] V22 and DJ-laptop rollback remain available;
+- [ ] `qlcplus5.exe` hash matches V24;
+- [ ] V24 workspace hash matches the release;
+- [ ] installed `soundswitch.dll` hash matches V24;
+- [ ] `Test-V24Package.ps1` passes;
+- [ ] V23 release rollback and the known-good DJ-laptop rollback remain available;
 - [ ] no unapproved automatic QLC+/driver update is enabled.
 
 Failure rule: stop and restore a coherent package. Never solve a hash/runtime failure by mixing files.
@@ -65,15 +75,17 @@ Run on the booth computer with a temporary display before adding network/headles
 
 Required:
 
-- [ ] V23 opens without errors or corrupted text;
+- [ ] V24 opens without errors or corrupted text;
 - [ ] exactly one QLC+ process is running;
 - [ ] Universe 3 remains internal/un-routed;
 - [ ] one chosen physical Universe 1 output reaches a fixture;
-- [ ] all four pad banks are reachable;
+- [ ] on-screen Banks 1–4 are selectable with the mouse while Control One is unplugged;
 - [ ] same-pad stop and replacement behavior work;
-- [ ] Auto Bank and Auto All advance;
-- [ ] dwell changes without restarting Autoplay;
-- [ ] chase speed changes independently;
+- [ ] Start Bank and Start All latch, advance, and stop only when deliberately released;
+- [ ] the live current-loop highlight follows manual and automatic playback;
+- [ ] Autoloops/Priority mode switching works in both directions;
+- [ ] Autoplay dwell selects `1 / 2 / 4 / 8 / 16 measures` without changing chase multiplier;
+- [ ] chase multiplier selects `0.25x / 0.5x / 1x / 2x / 4x` independently;
 - [ ] still and moving Priority Looks take sole authority and release cleanly;
 - [ ] color override remains sparse;
 - [ ] Global, IR-4, and tube intensity work;
@@ -103,12 +115,12 @@ Failure rule: reject bridge/repeater mode that hands DHCP authority to the venue
 Required:
 
 - [ ] QLC+ starts from the at-logon task;
-- [ ] the exact V23 workspace loads;
+- [ ] the exact V24 workspace loads;
 - [ ] QLC+ web access is enabled on 9999;
 - [ ] an administrator account exists;
 - [ ] a separate Virtual-Console-only operator account exists;
 - [ ] no QLC+ web port is forwarded to WAN/LTE;
-- [ ] the DJ laptop can operate the complete V23 performance console in a browser;
+- [ ] the DJ laptop can operate the complete V24 performance console in a browser;
 - [ ] a cold boot reaches the browser console without attaching a monitor;
 - [ ] a warm reboot repeats successfully;
 - [ ] Windows does not sleep on AC power;
@@ -154,7 +166,7 @@ Run each row deliberately and record the observed result.
 | Remove LTE | no local impact | LAN/lighting uninterrupted |
 | Switch WAN -> LTE -> no Internet | only Internet state changes | local addresses stay fixed |
 | Close/reopen browser | QLC+ continues independently | state reappears correctly |
-| Restart QLC+ in a safe bench moment | task/manual launch reloads V23 | hardware and OS2L recover |
+| Restart QLC+ in a safe bench moment | task/manual launch reloads V24 | hardware and OS2L recover |
 
 Do not fault-inject power or DMX during a real event.
 
@@ -165,7 +177,7 @@ Use the exact intended show topology:
 - VirtualDJ playing representative files;
 - normal controller operation and scratching/transitions;
 - OS2L active over wired LAN;
-- QLC+ V23 running;
+- QLC+ V24 running;
 - Control One MIDI and LED feedback active;
 - intended Micro/Control One DMX output active;
 - browser console open on the DJ laptop;
@@ -250,7 +262,7 @@ Symptoms: QLC+ lighting still runs and Control One works, but the browser page i
 
 ### Level 3 — Control One unavailable, QLC+ operating
 
-1. Use the browser V23 console from the DJ laptop.
+1. Use the browser V24 console from the DJ laptop.
 2. Keep the current safe lighting owner active.
 3. reseat one USB connection only when safe;
 4. allow plug-in rescan/reconnect;
@@ -261,7 +273,7 @@ Symptoms: QLC+ lighting still runs and Control One works, but the browser page i
 1. Put fixtures in the safest available state before restarting.
 2. verify no second QLC+ instance exists;
 3. launch the prepared `Start-LLEBoothQLC.ps1` once;
-4. confirm V23, output, MIDI, browser, and OS2L;
+4. confirm V24, output, MIDI, browser, and OS2L;
 5. if it does not recover quickly, use the DJ-laptop rollback instead of repeatedly experimenting.
 
 ### Level 5 — Booth node failed completely
@@ -279,11 +291,11 @@ This procedure must be rehearsed. A theoretical fallback is not a rollback.
 
 ## Plug-in rollback
 
-If the V23 plug-in itself must be restored:
+If the V24 plug-in itself must be restored:
 
 1. close QLC+;
 2. locate the installer-created receipt/backup recorded during deployment;
-3. from the V23 package folder run:
+3. from the V24 package folder run:
 
 ```powershell
 .\Rollback-SoundSwitchPlugin.ps1 `
