@@ -31,9 +31,11 @@ Autoplay parents are long-running native QLC+ Chasers. Five shared native SpeedD
 
 During Autoplay, a pad emits an absolute seek value on logical channel 632. That moves the active 32-step or 128-step parent to the requested loop while preserving the parent owner and its dwell/order state.
 
-V24 displays the active loop through 32 small disabled monitor frames above the pad backgrounds. Each frame contains four read-only Buttons—one raw Chaser per bank for that physical pad—has no external Inputs, and remains outside the owner SoloFrame. This fixes both the V22 overlapping-monitor paint defect and the V23 hidden-behind-opaque-frames defect. QLC+ applies its native Monitoring state whether the raw Chaser was started manually or by an Autoplay parent, without introducing another playback owner or recreating the one-second flash failure.
+V26 displays the active loop through 32 disabled full-width monitor strips below the pads. Each strip contains four read-only Buttons—one raw Chaser per bank for that physical pad—has no external Inputs, and remains outside the owner SoloFrame. QLC+ applies its native amber Monitoring state whether the raw Chaser was started manually or by an Autoplay parent, without introducing another playback owner or recreating the one-second flash failure.
 
-The ten existing native CueLists remain bound to Autoplay parents `788–797`. The enlarged tracker makes `currentStepChanged` auto-scroll/selection visible as a second authoritative readout. No QLC+ core change or new logical channel is required.
+The ten existing native Cue Lists remain bound to Autoplay parents `788–797` and retain absolute seek on logical channel `632`, but their helper frame is clipped to `1×1`. There is no visible/polling tracker: the raw Function monitors are the authoritative moving readout. No QLC+ core change or new logical channel is required.
+
+The dwell SpeedDial remains the source of truth for parent step duration. Presets `4000/8000/16000/32000/64000` are beat-counted durations, not wall-clock milliseconds in this context: 4/8/16/32/64 beats correspond to 1/2/4/8/16 four-beat measures. QLC+ Multipage children must retain one five-button copy on each dwell page; removing those copies makes the values disappear on pages 2–5.
 
 ### QLC+ allows one feedback destination per universe
 
@@ -81,8 +83,14 @@ The plug-in implements:
 
 The source currently also contains rig-specific intensity addresses for the four IR-4 master channels and the 160 BO-TUBE192 emitter channels. That works now but should move to workspace/configuration before a general release.
 
-V24 keeps one persistent Virtual Console Button targeting Function `1993` and channel `811`. Its plug-in feedback handler is positive-edge gated and shares one Surface line with Priority ownership. The Surface output is hardware-independent; Control One MIDI/LED feedback may reconnect without taking mouse commands offline.
+## OS2L compatibility boundary
+
+The pinned stock QLC+ OS2L plug-in ignores the `bpm` value in a beat message and emits a beat for each message received. Since QLC+ calculates displayed tempo from those emitted intervals, queued/bursty delivery can turn a stable song into an impossible high reading.
+
+V26 carries one focused, build-matched `os2l.dll` correction. It reads reported BPM, schedules precise native QLC+ beat events, treats subsequent packets as tempo/keepalive updates, and stops on disconnect/source silence. It is still a QLC+ plug-in—not a bridge or second runtime. The source delta is preserved under `qlcplus/patches/` for future side-by-side upgrades.
+
+V26 keeps one persistent Virtual Console Button targeting Function `1993` and channel `811`. Its plug-in feedback handler is positive-edge gated and shares one Surface line with Priority ownership. The Surface output is hardware-independent; Control One MIDI/LED feedback may reconnect without taking mouse commands offline.
 
 ## Version boundary
 
-The plug-in source branch began at QLC+ 5.2.2. V24 is compiled against the exact current DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`. The installer pins both the installed `qlcplus5.exe` and V24 plug-in hashes. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.
+The plug-in source branch began at QLC+ 5.2.2. V26's two DLLs are compiled against the exact DJ-PC core source commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`, identified by the UI as `5.3.0 GIT a124abe`. The installer verifies the unchanged stock `qlcplus5.exe` and both packaged plug-in hashes. No ABI promise is made across arbitrary QLC+/Qt builds: a future update must be installed side-by-side, rebuilt against its exact source commit, and qualified before production switches.

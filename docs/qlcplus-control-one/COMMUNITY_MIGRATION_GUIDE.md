@@ -19,7 +19,7 @@ You need:
 - Windows x64;
 - SoundSwitch Micro and/or Control One;
 - the complete pinned QLC+ `5.3.0 GIT a124abe` installation;
-- the V24 release archive; and
+- the V26 release archive; and
 - fixtures already set to known DMX modes and addresses.
 
 First confirm the SoundSwitch device appears normally in Windows with its manufacturer software/driver. Then close SoundSwitch. Only one program can own the hardware at a time.
@@ -29,28 +29,28 @@ Do not use a generic USB-driver tool on the entire Control One composite device.
 ## Install in ten steps
 
 1. Install the complete pinned QLC+ build in its own folder.
-2. Extract the complete V24 archive.
+2. Extract the complete V26 archive.
 3. Open PowerShell in the extracted folder.
 4. Run:
 
    ```powershell
    Set-ExecutionPolicy -Scope Process Bypass
-   .\Test-V24Package.ps1
+   .\Test-V26Package.ps1
    ```
 
-5. Close QLC+ and install the plug-in:
+5. Close QLC+ and install the two build-matched plug-ins:
 
    ```powershell
-   .\Install-SoundSwitchPlugin.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
+   .\Install-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
    ```
 
-6. Open `IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw`.
+6. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
 7. Open QLC+ Input/Output and choose a SoundSwitch output for the desired universe.
 8. For Control One, choose the SoundSwitch Control One MIDI input and associate `SoundSwitch-Control-One-Performance.qxi` if required.
 9. Switch QLC+ to Operate mode and open the Live Virtual Console page.
 10. Run one manual pad before connecting a full lighting rig.
 
-V24 includes a new plug-in. Install it even when V21, V22, or V23 already works.
+V26 installs the SoundSwitch hardware plug-in and the stable direct-OS2L timing plug-in. It does not replace the QLC+ core executable.
 
 ## Pick the output
 
@@ -64,7 +64,7 @@ Assign the same QLC+ universe to the physical port that feeds the lights. The ex
 
 ## Connect VirtualDJ OS2L
 
-Use direct localhost OS2L when both programs share one laptop. The included `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` gives the exact launch/reconnect setup. QLC+ owns lighting tempo; the plug-in is not involved in OS2L.
+Use direct localhost OS2L when both programs share one laptop. The included `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` gives the exact launch/reconnect setup. QLC+ still owns lighting tempo. V26's focused OS2L plug-in fix uses the sender's reported BPM so packet bursts do not create false high tempos.
 
 ## Learn the surface
 
@@ -78,7 +78,7 @@ Use direct localhost OS2L when both programs share one laptop. The included `VIR
 - A Priority Look becomes sole full-frame output. When released, the underlying Autoloop reappears at its current position.
 - A color override changes color parameters only.
 
-The four small indicators beside every onscreen pad are Banks 1–4 from top to bottom. Amber identifies the raw Chaser that is currently running. The tracker under the grid shows the exact loop name.
+The full-width strip below every onscreen pad contains Banks 1–4 from left to right. QLC+'s native amber Monitoring state identifies the raw Chaser that is currently running. There is no external tracker process.
 
 ## Use the included show as-is
 
@@ -93,7 +93,7 @@ Set the physical fixtures to those modes/addresses, connect DMX, and use the sho
 
 ## Adapt it to another fixture rig
 
-Treat V24 as a template, not a universal fixture show.
+Treat V26 as a template, not a universal fixture show.
 
 1. Save a new workspace name before editing.
 2. Patch the new physical fixtures in QLC+.
@@ -125,9 +125,10 @@ Never fix a missing DLL or corrupted text by copying random Qt/FFmpeg files betw
 | Device does not appear | Close SoundSwitch; reconnect USB; confirm the manufacturer driver/device still appears in Windows |
 | Control One DMX works but MIDI does not | Confirm the composite MIDI device remains present and the `.qxi` profile is associated |
 | Micro/Control One sends no light | Confirm QLC+ universe output, fixture address/mode, cable direction, and wireless transmitter channel |
-| Bank or Auto Loop/Priority button does nothing | Confirm V24 and its packaged DLL are installed together, with exactly one SoundSwitch Surface Feedback output |
-| Auto Bank/All runs but no pad feedback | Confirm the V24 Live page is open; look at the four-position rail and native tracker |
-| OS2L does not reconnect | Apply the included VirtualDJ keepalive mapping and verify both apps use localhost |
+| Bank or Auto Loop/Priority button does nothing | Confirm V26 and its packaged SoundSwitch DLL are installed together, with exactly one SoundSwitch Surface Feedback output |
+| Auto Bank/All runs but no pad feedback | Confirm the V26 Live page is open and look for the full-width native amber strip below each pad |
+| OS2L does not reconnect | Apply the included VirtualDJ keepalive mapping, verify both apps use localhost, and confirm the V26 OS2L DLL is installed |
+| Known BPM jumps to an impossible rate | Close QLC+, rerun the V26 installer, and verify the package/installed `os2l.dll` hash |
 | QLC+ text is corrupted or a runtime DLL is missing | Reinstall one complete coherent QLC+ build; do not mix runtime files |
 
 ## Qualification boundary

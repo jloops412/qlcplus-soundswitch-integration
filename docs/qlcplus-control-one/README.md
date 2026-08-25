@@ -4,7 +4,7 @@ This directory records the reusable findings from making SoundSwitch Micro and C
 
 ## Division of responsibility
 
-QLC+ remains the lighting application. It owns fixture definitions, patching, Scenes, Chasers, Collections, beat timing, OS2L, the Virtual Console, project files, and normal output routing.
+QLC+ remains the lighting application. It owns fixture definitions, patching, Scenes, Chasers, Collections, Autoplay order, beat-counted dwell, the Virtual Console, project files, and normal output routing.
 
 The SoundSwitch plug-in handles only the capabilities QLC+ does not provide for this hardware:
 
@@ -17,7 +17,9 @@ The SoundSwitch plug-in handles only the capabilities QLC+ does not provide for 
 
 No bridge, daemon, EmberLights process, custom lighting engine, or firmware replacement is required during a show.
 
-## Current rig encoded in V24
+V26 also carries a focused build-matched QLC+ `os2l.dll` correction. It keeps VirtualDJ connected directly to QLC+, but derives beats from OS2L's reported BPM instead of bursty packet-arrival timing. The stock QLC+ executable remains untouched.
+
+## Current rig encoded in V26
 
 - Four Both Lighting IR-4 fixtures, 10-channel mode, DMX addresses 1, 11, 21, and 31.
 - Four Both Lighting BO-TUBE192 fixtures, 40-channel mode, DMX addresses 175, 215, 255, and 295.
@@ -33,13 +35,16 @@ The BO-TUBE192 40-channel mode is eight RGBWY zones and has no master dimmer. Th
 - `MAPPING_REFERENCE.md` — stable QLC+ logical channels and Control One roles.
 - `COMMUNITY_MIGRATION_GUIDE.md` — simple installation and SoundSwitch-switching guide for another DJ.
 - `V20_RELEASE_NOTES.md` — the protected creative rollback baseline.
-- `releases/qlcplus-control-one/v24/README.md` — current Runtime Feedback package, first-test check, self-test, and rollback.
+- `releases/qlcplus-control-one/v26/README.md` — current Autoplay Clarity package, first-test check, self-test, and rollback.
+- `qlcplus/patches/README.md` — focused OS2L source delta and rebuild boundary.
+- `releases/qlcplus-control-one/v24/README.md` — prior Runtime Feedback rollback package.
 - `releases/qlcplus-control-one/v23/README.md` — Live Console rollback package.
 - `releases/qlcplus-control-one/v22/README.md` — unified creative rollback package.
 - `releases/qlcplus-control-one/v21/README.md` — V21 reliability rollback package.
 - `V22_UNIFIED_MERGE_PROVENANCE.md` — authoritative V21/Variety Pro merge inputs, exact delta, and active-outline rationale.
 - `V23_LIVE_CONSOLE_PROVENANCE.md` — deterministic UI correction, live-rail, and mode-switch delta.
 - `V24_RUNTIME_FEEDBACK_PROVENANCE.md` — unified feedback repair, visible runtime monitors, and isolated software evidence.
+- `V26_AUTOPLAY_CLARITY_PROVENANCE.md` — reviewed source hash, native monitoring/dwell delta, and focused OS2L provenance.
 - `VALIDATION_AND_MAINTENANCE.md` — regression, hot-plug, upgrade, and release checks.
 - `POST_TEST_PROMOTION_AND_CLEANUP.md` — recovery-first local promotion and legacy archive rules.
 - `PROJECT_STATUS_AND_ROADMAP.md` — verified status, unresolved risks, and prioritized work.

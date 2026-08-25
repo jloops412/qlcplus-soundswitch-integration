@@ -38,11 +38,11 @@ The current compact gesture uses shifted Bank presses to start a Bank scope and 
 
 The Live page provides the essential mouse fallback: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
 
-V24 presents a read-only four-bank live rail beside every pad. Each indicator observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. The indicators for Banks 1–4 are top-to-bottom; QLC+'s amber Monitoring border marks the active Chaser. The enlarged native tracker remains the authoritative full name/bank/step readout.
+V26 presents a read-only four-bank live strip below every pad. Each segment observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. Banks 1–4 run left-to-right; QLC+'s native amber Monitoring state marks the active Chaser. There is no visible or polling tracker process.
 
 The mouse `AUTOLOOPS ⇄ PRIORITY LOOKS` control is one persistent Button outside the mode-paged frame. It retains public Function `1993` and logical channel `811`; do not recreate separate page-specific copies.
 
-V24 carries Bank, mode, dwell, transport, order, speed, and Priority ownership over one unified QLC+ Surface feedback patch. Empty command Scenes are positive-edge actions; their trailing zero must never dispatch a second command.
+V26 carries Bank, mode, dwell, transport, order, speed, and Priority ownership over one unified QLC+ Surface feedback patch. Empty command Scenes are positive-edge actions; their trailing zero must never dispatch a second command.
 
 ## Overrides and performance buttons
 

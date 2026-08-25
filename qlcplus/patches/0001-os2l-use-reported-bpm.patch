@@ -1,0 +1,132 @@
+diff --git a/plugins/os2l/os2lplugin.cpp b/plugins/os2l/os2lplugin.cpp
+index 451300c09..2102b2f95 100644
+--- a/plugins/os2l/os2lplugin.cpp
++++ b/plugins/os2l/os2lplugin.cpp
+@@ -23,0 +24,2 @@
++#include <QTimer>
++#include <QtMath>
+@@ -34,0 +37 @@ OS2LPlugin::~OS2LPlugin()
++    stopStableBeat();
+@@ -42,0 +46,4 @@ void OS2LPlugin::init()
++    m_stableBeatTimer = new QTimer(this);
++    m_stableBeatTimer->setTimerType(Qt::PreciseTimer);
++    connect(m_stableBeatTimer, SIGNAL(timeout()), this, SLOT(slotEmitStableBeat()));
++    m_stableBeatIntervalMs = 0;
+@@ -151,0 +159,3 @@ bool OS2LPlugin::enableTCPServer(bool enable)
++        stopStableBeat();
++        m_packetLeftOver.clear();
++
+@@ -190 +200 @@ void OS2LPlugin::slotProcessNewTCPConnection()
+-    connect(clientConnection, SIGNAL(disconnected()), this, SLOT(slotProcessTCPPackets()));
++    connect(clientConnection, SIGNAL(disconnected()), this, SLOT(slotHostDisconnected()));
+@@ -197,0 +208,82 @@ void OS2LPlugin::slotHostDisconnected()
++    stopStableBeat();
++    socket->deleteLater();
++}
++
++void OS2LPlugin::processBeatMessage(const QJsonObject &jsonObj)
++{
++    const double bpm = jsonObj.value("bpm").toDouble(0.0);
++    if (qIsFinite(bpm) == false || bpm < 30.0 || bpm > 300.0)
++    {
++        // Compatibility fallback for older senders that omit BPM. Suppress
++        // duplicate/batched messages while retaining their direct beat input.
++        if (m_lastStableBeat.isValid() == false || m_lastStableBeat.elapsed() >= 50)
++            emitStableBeat();
++        return;
++    }
++
++    const int intervalMs = qBound(200, qRound(60000.0 / bpm), 2000);
++    const bool firstBeat = (m_lastStableBeat.isValid() == false);
++    const bool tempoChanged = (m_stableBeatIntervalMs == 0 ||
++                               qAbs(intervalMs - m_stableBeatIntervalMs) >= 4);
++
++    m_lastBeatMessage.restart();
++    m_stableBeatIntervalMs = intervalMs;
++
++    if (firstBeat)
++    {
++        emitStableBeat();
++        m_stableBeatTimer->start(m_stableBeatIntervalMs);
++        return;
++    }
++
++    // Incoming packets are keep-alive/BPM updates, not the clock itself. This
++    // avoids letting transport jitter or a burst of queued packets become a
++    // burst of QLC+ beats. Only a genuine tempo change reschedules the clock.
++    if (tempoChanged)
++    {
++        const qint64 elapsedMs = m_lastStableBeat.elapsed();
++        if (elapsedMs >= qRound(m_stableBeatIntervalMs * 0.50))
++            emitStableBeat();
++        m_stableBeatTimer->start(m_stableBeatIntervalMs);
++    }
++    else if (m_stableBeatTimer->isActive() == false)
++    {
++        m_stableBeatTimer->start(m_stableBeatIntervalMs);
++    }
++}
++
++void OS2LPlugin::emitStableBeat()
++{
++    if (m_inputUniverse == UINT_MAX)
++        return;
++
++    m_lastStableBeat.restart();
++    emit valueChanged(m_inputUniverse, 0, 8341, 255, "beat");
++}
++
++void OS2LPlugin::stopStableBeat()
++{
++    if (m_stableBeatTimer != NULL)
++        m_stableBeatTimer->stop();
++
++    m_lastBeatMessage.invalidate();
++    m_lastStableBeat.invalidate();
++    m_stableBeatIntervalMs = 0;
++}
++
++void OS2LPlugin::slotEmitStableBeat()
++{
++    if (m_stableBeatIntervalMs <= 0 || m_lastBeatMessage.isValid() == false)
++    {
++        stopStableBeat();
++        return;
++    }
++
++    const int silenceLimitMs = qMax(2000, m_stableBeatIntervalMs * 3);
++    if (m_lastBeatMessage.elapsed() > silenceLimitMs)
++    {
++        stopStableBeat();
++        return;
++    }
++
++    emitStableBeat();
+@@ -253 +345 @@ void OS2LPlugin::slotProcessTCPPackets()
+-           emit valueChanged(m_inputUniverse, 0, 8341, 255, "beat");
++           processBeatMessage(jsonObj);
+diff --git a/plugins/os2l/os2lplugin.h b/plugins/os2l/os2lplugin.h
+index 116f9c293..df63265a1 100644
+--- a/plugins/os2l/os2lplugin.h
++++ b/plugins/os2l/os2lplugin.h
+@@ -22,0 +23,2 @@
++#include <QElapsedTimer>
++
+@@ -30,0 +33,2 @@ class QTcpServer;
++class QJsonObject;
++class QTimer;
+@@ -77,0 +82,3 @@ protected:
++    void processBeatMessage(const QJsonObject &jsonObj);
++    void emitStableBeat();
++    void stopStableBeat();
+@@ -87,0 +95,3 @@ protected slots:
++    /** Emit beat events at the BPM reported by the OS2L source. */
++    void slotEmitStableBeat();
++
+@@ -106,0 +117,6 @@ protected:
++    /** Stable beat clock derived from the BPM carried by OS2L beat messages. */
++    QTimer *m_stableBeatTimer;
++    QElapsedTimer m_lastBeatMessage;
++    QElapsedTimer m_lastStableBeat;
++    int m_stableBeatIntervalMs;
++

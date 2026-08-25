@@ -7,14 +7,14 @@ The original decision was whether to keep building standalone EmberLights, run a
 At show time:
 
 ```text
-VirtualDJ -- OS2L --> QLC+
+VirtualDJ -- direct OS2L --> QLC+
 Control One -- MIDI --> QLC+
 QLC+ -- SoundSwitch plug-in --> Micro or Control One DMX
 ```
 
-QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay, the Virtual Console, persistence, and routing. The plug-in exists only for proprietary SoundSwitch USB transport, Control One translation/feedback/reconnect, full-frame Priority Look selection, and the current temporary rig-specific intensity scaling.
+QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay order, dwell, the Virtual Console, persistence, and routing. The SoundSwitch plug-in exists only for proprietary SoundSwitch USB transport, Control One translation/feedback/reconnect, full-frame Priority Look selection, and the current temporary rig-specific intensity scaling. V26 also carries one focused QLC+ OS2L plug-in correction; the stock core executable remains unchanged.
 
-## What exists in V24
+## What exists in V26
 
 - Native SoundSwitch Micro and Control One DMX output with no bridge or second lighting program.
 - Control One MIDI translation, named `.qxi` profile, LED state feedback, and reconnect recovery.
@@ -24,11 +24,13 @@ QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay, the Virtual Console,
 - A shared 4×8 Autoloop/Priority Look surface matching the physical Control One orientation.
 - Full-frame Priority Looks that may be still Scenes or moving Chasers and release back to the advancing Autoloop.
 - Sparse color overrides, Global/group intensity, VirtualDJ OS2L timing, clickable essential controls, and a mouse fallback.
-- A visible four-bank live rail beside every pad, following manual playback, Auto Bank, Auto All, and seek without joining playback ownership.
+- A full-width four-bank native running-state strip below every pad, following manual playback, Auto Bank, Auto All, and seek without joining playback ownership.
 - One persistent mouse switch between Autoloops and Priority Looks.
 - One unified Surface feedback route for mouse commands and Priority Look ownership, with positive-edge command handling.
-- A 1600×900 dark Live Console with an enlarged native current-loop tracker.
-- A pinned install/rollback package, complete hashes, deterministic release validator, and reproducible V22 merge tool.
+- A 1600×900 dark Live Console with no visible/polling tracker service.
+- Always-visible 1M/2M/4M/8M/16M dwell choices backed by QLC+'s native beat-counted SpeedDial.
+- Stable direct OS2L BPM derived from the sender's reported BPM instead of packet bursts.
+- A pinned two-plug-in install/rollback package, complete hashes, deterministic release validator, and reproducible workspace builders.
 
 ## Release lineage
 
@@ -79,6 +81,21 @@ V24 is generated from V23 and keeps all 2,090 lighting Functions unchanged.
 
 V24 passes protocol, plug-in smoke, package, XML/reference, mapping, fixture, speed/dwell coverage, and isolated runtime checks. The isolated run confirmed Bank selection, both mode directions, speed selection, latched Start Bank/All, parent progression, and current-loop feedback. It now needs the short fixture observation.
 
+### V25 — Lean Feedback reviewed handoff
+
+V25 preserves the complete V24 Engine and creative show while clipping the previously enlarged Autoplay tracker frame to `1×1`. It keeps ten native Cue Lists only for absolute seek and retains the 128 read-only raw-Chaser monitors. V25 is the reviewed source for V26, not the public release target.
+
+### V26 — Autoplay Clarity alpha candidate
+
+V26 preserves the V25 Engine byte-for-byte and changes only Virtual Console presentation:
+
+- expands each four-bank running-state rail to a full-width strip below its pad;
+- keeps all five dwell values visible on each native multipage dwell state;
+- labels musical dwell as 1M/2M/4M/8M/16M and 4/8/16/32/64 beats; and
+- explicitly uses QLC+'s stock amber Monitoring state instead of a custom UI executable.
+
+V26 also packages the unchanged V24 SoundSwitch plug-in and one focused build-matched `os2l.dll` fix. The latter reads reported BPM, emits a stable native QLC+ beat clock, and stops on disconnect/source silence. No tracker process, bridge, or QLC+ core fork is introduced.
+
 ## Current physical evidence
 
 The user has confirmed the essential live behavior on preceding workspaces: all four pad banks, color overrides, pad-page switching, Priority Look takeover/release, underlying Autoloop continuation, OS2L, and Control One operation.
@@ -89,23 +106,24 @@ The user has confirmed the essential live behavior on preceding workspaces: all 
 - Control One MIDI and core LEDs worked.
 - The four-bank manual/Autoplay ownership logic worked after the later-bank input correction.
 
-This evidence does not yet prove V22 gig qualification, simultaneous Control One ports, repeated hot-plug recovery, or the combined two-hour DJ/audio/OS2L/MIDI/LED/DMX workload.
+This evidence does not yet prove V26 gig qualification, simultaneous Control One ports, repeated hot-plug recovery, or the combined two-hour DJ/audio/OS2L/MIDI/LED/DMX workload.
 
 ## Immediate next session
 
 Do not redesign the control architecture until this short pass is complete.
 
-1. Close QLC+, install the V24 plug-in, and open `IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw`.
+1. Close QLC+, run the V26 package test/installer, and open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
 2. Click the persistent Autoloop/Priority Looks switch twice and confirm both directions.
-3. Run one manual pad in each bank. Confirm latch, same-pad off, replacement, and the amber live rail.
-4. Run Auto Bank and Auto All. Confirm the live rail and selected tracker row advance at every loop and through bank changes.
+3. Run one manual pad in each bank. Confirm latch, same-pad off, replacement, and the full-width native amber strip.
+4. Run Auto Bank and Auto All. Confirm the strip advances at every loop and through bank changes.
 5. Seek with pads and change dwell while Autoplay remains running.
 6. Apply/release one still and one moving Priority Look. Confirm sole authority and seamless return.
 7. Confirm color override plus Global, IR-4, and tube group intensity.
 8. Confirm the selected Micro or Control One output reaches fixtures.
-9. Unplug/replug Control One once while QLC+ remains open and observe MIDI/LED recovery.
+9. Play a known-BPM VirtualDJ track and confirm QLC+ remains near that tempo instead of jumping to a packet-burst rate.
+10. Unplug/replug Control One once while QLC+ remains open and observe MIDI/LED recovery.
 
-If these pass, promote V24 to the local alpha baseline. Archive older experimental files into a dated legacy folder while retaining V20, V21, V22, V23, the V24 release archive, and the installer-created DLL backup.
+If these pass, promote V26 to the local alpha baseline. Retain V21 and the immediately preceding V25 workspace locally, plus the published rollback releases and installer-created DLL backup.
 
 ## Engineering priorities after promotion
 
@@ -113,12 +131,13 @@ If these pass, promote V24 to the local alpha baseline. Archive older experiment
 2. Qualify Control One DMX 1 and DMX 2 simultaneously with MIDI/feedback and VirtualDJ active.
 3. Complete a two-hour combined DJ workload soak.
 4. Move hard-coded IR-4/tube intensity ranges out of reusable plug-in code and into configuration or native workspace logic.
-5. Decide whether to maintain the minimal QLC+ plug-in privately or prepare an upstreamable contribution.
-6. Create a fixture-neutral starter workspace/configuration guide for other DJs.
+5. Re-check whether a later official QLC+ release incorporates equivalent OS2L timing before carrying the focused patch forward.
+6. Decide whether to prepare the narrow OS2L correction as an upstream contribution.
+7. Create a fixture-neutral starter workspace/configuration guide for other DJs.
 
 ## Creative priorities
 
-Current loops are sufficient for the alpha milestone; preserve V24 before new creative passes.
+Current loops are sufficient for the alpha milestone; preserve V26 before new creative passes.
 
 - Build purposeful event Priority Looks: announcements, introductions, first dance, parent dances, cake, open dancing, and finale.
 - Meticulously grade every loop for musical phrasing, fixture separation, color balance, and usable intensity.

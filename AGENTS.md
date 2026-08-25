@@ -33,7 +33,7 @@ Historical handoffs and issues remain useful provenance, but these current QLC+ 
 
 ## Workspace rules
 
-- The current alpha-candidate release is `releases/qlcplus-control-one/v24/IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw`. V23 is the Live Console rollback, V22 the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline.
+- The current alpha-candidate release is `releases/qlcplus-control-one/v26/IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`. V25 is the reviewed local lean-feedback source, V24 the published runtime-feedback rollback, V22 the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline.
 - Preserve public Function IDs and logical channels used by Control One, OS2L, and the Virtual Console.
 - Resolve Scene fixture IDs from the workspace; do not infer them from names or addresses.
 - Back up before edits. Validate XML, fixture patch/modes, Function references, and ID uniqueness afterward.
