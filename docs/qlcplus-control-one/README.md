@@ -17,7 +17,7 @@ The SoundSwitch plug-in handles only the capabilities QLC+ does not provide for 
 
 No bridge, daemon, EmberLights process, custom lighting engine, or firmware replacement is required during a show.
 
-## Current rig encoded in V23
+## Current rig encoded in V24
 
 - Four Both Lighting IR-4 fixtures, 10-channel mode, DMX addresses 1, 11, 21, and 31.
 - Four Both Lighting BO-TUBE192 fixtures, 40-channel mode, DMX addresses 175, 215, 255, and 295.
@@ -33,11 +33,13 @@ The BO-TUBE192 40-channel mode is eight RGBWY zones and has no master dimmer. Th
 - `MAPPING_REFERENCE.md` — stable QLC+ logical channels and Control One roles.
 - `COMMUNITY_MIGRATION_GUIDE.md` — simple installation and SoundSwitch-switching guide for another DJ.
 - `V20_RELEASE_NOTES.md` — the protected creative rollback baseline.
-- `releases/qlcplus-control-one/v23/README.md` — current Live Console package, first-test check, self-test, and rollback.
+- `releases/qlcplus-control-one/v24/README.md` — current Runtime Feedback package, first-test check, self-test, and rollback.
+- `releases/qlcplus-control-one/v23/README.md` — Live Console rollback package.
 - `releases/qlcplus-control-one/v22/README.md` — unified creative rollback package.
 - `releases/qlcplus-control-one/v21/README.md` — V21 reliability rollback package.
 - `V22_UNIFIED_MERGE_PROVENANCE.md` — authoritative V21/Variety Pro merge inputs, exact delta, and active-outline rationale.
 - `V23_LIVE_CONSOLE_PROVENANCE.md` — deterministic UI correction, live-rail, and mode-switch delta.
+- `V24_RUNTIME_FEEDBACK_PROVENANCE.md` — unified feedback repair, visible runtime monitors, and isolated software evidence.
 - `VALIDATION_AND_MAINTENANCE.md` — regression, hot-plug, upgrade, and release checks.
 - `POST_TEST_PROMOTION_AND_CLEANUP.md` — recovery-first local promotion and legacy archive rules.
 - `PROJECT_STATUS_AND_ROADMAP.md` — verified status, unresolved risks, and prioritized work.

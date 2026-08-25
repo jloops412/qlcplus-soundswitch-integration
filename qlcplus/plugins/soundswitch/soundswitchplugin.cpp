@@ -124,8 +124,14 @@ bool SoundSwitchPlugin::openOutput(quint32 output, quint32 universe)
     }
     else if (binding.kind == OutputBinding::SurfaceFeedback)
     {
-        if (m_midiInput == nullptr || !m_midiInput->ensureFeedbackConnected())
+        if (m_midiInput == nullptr)
             return false;
+
+        // Surface feedback is also the Virtual Console command return path.
+        // Keep that logical line open even when Control One is unplugged so
+        // mouse controls continue to work and the MIDI output can reconnect
+        // later without forcing QLC+ to repatch the universe.
+        m_midiInput->ensureFeedbackConnected();
         {
             QMutexLocker lock(&m_mutex);
             m_feedbackUniverses.insert(universe);
@@ -290,19 +296,29 @@ void SoundSwitchPlugin::sendFeedBack(quint32 universe, quint32 output,
         return;
 
     const quint32 logicalChannel = channel & 0xffffU;
-    if (binding.kind == OutputBinding::PriorityLayer)
+    const bool priorityLookControl =
+        logicalChannel >= kPriorityLookChannelBase &&
+        logicalChannel < kPriorityLookChannelBase + kPriorityLookChannelCount;
+
+    // QLC+ supports one feedback patch per universe. The performance surface
+    // and Priority Look ownership controls intentionally share that one line,
+    // while the separate PriorityLayer output continues to buffer the overlay
+    // DMX frame. Accept the ownership channels on either binding so older
+    // workspaces remain compatible.
+    if (priorityLookControl &&
+        (binding.kind == OutputBinding::SurfaceFeedback ||
+         binding.kind == OutputBinding::PriorityLayer))
     {
-        if (logicalChannel >= kPriorityLookChannelBase &&
-            logicalChannel < kPriorityLookChannelBase + kPriorityLookChannelCount)
-        {
-            QMutexLocker lock(&m_mutex);
-            if (value != 0)
-                m_activePriorityLooks.insert(logicalChannel);
-            else
-                m_activePriorityLooks.remove(logicalChannel);
-        }
+        QMutexLocker lock(&m_mutex);
+        if (value != 0)
+            m_activePriorityLooks.insert(logicalChannel);
+        else
+            m_activePriorityLooks.remove(logicalChannel);
         return;
     }
+
+    if (binding.kind == OutputBinding::PriorityLayer)
+        return;
 
     if (binding.kind == OutputBinding::SurfaceFeedback && m_midiInput != nullptr)
         m_midiInput->applyFeedback(channel, value);
@@ -475,18 +491,12 @@ void SoundSwitchPlugin::rebuildBindingsLocked()
         }
     }
 
-    const bool hasControlOne = std::any_of(
-        m_devices.cbegin(), m_devices.cend(),
-        [](const SoundSwitchDevice *device) {
-            return device != nullptr &&
-                device->kind() == SoundSwitchProtocol::DeviceKind::ControlOne;
-        });
     const bool hasSurfaceBinding = std::any_of(
         m_bindings.cbegin(), m_bindings.cend(),
         [](const OutputBinding &binding) {
             return binding.kind == OutputBinding::SurfaceFeedback;
         });
-    if (hasControlOne && !hasSurfaceBinding)
+    if (!hasSurfaceBinding)
     {
         OutputBinding binding;
         binding.kind = OutputBinding::SurfaceFeedback;

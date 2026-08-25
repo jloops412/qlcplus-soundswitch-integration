@@ -14,7 +14,7 @@ QLC+ -- SoundSwitch plug-in --> Micro or Control One DMX
 
 QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay, the Virtual Console, persistence, and routing. The plug-in exists only for proprietary SoundSwitch USB transport, Control One translation/feedback/reconnect, full-frame Priority Look selection, and the current temporary rig-specific intensity scaling.
 
-## What exists in V23
+## What exists in V24
 
 - Native SoundSwitch Micro and Control One DMX output with no bridge or second lighting program.
 - Control One MIDI translation, named `.qxi` profile, LED state feedback, and reconnect recovery.
@@ -24,8 +24,9 @@ QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay, the Virtual Console,
 - A shared 4×8 Autoloop/Priority Look surface matching the physical Control One orientation.
 - Full-frame Priority Looks that may be still Scenes or moving Chasers and release back to the advancing Autoloop.
 - Sparse color overrides, Global/group intensity, VirtualDJ OS2L timing, clickable essential controls, and a mouse fallback.
-- A four-bank live rail beside every pad, following manual playback, Auto Bank, Auto All, and seek without overlapping bank monitors.
+- A visible four-bank live rail beside every pad, following manual playback, Auto Bank, Auto All, and seek without joining playback ownership.
 - One persistent mouse switch between Autoloops and Priority Looks.
+- One unified Surface feedback route for mouse commands and Priority Look ownership, with positive-edge command handling.
 - A 1600×900 dark Live Console with an enlarged native current-loop tracker.
 - A pinned install/rollback package, complete hashes, deterministic release validator, and reproducible V22 merge tool.
 
@@ -65,6 +66,19 @@ V23 is generated from V22 and changes only the Virtual Console:
 
 V22 is now the unified creative rollback. V23 passes structural/package validation and awaits the short owner UI observation.
 
+### V24 — Runtime Feedback alpha candidate
+
+V24 is generated from V23 and keeps all 2,090 lighting Functions unchanged.
+
+- Removes V23's duplicate Priority feedback declaration; QLC+ retains one Surface feedback destination on Universe 2.
+- Routes Priority Look ownership channels `600–631` through that unified Surface line while preserving the private Priority output buffer.
+- Handles empty mouse-command Scenes on their positive edge only, preventing double mode/bank/dwell/order/transport/speed dispatch.
+- Keeps the Surface command line open without attached hardware, so the mouse workflow does not depend on Control One's MIDI-output handle.
+- Replaces the hidden large monitor layer with 32 visible read-only frames containing four bank indicators per pad.
+- Preserves every fixture, Autoloop, Priority Look, public Function ID, logical channel, and creative Function from V23.
+
+V24 passes protocol, plug-in smoke, package, XML/reference, mapping, fixture, speed/dwell coverage, and isolated runtime checks. The isolated run confirmed Bank selection, both mode directions, speed selection, latched Start Bank/All, parent progression, and current-loop feedback. It now needs the short fixture observation.
+
 ## Current physical evidence
 
 The user has confirmed the essential live behavior on preceding workspaces: all four pad banks, color overrides, pad-page switching, Priority Look takeover/release, underlying Autoloop continuation, OS2L, and Control One operation.
@@ -81,7 +95,7 @@ This evidence does not yet prove V22 gig qualification, simultaneous Control One
 
 Do not redesign the control architecture until this short pass is complete.
 
-1. Open `IR4-TUBES-CONTROL-ONE-V23-LIVE-CONSOLE.qxw`; no plug-in reinstall is needed when V21/V22 is already installed.
+1. Close QLC+, install the V24 plug-in, and open `IR4-TUBES-CONTROL-ONE-V24-RUNTIME-FEEDBACK.qxw`.
 2. Click the persistent Autoloop/Priority Looks switch twice and confirm both directions.
 3. Run one manual pad in each bank. Confirm latch, same-pad off, replacement, and the amber live rail.
 4. Run Auto Bank and Auto All. Confirm the live rail and selected tracker row advance at every loop and through bank changes.
@@ -91,7 +105,7 @@ Do not redesign the control architecture until this short pass is complete.
 8. Confirm the selected Micro or Control One output reaches fixtures.
 9. Unplug/replug Control One once while QLC+ remains open and observe MIDI/LED recovery.
 
-If these pass, promote V23 to the local alpha baseline. Archive older experimental files into a dated legacy folder while retaining V20, V21, V22, the V23 release archive, and the installer-created DLL backup.
+If these pass, promote V24 to the local alpha baseline. Archive older experimental files into a dated legacy folder while retaining V20, V21, V22, V23, the V24 release archive, and the installer-created DLL backup.
 
 ## Engineering priorities after promotion
 
@@ -104,7 +118,7 @@ If these pass, promote V23 to the local alpha baseline. Archive older experiment
 
 ## Creative priorities
 
-Current loops are sufficient for the alpha milestone; preserve V23 before new creative passes.
+Current loops are sufficient for the alpha milestone; preserve V24 before new creative passes.
 
 - Build purposeful event Priority Looks: announcements, introductions, first dance, parent dances, cake, open dancing, and finale.
 - Meticulously grade every loop for musical phrasing, fixture separation, color balance, and usable intensity.

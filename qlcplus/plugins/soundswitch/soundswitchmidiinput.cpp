@@ -698,11 +698,11 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
     {
         QMutexLocker lock(&m_mutex);
         if (logicalChannel >= kUiBankChannelBase &&
-            logicalChannel < kUiBankChannelBase + 4U)
+            logicalChannel < kUiBankChannelBase + 4U && value != 0)
         {
-            // These feedback-only channels are emitted by the clickable bank
-            // bar. React to both Toggle edges so clicking the same bank again
-            // remains an idempotent page selection.
+            // Empty UI command Scenes start and stop immediately. Only their
+            // positive edge is a click; processing the trailing zero would
+            // dispatch every command twice.
             const int bank = static_cast<int>(logicalChannel - kUiBankChannelBase);
             m_selectedBank = bank;
             uiCommandChannel = 32U + static_cast<quint32>(bank);
@@ -711,7 +711,8 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
         }
         else if (logicalChannel >= kUiDwellChannelBase &&
                  logicalChannel < kUiDwellChannelBase +
-                     static_cast<quint32>(kAutoplayMeasureCount))
+                     static_cast<quint32>(kAutoplayMeasureCount) &&
+                 value != 0)
         {
             // The visible dwell buttons feed the original native SpeedDial
             // presets. This changes a running autoplay immediately without
@@ -721,21 +722,22 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
             uiCommandChannel = autoplayConfigChannel(index);
             postUiCommand = true;
         }
-        else if (logicalChannel == kUiPlayPauseChannel)
+        else if (logicalChannel == kUiPlayPauseChannel && value != 0)
         {
             uiAction = UiAction::PlayPause;
         }
-        else if (logicalChannel == kUiOrderChannel)
+        else if (logicalChannel == kUiOrderChannel && value != 0)
         {
             uiAction = UiAction::Order;
         }
-        else if (logicalChannel == kUiModeChannel)
+        else if (logicalChannel == kUiModeChannel && value != 0)
         {
             uiAction = UiAction::Mode;
         }
         else if (logicalChannel >= kUiSpeedChannelBase &&
                  logicalChannel < kUiSpeedChannelBase +
-                     static_cast<quint32>(kSpeedPresetCount))
+                     static_cast<quint32>(kSpeedPresetCount) &&
+                 value != 0)
         {
             const int index = static_cast<int>(
                 logicalChannel - kUiSpeedChannelBase);
