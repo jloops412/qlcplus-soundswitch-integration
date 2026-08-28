@@ -39,11 +39,11 @@ jobs:
             test -f "$path" || { echo "Missing required file: $path"; exit 1; }
           done
 
-      - name: Reject retired standalone application paths
+      - name: Reject unrelated application paths
         shell: bash
         run: |
           set -euo pipefail
-          retired=(
+          excluded=(
             native-core
             installer
             profiles
@@ -53,17 +53,17 @@ jobs:
             .github/workflows/native-core.yml
             .github/workflows/qlcplus-v21.yml
           )
-          for path in "${retired[@]}"; do
-            test ! -e "$path" || { echo "Retired path returned to main: $path"; exit 1; }
+          for path in "${excluded[@]}"; do
+            test ! -e "$path" || { echo "Out-of-scope path found on main: $path"; exit 1; }
           done
 
       - name: Check scope declarations
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'The former standalone EmberLights desktop app is retired' README.md
-          grep -Fq 'QLC+ is the only lighting runtime' CONTRIBUTING.md
-          grep -Fq 'The active project is the QLC+ SoundSwitch integration.' docs/00_START_HERE.md
+          grep -Fq 'QLC+ owns fixture profiles and patches' README.md
+          grep -Fq 'QLC+ is the lighting runtime' CONTRIBUTING.md
+          grep -Fq 'This project integrates SoundSwitch Micro and Control One hardware with QLC+.' docs/00_START_HERE.md
 
   package-validation:
     name: V26 package and source manifest

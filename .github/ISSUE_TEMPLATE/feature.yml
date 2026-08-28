@@ -42,5 +42,5 @@ body:
       options:
         - label: QLC+ remains the only lighting runtime.
           required: true
-        - label: The proposal does not revive the retired standalone app, a bridge daemon, or replacement firmware.
+        - label: Custom code stays limited to hardware integration or a focused QLC+ compatibility gap.
           required: true

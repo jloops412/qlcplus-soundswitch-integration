@@ -6,7 +6,7 @@ result this pull request delivers.
 ## Scope
 
 - [ ] QLC+ remains the only lighting runtime.
-- [ ] This does not revive the retired standalone EmberLights application.
+- [ ] Custom code stays limited to hardware integration or a focused QLC+ compatibility gap.
 - [ ] Public Function IDs and logical channels are preserved or explicitly
       migrated.
 - [ ] No private projects, personal paths, serials, credentials, or unlicensed

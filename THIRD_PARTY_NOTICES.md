@@ -1,9 +1,7 @@
 # Third-Party Notices and Distribution Boundary
 
 The current distributable is the QLC+ SoundSwitch V26 package under
-`releases/qlcplus-control-one/v26/`. The retired standalone EmberLights
-application is preserved only in Git history and is not a runtime dependency or
-current release.
+`releases/qlcplus-control-one/v26/`.
 
 ## QLC+
 
@@ -71,6 +69,3 @@ The current default-branch source and documentation are distributed under the
 root Apache License 2.0 unless a file states otherwise. Release packages include
 their own license copy and exact third-party boundary.
 
-Historical standalone-app files in older commits retain their file-level
-notices and dependency obligations. The current root license must not be used to
-erase or reinterpret a different historical file-level license.

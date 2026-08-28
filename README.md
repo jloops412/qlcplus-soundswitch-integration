@@ -2,19 +2,12 @@
 
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange)](docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
 [![QLC+ 5.3.0](https://img.shields.io/badge/QLC%2B-5.3.0%20GIT%20a124abe-blue)](https://github.com/mcallegari/qlcplus)
-[![Validation](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-validate.yml/badge.svg)](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-validate.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Use SoundSwitch Micro or Control One hardware directly from QLC+, with a
 SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks,
 Priority Looks, parameter overrides, group intensity, controller feedback, and
 a complete mouse fallback.
-
-> [!IMPORTANT]
-> **EmberLights is the historical repository name, not a separate application.**
-> The former standalone EmberLights desktop app is retired. At a show, run one
-> lighting application: **QLC+**. There is no EmberLights engine, UI, bridge,
-> daemon, tracker, or replacement firmware to install.
 
 **Current alpha:** [V26 Autoplay Clarity](releases/qlcplus-control-one/v26/README.md)
 
@@ -60,8 +53,8 @@ The stock QLC+ executable is not replaced or patched by V26.
   Autoloop.
 - Color-only overrides, Global/group intensity, direct VirtualDJ OS2L timing,
   and essential mouse controls.
-- Deterministic workspace builders, package validation, hash-checked install,
-  and rollback.
+- Deterministic workspace builders, package validation, manual installation,
+  and rollback guidance.
 
 ## Quick start for DJs and testers
 
@@ -79,45 +72,40 @@ universal drivers. Do not copy them into another QLC+ version.
 ### Install
 
 1. Install the normal manufacturer driver/software for the SoundSwitch device.
-2. Close SoundSwitch and QLC+ so neither holds the device or DLLs.
-3. Download or clone this repository, then open PowerShell in
-   `releases/qlcplus-control-one/v26/`.
-4. Validate the package before installation:
-
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\Test-V26Package.ps1
-   ```
-
-5. Install the two build-matched plug-ins into the exact QLC+ folder:
-
-   ```powershell
-   .\Install-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
-   ```
-
-6. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
-7. In QLC+ Input/Output, select SoundSwitch Micro, Control One DMX 1, or
+2. Install the exact QLC+ build, normally in `C:\QLC+`. The correct folder is
+   the one containing `qlcplus5.exe` and a `Plugins` folder.
+3. Download the complete
+   [`releases/qlcplus-control-one/v26`](releases/qlcplus-control-one/v26/)
+   folder. Keep every file together.
+4. Close SoundSwitch and every QLC+ window.
+5. In File Explorer, open `C:\QLC+\Plugins` (or the `Plugins` folder inside
+   your actual QLC+ installation). Back up any existing `soundswitch.dll` and
+   `os2l.dll`, then copy the V26 versions into that folder.
+6. Leave `SoundSwitch-Control-One-Performance.qxi` beside the V26 `.qxw` file.
+   QLC+ can discover a custom input profile stored beside its project.
+7. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw` in QLC+.
+8. In QLC+ Input/Output, select SoundSwitch Micro, Control One DMX 1, or
    Control One DMX 2 for the intended physical universe.
-8. Associate `SoundSwitch-Control-One-Performance.qxi` with the Control One MIDI
+9. Associate `SoundSwitch-Control-One-Performance.qxi` with the Control One MIDI
    input if QLC+ did not retain it.
-9. Follow `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` when VirtualDJ and QLC+ share one
+10. Follow `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` when VirtualDJ and QLC+ share one
    computer.
-10. Run the five-minute test in the [V26 package README](releases/qlcplus-control-one/v26/README.md)
+11. Run the five-minute test in the [V26 package README](releases/qlcplus-control-one/v26/README.md)
     before connecting a complete show rig.
+
+No PowerShell command is required for normal installation. The included scripts
+are optional maintainer tools for checksum validation, automated backups, and
+repeatable lab deployment.
 
 Do not replace the complete Control One composite USB driver with a generic
 driver. Doing so can remove its MIDI interface.
 
 ### Roll back
 
-Close QLC+ and run:
-
-```powershell
-.\Rollback-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
-```
-
-The installer keeps hash-checked backups of the previous plug-ins. Previous
-workspace releases remain available and are not overwritten.
+Close QLC+, remove the two V26 DLLs from `C:\QLC+\Plugins`, and copy your backed
+up DLLs into that folder. If you did not make a backup, reinstall the exact QLC+
+build. Then open the previous workspace. Versioned workspace releases remain
+available and are not overwritten.
 
 ## Included example rig
 
@@ -193,7 +181,7 @@ loads during development. Structural validation never proves physical safety.
 
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [developer guide](docs/DEVELOPMENT.md). Open work is tracked in
-[GitHub Issues](https://github.com/jloops412/EmberLights/issues).
+[GitHub Issues](../../issues).
 
 Useful contribution areas include:
 
@@ -204,9 +192,8 @@ Useful contribution areas include:
 - deterministic QLC+ workspace validation; and
 - preparing the focused OS2L correction for upstream review.
 
-Keep proposals inside the selected architecture. Do not revive the retired
-standalone app, create a second lighting runtime, or move normal show behavior
-out of QLC+.
+Keep proposals inside the selected architecture: QLC+ owns the show, while the
+custom plug-ins remain limited to hardware integration and focused gaps.
 
 ## Repository map
 
@@ -220,10 +207,6 @@ qlcplus/workspace-tools/            deterministic builders and validators
 docs/qlcplus-control-one/           workflow, mapping, architecture, and roadmap
 docs/DEVELOPMENT.md                  contributor build and test route
 ```
-
-The retired standalone EmberLights application is preserved in Git history,
-not in the active default-branch tree. See
-[Archived standalone application](docs/ARCHIVED_STANDALONE_APP.md).
 
 ## Documentation
 
@@ -241,7 +224,7 @@ not in the active default-branch tree. See
 
 Current project source and documentation are licensed under the
 [Apache License 2.0](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md)
-for QLC+, Qt, hardware, fixture, and historical-scope details.
+for QLC+, Qt, hardware, fixture, and distribution-scope details.
 
 This is independent community interoperability work. It is not affiliated with
 or endorsed by SoundSwitch, inMusic, VirtualDJ, Both Lighting, or QLC+.

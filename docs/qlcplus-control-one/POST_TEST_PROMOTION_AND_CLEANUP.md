@@ -29,7 +29,7 @@ After V26 passes:
   counterpart is verified;
 - ad hoc test executables and temporary output folders that are not part of the
   pinned QLC+ installation or current package; and
-- retired standalone EmberLights application artifacts that are not active
+- unrelated application artifacts that are outside the QLC+ integration
   QLC+ plug-in source or protected release evidence.
 
 ## What must remain

@@ -2,7 +2,7 @@
 
 ## Mission and selected architecture
 
-The original decision was whether to keep building standalone EmberLights, run a bridge, or reuse QLC+. The selected architecture is QLC+ plus one focused native hardware/workflow plug-in.
+The selected architecture is QLC+ plus one focused native hardware/workflow plug-in.
 
 At show time:
 
@@ -159,7 +159,7 @@ Custom Control One firmware is deferred. It is not needed for the current goal.
 ## Scope guardrails
 
 - One runtime lighting application: QLC+.
-- No standalone EmberLights revival, bridge daemon, replacement firmware, or custom lighting engine.
+- No second lighting runtime, bridge daemon, replacement firmware, or custom lighting engine.
 - Keep custom code only where QLC+ cannot cleanly express the hardware/workflow.
 - Preserve public Function IDs and logical channels.
 - Freeze a known-good release before creative or UI passes.

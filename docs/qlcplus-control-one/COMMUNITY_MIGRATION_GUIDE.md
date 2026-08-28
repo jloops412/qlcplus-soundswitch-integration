@@ -10,7 +10,7 @@ Control One -- MIDI --> QLC+
 QLC+ -- SoundSwitch plug-in --> Micro or Control One DMX
 ```
 
-It does not run SoundSwitch in the background, install a bridge, replace Control One firmware, or require the retired EmberLights application.
+SoundSwitch does not run in the background. QLC+ loads the hardware and timing integration as native plug-ins.
 
 ## Before starting
 
@@ -28,29 +28,26 @@ Do not use a generic USB-driver tool on the entire Control One composite device.
 
 ## Install in ten steps
 
-1. Install the complete pinned QLC+ build in its own folder.
+1. Install the complete pinned QLC+ build, normally at `C:\QLC+`.
 2. Extract the complete V26 archive.
-3. Open PowerShell in the extracted folder.
-4. Run:
+3. Close SoundSwitch and every QLC+ window.
+4. In File Explorer, open `C:\QLC+\Plugins` (or the `Plugins` folder beside
+   your actual `qlcplus5.exe`) and back up any existing `soundswitch.dll`
+   and `os2l.dll`.
+5. Copy the V26 `soundswitch.dll` and `os2l.dll` into that `Plugins`
+   folder.
+6. Keep `SoundSwitch-Control-One-Performance.qxi` beside
+   `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
+7. Open the `.qxw` file in QLC+.
+8. Open QLC+ Input/Output and choose a SoundSwitch output for the desired
+   universe.
+9. For Control One, choose its MIDI input and associate
+   `SoundSwitch-Control-One-Performance.qxi` if required.
+10. Switch QLC+ to Operate mode, open the Live Virtual Console page, and run one
+    manual pad before connecting a full lighting rig.
 
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\Test-V26Package.ps1
-   ```
-
-5. Close QLC+ and install the two build-matched plug-ins:
-
-   ```powershell
-   .\Install-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
-   ```
-
-6. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
-7. Open QLC+ Input/Output and choose a SoundSwitch output for the desired universe.
-8. For Control One, choose the SoundSwitch Control One MIDI input and associate `SoundSwitch-Control-One-Performance.qxi` if required.
-9. Switch QLC+ to Operate mode and open the Live Virtual Console page.
-10. Run one manual pad before connecting a full lighting rig.
-
-V26 installs the SoundSwitch hardware plug-in and the stable direct-OS2L timing plug-in. It does not replace the QLC+ core executable.
+No PowerShell command is required. V26 supplies the SoundSwitch hardware plug-in
+and stable direct-OS2L timing plug-in without replacing the QLC+ executable.
 
 ## Pick the output
 
@@ -125,10 +122,10 @@ Never fix a missing DLL or corrupted text by copying random Qt/FFmpeg files betw
 | Device does not appear | Close SoundSwitch; reconnect USB; confirm the manufacturer driver/device still appears in Windows |
 | Control One DMX works but MIDI does not | Confirm the composite MIDI device remains present and the `.qxi` profile is associated |
 | Micro/Control One sends no light | Confirm QLC+ universe output, fixture address/mode, cable direction, and wireless transmitter channel |
-| Bank or Auto Loop/Priority button does nothing | Confirm V26 and its packaged SoundSwitch DLL are installed together, with exactly one SoundSwitch Surface Feedback output |
+| Bank or Auto Loop/Priority button does nothing | Confirm the V26 workspace and `soundswitch.dll` are used together, with exactly one SoundSwitch Surface Feedback output |
 | Auto Bank/All runs but no pad feedback | Confirm the V26 Live page is open and look for the full-width native amber strip below each pad |
 | OS2L does not reconnect | Apply the included VirtualDJ keepalive mapping, verify both apps use localhost, and confirm the V26 OS2L DLL is installed |
-| Known BPM jumps to an impossible rate | Close QLC+, rerun the V26 installer, and verify the package/installed `os2l.dll` hash |
+| Known BPM jumps to an impossible rate | Close QLC+ and copy the packaged `os2l.dll` into the correct QLC+ `Plugins` folder again |
 | QLC+ text is corrupted or a runtime DLL is missing | Reinstall one complete coherent QLC+ build; do not mix runtime files |
 
 ## Qualification boundary

@@ -4,9 +4,7 @@ Thank you for helping improve the QLC+ SoundSwitch integration.
 
 ## Read this first
 
-This repository does **not** contain an active standalone EmberLights
-application. QLC+ is the only lighting runtime. Contributions must fit this
-architecture:
+QLC+ is the lighting runtime. Contributions must fit this architecture:
 
 ```text
 VirtualDJ -- OS2L --> QLC+
@@ -19,9 +17,8 @@ Autoplay, Virtual Console behavior, persistence, and routing. Custom code is
 limited to SoundSwitch hardware transport, Control One translation/feedback,
 reconnect behavior, and narrow gaps QLC+ cannot express cleanly.
 
-Do not propose a second engine, bridge daemon, replacement firmware, standalone
-editor/runtime, or revival of the retired desktop app unless the project owner
-explicitly reopens that direction.
+Keep normal show behavior in QLC+. Custom code must stay bounded to the
+SoundSwitch hardware integration and focused compatibility gaps.
 
 ## Before starting
 
