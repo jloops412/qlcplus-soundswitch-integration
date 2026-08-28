@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a focused QLC+ workspace or minimal plug-in improvement.
+title: "[Feature] "
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operator problem
+      description: What real DJ or lighting workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed bounded outcome
+      description: Describe behavior, not a second application or broad rewrite.
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Best owner
+      options:
+        - QLC+ workspace or Virtual Console
+        - SoundSwitch hardware plug-in
+        - OS2L compatibility patch
+        - Validation or documentation
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance evidence
+      description: What structural, software, or physical result would prove completion?
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Architecture check
+      options:
+        - label: QLC+ remains the only lighting runtime.
+          required: true
+        - label: The proposal does not revive the retired standalone app, a bridge daemon, or replacement firmware.
+          required: true

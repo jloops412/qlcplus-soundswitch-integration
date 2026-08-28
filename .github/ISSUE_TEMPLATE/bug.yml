@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a reproducible defect in the QLC+ workspace or SoundSwitch integration.
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove client names, personal paths, device serials, credentials, and private project content. For a security-sensitive report, follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: Package or commit
+      description: For example, V26 or a full commit SHA.
+    validations:
+      required: true
+  - type: input
+    id: qlc
+    attributes:
+      label: QLC+ build
+      description: Include the displayed version and qlcplus5.exe SHA-256.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows version, device, selected port, and VirtualDJ/OS2L use.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Safe reproduction steps
+      description: Give the smallest sequence that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and evidence
+      description: Include sanitized logs or screenshots and the package-test result.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: Hazardous loads were disconnected or safely controlled during reproduction.
+          required: true
+        - label: The report contains no sensitive or proprietary source data.
+          required: true

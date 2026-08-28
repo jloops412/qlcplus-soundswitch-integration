@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+*.dll binary
+*.exe binary
+*.qxw text eol=crlf
+*.qxi text eol=lf

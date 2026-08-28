@@ -1,0 +1,50 @@
+name: Hardware test result
+description: Record a controlled Micro or Control One physical-output result.
+title: "[Hardware] "
+labels: []
+body:
+  - type: input
+    id: tuple
+    attributes:
+      label: Exact package and QLC+ tuple
+      description: Package/version, commit, QLC+ version, and relevant hashes.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and port
+      description: Micro, Control One DMX 1, Control One DMX 2, and MIDI/feedback status.
+    validations:
+      required: true
+  - type: input
+    id: fixture
+    attributes:
+      label: Fixture, mode, universe, and address
+    validations:
+      required: true
+  - type: textarea
+    id: procedure
+    attributes:
+      label: Procedure
+      description: Include launch order, connection order, test duration, and fault actions.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Observed result
+      description: State exactly what visibly responded and whether blackout/recovery passed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: Hazardous loads were disconnected or explicitly controlled.
+          required: true
+        - label: Output returned to blackout after the test and on exit.
+          required: true
+        - label: Evidence has been scrubbed of serials, personal paths, and client data.
+          required: true

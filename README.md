@@ -1,108 +1,161 @@
-# QLC+ for SoundSwitch Micro and Control One
+# QLC+ SoundSwitch Integration
 
-Use SoundSwitch Micro or Control One hardware directly from QLC+, with a SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks, Priority Looks, parameter overrides, group intensity, controller feedback, and a complete mouse fallback.
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange)](docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
+[![QLC+ 5.3.0](https://img.shields.io/badge/QLC%2B-5.3.0%20GIT%20a124abe-blue)](https://github.com/mcallegari/qlcplus)
+[![Validation](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-validate.yml/badge.svg)](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-validate.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-At a show, run **one lighting application: QLC+**. No bridge, daemon, tracker process, replacement firmware, or standalone EmberLights app is required.
+Use SoundSwitch Micro or Control One hardware directly from QLC+, with a
+SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks,
+Priority Looks, parameter overrides, group intensity, controller feedback, and
+a complete mouse fallback.
 
-> **Current alpha:** [V26 Autoplay Clarity](releases/qlcplus-control-one/v26/README.md). It is structurally validated against the pinned QLC+ build and ready for the short owner check before show use.
+> [!IMPORTANT]
+> **EmberLights is the historical repository name, not a separate application.**
+> The former standalone EmberLights desktop app is retired. At a show, run one
+> lighting application: **QLC+**. There is no EmberLights engine, UI, bridge,
+> daemon, tracker, or replacement firmware to install.
 
-## What runs
+**Current alpha:** [V26 Autoplay Clarity](releases/qlcplus-control-one/v26/README.md)
+
+V26 is structurally validated and built against one exact QLC+ version. It is
+ready for controlled testing, but it is not yet gig-qualified. Read the
+[validation boundary](#current-status-and-safety) before using it at an event.
+
+## Architecture
 
 ```text
-VirtualDJ ── direct OS2L ───────────────▶ QLC+
-Control One ── MIDI ───────────────────▶ QLC+
-QLC+ Scenes / Chasers / Virtual Console │
-QLC+ ── SoundSwitch output plug-in ─────┼─▶ Micro DMX
-                                        ├─▶ Control One DMX 1
-                                        └─▶ Control One DMX 2
+VirtualDJ -- direct OS2L ----------------> QLC+
+Control One -- MIDI --------------------> QLC+
+QLC+ Scenes / Chasers / Virtual Console  |
+QLC+ -- SoundSwitch output plug-in ------+--> Micro DMX
+                                         +--> Control One DMX 1
+                                         +--> Control One DMX 2
 ```
 
-QLC+ owns fixtures, creative Functions, Autoplay, sequential/random order, beat-counted dwell, chase speed, priority behavior, the Virtual Console, project files, and show routing.
+QLC+ owns fixture profiles and patches, Scenes, Chasers and Autoloops, beat
+timing, Autoplay, the Virtual Console, project persistence, and output routing.
 
-The focused custom boundary contains only what the pinned stock build cannot provide cleanly:
+Custom code is deliberately narrow:
 
-- `soundswitch.dll` for proprietary SoundSwitch USB output, Control One MIDI/LED/reconnect translation, and full-frame Priority Look ownership;
-- `os2l.dll`, a focused QLC+ plug-in correction that uses OS2L's reported BPM rather than bursty packet-arrival timing.
+- `soundswitch.dll` provides proprietary SoundSwitch USB output, Control One
+  MIDI translation, LED feedback, reconnect behavior, and full-frame Priority
+  Look ownership.
+- `os2l.dll` is a focused QLC+ plug-in correction that uses OS2L's reported BPM
+  instead of bursty packet-arrival timing.
 
-There is no custom QLC+ core executable in V26.
+The stock QLC+ executable is not replaced or patched by V26.
 
-## Install or upgrade
+## What works today
 
-1. Install the complete pinned QLC+ **5.3.0 GIT a124abe** build.
-2. Install the normal manufacturer driver/software for the SoundSwitch device, then close SoundSwitch.
-3. Download and extract the complete [V26 package](releases/qlcplus-control-one/v26/).
-4. Close QLC+ and run inside the extracted folder:
+- SoundSwitch Micro DMX output.
+- Control One DMX outputs 1 and 2, each physically confirmed independently.
+- Control One MIDI translation, core LED feedback, and reconnect recovery.
+- Four banks of 32 native QLC+ Autoloops: Medium, Colorful, Slow Dance, and
+  Flashy.
+- Manual repeat-one, Auto Bank, Auto All, sequential/random order, pad seek,
+  and live dwell changes.
+- Independent 0.25x, 0.5x, 1x, 2x, and 4x Chase Speed.
+- Still or moving full-frame Priority Looks that release back to the continuing
+  Autoloop.
+- Color-only overrides, Global/group intensity, direct VirtualDJ OS2L timing,
+  and essential mouse controls.
+- Deterministic workspace builders, package validation, hash-checked install,
+  and rollback.
+
+## Quick start for DJs and testers
+
+### Requirements
+
+- Windows x64.
+- SoundSwitch Micro and/or Control One.
+- A complete QLC+ **5.3.0 GIT a124abe** installation.
+- The complete [V26 package folder](releases/qlcplus-control-one/v26/).
+- Fixtures configured to known DMX modes and addresses.
+
+Both custom DLLs are matched to this exact QLC+/Qt build. They are not
+universal drivers. Do not copy them into another QLC+ version.
+
+### Install
+
+1. Install the normal manufacturer driver/software for the SoundSwitch device.
+2. Close SoundSwitch and QLC+ so neither holds the device or DLLs.
+3. Download or clone this repository, then open PowerShell in
+   `releases/qlcplus-control-one/v26/`.
+4. Validate the package before installation:
 
    ```powershell
    Set-ExecutionPolicy -Scope Process Bypass
    .\Test-V26Package.ps1
+   ```
+
+5. Install the two build-matched plug-ins into the exact QLC+ folder:
+
+   ```powershell
    .\Install-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
    ```
 
-5. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
-6. Select SoundSwitch Micro, Control One DMX 1, or Control One DMX 2 in QLC+ Input/Output.
-7. Associate `SoundSwitch-Control-One-Performance.qxi` with Control One MIDI if QLC+ did not retain it.
-8. Follow the included VirtualDJ OS2L reconnect note when both programs share one computer.
+6. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
+7. In QLC+ Input/Output, select SoundSwitch Micro, Control One DMX 1, or
+   Control One DMX 2 for the intended physical universe.
+8. Associate `SoundSwitch-Control-One-Performance.qxi` with the Control One MIDI
+   input if QLC+ did not retain it.
+9. Follow `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` when VirtualDJ and QLC+ share one
+   computer.
+10. Run the five-minute test in the [V26 package README](releases/qlcplus-control-one/v26/README.md)
+    before connecting a complete show rig.
 
-Do not replace the entire Control One composite USB driver with a generic driver; its MIDI interface must remain available.
+Do not replace the complete Control One composite USB driver with a generic
+driver. Doing so can remove its MIDI interface.
 
-## What V26 improves
+### Roll back
 
-- Keeps all **2,090 lighting Functions**, fixtures, addresses, Priority Looks, creative content, public IDs, mappings, and I/O routing from the reviewed V25 workspace.
-- Uses QLC+'s ten native Autoplay Chasers as the only sequencing engine.
-- Keeps ten clipped native Cue Lists for absolute pad seek without a visible or polling tracker.
-- Observes all 128 raw Autoloops through read-only QLC+ Function monitors.
-- Gives every pad a full-width four-bank running-state strip that follows manual play, Start Bank, Start All, and pad seek.
-- Restores visible `1M / 2M / 4M / 8M / 16M` dwell choices on every multipage state.
-- Keeps dwell live-adjustable and independent from the `0.25× / 0.5× / 1× / 2× / 4×` Chase Speed multiplier.
-- Stabilizes direct VirtualDJ OS2L timing so a 75 BPM song cannot become a false 240 BPM reading because packets arrived in a burst.
-- Leaves the stock QLC+ executable and stock Virtual Console color rules intact.
+Close QLC+ and run:
 
-Stock QLC+ colors a Function started by another Chaser with its native **amber Monitoring** state. V26 enlarges that authoritative state instead of carrying a core/UI fork solely to make it green.
+```powershell
+.\Rollback-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
+```
 
-## SoundSwitch-familiar workflow
+The installer keeps hash-checked backups of the previous plug-ins. Previous
+workspace releases remain available and are not overwritten.
+
+## Included example rig
+
+| Fixtures | Mode | Universe 1 addresses |
+|---|---:|---|
+| 4 x Both Lighting IR-4 | 10 channel | 1, 11, 21, 31 |
+| 4 x Both Lighting BO-TUBE192 | 40 channel | 175, 215, 255, 295 |
+
+Private duplicate fixtures on QLC+ Universe 3 provide full-frame Priority
+Looks. **Universe 3 is internal and must not be routed directly to physical
+DMX.**
+
+Other DJs can reuse the hardware plug-ins and Control One profile. The included
+workspace is not a universal fixture show. A different rig needs its own QLC+
+patch, fixture IDs, creative Functions, Priority layer, and intensity mapping.
+Start with the [community migration guide](docs/qlcplus-control-one/COMMUNITY_MIGRATION_GUIDE.md).
+
+## SoundSwitch-familiar live workflow
 
 | Control | QLC+ behavior |
 |---|---|
-| 32 pads | Latch/replace an Autoloop or toggle one exclusive Priority Look |
+| 32 pads | Latch/replace an Autoloop or select one exclusive Priority Look |
 | Auto Loop | Switch the pad surface between Autoloops and Priority Looks |
-| Banks 1–4 | Medium, Colorful, Slow Dance, and Flashy |
-| Start Bank | Sequential/random automatic playback in the selected bank |
-| Start All | Sequential/random playback through Banks 1→4 |
-| Dwell | 1/2/4/8/16 measures per selected loop, adjustable while running |
-| Chase Speed | 0.25×–4× loop multiplier, separate from dwell |
-| Priority Look | Sole full-frame authority; underlying Autoloop keeps advancing |
+| Banks 1-4 | Medium, Colorful, Slow Dance, and Flashy |
+| Start Bank | Sequential/random playback in the selected bank |
+| Start All | Sequential/random playback through all four banks |
+| Dwell | 1, 2, 4, 8, or 16 measures per loop, adjustable while running |
+| Chase Speed | 0.25x to 4x loop multiplier, independent from dwell |
+| Priority Look | Sole full-frame authority while the underlying loop advances |
 | Color pads | Color-only override; unrelated intensity/movement continues |
 | Play/Pause | Control the selected playback owner |
 | Stop | Emergency global stop |
 
-The 32 onscreen pads match the Control One's four-column by eight-row orientation. The strip beneath each pad contains one native monitor per bank; the amber segment is the raw Chaser QLC+ is actually running.
+The onscreen 4 x 8 layout matches Control One. A four-segment strip beneath
+each pad observes the real QLC+ Chaser state across all banks. QLC+'s native
+amber Monitoring state identifies the currently running raw Chaser.
 
-## Included show patch
-
-- 4 × Both Lighting IR-4, 10-channel mode, DMX addresses **1, 11, 21, 31**;
-- 4 × Both Lighting BO-TUBE192, 40-channel mode, DMX addresses **175, 215, 255, 295**; and
-- private duplicates on QLC+ Universe 3 for full-frame Priority Looks.
-
-Universe 3 is internal and must not be routed directly to physical DMX.
-
-Other DJs can reuse the hardware plug-ins and Control One profile. Another fixture rig needs its own QLC+ patch and creative Functions; follow the [community migration guide](docs/qlcplus-control-one/COMMUNITY_MIGRATION_GUIDE.md).
-
-## Supported hardware and evidence
-
-| Device | Behavior | Evidence |
-|---|---|---|
-| SoundSwitch Micro | One QLC+ DMX output | Physical output confirmed |
-| Control One DMX 1 | First QLC+ DMX output | Physical output confirmed |
-| Control One DMX 2 | Second QLC+ DMX output | Physical output confirmed independently |
-| Control One MIDI | Performance workflow | Core workflow physically confirmed |
-| Control One LEDs | Feedback and reconnect restoration | Core feedback observed; repeated hot-plug remains a qualification gate |
-
-Simultaneous dual-port use with MIDI, LED feedback, VirtualDJ, and audio remains a qualification gate.
-
-## Exact compatibility
-
-Both DLLs are build-matched QLC+ modules, not universal drivers.
+## Exact V26 compatibility
 
 | Component | Pinned value |
 |---|---|
@@ -114,51 +167,81 @@ Both DLLs are build-matched QLC+ modules, not universal drivers.
 | `os2l.dll` SHA-256 | `EF611B26FAC5D090711AF242EF7DA880DBF1E1D59D5F22D36B5FB1918BDF6513` |
 | V26 workspace SHA-256 | `ED97E3EBAEA120BC6FF5FF9747485DA54E1808479F64A02AB4BC044744FAB570` |
 
-Install future QLC+ versions side-by-side, rebuild both plug-ins against the exact new source, and qualify the tuple before switching a production show. Never solve corrupted text or missing DLLs by mixing files from different QLC+ installations.
+Install future QLC+ versions side by side. Rebuild both plug-ins against the
+exact new source and toolchain, then qualify the new tuple before changing a
+production show machine.
 
-## Validation boundary
+## Current status and safety
 
-V26's release check validates hashes, XML, Function/reference integrity, fixture patching, Autoplay parents, native seek coverage, dwell timing, all 128 running monitors, the Control One profile, script syntax, and removal of personal paths.
+V26 is **structurally validated** and its modified plug-ins compile against the
+pinned source. Earlier field tests confirmed Micro output, each Control One DMX
+port independently, Control One MIDI, core LEDs, OS2L connectivity, Priority
+Look behavior, and the essential Autoloop workflow.
 
-It does not replace the final owner observation or a physical show test. Before an event, verify Start Bank/All progression, moving native feedback, live dwell changes, stable BPM, Priority Look release, controller reconnect, and the selected DMX output. A combined two-hour VirtualDJ/audio/OS2L/MIDI/LED/DMX workload remains the gig-qualification target.
+The following remain open before the project can be called gig-qualified:
 
-## Rollback
+- the complete V26 owner observation on the physical rig;
+- repeated Control One hot-plug and LED restoration;
+- simultaneous Control One DMX 1 and DMX 2 with MIDI and feedback;
+- a combined two-hour VirtualDJ, audio, OS2L, MIDI, LED, and DMX workload; and
+- moving rig-specific intensity ranges out of reusable plug-in code.
 
-The installer backs up both previous plug-ins and writes a hash-checked receipt. With QLC+ closed:
+Disconnect or disable fog, sparks, lasers, pyrotechnics, and other hazardous
+loads during development. Structural validation never proves physical safety.
 
-```powershell
-.\Rollback-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
+## Contributing
+
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[developer guide](docs/DEVELOPMENT.md). Open work is tracked in
+[GitHub Issues](https://github.com/jloops412/EmberLights/issues).
+
+Useful contribution areas include:
+
+- reproducible Windows builds for the pinned QLC+ plug-ins;
+- fixture-neutral intensity configuration;
+- Control One reconnect and dual-output qualification;
+- fixture-neutral starter workspaces and migration documentation;
+- deterministic QLC+ workspace validation; and
+- preparing the focused OS2L correction for upstream review.
+
+Keep proposals inside the selected architecture. Do not revive the retired
+standalone app, create a second lighting runtime, or move normal show behavior
+out of QLC+.
+
+## Repository map
+
+```text
+releases/qlcplus-control-one/v26/   current Windows alpha package
+releases/qlcplus-control-one/v20-24 protected rollback releases
+qlcplus/plugins/soundswitch/        hardware/workflow plug-in source and tests
+qlcplus/patches/                     focused OS2L source correction
+qlcplus/input-profiles/              Control One QLC+ input profile
+qlcplus/workspace-tools/            deterministic builders and validators
+docs/qlcplus-control-one/           workflow, mapping, architecture, and roadmap
+docs/DEVELOPMENT.md                  contributor build and test route
 ```
 
-The workspace is non-destructive; previous `.qxw` releases remain available.
+The retired standalone EmberLights application is preserved in Git history,
+not in the active default-branch tree. See
+[Archived standalone application](docs/ARCHIVED_STANDALONE_APP.md).
 
 ## Documentation
 
-- [V26 package and first test](releases/qlcplus-control-one/v26/README.md)
-- [Switch from SoundSwitch](docs/qlcplus-control-one/COMMUNITY_MIGRATION_GUIDE.md)
+- [Start here](docs/00_START_HERE.md)
+- [V26 package, install, test, and rollback](releases/qlcplus-control-one/v26/README.md)
+- [Community migration guide](docs/qlcplus-control-one/COMMUNITY_MIGRATION_GUIDE.md)
 - [Control One workflow](docs/qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md)
 - [State model and architecture](docs/qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md)
 - [Logical channel map](docs/qlcplus-control-one/MAPPING_REFERENCE.md)
 - [Validation and maintenance](docs/qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md)
 - [Project status and roadmap](docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
 - [V26 provenance](docs/qlcplus-control-one/V26_AUTOPLAY_CLARITY_PROVENANCE.md)
-- [Focused QLC+ compatibility patch](qlcplus/patches/README.md)
 
-## Repository layout
+## License and independence
 
-```text
-releases/qlcplus-control-one/v26/   current alpha package
-releases/qlcplus-control-one/v24/   prior runtime-feedback rollback
-releases/qlcplus-control-one/v22/   unified creative rollback
-releases/qlcplus-control-one/v21/   reliability rollback
-releases/qlcplus-control-one/v20/   protected creative baseline
-qlcplus/plugins/soundswitch/        native hardware/workflow plug-in source and tests
-qlcplus/patches/                     focused OS2L compatibility source patch
-qlcplus/workspace-tools/            deterministic workspace builders and validators
-docs/qlcplus-control-one/           workflow, mapping, migration, and maintenance
-native-core/ and installer/         archived standalone EmberLights history
-```
+Current project source and documentation are licensed under the
+[Apache License 2.0](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md)
+for QLC+, Qt, hardware, fixture, and historical-scope details.
 
-Standalone EmberLights is archived. Its useful hardware research was retained; it is not a runtime dependency or active product direction.
-
-This is independent community interoperability work. It is not affiliated with or endorsed by SoundSwitch, inMusic, VirtualDJ, or QLC+.
+This is independent community interoperability work. It is not affiliated with
+or endorsed by SoundSwitch, inMusic, VirtualDJ, Both Lighting, or QLC+.

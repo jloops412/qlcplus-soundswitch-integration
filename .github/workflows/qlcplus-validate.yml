@@ -1,0 +1,101 @@
+name: QLC+ V26 validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qlcplus-v26-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-hygiene:
+    name: Repository scope and contributor files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require active project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            README.md
+            LICENSE
+            CONTRIBUTING.md
+            SECURITY.md
+            THIRD_PARTY_NOTICES.md
+            docs/00_START_HERE.md
+            docs/DEVELOPMENT.md
+            docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md
+            releases/qlcplus-control-one/v26/Test-V26Package.ps1
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || { echo "Missing required file: $path"; exit 1; }
+          done
+
+      - name: Reject retired standalone application paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          retired=(
+            native-core
+            installer
+            profiles
+            research
+            spec
+            soundswitch-replacement-product-ledger.md
+            .github/workflows/native-core.yml
+            .github/workflows/qlcplus-v21.yml
+          )
+          for path in "${retired[@]}"; do
+            test ! -e "$path" || { echo "Retired path returned to main: $path"; exit 1; }
+          done
+
+      - name: Check scope declarations
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'The former standalone EmberLights desktop app is retired' README.md
+          grep -Fq 'QLC+ is the only lighting runtime' CONTRIBUTING.md
+          grep -Fq 'The active project is the QLC+ SoundSwitch integration.' docs/00_START_HERE.md
+
+  package-validation:
+    name: V26 package and source manifest
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate V26 package
+        shell: pwsh
+        run: releases/qlcplus-control-one/v26/Test-V26Package.ps1
+
+      - name: Validate V26 workspace
+        shell: pwsh
+        run: |
+          qlcplus/workspace-tools/Test-V26Workspace.ps1 `
+            -SourceWorkspace qlcplus/workspace-tools/IR4-TUBES-CONTROL-ONE-V25-LEAN-FEEDBACK.qxw `
+            -CandidateWorkspace releases/qlcplus-control-one/v26/IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw
+
+      - name: Verify SoundSwitch source manifest
+        shell: pwsh
+        run: |
+          $root = Resolve-Path 'qlcplus/plugins/soundswitch'
+          foreach ($line in Get-Content "$root/SHA256SUMS.txt") {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') {
+              throw "Malformed source checksum line: $line"
+            }
+            $target = Join-Path $root $Matches[2]
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+              throw "Source checksum target is missing: $($Matches[2])"
+            }
+            $actual = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $Matches[1]) {
+              throw "Source checksum mismatch: $($Matches[2])"
+            }
+          }

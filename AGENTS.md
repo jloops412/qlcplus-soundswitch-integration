@@ -2,16 +2,20 @@
 
 ## Current owner directive
 
-EmberLights as a standalone application is archived. The active project is a QLC+ workspace, creative show programming, and the smallest necessary SoundSwitch Micro/Control One hardware integration.
+The standalone EmberLights application is retired. The active project is a
+QLC+ workspace, creative show programming, and the smallest necessary
+SoundSwitch Micro/Control One hardware integration.
 
-Do not resume the native EmberLights application, its custom lighting engine/UI, old Preview installer line, or its historical issue critical path unless the owner explicitly reopens that work.
+Do not resume the native EmberLights application, its custom engine/UI, old
+Preview installer line, Studio/Runner design, skin platform, or historical
+standalone-app backlog unless the owner explicitly reopens that work.
 
 At show time, QLC+ is the only lighting application:
 
 ```text
 VirtualDJ -- OS2L --> QLC+
 Control One -- MIDI --> QLC+
-QLC+ -- SoundSwitch Hardware plug-in --> Micro or Control One DMX
+QLC+ -- SoundSwitch hardware plug-in --> Micro or Control One DMX
 ```
 
 ## Read first
@@ -21,45 +25,102 @@ QLC+ -- SoundSwitch Hardware plug-in --> Micro or Control One DMX
 3. `docs/qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md`
 4. `docs/qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md`
 5. `docs/qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md`
+6. `CONTRIBUTING.md` and `docs/DEVELOPMENT.md` for repository changes
 
-Historical handoffs and issues remain useful provenance, but these current QLC+ documents supersede their standalone-app sequencing whenever they differ.
+Closed issues, PRs, deleted default-branch files, and older commits are
+historical provenance only. They never override these current records.
 
-## Current rig
+## Current release and rig
 
-- Four Both Lighting IR-4 fixtures, 10-channel mode, Universe 1 addresses 1, 11, 21, and 31.
-- Four Both Lighting BO-TUBE192 fixtures, 40-channel mode, Universe 1 addresses 175, 215, 255, and 295.
-- Each BO-TUBE192 40-channel fixture has eight RGBWY zones and no master dimmer/effect channel.
-- Private duplicate fixtures on QLC+ Universe 3 support full-frame Priority Looks.
+- Current alpha: `releases/qlcplus-control-one/v26/`.
+- Workspace: `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
+- QLC+ source: `a124abebe0b5ad6077727c561a5a0e1f3730810c`.
+- QLC+ UI: `5.3.0 GIT a124abe`; Qt build headers: `6.8.1`.
+- Four Both Lighting IR-4 fixtures, 10-channel mode, Universe 1 addresses 1,
+  11, 21, and 31.
+- Four Both Lighting BO-TUBE192 fixtures, 40-channel mode, Universe 1 addresses
+  175, 215, 255, and 295.
+- Private duplicate fixtures on Universe 3 provide full-frame Priority Looks.
+  Universe 3 must not be routed directly to physical DMX.
+
+V25 is V26's reviewed source. V24 is the Runtime Feedback rollback, V22 the
+unified creative rollback, V21 the reliability rollback, and V20 the protected
+creative baseline. Preserve all release directories and their hashes.
 
 ## Workspace rules
 
-- The current alpha-candidate release is `releases/qlcplus-control-one/v26/IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`. V25 is the reviewed local lean-feedback source, V24 the published runtime-feedback rollback, V22 the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline.
-- Preserve public Function IDs and logical channels used by Control One, OS2L, and the Virtual Console.
-- Resolve Scene fixture IDs from the workspace; do not infer them from names or addresses.
-- Back up before edits. Validate XML, fixture patch/modes, Function references, and ID uniqueness afterward.
+- Preserve public Function IDs and logical channels used by Control One, OS2L,
+  and the Virtual Console.
+- Resolve Scene fixture IDs from the workspace. Never infer them from names or
+  DMX addresses.
+- Back up before edits. Validate XML, fixture patch/modes, Function references,
+  Virtual Console widget IDs, and ID uniqueness afterward.
 - For creative-only work, leave the Virtual Console/control layer unchanged.
 - For UI/control-only work, prove creative Functions are unchanged.
-- Prefer small, physically testable creative passes over bulk replacement.
-- Do not put personal paths, usernames, hardware serials, tokens, or secrets in published files.
+- Prefer small, physically testable passes over bulk replacement.
+- Keep personal paths, usernames, hardware serials, client data, tokens, and
+  secrets out of published files.
 
 ## Plug-in rules
 
-- Keep custom code limited to SoundSwitch USB transport, Control One MIDI translation/feedback, reconnect, and behavior QLC+ cannot cleanly express.
-- Do not add a bridge, daemon, second runtime application, firmware replacement, or new lighting engine.
-- Treat the current DLL as build-matched, not ABI-stable across QLC+/Qt versions.
-- V24 contains the unified Surface/Priority feedback plug-in built against QLC+ commit `a124abebe0b5ad6077727c561a5a0e1f3730810c`. Preserve and update the complete compatibility tuple, package hashes, installer receipt, rollback path, and release validator for later releases.
-- Before calling a release gig-qualified, qualify Micro, Control One DMX 1/2 together, simultaneous MIDI/feedback, repeated hot-plug, and the combined DJ workload.
-- Move the current hard-coded rig intensity ranges into workspace/configuration before calling the plug-in general-purpose.
+- Limit custom code to SoundSwitch USB transport, Control One MIDI
+  translation/feedback/reconnect, full-frame Priority ownership, and behavior
+  QLC+ cannot express cleanly.
+- Do not add a bridge, daemon, second runtime, replacement firmware, or new
+  lighting engine.
+- Treat both DLLs as build-matched, not ABI-stable across QLC+/Qt versions.
+- Keep QLC+ Function state authoritative. Retain only minimal translation and
+  reconnect state.
+- Preserve newest-frame-wins output, reconnect recovery, LED restoration,
+  Priority Look behavior, and safe failure handling.
+- Move the current hard-coded IR-4/tube intensity ranges into configuration or
+  native workspace logic before calling the plug-in general-purpose.
 
-## Claim boundaries
+## Validation and claim boundaries
 
-Use precise labels:
+Run the current package validator after every default-branch change:
 
-- **Structurally validated:** XML/references/IDs pass automated checks.
-- **Software-tested:** deterministic plug-in/workspace tests passed.
-- **Physical-output-tested:** the named device/port/fixture visibly responded.
-- **Gig-qualified:** soak, fault recovery, audio/OS2L/MIDI/DMX, and operator workflow passed.
+```powershell
+releases/qlcplus-control-one/v26/Test-V26Package.ps1
+```
 
-V24 is structurally validated and software-tested against its pinned QLC+ build. Its isolated runtime check covers Bank selection, both mode directions, chase speed, latched Start Bank/All, parent progression, and the live indicator following the current raw Chaser. Preceding baselines have physical evidence for Micro, each Control One DMX port independently, Control One MIDI/feedback, OS2L, and core pad/Priority Look behavior. V24 still needs the short fixture observation. Repeated hot-plug/LED restoration, simultaneous ports, and the combined two-hour workload remain pending.
+Use these labels precisely:
 
-The old `.github/workflows/native-core.yml` workflow is manual-only and its release job is disabled. Do not re-enable it for QLC+ tags. `.github/workflows/qlcplus-v21.yml` is historical and manual-only because this repository failed Actions jobs before runner allocation. V24 is validated locally and published directly; do not add or trigger a V24 GitHub Actions workflow unless the owner explicitly changes this rule.
+- **Structurally validated:** XML, references, IDs, patching, mappings, hashes,
+  and package structure pass automated checks.
+- **Software-tested:** deterministic plug-in/workspace behavior passed.
+- **Physical-output-tested:** the named device, port, fixture, mode, and address
+  visibly responded.
+- **Gig-qualified:** soak, fault recovery, audio, OS2L, MIDI, LED feedback, DMX,
+  and operator workflow passed together.
+
+V26 is structurally validated. Earlier tests physically confirmed Micro output,
+each Control One DMX port independently, Control One MIDI/core LEDs, OS2L,
+Priority behavior, and the essential Autoloop workflow. V26 still requires its
+final owner observation, repeated hot-plug, simultaneous ports, and the combined
+two-hour workload. Never collapse those boundaries.
+
+## GitHub and release rules
+
+- The default branch's README, this file, and current QLC+ documents are the
+  active project record.
+- Work through a bounded issue and pull request. Do not push unreviewed product
+  changes directly to `main`.
+- Active CI validates the V26 package and repository hygiene. It does not prove
+  hardware behavior.
+- Never reintroduce the archived native-core or standalone installer workflow.
+- A release installer may install only the build-matched QLC+ plug-ins and
+  rollback/validation files. It is not a desktop EmberLights installer.
+- Bind every package to exact hashes, source/build compatibility, install
+  receipt, rollback path, and evidence.
+- Never destructively modify the user's only show file or protected rollback
+  workspace.
+
+## End of work
+
+1. Run applicable structural and software validation.
+2. Update only records whose truth changed.
+3. State exact files, hashes, limitations, and physical evidence boundaries.
+4. Preserve unrelated work and protected releases.
+5. Report the user-visible QLC+ result first, then evidence and one focused
+   next action.

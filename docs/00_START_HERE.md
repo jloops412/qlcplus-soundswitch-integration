@@ -1,21 +1,60 @@
 # Start Here
 
-The active project is the QLC+ SoundSwitch integration. Do not resume the retired standalone EmberLights application unless a future owner explicitly reopens that scope.
+The active project is the QLC+ SoundSwitch integration. The standalone
+EmberLights application is retired and preserved only in Git history.
 
-For the current system, use these documents in order:
+At show time, run one lighting application:
 
-1. [Project status and roadmap](qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
-2. [V24 package and release notes](../releases/qlcplus-control-one/v24/README.md)
-3. [Community SoundSwitch migration guide](qlcplus-control-one/COMMUNITY_MIGRATION_GUIDE.md)
-4. [Control One workflow specification](qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md)
-5. [State model and architecture](qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md)
-6. [Mapping reference](qlcplus-control-one/MAPPING_REFERENCE.md)
-7. [V24 Runtime Feedback provenance](qlcplus-control-one/V24_RUNTIME_FEEDBACK_PROVENANCE.md)
-8. [V23 Live Console provenance](qlcplus-control-one/V23_LIVE_CONSOLE_PROVENANCE.md)
-9. [V22 creative merge provenance](qlcplus-control-one/V22_UNIFIED_MERGE_PROVENANCE.md)
-10. [Validation and maintenance](qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md)
-11. [Post-test promotion and cleanup](qlcplus-control-one/POST_TEST_PROMOTION_AND_CLEANUP.md)
+```text
+VirtualDJ -- OS2L --> QLC+
+Control One -- MIDI --> QLC+
+QLC+ -- SoundSwitch plug-in --> Micro or Control One DMX
+```
 
-The V24 alpha-candidate workspace, profile, plug-in, installer, rollback, package test, and hashes are under `releases/qlcplus-control-one/v24/`. V23 is the Live Console rollback, V22 the unified creative rollback, V21 the reliability rollback, and V20 the protected creative baseline. Plug-in source is under `qlcplus/plugins/soundswitch/`; deterministic workspace tools are under `qlcplus/workspace-tools/`.
+## I want to install or test it
 
-Historical handoffs under `docs/handoffs/` explain how the native QLC+ direction was chosen. They are retained for provenance, but this page and the V24 documents are authoritative when they differ.
+Read these in order:
+
+1. [Main project overview](../README.md)
+2. [V26 package, installation, first test, and rollback](../releases/qlcplus-control-one/v26/README.md)
+3. [Community migration guide](qlcplus-control-one/COMMUNITY_MIGRATION_GUIDE.md)
+4. [Control One workflow](qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md)
+5. [Validation and maintenance](qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md)
+
+The complete V26 package is under `releases/qlcplus-control-one/v26/`. Both
+DLLs are matched to QLC+ `5.3.0 GIT a124abe`; do not install them into an
+arbitrary QLC+ version.
+
+## I want to contribute
+
+Read these in order:
+
+1. [Contributing](../CONTRIBUTING.md)
+2. [Development guide](DEVELOPMENT.md)
+3. [Project status and roadmap](qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
+4. [State model and architecture](qlcplus-control-one/STATE_MODEL_AND_ARCHITECTURE.md)
+5. [Mapping reference](qlcplus-control-one/MAPPING_REFERENCE.md)
+6. [V26 provenance](qlcplus-control-one/V26_AUTOPLAY_CLARITY_PROVENANCE.md)
+
+Plug-in source is under `qlcplus/plugins/soundswitch/`. The focused OS2L delta
+is under `qlcplus/patches/`. Deterministic workspace tools are under
+`qlcplus/workspace-tools/`.
+
+## Release lineage
+
+- V26: current Autoplay Clarity alpha.
+- V25: reviewed local source for V26.
+- V24: Runtime Feedback rollback.
+- V23: Live Console rollback.
+- V22: Unified Pro creative rollback.
+- V21: reliability rollback.
+- V20: protected creative baseline.
+
+Do not rewrite or delete the protected rollback packages.
+
+## Historical warning
+
+Old standalone-app plans, installers, PRs, issues, and source files may appear
+in Git history or closed GitHub records. They are not active merely because
+they are detailed or recent. See
+[Archived standalone application](ARCHIVED_STANDALONE_APP.md).
