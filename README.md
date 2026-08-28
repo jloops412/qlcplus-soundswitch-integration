@@ -2,7 +2,6 @@
 
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange)](docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md)
 [![QLC+ 5.3.0](https://img.shields.io/badge/QLC%2B-5.3.0%20GIT%20a124abe-blue)](https://github.com/mcallegari/qlcplus)
-[![Validation](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-validate.yml/badge.svg)](https://github.com/jloops412/EmberLights/actions/workflows/qlcplus-validate.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Use SoundSwitch Micro or Control One hardware directly from QLC+, with a
@@ -182,7 +181,7 @@ loads during development. Structural validation never proves physical safety.
 
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [developer guide](docs/DEVELOPMENT.md). Open work is tracked in
-[GitHub Issues](https://github.com/jloops412/EmberLights/issues).
+[GitHub Issues](../../issues).
 
 Useful contribution areas include:
 
