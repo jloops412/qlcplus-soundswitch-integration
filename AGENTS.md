@@ -2,13 +2,10 @@
 
 ## Current owner directive
 
-The standalone EmberLights application is retired. The active project is a
-QLC+ workspace, creative show programming, and the smallest necessary
-SoundSwitch Micro/Control One hardware integration.
-
-Do not resume the native EmberLights application, its custom engine/UI, old
-Preview installer line, Studio/Runner design, skin platform, or historical
-standalone-app backlog unless the owner explicitly reopens that work.
+The active project is a QLC+ workspace, creative show programming, and the
+smallest necessary SoundSwitch Micro/Control One hardware integration. Keep
+QLC+ authoritative for fixtures, patches, Functions, the Virtual Console,
+timing, project persistence, and output routing.
 
 At show time, QLC+ is the only lighting application:
 
@@ -108,9 +105,11 @@ two-hour workload. Never collapse those boundaries.
   changes directly to `main`.
 - Active CI validates the V26 package and repository hygiene. It does not prove
   hardware behavior.
-- Never reintroduce the archived native-core or standalone installer workflow.
-- A release installer may install only the build-matched QLC+ plug-ins and
-  rollback/validation files. It is not a desktop EmberLights installer.
+- Do not add a second lighting application, custom desktop runtime, or unrelated
+  installer tree.
+- Public installation guidance must default to File Explorer and QLC+ UI steps.
+  Optional maintainer scripts may touch only the build-matched QLC+ plug-ins and
+  their rollback/validation records.
 - Bind every package to exact hashes, source/build compatibility, install
   receipt, rollback path, and evidence.
 - Never destructively modify the user's only show file or protected rollback
