@@ -19,8 +19,8 @@ firmware, or runtime tracker.
 ## Repository checkout
 
 ```powershell
-git clone https://github.com/jloops412/EmberLights.git
-cd EmberLights
+git clone "https://github.com/<your-account>/<your-fork>.git" qlcplus-soundswitch-integration
+cd qlcplus-soundswitch-integration
 ```
 
 Run the current package validator before changing anything:
@@ -100,7 +100,7 @@ Copy the focused SoundSwitch plug-in into upstream's `plugins` directory:
 
 ```powershell
 Copy-Item -Recurse -Force `
-  ..\EmberLights\qlcplus\plugins\soundswitch `
+  ..\qlcplus-soundswitch-integration\qlcplus\plugins\soundswitch `
   .\plugins\soundswitch
 ```
 
@@ -117,7 +117,7 @@ Apply the focused OS2L correction only if that target is part of the change:
 
 ```powershell
 git apply --unidiff-zero `
-  ..\EmberLights\qlcplus\patches\0001-os2l-use-reported-bpm.patch
+  ..\qlcplus-soundswitch-integration\qlcplus\patches\0001-os2l-use-reported-bpm.patch
 ```
 
 ### Configure and build
