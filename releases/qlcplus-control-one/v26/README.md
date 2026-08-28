@@ -2,7 +2,7 @@
 
 V26 is the current Windows alpha package for using SoundSwitch Micro or Control One hardware directly from QLC+ with a SoundSwitch-familiar live workflow.
 
-At show time, run one lighting application: **QLC+**. V26 adds no bridge, daemon, tracker service, replacement firmware, or standalone EmberLights app.
+QLC+ owns the complete show workflow. V26 adds only the two build-matched plug-ins and the project/profile files described below.
 
 ## Lean architecture
 
@@ -21,31 +21,49 @@ V26 includes one additional build-matched QLC+ plug-in fix: `os2l.dll` clocks QL
 
 ## Upgrade from V21–V25
 
-1. Close QLC+.
+1. Close SoundSwitch and every QLC+ window.
 2. Extract the complete V26 folder.
-3. Open PowerShell in the extracted folder and run:
+3. In File Explorer, open the folder containing your pinned `qlcplus5.exe`.
+   The normal Windows location is `C:\QLC+`.
+4. Open its `Plugins` folder and back up the existing `soundswitch.dll` and
+   `os2l.dll`.
+5. Copy the V26 `soundswitch.dll` and `os2l.dll` into that `Plugins`
+   folder, replacing the old copies.
+6. Keep `SoundSwitch-Control-One-Performance.qxi` beside
+   `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`, then open the `.qxw`
+   file in QLC+.
 
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\Test-V26Package.ps1
-   .\Install-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
-   ```
-
-4. Open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
-
-The installer replaces only `Plugins\soundswitch.dll` and `Plugins\os2l.dll`. It verifies the exact pinned stock QLC+ executable, backs up both prior plug-ins, records their hashes, and supports verified rollback. It does **not** replace `qlcplus5.exe`.
+V26 replaces no executable and needs no PowerShell command for normal use.
 
 ## First installation
 
-1. Install the complete QLC+ **5.3.0 GIT a124abe** build. Do not mix the executable, Qt DLLs, or plug-ins from different QLC+ builds.
-2. Install the normal manufacturer software/driver for the SoundSwitch device, then close SoundSwitch.
-3. Run the V26 package test and installer shown above.
-4. Open the V26 workspace.
-5. In QLC+ Input/Output, select SoundSwitch Micro, Control One DMX 1, or Control One DMX 2.
-6. Associate `SoundSwitch-Control-One-Performance.qxi` with Control One MIDI if QLC+ did not retain it.
-7. Follow `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` when VirtualDJ shares the computer.
+1. Install the complete QLC+ **5.3.0 GIT a124abe** build, normally at
+   `C:\QLC+`. Do not mix the executable, Qt DLLs, or plug-ins from different
+   QLC+ builds.
+2. Install the normal manufacturer software/driver for the SoundSwitch device,
+   then close SoundSwitch and QLC+.
+3. Back up `C:\QLC+\Plugins\soundswitch.dll` and
+   `C:\QLC+\Plugins\os2l.dll` if they exist. If QLC+ is installed
+   elsewhere, use the `Plugins` folder beside that installation's
+   `qlcplus5.exe`.
+4. Copy the V26 `soundswitch.dll` and `os2l.dll` into that `Plugins`
+   folder.
+5. Leave `SoundSwitch-Control-One-Performance.qxi` beside the V26 workspace
+   and open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
+6. In QLC+ Input/Output, select SoundSwitch Micro, Control One DMX 1, or
+   Control One DMX 2.
+7. Associate `SoundSwitch-Control-One-Performance.qxi` with Control One MIDI
+   if QLC+ did not retain it.
+8. Follow `VIRTUALDJ_OS2L_AUTO_RECONNECT.md` when VirtualDJ shares the
+   computer.
 
-Do not replace the whole Control One composite USB driver with a generic driver; that can remove its MIDI interface.
+QLC+ searches for custom input profiles beside the project, so the `.qxi`
+does not need a system-wide installer. The included PowerShell files are
+optional maintainer tools for checksum validation, automated backups, and
+repeatable lab deployment.
+
+Do not replace the whole Control One composite USB driver with a generic driver;
+that can remove its MIDI interface.
 
 ## What V26 changes
 
@@ -136,12 +154,15 @@ The final V26 owner check above still requires observation in the real QLC+ wind
 
 ## Rollback
 
-Close QLC+ and run:
+1. Close QLC+.
+2. Remove the V26 `soundswitch.dll` and `os2l.dll` from
+   `C:\QLC+\Plugins` (or your actual QLC+ `Plugins` folder).
+3. Copy your backed-up DLLs into that folder. If no backup exists, reinstall the
+   exact pinned QLC+ build.
+4. Open V25, V24, or another preserved `.qxw` file.
 
-```powershell
-.\Rollback-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
-```
-
-The script restores the two prior plug-ins from the latest hash-checked V26 receipt. The workspace itself is non-destructive: close V26 and reopen V25, V24, or another preserved `.qxw` file.
+The workspace itself is non-destructive. `Rollback-V26.ps1` remains available
+only as an optional maintainer convenience when V26 was installed with the
+matching scripted backup flow.
 
 This is independent community interoperability work. It is not affiliated with or endorsed by SoundSwitch, inMusic, VirtualDJ, or QLC+.
