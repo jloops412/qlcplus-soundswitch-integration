@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: QLC+ documentation
+    url: https://docs.qlcplus.org/
+    about: Use official QLC+ documentation for general QLC+ questions unrelated to this integration.
+  - name: Project support guide
+    url: https://github.com/jloops412/EmberLights/blob/main/SUPPORT.md
+    about: Read what information to collect before opening an issue.

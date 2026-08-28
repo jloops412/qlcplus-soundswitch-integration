@@ -1,39 +1,52 @@
 # Post-Test Promotion and Local Cleanup
 
-Do not run local cleanup until the V26 focused owner test passes. Cleanup should make the current release obvious without destroying rollback evidence.
+Do not run local machine cleanup until the V26 owner test passes. Cleanup should
+make the current release obvious without destroying rollback evidence.
 
 ## Promotion rule
 
 After V26 passes:
 
-1. Close QLC+ so no workspace or plug-in file is in use.
-2. Keep one clearly named working copy: `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
-3. Keep the downloaded V26 ZIP and SHA-256 file unchanged as the release source of truth.
-4. Keep V23 as the Live Console rollback, V22 as the unified creative rollback, V21 as the reliability rollback, and V20 as the protected creative rollback.
-5. Keep the installer-created plug-in backup and receipt with the pinned QLC+ installation.
-6. Move earlier experiments and duplicate numbered workspaces into one dated `Legacy-Pre-V26` archive folder.
-7. Do not delete fixture definitions, VirtualDJ mappings, Control One profiles, QLC+ core/runtime files, or files whose purpose has not been verified.
+1. Close QLC+ so no workspace or plug-in is in use.
+2. Keep one clearly named working copy:
+   `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
+3. Keep the complete V26 package and its `SHA256SUMS.txt` unchanged.
+4. Keep V24 as the Runtime Feedback rollback, V23 as the Live Console rollback,
+   V22 as the unified creative rollback, V21 as the reliability rollback, and
+   V20 as the protected creative baseline.
+5. Keep V25 locally as the reviewed source used to generate V26.
+6. Keep the installer-created two-plug-in backup and receipt with the pinned
+   QLC+ installation.
+7. Move earlier experiments and duplicate numbered workspaces into one dated
+   `Legacy-Pre-V26` archive folder.
+8. Do not delete fixture definitions, VirtualDJ mappings, Control One profiles,
+   QLC+ core/runtime files, or any file whose purpose has not been verified.
 
-## What may be archived
+## What may be archived locally
 
-- duplicate V1–V19/V20/V21 experiments outside the protected release folders;
-- abandoned autosaves and intermediate merge outputs after their final counterpart is verified;
-- old ad hoc test executables and temporary output folders that are not part of the pinned QLC+ installation or V22 release; and
-- retired standalone EmberLights application artifacts, provided no QLC+ plug-in source, research evidence, or release file is mixed into the target.
+- duplicate V1-V19 experiments outside protected release folders;
+- abandoned autosaves and intermediate merge outputs after their final
+  counterpart is verified;
+- ad hoc test executables and temporary output folders that are not part of the
+  pinned QLC+ installation or current package; and
+- retired standalone EmberLights application artifacts that are not active
+  QLC+ plug-in source or protected release evidence.
 
 ## What must remain
 
-- V26 current workspace and release archive;
-- V23 Live Console rollback workspace/package;
-- V22 unified creative rollback workspace/package;
-- V21 reliability rollback workspace/package;
-- V20 creative rollback workspace/package;
-- current pinned QLC+ installation and coherent Qt/runtime files;
-- `soundswitch.dll` backup/receipt;
+- the V26 current workspace and complete package;
+- V24, V23, V22, V21, and V20 rollback packages;
+- the V25 reviewed source workspace;
+- the pinned coherent QLC+ installation and Qt/runtime files;
+- plug-in backups and install receipt;
 - `SoundSwitch-Control-One-Performance.qxi`;
 - required fixture definitions and VirtualDJ OS2L/pad configuration; and
 - the Git repository.
 
 ## Recovery-first cleanup
 
-Prefer a move into the dated archive over permanent deletion. Before moving anything recursively, resolve and review every absolute target path and confirm it is inside the intended legacy folder. Once the archived system has survived normal use, the owner can decide whether old material should be compressed or removed.
+Prefer moving local legacy material into a dated archive over permanent
+deletion. Resolve and review every target path before a recursive operation and
+confirm it is inside the intended archive folder. Only consider permanent
+removal after the archived system has survived normal use and the protected
+rollback set is independently verified.
