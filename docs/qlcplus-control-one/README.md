@@ -15,7 +15,7 @@ The SoundSwitch plug-in handles only the capabilities QLC+ does not provide for 
 - full-frame Priority Look selection;
 - temporary rig-specific intensity scaling that should later move to configuration.
 
-No bridge, daemon, EmberLights process, custom lighting engine, or firmware replacement is required during a show.
+QLC+ owns show-time operation; the custom components are loaded as native QLC+ plug-ins.
 
 V26 also carries a focused build-matched QLC+ `os2l.dll` correction. It keeps VirtualDJ connected directly to QLC+, but derives beats from OS2L's reported BPM instead of bursty packet-arrival timing. The stock QLC+ executable remains untouched.
 
