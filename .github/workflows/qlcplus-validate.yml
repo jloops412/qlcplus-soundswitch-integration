@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           grep -Fq 'The former standalone EmberLights desktop app is retired' README.md
           grep -Fq 'QLC+ is the only lighting runtime' CONTRIBUTING.md
-          grep -Fq 'The standalone EmberLights application is retired' docs/00_START_HERE.md
+          grep -Fq 'The active project is the QLC+ SoundSwitch integration.' docs/00_START_HERE.md
 
   package-validation:
     name: V26 package and source manifest
