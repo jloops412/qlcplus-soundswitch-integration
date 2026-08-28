@@ -29,14 +29,13 @@ The running-loop indicator uses stock QLC+ Function Monitoring. QLC+ renders ext
 
 ## Upgrade
 
-With QLC+ closed:
+With SoundSwitch and QLC+ closed, back up the existing `soundswitch.dll` and
+`os2l.dll` from `C:\QLC+\Plugins` (or the `Plugins` folder beside your
+actual `qlcplus5.exe`). Copy the V26 DLLs into that folder, leave
+`SoundSwitch-Control-One-Performance.qxi` beside the workspace, then open
+`IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\Test-V26Package.ps1
-.\Install-V26.ps1 -QlcRoot 'X:\Path\To\QLCPlus-5.3.0-GIT-a124abe'
-```
-
-Then open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw` and complete the short owner check in the package README.
+No PowerShell command is required. Complete the short owner check in the package
+README before connecting the full rig.
 
 V26 is an alpha pending final live observation, physical-fixture confirmation, repeated reconnect testing, simultaneous dual-port qualification, and the combined two-hour DJ workload.
