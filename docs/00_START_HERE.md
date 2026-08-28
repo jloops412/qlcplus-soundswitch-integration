@@ -1,7 +1,6 @@
 # Start Here
 
-The active project is the QLC+ SoundSwitch integration. The standalone
-EmberLights application is retired and preserved only in Git history.
+This project integrates SoundSwitch Micro and Control One hardware with QLC+.
 
 At show time, run one lighting application:
 
@@ -21,9 +20,10 @@ Read these in order:
 4. [Control One workflow](qlcplus-control-one/CONTROL_ONE_WORKFLOW_SPEC.md)
 5. [Validation and maintenance](qlcplus-control-one/VALIDATION_AND_MAINTENANCE.md)
 
-The complete V26 package is under `releases/qlcplus-control-one/v26/`. Both
-DLLs are matched to QLC+ `5.3.0 GIT a124abe`; do not install them into an
-arbitrary QLC+ version.
+The complete V26 package is under `releases/qlcplus-control-one/v26/`. Normal
+installation uses File Explorer and the QLC+ UI; PowerShell is not required.
+Both DLLs are matched to QLC+ `5.3.0 GIT a124abe`; do not install them into
+an arbitrary QLC+ version.
 
 ## I want to contribute
 
@@ -52,9 +52,3 @@ is under `qlcplus/patches/`. Deterministic workspace tools are under
 
 Do not rewrite or delete the protected rollback packages.
 
-## Historical warning
-
-Old standalone-app plans, installers, PRs, issues, and source files may appear
-in Git history or closed GitHub records. They are not active merely because
-they are detailed or recent. See
-[Archived standalone application](ARCHIVED_STANDALONE_APP.md).
