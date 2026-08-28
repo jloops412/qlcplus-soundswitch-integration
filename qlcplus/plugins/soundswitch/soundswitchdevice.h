@@ -2,7 +2,7 @@
   Q Light Controller Plus
   soundswitchdevice.h
 
-  Copyright (c) 2026 EmberLights contributors
+  Copyright (c) 2026 QLC+ SoundSwitch Integration contributors
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
