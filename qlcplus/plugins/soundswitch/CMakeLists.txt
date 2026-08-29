@@ -9,6 +9,7 @@ add_library(${module_name} SHARED)
 target_sources(${module_name} PRIVATE
     ../interfaces/qlcioplugin.cpp ../interfaces/qlcioplugin.h
     soundswitchdevice.cpp soundswitchdevice.h
+    soundswitchintensity.cpp soundswitchintensity.h
     soundswitchmidiinput.cpp soundswitchmidiinput.h
     soundswitchplugin.cpp soundswitchplugin.h
     soundswitchprotocol.cpp soundswitchprotocol.h
@@ -39,6 +40,12 @@ add_executable(soundswitch_protocol_tests EXCLUDE_FROM_ALL
 )
 target_compile_features(soundswitch_protocol_tests PRIVATE cxx_std_17)
 
+add_executable(soundswitch_intensity_tests EXCLUDE_FROM_ALL
+    soundswitchintensity.cpp soundswitchintensity.h
+    tests/soundswitchintensitytest.cpp
+)
+target_compile_features(soundswitch_intensity_tests PRIVATE cxx_std_17)
+
 add_executable(ss_smoke EXCLUDE_FROM_ALL
     ../interfaces/qlcioplugin.cpp
     ../interfaces/qlcioplugin.h
@@ -51,7 +58,8 @@ target_include_directories(ss_smoke PRIVATE
 target_link_libraries(ss_smoke PRIVATE
     Qt${QT_MAJOR_VERSION}::Core
 )
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16)
     # GCC 16 diagnoses a Qt 6.8 header SFINAE pattern that predates this
     # project. Keep project warnings fatal without turning that external
     # compatibility warning into a smoke-test build failure.

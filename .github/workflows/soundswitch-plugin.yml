@@ -1,0 +1,134 @@
+name: SoundSwitch plug-in build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/soundswitch-plugin.yml'
+      - 'qlcplus/plugins/soundswitch/**'
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - '.github/workflows/soundswitch-plugin.yml'
+      - 'qlcplus/plugins/soundswitch/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soundswitch-plugin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QLCPLUS_SOURCE_COMMIT: a124abebe0b5ad6077727c561a5a0e1f3730810c
+  QT_VERSION: 6.8.1
+
+jobs:
+  build-windows:
+    name: Windows x64 matched plug-in
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install matched Qt and MinGW kit
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: tools_mingw1310
+          cache: true
+
+      - name: Fetch pinned QLC+ plug-in interface
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/mcallegari/qlcplus.git qlcplus-pinned
+          git -C qlcplus-pinned checkout --detach $env:QLCPLUS_SOURCE_COMMIT
+          Copy-Item -Recurse -Force qlcplus-pinned/plugins/interfaces qlcplus/plugins/interfaces
+          $head = git -C qlcplus-pinned rev-parse HEAD
+          if ($head -ne $env:QLCPLUS_SOURCE_COMMIT) {
+            throw "QLC+ source mismatch: $head"
+          }
+
+      - name: Configure focused build
+        shell: pwsh
+        run: |
+          $toolBin = Join-Path $env:IQTA_TOOLS 'mingw1310_64/bin'
+          $compiler = Join-Path $toolBin 'g++.exe'
+          if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
+            throw "Matched MinGW compiler not found: $compiler"
+          }
+          $env:Path = "$toolBin;$env:Path"
+          cmake -S qlcplus/plugins/soundswitch/standalone -B build-soundswitch -G Ninja `
+            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR/lib/cmake" `
+            "-DCMAKE_CXX_COMPILER=$compiler" `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build plug-in and deterministic tests
+        shell: pwsh
+        run: |
+          cmake --build build-soundswitch --target `
+            soundswitch `
+            soundswitch_protocol_tests `
+            soundswitch_intensity_tests `
+            ss_smoke `
+            --parallel
+
+      - name: Run software tests
+        shell: pwsh
+        run: |
+          $env:Path = "$env:QT_ROOT_DIR/bin;$env:Path"
+          $protocol = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_protocol_tests.exe | Select-Object -First 1
+          $intensity = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_intensity_tests.exe | Select-Object -First 1
+          $smoke = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_plugin_smoke_tests.exe | Select-Object -First 1
+          $plugin = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch.dll | Select-Object -First 1
+          foreach ($file in @($protocol, $intensity, $smoke, $plugin)) {
+            if ($null -eq $file) { throw 'A required build product is missing.' }
+          }
+          & $protocol.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $intensity.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $smoke.FullName $plugin.FullName --allow-no-hardware
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Stage matched binary and evidence
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifact | Out-Null
+          $plugin = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch.dll | Select-Object -First 1
+          Copy-Item -LiteralPath $plugin.FullName artifact/soundswitch.dll
+          $hash = (Get-FileHash artifact/soundswitch.dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          $compiler = Join-Path $env:IQTA_TOOLS 'mingw1310_64/bin/g++.exe'
+          $compilerVersion = (& $compiler --version | Select-Object -First 1)
+          $cmakeVersion = (cmake --version | Select-Object -First 1)
+          $ninjaVersion = (ninja --version | Select-Object -First 1)
+          [ordered]@{
+            qlcplusSourceCommit = $env:QLCPLUS_SOURCE_COMMIT
+            qtVersion = $env:QT_VERSION
+            qtRoot = $env:QT_ROOT_DIR
+            compilerVersion = $compilerVersion
+            cmakeVersion = $cmakeVersion
+            ninjaVersion = $ninjaVersion
+            runnerImage = $env:ImageOS
+            runnerImageVersion = $env:ImageVersion
+            architecture = 'windows-x64-mingw'
+            workflowRun = '${{ github.run_id }}'
+            repositoryCommit = '${{ github.sha }}'
+            soundswitchSha256 = $hash
+            protocolTests = 'passed'
+            intensityTests = 'passed'
+            pluginLoadSmoke = 'passed-without-hardware'
+            pinnedQlcHostAbiTested = $false
+          } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM artifact/build-evidence.json
+          "$hash  soundswitch.dll" | Set-Content -Encoding ascii artifact/SHA256SUMS.txt
+
+      - name: Upload matched plug-in
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: soundswitch-v27-windows-x64-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+          path: artifact/*
