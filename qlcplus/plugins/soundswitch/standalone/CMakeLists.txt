@@ -9,6 +9,11 @@ set(QT_VERSION_MAJOR 6)
 set(QT_MAJOR_VERSION 6)
 set(INSTALLROOT "")
 set(PLUGINDIR "Plugins")
+if(WIN32)
+    # Match the pinned QLC+ root project: plug-ins are named soundswitch.dll,
+    # not MinGW's default libsoundswitch.dll.
+    set(CMAKE_SHARED_LIBRARY_PREFIX "")
+endif()
 
 # CI copies plugins/interfaces from the exact pinned QLC+ source commit next
 # to this repository's focused plug-in snapshot before configuring this
