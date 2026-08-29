@@ -58,7 +58,8 @@ target_include_directories(ss_smoke PRIVATE
 target_link_libraries(ss_smoke PRIVATE
     Qt${QT_MAJOR_VERSION}::Core
 )
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16)
     # GCC 16 diagnoses a Qt 6.8 header SFINAE pattern that predates this
     # project. Keep project warnings fatal without turning that external
     # compatibility warning into a smoke-test build failure.
