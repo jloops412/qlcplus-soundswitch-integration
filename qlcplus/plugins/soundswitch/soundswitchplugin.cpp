@@ -29,13 +29,6 @@
 
 namespace
 {
-// QLC stores DMX channels as zero-based indexes. The current performance rig
-// has four IR-4 master channels at addresses 1/11/21/31 and four consecutive
-// 40-channel BO-TUBE192 fixtures at addresses 175/215/255/295.
-constexpr std::array<int, 4> kIr4MasterChannels{{0, 10, 20, 30}};
-constexpr int kTubeFirstChannel = 174;
-constexpr int kTubeChannelCount = 4 * 40;
-constexpr int kTubeEndChannel = kTubeFirstChannel + kTubeChannelCount;
 constexpr quint32 kPriorityLookChannelBase = 600;
 constexpr quint32 kPriorityLookChannelCount = 32;
 }
@@ -251,32 +244,17 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
             outputData = m_priorityLayerFrame;
         }
 
-        // Scale only the IR-4 master channels. BO-TUBE192's 40-channel mode is
-        // eight RGBWY emitter zones with no independent master, so Group 3
-        // scales all 160 channels across the four tubes. Groups 2 and 4 remain
-        // remembered expansion targets and intentionally modify no DMX yet.
+        // The full-rig intensity map is deliberately emitter-only. It scales
+        // IR-4 masters (Group 1), all six direct RGBAWUV Wash FX Hex zones
+        // (Group 2), all BO-TUBE192 emitter bytes (Group 3), and the main/UV
+        // dimmers of both Focus Spot Two fixtures (Group 4). Movement, optics,
+        // shutters, strobes and program controls remain byte-for-byte intact.
         if (universe == 0)
         {
-            const int global = m_intensityLevels[0];
-            const int irGroup = m_intensityLevels[1];
-            const int tubeGroup = m_intensityLevels[3];
-            const int irScale = (global * irGroup + 127) / 255;
-            const int tubeScale = (global * tubeGroup + 127) / 255;
-
-            for (int channel : kIr4MasterChannels)
-            {
-                if (channel >= outputData.size())
-                    continue;
-                const int source = static_cast<uchar>(outputData.at(channel));
-                outputData[channel] = static_cast<char>((source * irScale + 127) / 255);
-            }
-            for (int channel = kTubeFirstChannel;
-                 channel < kTubeEndChannel && channel < outputData.size();
-                 ++channel)
-            {
-                const int source = static_cast<uchar>(outputData.at(channel));
-                outputData[channel] = static_cast<char>((source * tubeScale + 127) / 255);
-            }
+            SoundSwitchIntensity::scaleFrame(
+                reinterpret_cast<std::uint8_t *>(outputData.data()),
+                static_cast<std::size_t>(outputData.size()),
+                m_intensityLevels);
         }
 
     }
@@ -321,7 +299,22 @@ void SoundSwitchPlugin::sendFeedBack(quint32 universe, quint32 output,
         return;
 
     if (binding.kind == OutputBinding::SurfaceFeedback && m_midiInput != nullptr)
+    {
+        int changedIntensityTarget = -1;
+        {
+            QMutexLocker lock(&m_mutex);
+            const int previousTarget = m_intensityTarget;
+            if (SoundSwitchIntensity::applySurfaceFeedback(
+                    channel, value, m_intensityTarget, m_intensityLevels) &&
+                m_intensityTarget != previousTarget)
+            {
+                changedIntensityTarget = m_intensityTarget;
+            }
+        }
+        if (changedIntensityTarget >= 0)
+            m_midiInput->setIntensityTarget(changedIntensityTarget);
         m_midiInput->applyFeedback(channel, value);
+    }
 }
 
 bool SoundSwitchPlugin::openInput(quint32 input, quint32 universe)

@@ -9,6 +9,7 @@ add_library(${module_name} SHARED)
 target_sources(${module_name} PRIVATE
     ../interfaces/qlcioplugin.cpp ../interfaces/qlcioplugin.h
     soundswitchdevice.cpp soundswitchdevice.h
+    soundswitchintensity.cpp soundswitchintensity.h
     soundswitchmidiinput.cpp soundswitchmidiinput.h
     soundswitchplugin.cpp soundswitchplugin.h
     soundswitchprotocol.cpp soundswitchprotocol.h
@@ -38,6 +39,12 @@ add_executable(soundswitch_protocol_tests EXCLUDE_FROM_ALL
     tests/soundswitchprotocoltest.cpp
 )
 target_compile_features(soundswitch_protocol_tests PRIVATE cxx_std_17)
+
+add_executable(soundswitch_intensity_tests EXCLUDE_FROM_ALL
+    soundswitchintensity.cpp soundswitchintensity.h
+    tests/soundswitchintensitytest.cpp
+)
+target_compile_features(soundswitch_intensity_tests PRIVATE cxx_std_17)
 
 add_executable(ss_smoke EXCLUDE_FROM_ALL
     ../interfaces/qlcioplugin.cpp

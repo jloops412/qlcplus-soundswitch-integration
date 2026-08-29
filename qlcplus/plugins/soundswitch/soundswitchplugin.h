@@ -21,14 +21,13 @@
 #define SOUNDSWITCHPLUGIN_H
 
 #include "qlcioplugin.h"
+#include "soundswitchintensity.h"
 
 #include <QHash>
 #include <QMutex>
 #include <QSet>
 #include <QTimer>
 #include <QVector>
-
-#include <array>
 
 class SoundSwitchDevice;
 class SoundSwitchMidiInput;
@@ -95,7 +94,8 @@ private:
     QSet<quint32> m_activePriorityLooks;
     QByteArray m_priorityLayerFrame;
     int m_intensityTarget{0}; // 0=global, 1-4=fixture groups, 5=scripted
-    std::array<uchar, 6> m_intensityLevels{{255, 255, 255, 255, 255, 255}};
+    SoundSwitchIntensity::Levels m_intensityLevels{{255, 255, 255,
+                                                     255, 255, 255}};
     int m_lastGroupNote{-1};
     qint64 m_lastGroupPressMs{0};
 };
