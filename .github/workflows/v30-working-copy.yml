@@ -50,6 +50,16 @@ jobs:
         run: |
           set -euo pipefail
           export PYTHONDONTWRITEBYTECODE=1
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('qlcplus/workspace-tools/V30Bootstrap.py')
+          source = path.read_text(encoding='utf-8')
+          old = 'print(f"Applied {len(archive.getmembers())} reviewed V30 text files.")'
+          new = 'print("Applied reviewed V30 text files.")'
+          if source.count(old) != 1:
+              raise SystemExit('expected one known bootstrap reporting line')
+          path.write_text(source.replace(old, new), encoding='utf-8', newline='')
+          PY
           python3 qlcplus/workspace-tools/V30Bootstrap.py
 
       - name: Prove deterministic workspace and regression contract
