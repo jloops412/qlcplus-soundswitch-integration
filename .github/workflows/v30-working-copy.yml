@@ -61,6 +61,10 @@ jobs:
           path.write_text(source.replace(old, new), encoding='utf-8', newline='')
           PY
           python3 qlcplus/workspace-tools/V30Bootstrap.py
+          git restore --source=HEAD -- \
+            .github/workflows/qlcplus-v30.yml \
+            .github/workflows/soundswitch-plugin.yml \
+            .github/workflows/v30-working-copy.yml
 
       - name: Prove deterministic workspace and regression contract
         shell: bash
@@ -86,13 +90,12 @@ jobs:
             'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw' \
             | sha256sum --check --strict
 
-      - name: Remove one-run staging and commit the complete repair
+      - name: Remove staging and commit the complete repair
         shell: bash
         run: |
           set -euo pipefail
           rm -rf .v30-bootstrap
           rm -f qlcplus/workspace-tools/V30Bootstrap.py
-          rm -f .github/workflows/v30-working-copy.yml
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
