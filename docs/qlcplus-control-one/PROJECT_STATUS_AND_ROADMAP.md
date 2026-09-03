@@ -2,165 +2,281 @@
 
 ## Mission and selected architecture
 
-The selected architecture is QLC+ plus one focused native hardware/workflow plug-in.
+The selected architecture is QLC+ plus one focused native hardware/workflow
+plug-in.
 
 At show time:
 
 ```text
 VirtualDJ -- direct OS2L --> QLC+
-Control One -- MIDI --> QLC+
+Control One -- MIDI ------> QLC+
 QLC+ -- SoundSwitch plug-in --> Micro or Control One DMX
 ```
 
-QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay order, dwell, the Virtual Console, persistence, and routing. The SoundSwitch plug-in exists only for proprietary SoundSwitch USB transport, Control One translation/feedback/reconnect, full-frame Priority Look selection, and the current temporary rig-specific intensity scaling. V26 also carries one focused QLC+ OS2L plug-in correction; the stock core executable remains unchanged.
+QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay order, dwell, the
+Virtual Console, persistence, and routing. The SoundSwitch plug-in exists only
+for proprietary SoundSwitch USB transport, Control One
+translation/feedback/reconnect, full-frame Priority Look selection, and
+intensity routing that QLC+ cannot express cleanly. V30 retains the focused,
+build-matched QLC+ OS2L correction; the stock core executable remains
+unchanged.
 
-## What exists in V26
+## Current status: V30 Performance Recovery candidate
 
-- Native SoundSwitch Micro and Control One DMX output with no bridge or second lighting program.
-- Control One MIDI translation, named `.qxi` profile, LED state feedback, and reconnect recovery.
-- A complete workspace for four 10-channel IR-4 fixtures and four 40-channel BO-TUBE192 tubes.
-- Four banks of 32 native QLC+ Autoloops: Medium, Colorful, Slow Dance, and Flashy.
-- Manual repeat-one, Auto Bank, Auto All, sequential/random order, live 1/2/4/8/16-measure dwell, independent 0.25x–4x chase speed, and pad seek.
-- A shared 4×8 Autoloop/Priority Look surface matching the physical Control One orientation.
-- Full-frame Priority Looks that may be still Scenes or moving Chasers and release back to the advancing Autoloop.
-- Sparse color overrides, Global/group intensity, VirtualDJ OS2L timing, clickable essential controls, and a mouse fallback.
-- A full-width four-bank native running-state strip below every pad, following manual playback, Auto Bank, Auto All, and seek without joining playback ownership.
-- One persistent mouse switch between Autoloops and Priority Looks.
-- One unified Surface feedback route for mouse commands and Priority Look ownership, with positive-edge command handling.
-- A 1600×900 dark Live Console with no visible/polling tracker service.
-- Always-visible 1M/2M/4M/8M/16M dwell choices backed by QLC+'s native beat-counted SpeedDial.
-- Stable direct OS2L BPM derived from the sender's reported BPM instead of packet bursts.
-- A pinned two-plug-in install/rollback package, complete hashes, deterministic release validator, and reproducible workspace builders.
+V30 is the active corrective candidate. It is generated deterministically from
+the reviewed V27 full-rig workspace and repairs four live-performance contracts
+before the Autoloop creative library is reviewed again: working raw-loop speed,
+exact selected-loop start during sequential or randomized autoplay, reliable
+Priority Look ownership/feedback, and independent Shift-held color overrides
+across the physical and private fixture layers.
+
+The V30 workspace validator covers all 128 raw Autoloops, all 320 possible
+Bank/All sequential/randomized selected starts, all 22 physical/private fixture
+instances, all latch/hold override routes, and the unchanged private Priority
+patch. The matched plug-in adds focused seek and Priority state tests. These are
+software and structural results only; the exact Windows host and physical rig
+still require controlled observation. See `V30_PERFORMANCE_RECOVERY.md`.
+
+Nine raw loops with variable per-step timing are intentionally normalized to
+their reviewed top-level timing in V30 so the speed control is authoritative.
+Their Function IDs are 573, 576, 632, 633, 635, 636, 645, 657, and 658. Their
+creative timing can be revisited in the later Autoloop-quality pass without
+reintroducing the broken PerStep speed contract.
+
+## V27 Full Rig source and rollback
+
+V27 is the active full-rig candidate. It extends the exact immutable V26
+Autoplay Clarity workspace with one Chauvet Wash FX Hex and two American DJ
+Focus Spot Two movers. The generated workspace passes the independent V27
+structural regression against protected V26 SHA-256
+`ED97E3EBAEA120BC6FF5FF9747485DA54E1808479F64A02AB4BC044744FAB570`.
+
+This status is deliberately narrow:
+
+- V27 is structurally validated at the workspace level.
+- The candidate SoundSwitch plug-in passed protocol, intensity, and plug-in
+  load smoke tests in CI.
+- The candidate has not yet been loaded into the exact pinned Windows QLC+
+  host.
+- The changed workspace, new fixture definition, new intensity routing, full
+  physical rig, repeated hot-plug, combined workload, and gig route remain
+  unqualified.
+
+CI run `33241230755` built candidate `soundswitch.dll` SHA-256
+`19074A37AA915E1E39124CD14441025A2A83AB06EBDB14BD0953E2910B801DE3`
+from reviewed source commit
+`bf85057b5958608034decacae8927b0714ee98ed`. Its evidence explicitly records
+`pinnedQlcHostAbiTested=false`.
+
+V26 remains the protected generation source and immediate rollback. Do not
+edit its workspace, package, or hashes in place, and do not infer that V26's
+earlier hardware observations prove V27 hardware behavior.
+
+## Exact V27 fixture patch
+
+Fixture displays use one-based addresses; QLC+ XML stores each start address
+one lower. Every V26 IR-4 and tube address is retained. New fixtures occupy
+only previously free channels, and display addresses 117–174 remain free.
+
+| Physical ID | Private ID | Fixture | Mode | Physical U1 display span | Private U3 span |
+|---:|---:|---|---|---:|---:|
+| 0 | 100 | Both Lighting IR-4 1 | `10 Channel` | 001–010 | 001–010 |
+| 1 | 101 | Both Lighting IR-4 2 | `10 Channel` | 011–020 | 011–020 |
+| 2 | 102 | Both Lighting IR-4 3 | `10 Channel` | 021–030 | 021–030 |
+| 3 | 103 | Both Lighting IR-4 4 | `10 Channel` | 031–040 | 031–040 |
+| 4 | 104 | Chauvet Wash FX Hex | `40 Channel` | **041–080** | **041–080** |
+| 9 | 109 | American DJ Focus Spot Two A | `18 Channel` | **081–098** | **081–098** |
+| 10 | 110 | American DJ Focus Spot Two B | `18 Channel` | **099–116** | **099–116** |
+| — | — | Reserved | — | **117–174 free** | **117–174 free** |
+| 5 | 105 | Both Lighting BO-TUBE192 1 | `40 Channel` | 175–214 | 175–214 |
+| 6 | 106 | Both Lighting BO-TUBE192 2 | `40 Channel` | 215–254 | 215–254 |
+| 7 | 107 | Both Lighting BO-TUBE192 3 | `40 Channel` | 255–294 | 255–294 |
+| 8 | 108 | Both Lighting BO-TUBE192 4 | `40 Channel` | 295–334 | 295–334 |
+
+Both layers remain 334 channels. Universe 3 is a private Priority buffer on
+`soundswitch:priority-layer`, line 4. It must never be routed to physical DMX,
+Art-Net, sACN, or another output.
+
+## SoundSwitch source review and creative closure
+
+The previously shared `2026.ssproj.zip`, SHA-256
+`2C58ED57965CD12A0702252595D4966EF8CAEF4A3B024E24BC001E245FCFE11C`,
+was reviewed as creative and fixture provenance. Its addresses were not copied:
+the owner's QLC+ patch remains authoritative. The source used a Wash 11-channel
+personality at 147 and two Focus 18-channel instances at 31 and 49. V27 instead
+uses the exact 40-channel/18-channel patch above so all V26 addresses remain
+unchanged.
+
+The source contains a Wash target in all 112 placed timelines, Focus references
+in all 112, and explicit Focus group/motion blocks in 72. V27 closes that gap by
+integrating the Wash and both Focus fixtures into every live QLC+ creative path,
+not just the source timelines that happened to contain explicit mover blocks.
+
+The V27 candidate contains 2,100 Functions: 1,812 Scenes, 150 Chasers, and 138
+Collections. Its live creative closure is exactly 1,140 Scene leaves:
+
+- 1,024 raw Autoloop steps across 128 eight-step Chasers;
+- 102 Priority Look leaves;
+- 5 performance Scenes; and
+- 9 color overrides.
+
+Every raw Autoloop step contains a complete physical frame for all eleven
+fixtures. Every Priority leaf contains the corresponding complete private
+frame. Performance Scenes include the tubes, Wash, and Focus pair. Sparse color
+overrides cover all tube emitters, all six Wash zones, and both Focus color
+wheels while leaving movement and intensity underneath them.
+
+Nine exact decoded Focus A/B position Scenes use Function IDs 2175–2183, and
+Function 2184 (`MOVEMENT — FOCUS A/B SWEEP`) is assigned to the existing MOVE
+control. The source proves A/B values, not a physical left/right assignment.
+`Disco Ball` is the position collection header, not a tenth position preset.
+Installed A/B identity and every aim remain bench checks.
+
+## V27 intensity routing
+
+| Target | Fixture channels affected |
+|---|---|
+| Global | All designated Group 1–4 intensity/emitter spans in the physical or active private Priority frame |
+| Group 1 | Four IR-4 fixtures |
+| Group 2 | Wash direct RGBAWUV zone emitters only |
+| Group 3 | Four BO-TUBE192 tubes |
+| Group 4 | Focus main and UV dimmers only |
+| Scripted | Retained control state |
+
+Wash program, speed, auto-dimmer, and strobe channels are excluded from Group
+2. Focus movement, color, gobos, prism, shutters, focus, internal shows, and
+function/reset channels are excluded from Group 4. Internal Focus shows and
+function/reset ranges remain zero in released programming.
 
 ## Release lineage
 
-### V20 — protected creative rollback
+### V20 — protected creative baseline
 
-V20 remains the protected pre-reliability creative baseline. Do not rewrite or delete it.
+V20 remains the protected pre-reliability creative baseline. Do not rewrite or
+delete it.
 
 ### V21 — reliability rollback
 
-V21 introduced the pinned QLC+ 5.3.0 build tuple, Control One stale-handle recovery, LED retry/restore, direct local VirtualDJ OS2L keepalive, complete essential mouse controls, and the self-testing install/rollback package. Its plug-in binary is reused unchanged by V22.
+V21 introduced the pinned QLC+ 5.3.0 tuple, Control One stale-handle recovery,
+LED retry/restore, direct VirtualDJ OS2L keepalive, complete mouse controls, and
+the self-testing install/rollback package.
 
 ### V22 — unified creative rollback
 
-V22 resolves the split between V21 and the later All Banks Variety Pro creative workspace:
+V22 merged the reviewed Variety Pro Colorful/Flashy donor steps into the V21
+control and reliability host while preserving fixture, I/O, ownership, public
+ID, and logical-channel contracts.
 
-- V21 is the host for all fixtures, I/O, Control One/UI behavior, ownership, dwell, speed, Priority Looks, and reliability work.
-- Exactly 22 raw Colorful/Flashy Chasers are replaced by the Variety Pro versions.
-- Their 176 Scene steps are imported; 17 colliding donor IDs are remapped to private IDs.
-- Existing V21 manual owners, Autoplay parents, Priority Looks, fixtures, I/O, public IDs, logical channels, and plug-in binary remain unchanged.
-- A disabled 128-Chaser monitor layer supplies native active-pad outlines without joining the playback owner SoloFrame.
+### V23 — Live Console rollback
 
-The named Variety Pro workspace—not its autosave—is the donor. The autosave contains 32 unrelated save-state XML changes and is deliberately excluded.
+V23 kept all 2,090 lighting Functions and reorganized only native Virtual
+Console feedback and presentation.
 
-V22 passes structural/package validation. The merged loops and advancing outline need the short owner test before V22 becomes the local production baseline.
+### V24 — Runtime Feedback rollback
 
-### V23 — Live Console alpha candidate
+V24 unified Surface feedback, corrected positive-edge mouse commands, kept
+mouse operation independent of the Control One MIDI-output handle, and added
+native current-loop feedback. Its isolated software/runtime tests passed.
 
-V23 is generated from V22 and changes only the Virtual Console:
+### V25 — reviewed V26 source
 
-- all 2,090 lighting Functions, fixtures, I/O, public IDs, logical channels, Priority Looks, and creative content remain unchanged;
-- the 128 raw-Chaser monitors become four non-overlapping bank indicators per physical pad, so an inactive later-bank widget cannot hide the current Chaser;
-- the duplicate page-specific mode Button is removed, leaving one persistent Function `1993` / channel `811` control;
-- the native ten-variant CueList tracker is enlarged; and
-- the Live page is reorganized as a 1600×900 dark performance surface.
+V25 preserved the V24 Engine and creative show while reducing the Autoplay
+tracker footprint. It is V26's reviewed source, not a public deployment target.
 
-V22 is now the unified creative rollback. V23 passes structural/package validation and awaits the short owner UI observation.
+### V26 — protected Autoplay Clarity source and rollback
 
-### V24 — Runtime Feedback alpha candidate
+V26 preserves the V25 Engine byte-for-byte and changes only Virtual Console
+presentation. It packages the build-matched SoundSwitch plug-in and focused
+`os2l.dll` correction. V26 is immutable and is the exact V27 generation source,
+not a file to modify or overwrite during V27 work.
 
-V24 is generated from V23 and keeps all 2,090 lighting Functions unchanged.
+### V27 — Full Rig candidate
 
-- Removes V23's duplicate Priority feedback declaration; QLC+ retains one Surface feedback destination on Universe 2.
-- Routes Priority Look ownership channels `600–631` through that unified Surface line while preserving the private Priority output buffer.
-- Handles empty mouse-command Scenes on their positive edge only, preventing double mode/bank/dwell/order/transport/speed dispatch.
-- Keeps the Surface command line open without attached hardware, so the mouse workflow does not depend on Control One's MIDI-output handle.
-- Replaces the hidden large monitor layer with 32 visible read-only frames containing four bank indicators per pad.
-- Preserves every fixture, Autoloop, Priority Look, public Function ID, logical channel, and creative Function from V23.
+V27 adds the three physical fixtures and their private Priority mirrors,
+complete live creative coverage, full-rig performance and override Scenes,
+exact decoded Focus position controls, a full-rig visual bench, and four-group
+intensity routing. It is a candidate until the exact package, pinned Windows
+host, physical fixtures, fault routes, and combined workload pass their named
+gates.
 
-V24 passes protocol, plug-in smoke, package, XML/reference, mapping, fixture, speed/dwell coverage, and isolated runtime checks. The isolated run confirmed Bank selection, both mode directions, speed selection, latched Start Bank/All, parent progression, and current-loop feedback. It now needs the short fixture observation.
+### V30 — Performance Recovery candidate
 
-### V25 — Lean Feedback reviewed handoff
+V30 preserves the V27 fixture patch and creative leaves while correcting the
+raw-loop speed architecture, exact sequential/randomized autoplay seek,
+Priority state/feedback handoff, complete physical/private color coverage, and
+Shift-held color operation. Focus position shortcuts move from Shift + color to
+Shift + performance pads 1–9. V30 remains a candidate until the matched plug-in
+and workspace pass the controlled physical rig route.
 
-V25 preserves the complete V24 Engine and creative show while clipping the previously enlarged Autoplay tracker frame to `1×1`. It keeps ten native Cue Lists only for absolute seek and retains the 128 read-only raw-Chaser monitors. V25 is the reviewed source for V26, not the public release target.
+## Physical evidence and safety boundary
 
-### V26 — Autoplay Clarity alpha candidate
+Preceding V26 workspaces produced live output through SoundSwitch Micro,
+Control One DMX 1, and Control One DMX 2 independently; Control One MIDI/core
+LEDs, OS2L, Priority behavior, and essential manual/Autoplay ownership were
+also observed. Those observations remain V26 provenance only.
 
-V26 preserves the V25 Engine byte-for-byte and changes only Virtual Console presentation:
+No V27 physical-output, headless, combined-soak, or gig qualification is
+claimed. In particular:
 
-- expands each four-bank running-state rail to a full-width strip below its pad;
-- keeps all five dwell values visible on each native multipage dwell state;
-- labels musical dwell as 1M/2M/4M/8M/16M and 4/8/16/32/64 beats; and
-- explicitly uses QLC+'s stock amber Monitoring state instead of a custom UI executable.
+- the exact pinned QLC+ Windows host has not yet loaded the V27 candidate DLL;
+- the Wash 40-channel personality and physical zone orientation are unresolved;
+- Focus A/B placement, nine decoded aims, pan/tilt clearance, focus, gobos,
+  prism, shutter behavior, and physical addresses require controlled bench
+  observation; and
+- simultaneous intended output paths, repeated hot-plug/LED restoration,
+  fault recovery, and the combined two-hour workload remain pending.
 
-V26 also packages the unchanged V24 SoundSwitch plug-in and one focused build-matched `os2l.dll` fix. The latter reads reported BPM, emits a stable native QLC+ beat clock, and stops on disconnect/source silence. No tracker process, bridge, or QLC+ core fork is introduced.
+The Focus Spot Two manual identifies its UV source as Risk Group 3. V27 keeps
+both real Focus UV shutters closed and both UV dimmers at zero in every released
+Autoloop, Priority Look, performance Scene (including `UV`), override, and
+movement frame. The `UV` performance look uses the Wash/tubes plus low visible
+Focus main colors. Real Focus UV is outside the released V27 programming and is
+not part of qualification.
 
-## Current physical evidence
+## Immediate qualification route
 
-The user has confirmed the essential live behavior on preceding workspaces: all four pad banks, color overrides, pad-page switching, Priority Look takeover/release, underlying Autoloop continuation, OS2L, and Control One operation.
+1. Run the V27 builder, independent workspace validator, and completed package
+   validator while proving the protected V26 SHA remains unchanged.
+2. Install the custom Focus fixture definition and candidate plug-ins into an
+   isolated copy of the exact pinned QLC+ `5.3.0 GIT a124abe` Windows tuple.
+3. Open V27 with physical outputs disabled and complete the Engine Monitor,
+   patch, mode, input, Priority-isolation, performance, override, Autoloop, and
+   movement review.
+4. Follow
+   [`FULL_RIG_PATCH_AND_BENCH.md`](../../releases/qlcplus-control-one/v27/FULL_RIG_PATCH_AND_BENCH.md)
+   with one named output path and one fixture class at a time. Test mover motion
+   with shutters closed and dimmers at zero before opening visible light.
+5. Run every raw Autoloop for one complete cycle, every Priority Look, all
+   performance Scenes and overrides, Groups 1–4, Global, Blackout, Stop, and
+   release behavior.
+6. Only after the controlled bench passes, complete repeated hot-plug, required
+   simultaneous-port, fault-recovery, and combined two-hour workload gates.
+7. Promote V27 only when recorded evidence supports the exact claim. Otherwise,
+   restore the backed-up plug-ins and open the preserved V26 workspace.
 
-- Micro DMX produced live fixture output.
-- Control One DMX 1 produced live fixture output.
-- Control One DMX 2 produced live fixture output independently.
-- Control One MIDI and core LEDs worked.
-- The four-bank manual/Autoplay ownership logic worked after the later-bank input correction.
+## Engineering priorities
 
-This evidence does not yet prove V26 gig qualification, simultaneous Control One ports, repeated hot-plug recovery, or the combined two-hour DJ/audio/OS2L/MIDI/LED/DMX workload.
-
-## Immediate next session
-
-Do not redesign the control architecture until this short pass is complete.
-
-1. Close QLC+, run the V26 package test/installer, and open `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
-2. Click the persistent Autoloop/Priority Looks switch twice and confirm both directions.
-3. Run one manual pad in each bank. Confirm latch, same-pad off, replacement, and the full-width native amber strip.
-4. Run Auto Bank and Auto All. Confirm the strip advances at every loop and through bank changes.
-5. Seek with pads and change dwell while Autoplay remains running.
-6. Apply/release one still and one moving Priority Look. Confirm sole authority and seamless return.
-7. Confirm color override plus Global, IR-4, and tube group intensity.
-8. Confirm the selected Micro or Control One output reaches fixtures.
-9. Play a known-BPM VirtualDJ track and confirm QLC+ remains near that tempo instead of jumping to a packet-burst rate.
-10. Unplug/replug Control One once while QLC+ remains open and observe MIDI/LED recovery.
-
-If these pass, promote V26 to the local alpha baseline. Retain V21 and the immediately preceding V25 workspace locally, plus the published rollback releases and installer-created DLL backup.
-
-## Engineering priorities after promotion
-
-1. Complete repeated Control One hot-plug and LED restoration qualification.
-2. Qualify Control One DMX 1 and DMX 2 simultaneously with MIDI/feedback and VirtualDJ active.
-3. Complete a two-hour combined DJ workload soak.
-4. Move hard-coded IR-4/tube intensity ranges out of reusable plug-in code and into configuration or native workspace logic.
-5. Re-check whether a later official QLC+ release incorporates equivalent OS2L timing before carrying the focused patch forward.
-6. Decide whether to prepare the narrow OS2L correction as an upstream contribution.
-7. Create a fixture-neutral starter workspace/configuration guide for other DJs.
-
-## Creative priorities
-
-Current loops are sufficient for the alpha milestone; preserve V26 before new creative passes.
-
-- Build purposeful event Priority Looks: announcements, introductions, first dance, parent dances, cake, open dancing, and finale.
-- Meticulously grade every loop for musical phrasing, fixture separation, color balance, and usable intensity.
-- Smooth any remaining abrupt Slow Dance transitions.
-- Improve labels/colors only when the physical Control One mapping stays obvious.
-- Add position/movement overrides for future movers without repurposing Pan/Tilt or destabilizing the current rig.
-- Import historical fixture inventory only after the live system is stable.
-
-## Optional backlog
-
-- More complete Back/Link/Select/Hue/Smoke/Strobe/position roles where they provide real show value.
-- More detailed LED feedback and, much later, OLED investigation.
-- Multi-device identity and a portable per-rig configuration format.
-- A SoundSwitch project importer for fixture inventory and reusable metadata.
-- Additional VirtualDJ pad pages.
-
-Custom Control One firmware is deferred. It is not needed for the current goal.
+1. Complete the exact pinned-host plug-in load test.
+2. Complete the controlled Wash and Focus bench with installed A/B identity and
+   safe-position notes.
+3. Observe the complete full-rig performance, override, Autoloop, Priority,
+   movement, and intensity routes.
+4. Complete repeated Control One hot-plug and LED restoration qualification.
+5. Qualify every intended output path, including simultaneous paths only if
+   they are part of the actual show configuration.
+6. Complete the combined two-hour DJ/audio/OS2L/MIDI/LED/DMX soak before any
+   gig-qualified claim.
+7. Re-check whether a later official QLC+ release incorporates equivalent OS2L
+   timing before carrying the focused patch forward.
 
 ## Scope guardrails
 
 - One runtime lighting application: QLC+.
-- No second lighting runtime, bridge daemon, replacement firmware, or custom lighting engine.
-- Keep custom code only where QLC+ cannot cleanly express the hardware/workflow.
-- Preserve public Function IDs and logical channels.
-- Freeze a known-good release before creative or UI passes.
-- Treat structural validation, physical output, and gig qualification as separate claims.
+- No second lighting runtime, bridge daemon, replacement firmware, or custom
+  lighting engine.
+- Keep custom code only where QLC+ cannot cleanly express the hardware or
+  workflow.
+- Preserve public Function IDs, logical channels, and the immutable V26 source.
+- Keep Universe 3 private and disconnected from physical output.
+- Treat structural validation, software tests, physical output, combined soak,
+  and gig qualification as separate claims.

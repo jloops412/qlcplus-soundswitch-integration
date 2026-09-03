@@ -6,6 +6,7 @@
 */
 
 #include "soundswitchmidiinput.h"
+#include "soundswitchperformance.h"
 
 #include <QMetaObject>
 #include <QMutexLocker>
@@ -52,16 +53,6 @@ quint32 autoplayVariantChannel(int bank, bool allBanks, bool randomized)
             + (randomized ? 1U : 0U);
 }
 
-uchar autoplaySeekValue(int bank, int pad, bool allBanks)
-{
-    // QLC+ Cue List step mode runs from 255 (first step) down to 0. Both
-    // supported parent sizes divide the 256-value MIDI range exactly.
-    const int stepsCount = allBanks ? 128 : 32;
-    const int stepIndex = allBanks
-        ? qBound(0, bank, 3) * 32 + qBound(0, pad, 31)
-        : qBound(0, pad, 31);
-    return static_cast<uchar>(255 - stepIndex * (256 / stepsCount));
-}
 
 bool isLatchedShiftSpecial(quint8 note)
 {
@@ -615,6 +606,7 @@ void SoundSwitchMidiInput::togglePerformanceMode()
 void SoundSwitchMidiInput::toggleOrder()
 {
     int bank = 0;
+    int pad = -1;
     bool randomized = false;
     bool active = false;
     bool allBanks = false;
@@ -623,6 +615,7 @@ void SoundSwitchMidiInput::toggleOrder()
         QMutexLocker lock(&m_mutex);
         m_autoplayRandom = !m_autoplayRandom;
         bank = m_selectedBank;
+        pad = m_manualPad;
         randomized = m_autoplayRandom;
         active = m_autoplayActive;
         allBanks = m_autoplayAll;
@@ -631,7 +624,18 @@ void SoundSwitchMidiInput::toggleOrder()
 
     postPulse(kOrderStateBase + (randomized ? 1U : 0U));
     if (active)
+    {
         dispatchAutoplay(bank, allBanks, randomized, restoreStatic);
+        if (pad >= 0)
+        {
+            const uchar seekValue = SoundSwitchPerformance::autoplaySeekValue(
+                bank, pad, allBanks, randomized);
+            postValue(kAutoplaySeekChannel,
+                      SoundSwitchPerformance::autoplaySeekNudgeValue(
+                          seekValue, allBanks));
+            postValue(kAutoplaySeekChannel, seekValue);
+        }
+    }
 
     sendFeedback(55U, randomized ? 255 : 0);
 }
@@ -669,7 +673,19 @@ void SoundSwitchMidiInput::togglePlayback()
     if (bank >= 0 && (autoplay || pad >= 0))
     {
         if (autoplay)
+        {
             dispatchAutoplay(bank, allBanks, randomized, restoreStatic);
+            if (startPlayback && pad >= 0)
+            {
+                const uchar seekValue =
+                    SoundSwitchPerformance::autoplaySeekValue(
+                        bank, pad, allBanks, randomized);
+                postValue(kAutoplaySeekChannel,
+                          SoundSwitchPerformance::autoplaySeekNudgeValue(
+                              seekValue, allBanks));
+                postValue(kAutoplaySeekChannel, seekValue);
+            }
+        }
         else
             dispatchManual(bank, pad, restoreStatic);
     }
@@ -1048,12 +1064,14 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
                 bool remainsRunning = true;
                 bool seekAutoplay = false;
                 bool allBanks = false;
+                bool randomized = false;
                 int bank = 0;
                 {
                     QMutexLocker lock(&m_mutex);
                     bank = m_selectedBank;
                     seekAutoplay = m_autoplayActive && m_playbackRunning;
                     allBanks = m_autoplayAll;
+                    randomized = m_autoplayRandom;
                     if (seekAutoplay)
                     {
                         if (!allBanks && m_autoplayBank >= 0)
@@ -1078,8 +1096,17 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
 
                 if (seekAutoplay)
                 {
+                    const uchar seekValue =
+                        SoundSwitchPerformance::autoplaySeekValue(
+                            bank, data1, allBanks, randomized);
+                    // QLC+ Cue List Steps mode suppresses an unchanged input
+                    // value. Nudge inside the same step bucket first so the
+                    // same pad can reliably restart its loop after playback
+                    // has advanced, without ever selecting another loop.
                     postValue(kAutoplaySeekChannel,
-                              autoplaySeekValue(bank, data1, allBanks));
+                              SoundSwitchPerformance::autoplaySeekNudgeValue(
+                                  seekValue, allBanks));
+                    postValue(kAutoplaySeekChannel, seekValue);
                 }
                 else
                 {
