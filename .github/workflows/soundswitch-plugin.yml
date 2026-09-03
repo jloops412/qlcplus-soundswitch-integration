@@ -7,7 +7,7 @@ on:
       - '.github/workflows/soundswitch-plugin.yml'
       - 'qlcplus/plugins/soundswitch/**'
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'fix/**']
     paths:
       - '.github/workflows/soundswitch-plugin.yml'
       - 'qlcplus/plugins/soundswitch/**'
@@ -73,6 +73,8 @@ jobs:
             soundswitch `
             soundswitch_protocol_tests `
             soundswitch_intensity_tests `
+            soundswitch_performance_tests `
+            soundswitch_priority_tests `
             ss_smoke `
             --parallel
 
@@ -82,14 +84,20 @@ jobs:
           $env:Path = "$env:QT_ROOT_DIR/bin;$env:Path"
           $protocol = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_protocol_tests.exe | Select-Object -First 1
           $intensity = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_intensity_tests.exe | Select-Object -First 1
+          $performance = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_performance_tests.exe | Select-Object -First 1
+          $priority = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_priority_tests.exe | Select-Object -First 1
           $smoke = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_plugin_smoke_tests.exe | Select-Object -First 1
           $plugin = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch.dll | Select-Object -First 1
-          foreach ($file in @($protocol, $intensity, $smoke, $plugin)) {
+          foreach ($file in @($protocol, $intensity, $performance, $priority, $smoke, $plugin)) {
             if ($null -eq $file) { throw 'A required build product is missing.' }
           }
           & $protocol.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $intensity.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $performance.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $priority.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $smoke.FullName $plugin.FullName --allow-no-hardware
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -120,6 +128,8 @@ jobs:
             soundswitchSha256 = $hash
             protocolTests = 'passed'
             intensityTests = 'passed'
+            autoplaySeekTests = 'passed'
+            priorityStateTests = 'passed'
             pluginLoadSmoke = 'passed-without-hardware'
             pinnedQlcHostAbiTested = $false
           } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM artifact/build-evidence.json
@@ -128,7 +138,7 @@ jobs:
       - name: Upload matched plug-in
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: soundswitch-v27-windows-x64-${{ github.sha }}
+          name: soundswitch-v30-windows-x64-${{ github.sha }}
           if-no-files-found: error
           retention-days: 90
           path: artifact/*
