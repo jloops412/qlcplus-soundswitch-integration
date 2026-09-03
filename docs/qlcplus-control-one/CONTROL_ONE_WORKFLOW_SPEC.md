@@ -26,9 +26,9 @@ This differs intentionally from color overrides. A color override replaces only 
 Autoplay is independent from manual repeat-one playback.
 
 - Auto Bank sequential: loop 1 through 32 in the selected bank.
-- Auto Bank random: random selection within the selected bank.
+- Auto Bank randomized: a non-repeating shuffled cycle within the selected bank. Pressing a pad starts that exact loop, then the cycle continues from there.
 - Auto All sequential: Bank 1 loops 1–32, then Bank 2, Bank 3, and Bank 4.
-- Auto All random: random selection across all 128 loops.
+- Auto All randomized: a non-repeating shuffled cycle across all 128 loops. Pressing a pad starts that exact bank/loop, then the cycle continues from there.
 - Dwell choices are 1, 2, 4, 8, and 16 measures.
 - Dwell can change while Autoplay is running; it must not relaunch or reset the parent.
 - Chase speed is separate: 0.25x, 0.5x, 1x, 2x, and 4x, still referenced to the beat source.
@@ -38,17 +38,20 @@ The current compact gesture uses shifted Bank presses to start a Bank scope and 
 
 The Live page provides the essential mouse fallback: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
 
-V26 presents a read-only four-bank live strip below every pad. Each segment observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. Banks 1–4 run left-to-right; QLC+'s native amber Monitoring state marks the active Chaser. There is no visible or polling tracker process.
+V30 retains the read-only four-bank live strip below every pad. Each segment observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. Banks 1–4 run left-to-right; QLC+'s native amber Monitoring state marks the active Chaser. There is no visible or polling tracker process.
 
 The mouse `AUTOLOOPS ⇄ PRIORITY LOOKS` control is one persistent Button outside the mode-paged frame. It retains public Function `1993` and logical channel `811`; do not recreate separate page-specific copies.
 
-V26 carries Bank, mode, dwell, transport, order, speed, and Priority ownership over one unified QLC+ Surface feedback patch. Empty command Scenes are positive-edge actions; their trailing zero must never dispatch a second command.
+V30 carries Bank, mode, dwell, transport, order, speed, and Priority ownership over one unified QLC+ Surface feedback patch. Empty command Scenes are positive-edge actions; their trailing zero must never dispatch a second command.
 
 ## Overrides and performance buttons
 
-- Red, Orange, Yellow, Green, Cyan, Blue, Purple, Pink, and Full Color are exclusive color-only latches.
-- White, Black, and UV have hold and toggle forms.
-- Movement, Strobe, Hue, Smoke, position overrides, Pan, and Tilt are mapped or reserved but are not all fully programmed for the current IR-4/tube rig.
+- Red, Orange, Yellow, Green, Cyan, Blue, Purple, Pink, and Full Color are exclusive color-only latches on the normal color pads.
+- Shift + any of those nine color pads is a momentary full-rig hold. Releasing it reveals the latched color or current show underneath.
+- Every color latch and hold addresses the eleven physical fixtures and the eleven private Priority mirrors.
+- Shift + performance pads 1–9 selects the nine decoded Focus A/B position Scenes.
+- White, Black, and UV retain hold and toggle forms.
+- Movement, Strobe, Hue, Smoke, Pan, and Tilt are mapped or reserved but are not all fully programmed for the current full rig.
 
 ## Intensity and groups
 
@@ -59,6 +62,14 @@ V26 carries Bank, mode, dwell, transport, order, speed, and Priority ownership o
 - Double-press Group 1 selects Group 2; double-press Group 3 selects Group 4.
 - Groups 2, 4, and Scripted remember state but are reserved and should not alter unrelated fixtures.
 - Effective output is Global multiplied by the selected fixture-group level.
+
+## V30 speed and seek guarantees
+
+- The Pan/Speed encoder changes every raw Autoloop through 0.25x, 0.5x, 1x, 2x, and 4x presets.
+- All raw Autoloops use Function-level Common timing, matching the timing layer changed by QLC+ SpeedDial.
+- During Auto Bank or Auto All, a performance pad seeks the active parent rather than replacing it with a manual owner.
+- Repeated presses of the same pad remain reliable after the parent has advanced.
+- Changing Sequential/Randomized order or resuming autoplay restores the last selected starting loop.
 
 ## Transport and feedback
 

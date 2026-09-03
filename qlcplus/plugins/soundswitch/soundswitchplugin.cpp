@@ -223,7 +223,7 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
     if (binding.kind == OutputBinding::PriorityLayer)
     {
         QMutexLocker lock(&m_mutex);
-        m_priorityLayerFrame = data;
+        m_priorityState.setFrame(data);
         return;
     }
 
@@ -238,11 +238,8 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
         // private Priority Looks universe replaces the complete physical
         // frame only while its Toggle button is active. Releasing it reveals
         // the base universe at its current step, with no restart or handoff.
-        if (universe == 0 && !m_activePriorityLooks.isEmpty() &&
-            !m_priorityLayerFrame.isEmpty())
-        {
-            outputData = m_priorityLayerFrame;
-        }
+        if (universe == 0)
+            outputData = m_priorityState.compose(data);
 
         // The full-rig intensity map is deliberately emitter-only. It scales
         // IR-4 masters (Group 1), all six direct RGBAWUV Wash FX Hex zones
@@ -287,11 +284,19 @@ void SoundSwitchPlugin::sendFeedBack(quint32 universe, quint32 output,
         (binding.kind == OutputBinding::SurfaceFeedback ||
          binding.kind == OutputBinding::PriorityLayer))
     {
-        QMutexLocker lock(&m_mutex);
-        if (value != 0)
-            m_activePriorityLooks.insert(logicalChannel);
-        else
-            m_activePriorityLooks.remove(logicalChannel);
+        {
+            QMutexLocker lock(&m_mutex);
+            m_priorityState.updateLook(logicalChannel, value);
+        }
+
+        // Priority ownership and Control One LED feedback share the single
+        // QLC+ feedback destination. Do not return before updating the pad LED
+        // or the active Priority Look appears to stop immediately.
+        if (binding.kind == OutputBinding::SurfaceFeedback &&
+            m_midiInput != nullptr)
+        {
+            m_midiInput->applyFeedback(channel, value);
+        }
         return;
     }
 

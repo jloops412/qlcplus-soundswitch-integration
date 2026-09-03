@@ -11,7 +11,9 @@ target_sources(${module_name} PRIVATE
     soundswitchdevice.cpp soundswitchdevice.h
     soundswitchintensity.cpp soundswitchintensity.h
     soundswitchmidiinput.cpp soundswitchmidiinput.h
+    soundswitchperformance.cpp soundswitchperformance.h
     soundswitchplugin.cpp soundswitchplugin.h
+    soundswitchpriority.cpp soundswitchpriority.h
     soundswitchprotocol.cpp soundswitchprotocol.h
 )
 
@@ -45,6 +47,25 @@ add_executable(soundswitch_intensity_tests EXCLUDE_FROM_ALL
     tests/soundswitchintensitytest.cpp
 )
 target_compile_features(soundswitch_intensity_tests PRIVATE cxx_std_17)
+
+
+add_executable(soundswitch_performance_tests EXCLUDE_FROM_ALL
+    soundswitchperformance.cpp soundswitchperformance.h
+    tests/soundswitchperformancetest.cpp
+)
+target_compile_features(soundswitch_performance_tests PRIVATE cxx_std_17)
+target_link_libraries(soundswitch_performance_tests PRIVATE
+    Qt${QT_MAJOR_VERSION}::Core
+)
+
+add_executable(soundswitch_priority_tests EXCLUDE_FROM_ALL
+    soundswitchpriority.cpp soundswitchpriority.h
+    tests/soundswitchprioritytest.cpp
+)
+target_compile_features(soundswitch_priority_tests PRIVATE cxx_std_17)
+target_link_libraries(soundswitch_priority_tests PRIVATE
+    Qt${QT_MAJOR_VERSION}::Core
+)
 
 add_executable(ss_smoke EXCLUDE_FROM_ALL
     ../interfaces/qlcioplugin.cpp

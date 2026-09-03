@@ -17,11 +17,33 @@ QLC+ owns fixtures, Scenes, Chasers, beat timing, Autoplay order, dwell, the
 Virtual Console, persistence, and routing. The SoundSwitch plug-in exists only
 for proprietary SoundSwitch USB transport, Control One
 translation/feedback/reconnect, full-frame Priority Look selection, and
-intensity routing that QLC+ cannot express cleanly. V27 retains the focused,
+intensity routing that QLC+ cannot express cleanly. V30 retains the focused,
 build-matched QLC+ OS2L correction; the stock core executable remains
 unchanged.
 
-## Current status: V27 Full Rig candidate
+## Current status: V30 Performance Recovery candidate
+
+V30 is the active corrective candidate. It is generated deterministically from
+the reviewed V27 full-rig workspace and repairs four live-performance contracts
+before the Autoloop creative library is reviewed again: working raw-loop speed,
+exact selected-loop start during sequential or randomized autoplay, reliable
+Priority Look ownership/feedback, and independent Shift-held color overrides
+across the physical and private fixture layers.
+
+The V30 workspace validator covers all 128 raw Autoloops, all 320 possible
+Bank/All sequential/randomized selected starts, all 22 physical/private fixture
+instances, all latch/hold override routes, and the unchanged private Priority
+patch. The matched plug-in adds focused seek and Priority state tests. These are
+software and structural results only; the exact Windows host and physical rig
+still require controlled observation. See `V30_PERFORMANCE_RECOVERY.md`.
+
+Nine raw loops with variable per-step timing are intentionally normalized to
+their reviewed top-level timing in V30 so the speed control is authoritative.
+Their Function IDs are 573, 576, 632, 633, 635, 636, 645, 657, and 658. Their
+creative timing can be revisited in the later Autoloop-quality pass without
+reintroducing the broken PerStep speed contract.
+
+## V27 Full Rig source and rollback
 
 V27 is the active full-rig candidate. It extends the exact immutable V26
 Autoplay Clarity workspace with one Chauvet Wash FX Hex and two American DJ
@@ -176,6 +198,15 @@ exact decoded Focus position controls, a full-rig visual bench, and four-group
 intensity routing. It is a candidate until the exact package, pinned Windows
 host, physical fixtures, fault routes, and combined workload pass their named
 gates.
+
+### V30 — Performance Recovery candidate
+
+V30 preserves the V27 fixture patch and creative leaves while correcting the
+raw-loop speed architecture, exact sequential/randomized autoplay seek,
+Priority state/feedback handoff, complete physical/private color coverage, and
+Shift-held color operation. Focus position shortcuts move from Shift + color to
+Shift + performance pads 1–9. V30 remains a candidate until the matched plug-in
+and workspace pass the controlled physical rig route.
 
 ## Physical evidence and safety boundary
 

@@ -22,6 +22,7 @@
 
 #include "qlcioplugin.h"
 #include "soundswitchintensity.h"
+#include "soundswitchpriority.h"
 
 #include <QHash>
 #include <QMutex>
@@ -91,8 +92,7 @@ private:
     SoundSwitchMidiInput *m_midiInput{nullptr};
     QSet<quint32> m_midiUniverses;
     QSet<quint32> m_feedbackUniverses;
-    QSet<quint32> m_activePriorityLooks;
-    QByteArray m_priorityLayerFrame;
+    SoundSwitchPriorityState m_priorityState;
     int m_intensityTarget{0}; // 0=global, 1-4=fixture groups, 5=scripted
     SoundSwitchIntensity::Levels m_intensityLevels{{255, 255, 255,
                                                      255, 255, 255}};
