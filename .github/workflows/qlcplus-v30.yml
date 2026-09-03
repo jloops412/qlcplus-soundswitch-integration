@@ -1,0 +1,117 @@
+name: QLC+ V30 performance recovery
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/qlcplus-v30.yml'
+      - 'qlcplus/workspace-tools/Build-V30PerformanceRecovery.py'
+      - 'qlcplus/workspace-tools/Test-V30Workspace.py'
+      - 'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw'
+      - 'docs/qlcplus-control-one/V30_PERFORMANCE_RECOVERY.md'
+  push:
+    branches: [main, 'fix/**']
+    paths:
+      - '.github/workflows/qlcplus-v30.yml'
+      - 'qlcplus/workspace-tools/Build-V30PerformanceRecovery.py'
+      - 'qlcplus/workspace-tools/Test-V30Workspace.py'
+      - 'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw'
+      - 'docs/qlcplus-control-one/V30_PERFORMANCE_RECOVERY.md'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: qlcplus-v30-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  V27_SOURCE: qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw
+  V27_SHA256: a4f7559930e93485f3ea2815a0b44ca8e40acdfcc43fb3b0430e863c64b2dc4b
+  V30_WORKSPACE: qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw
+
+jobs:
+  validate-v30:
+    name: Deterministic workspace and regression contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify immutable V27 full-rig source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$V27_SOURCE"
+          actual="$(sha256sum "$V27_SOURCE" | awk '{print $1}')"
+          [[ "$actual" == "$V27_SHA256" ]] || {
+            echo "V27 source mismatch: expected $V27_SHA256, found $actual"
+            exit 1
+          }
+
+      - name: Compile builders and validators
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 -m py_compile \
+            qlcplus/workspace-tools/Build-V30PerformanceRecovery.py \
+            qlcplus/workspace-tools/Test-V30Workspace.py
+
+      - name: Prove forced V30 builds are deterministic
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 qlcplus/workspace-tools/Build-V30PerformanceRecovery.py --force
+          cp "$V30_WORKSPACE" "$RUNNER_TEMP/v30-first-build.qxw"
+          python3 qlcplus/workspace-tools/Build-V30PerformanceRecovery.py --force
+          cmp -s "$RUNNER_TEMP/v30-first-build.qxw" "$V30_WORKSPACE" || {
+            echo 'Two forced V30 builds produced different workspaces.'
+            sha256sum "$RUNNER_TEMP/v30-first-build.qxw" "$V30_WORKSPACE"
+            exit 1
+          }
+
+      - name: Validate speed, selected-loop start, Priority, and overrides
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 qlcplus/workspace-tools/Test-V30Workspace.py \
+            --source "$V27_SOURCE" \
+            --candidate "$V30_WORKSPACE"
+
+      - name: Commit generated V30 workspace on the repair branch
+        if: github.event_name == 'push' && github.ref_name == 'fix/v30-performance-controls'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$V30_WORKSPACE"
+          if git diff --cached --quiet; then
+            echo 'Generated V30 workspace is already current.'
+          else
+            git commit -m 'build: materialize validated V30 workspace'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Stage V30 workspace evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          cp "$V30_WORKSPACE" artifact/
+          cp qlcplus/workspace-tools/Build-V30PerformanceRecovery.py artifact/
+          cp qlcplus/workspace-tools/Test-V30Workspace.py artifact/
+          cp docs/qlcplus-control-one/V30_PERFORMANCE_RECOVERY.md artifact/
+          sha256sum artifact/* > artifact/SHA256SUMS.txt
+          printf '%s\n' "${GITHUB_SHA}" > artifact/REPOSITORY_COMMIT.txt
+
+      - name: Upload validated V30 workspace
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: qlcplus-v30-performance-recovery-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+          path: artifact
