@@ -1,42 +1,115 @@
-name: V30 working copy
+name: Apply V30 performance recovery
 
 on:
   push:
     branches:
       - fix/v30-performance-controls
+    paths:
+      - '.github/workflows/v30-working-copy.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: v30-working-copy-${{ github.ref }}
-  cancel-in-progress: true
+  group: apply-v30-performance-recovery
+  cancel-in-progress: false
 
 jobs:
-  stage:
+  apply:
+    name: Verify, apply, validate, and commit V30
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
 
-      - name: Stage editable project tree
+      - name: Reassemble checksum-guarded repair bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .v30-bootstrap/part-00 \
+            .v30-bootstrap/part-01 \
+            .v30-bootstrap/part-02 \
+            .v30-bootstrap/part-03 \
+            .v30-bootstrap/part-04-0 \
+            .v30-bootstrap/part-04-1 \
+            .v30-bootstrap/part-05 \
+            .v30-bootstrap/part-06-0 \
+            .v30-bootstrap/part-06-1 \
+            .v30-bootstrap/part-07 \
+            > qlcplus/workspace-tools/V30Bootstrap.py
+          printf '%s  %s\n' \
+            '4204fd6fc742cf777fd8bd4f4d886428cfbdc811c0361e3c8f9523b9aa73a63b' \
+            'qlcplus/workspace-tools/V30Bootstrap.py' \
+            | sha256sum --check --strict
+
+      - name: Apply reviewed V30 source and documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 qlcplus/workspace-tools/V30Bootstrap.py
+
+      - name: Prove deterministic workspace and regression contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 -m py_compile \
+            qlcplus/workspace-tools/Build-V30PerformanceRecovery.py \
+            qlcplus/workspace-tools/Test-V30Workspace.py
+          python3 qlcplus/workspace-tools/Build-V30PerformanceRecovery.py --force
+          cp \
+            qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw \
+            "$RUNNER_TEMP/v30-first-build.qxw"
+          python3 qlcplus/workspace-tools/Build-V30PerformanceRecovery.py --force
+          cmp -s \
+            "$RUNNER_TEMP/v30-first-build.qxw" \
+            qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw
+          python3 qlcplus/workspace-tools/Test-V30Workspace.py \
+            --source qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw \
+            --candidate qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw
+          printf '%s  %s\n' \
+            '530e6d4166bc150442660bfbbff790bd1c1e4803f0c6d02c99302ebb30d79331' \
+            'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw' \
+            | sha256sum --check --strict
+
+      - name: Remove one-run staging and commit the complete repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .v30-bootstrap
+          rm -f qlcplus/workspace-tools/V30Bootstrap.py
+          rm -f .github/workflows/v30-working-copy.yml
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: recover V30 performance controls and regression coverage'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Stage independently validated V30 workspace
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifact
-          cp -a .github artifact/
-          cp -a docs artifact/
-          cp -a qlcplus artifact/
-          mkdir -p artifact/releases/qlcplus-control-one
-          cp -a releases/qlcplus-control-one/v27 artifact/releases/qlcplus-control-one/
-          printf '%s\n' "${GITHUB_SHA}" > artifact/SOURCE_COMMIT.txt
+          cp \
+            qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw \
+            artifact/
+          cp qlcplus/workspace-tools/Build-V30PerformanceRecovery.py artifact/
+          cp qlcplus/workspace-tools/Test-V30Workspace.py artifact/
+          cp docs/qlcplus-control-one/V30_PERFORMANCE_RECOVERY.md artifact/
+          sha256sum artifact/* > artifact/SHA256SUMS.txt
+          git rev-parse HEAD > artifact/REPOSITORY_COMMIT.txt
 
-      - name: Upload working copy
+      - name: Upload V30 workspace evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: v30-working-copy-${{ github.sha }}
+          name: v30-performance-recovery-${{ github.sha }}
           if-no-files-found: error
-          retention-days: 7
-          include-hidden-files: true
+          retention-days: 90
           compression-level: 0
           path: artifact
