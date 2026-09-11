@@ -38,11 +38,11 @@ The current compact gesture uses shifted Bank presses to start a Bank scope and 
 
 The Live page provides the essential mouse fallback: Play/Pause and Order are clickable, the pad header has an explicit Autoloop/Priority Looks switch, and the chase-speed readout advances through 0.25x/0.5x/1x/2x/4x when clicked. The intensity panel header arrow cycles Global, Groups 1–4, and Scripted while its visible slider controls the selected target.
 
-V30 retains the read-only four-bank live strip below every pad. Each segment observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. Banks 1–4 run left-to-right; QLC+'s native amber Monitoring state marks the active Chaser. There is no visible or polling tracker process.
+V31 retains the read-only four-bank live strip below every pad. Each segment observes one raw Chaser instead of starting an owner, so it follows a manual latch, Auto Bank, Auto All, and Autoplay seek without changing playback. Banks 1–4 run left-to-right; QLC+'s native amber Monitoring state marks the active Chaser. There is no visible or polling tracker process.
 
 The mouse `AUTOLOOPS ⇄ PRIORITY LOOKS` control is one persistent Button outside the mode-paged frame. It retains public Function `1993` and logical channel `811`; do not recreate separate page-specific copies.
 
-V30 carries Bank, mode, dwell, transport, order, speed, and Priority ownership over one unified QLC+ Surface feedback patch. Empty command Scenes are positive-edge actions; their trailing zero must never dispatch a second command.
+V31 carries Bank, mode, dwell, transport, order, speed, and Priority ownership over one unified QLC+ Surface feedback patch. Empty command Scenes are positive-edge actions; their trailing zero must never dispatch a second command.
 
 ## Overrides and performance buttons
 
@@ -58,9 +58,11 @@ V30 carries Bank, mode, dwell, transport, order, speed, and Priority ownership o
 - The touch strip stores independent levels for Global, Group 1, Group 2, Group 3, Group 4, and Scripted.
 - Autoloop Intensity selects Global; Shift + Autoloop Intensity selects Scripted.
 - Group 1 is the four IR-4 fixtures.
+- Group 2 is the Wash FX Hex direct zone emitters.
 - Group 3 is the four BO-TUBE192 fixtures.
+- Group 4 is the two Focus Spot Two main and UV dimmer channels. Released programming keeps Focus UV off.
 - Double-press Group 1 selects Group 2; double-press Group 3 selects Group 4.
-- Groups 2, 4, and Scripted remember state but are reserved and should not alter unrelated fixtures.
+- Scripted remembers state but is reserved and must not alter fixture output.
 - Effective output is Global multiplied by the selected fixture-group level.
 
 ## V30 speed and seek guarantees
@@ -79,3 +81,34 @@ V30 carries Bank, mode, dwell, transport, order, speed, and Priority ownership o
 - Control One MIDI is expected to reconnect without restarting QLC+; QLC+ Function state remains playback authority.
 - On reconnect, transient held-button state is cleared while bank, mode, playback owner, dwell, speed, order, latches, and intensity target are retained and their known LEDs are restored.
 - OLED and custom firmware are deferred.
+
+## V31 input parity and release contract
+
+Use the Live console page for performance controls. V31 mouse Autoloop pads
+use the same selection command as hardware: while Autoplay runs they seek its
+existing parent; otherwise they latch or replace the manual owner. The 128
+original owner Collections and public IDs remain intact.
+
+Normal mouse color buttons share the hardware exclusive latch behavior.
+Shift-held colors remain a separate momentary layer. Releasing Shift before
+the held key still releases the original held channel when that key is released.
+MIDI disconnection releases transient holds while retaining established latches.
+
+Focus position shortcuts use native ForceLTP Scene Flash controlled by exclusive
+latches. They are reachable on Live and on the Position Bench and cover both
+physical and private Focus fixtures. White/Black/UV performance Scenes also
+cover both layers. Their original physical DMX values are unchanged.
+
+Transport controls act on the running owner even if the operator browses a
+different bank. Mouse-started Auto All can pause/resume. Known Priority and
+color LED state comes from QLC feedback and is restored after reconnect.
+
+MOVE and STROBE remain inherited ordinary Chasers. They do not yet have a
+proven force-override contract over arbitrary running content. Their dedicated
+redesign and physical observation are explicit requirements of pass two.
+
+V31 raw-Chaser monitors also provide one-way current-loop LED feedback. In
+Autoloop mode the hardware pads show the actual running pad number; bank
+buttons retain the browsed bank. Priority mode shows the active Look. Releasing
+a known momentary hold after navigating away returns to Live before the
+release is sent, because QLC dispatches inputs only to its selected page.

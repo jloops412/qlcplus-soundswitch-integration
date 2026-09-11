@@ -1,5 +1,17 @@
 # Validation and Maintenance
 
+## Active first-pass candidate
+
+Use `Test-V31Workspace.py` for the V31 candidate, alongside the actual-class
+MIDI software tests and existing protocol, intensity, seek, and Priority tests.
+The V31 builder refuses any V30 source except SHA-256
+`530e6d4166bc150442660bfbbff790bd1c1e4803f0c6d02c99302ebb30d79331`.
+See `V31_RELIABILITY_PASS.md` for exact evidence and remaining gates.
+
+The V26/V27 commands below protect historical packages. Old V20–V24 checksum
+limitations are recorded in `V31_CONTINUITY_AUDIT.md`; a historical filename is
+not proof of a verified rollback. Never silently regenerate an old manifest.
+
 ## Fast regression after any workspace change
 
 1. Confirm only one QLC+ process is running.
@@ -18,8 +30,8 @@
 9. Apply and release a still and moving Priority Look. It must be sole authority
    while the underlying loop continues.
 10. Apply every color override and confirm non-color behavior continues.
-11. Check Global, Group 1 IR-4, and Group 3 Tubes intensity; reserved groups
-    must not affect fixtures.
+11. Check Global, Group 1 IR-4, Group 2 Wash, Group 3 Tubes, and Group 4
+    Focus intensity; reserved Scripted must not affect fixtures.
 12. Confirm VirtualDJ OS2L BPM and Control One LEDs.
 
 For V26, also use a known VirtualDJ track and confirm QLC+ stays near its
@@ -106,3 +118,19 @@ DLLs or corrupted text by mixing runtime files between QLC+ installations.
   repository.
 - Do not replace a released file or checksum in place. Create a new immutable
   versioned package.
+
+## V31 additional operator checks
+
+- Repeat selected-loop seek with both mouse and hardware during Auto Bank and
+  Auto All, in both orders; changing the browsed bank must not redirect an
+  existing owner when order is toggled.
+- Start Auto All with the mouse before selecting any Auto Bank; pause/resume.
+- Latch a color, hold another, release Shift first, then release the color.
+  Repeat while Priority is active and after an input unplug/replug.
+- Observe Focus position latches from Live and Position Bench, including
+  release to continuing movement and operation over a Priority Look.
+- Exercise White/Black/UV over an active Priority Look on every fixture class.
+- Stop, restart, disconnect, and reconnect; QLC Function state and LEDs must
+  agree, without requiring an extra press to clear stale latch memory.
+- Observe Priority handoff/release and removal of its private output route.
+  Software buffer tests do not prove cross-universe frame-generation ordering.

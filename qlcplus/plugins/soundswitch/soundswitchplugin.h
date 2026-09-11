@@ -93,6 +93,7 @@ private:
     QSet<quint32> m_midiUniverses;
     QSet<quint32> m_feedbackUniverses;
     SoundSwitchPriorityState m_priorityState;
+    quint32 m_priorityFrameUniverse{QLCIOPlugin::invalidLine()};
     int m_intensityTarget{0}; // 0=global, 1-4=fixture groups, 5=scripted
     SoundSwitchIntensity::Levels m_intensityLevels{{255, 255, 255,
                                                      255, 255, 255}};

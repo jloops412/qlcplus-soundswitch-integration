@@ -144,9 +144,16 @@ void SoundSwitchPlugin::closeOutput(quint32 output, quint32 universe)
     {
         if (binding.kind == OutputBinding::PriorityLayer)
         {
-            // The same virtual line can be patched as the overlay DMX output
-            // and as its feedback control path. Keep its buffered state until
-            // the workspace is replaced or the plug-in is unloaded.
+            QMutexLocker lock(&m_mutex);
+            // Older workspaces may also patch this line for control feedback.
+            // Only closing the universe that supplied DMX invalidates the
+            // overlay. Removing that private output must reveal the base show,
+            // never leave the last private frame frozen on physical fixtures.
+            if (universe == m_priorityFrameUniverse)
+            {
+                m_priorityState.clearFrame();
+                m_priorityFrameUniverse = QLCIOPlugin::invalidLine();
+            }
         }
         else if (binding.kind == OutputBinding::SurfaceFeedback)
         {
@@ -223,6 +230,7 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
     if (binding.kind == OutputBinding::PriorityLayer)
     {
         QMutexLocker lock(&m_mutex);
+        m_priorityFrameUniverse = universe;
         m_priorityState.setFrame(data);
         return;
     }

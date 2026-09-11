@@ -13,3 +13,6 @@ qlcplus/workspace-tools/backups/
 compile_commands.json
 .DS_Store
 Thumbs.db
+
+__pycache__/
+*.pyc

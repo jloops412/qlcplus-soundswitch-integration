@@ -29,7 +29,15 @@ void SoundSwitchPriorityState::updateLook(quint32 logicalChannel, uchar value)
 
 void SoundSwitchPriorityState::setFrame(const QByteArray &frame)
 {
-    m_frame = frame;
+    // Universe output may be a fromRawData view into QLC+'s mutable buffer.
+    // Own the snapshot: another universe thread can update that memory while
+    // the physical output composes/scales the selected Priority frame.
+    m_frame = QByteArray(frame.constData(), frame.size());
+}
+
+void SoundSwitchPriorityState::clearFrame()
+{
+    m_frame.clear();
 }
 
 QByteArray SoundSwitchPriorityState::compose(const QByteArray &baseFrame) const

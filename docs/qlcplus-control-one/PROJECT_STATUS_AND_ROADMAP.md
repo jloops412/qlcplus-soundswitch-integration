@@ -21,9 +21,31 @@ intensity routing that QLC+ cannot express cleanly. V30 retains the focused,
 build-matched QLC+ OS2L correction; the stock core executable remains
 unchanged.
 
-## Current status: V30 Performance Recovery candidate
+## Current status: V31 unpublished reliability candidate
 
-V30 is the active corrective candidate. It is generated deterministically from
+The active first-pass result is described in `V31_RELIABILITY_PASS.md`; the
+complete reconciled history and outstanding gates are in
+`V31_CONTINUITY_AUDIT.md`. It starts from PR #112 V30 at
+`f842153acb8edee790b8c47650c81b0285dcd33d`, not from the older main-branch V26.
+V31 repairs mouse/controller parity, transient release and playback-state
+regressions, private performance/position coverage, and Priority buffer
+ownership. Original fixture addresses, all raw Autoloop creative payloads,
+and Priority Look creative payloads are preserved.
+
+V31 is an unpublished source/workspace candidate. The owner requested creative
+redesign next and GitHub publication only in a later third pass. Do not claim
+a matched Windows DLL, pinned-host test, physical rig test, or gig qualification
+from deterministic software results.
+
+MOVE/STROBE ownership and programming need dedicated work in pass two. The
+IR-4 custom fixture definition was recovered as an independently authored
+profile verified against its original manufacturer manual.
+Old package-manifest mismatches and V28/V29's unavailable artifacts are
+recorded explicitly in the continuity audit.
+
+## V30 source checkpoint
+
+V30 was the corrective candidate entering this audit. It is generated deterministically from
 the reviewed V27 full-rig workspace and repairs four live-performance contracts
 before the Autoloop creative library is reviewed again: working raw-loop speed,
 exact selected-loop start during sequential or randomized autoplay, reliable
@@ -45,7 +67,7 @@ reintroducing the broken PerStep speed contract.
 
 ## V27 Full Rig source and rollback
 
-V27 is the active full-rig candidate. It extends the exact immutable V26
+V27 is the preserved full-rig source and packaged baseline. It extends the exact immutable V26
 Autoplay Clarity workspace with one Chauvet Wash FX Hex and two American DJ
 Focus Spot Two movers. The generated workspace passes the independent V27
 structural regression against protected V26 SHA-256
@@ -233,7 +255,7 @@ movement frame. The `UV` performance look uses the Wash/tubes plus low visible
 Focus main colors. Real Focus UV is outside the released V27 programming and is
 not part of qualification.
 
-## Immediate qualification route
+## Historical V27 qualification route (apply the V31 delta checks too)
 
 1. Run the V27 builder, independent workspace validator, and completed package
    validator while proving the protected V26 SHA remains unchanged.
@@ -254,7 +276,7 @@ not part of qualification.
 7. Promote V27 only when recorded evidence supports the exact claim. Otherwise,
    restore the backed-up plug-ins and open the preserved V26 workspace.
 
-## Engineering priorities
+## Shared engineering priorities
 
 1. Complete the exact pinned-host plug-in load test.
 2. Complete the controlled Wash and Focus bench with installed A/B identity and

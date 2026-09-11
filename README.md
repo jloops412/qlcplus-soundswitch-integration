@@ -9,7 +9,12 @@ SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks,
 Priority Looks, parameter overrides, group intensity, controller feedback, and
 a complete mouse fallback.
 
-**Current alpha candidate:** [V27 Full Rig](releases/qlcplus-control-one/v27/README.md)
+**Active unpublished work:** [V31 Reliability Pass](docs/qlcplus-control-one/V31_RELIABILITY_PASS.md),
+following the V30 candidate in PR #112. This first pass repairs control and
+output-layer regressions. Creative redesign and GitHub publication are later
+owner-directed passes. V31 is not yet an installable, qualified Windows release.
+
+**Packaged full-rig baseline:** [V27 Full Rig](releases/qlcplus-control-one/v27/README.md)
 
 V27 extends the protected V26 Autoplay Clarity show across the complete rig. It
 has structural and CI evidence, but it has not yet passed the physical bench or

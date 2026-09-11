@@ -9,6 +9,9 @@ on:
       - 'qlcplus/workspace-tools/Test-V30Workspace.py'
       - 'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw'
       - 'docs/qlcplus-control-one/V30_PERFORMANCE_RECOVERY.md'
+      - 'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw'
+      - 'qlcplus/input-profiles/**'
+      - 'qlcplus/plugins/soundswitch/**'
   push:
     branches: [main, 'fix/**']
     paths:
@@ -17,9 +20,12 @@ on:
       - 'qlcplus/workspace-tools/Test-V30Workspace.py'
       - 'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw'
       - 'docs/qlcplus-control-one/V30_PERFORMANCE_RECOVERY.md'
+      - 'qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V30-PERFORMANCE-RECOVERY.qxw'
+      - 'qlcplus/input-profiles/**'
+      - 'qlcplus/plugins/soundswitch/**'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: qlcplus-v30-${{ github.workflow }}-${{ github.ref }}
@@ -62,7 +68,9 @@ jobs:
         run: |
           set -euo pipefail
           export PYTHONDONTWRITEBYTECODE=1
+          cp "$V30_WORKSPACE" "$RUNNER_TEMP/v30-checked-in.qxw"
           python3 qlcplus/workspace-tools/Build-V30PerformanceRecovery.py --force
+          cmp "$RUNNER_TEMP/v30-checked-in.qxw" "$V30_WORKSPACE"
           cp "$V30_WORKSPACE" "$RUNNER_TEMP/v30-first-build.qxw"
           python3 qlcplus/workspace-tools/Build-V30PerformanceRecovery.py --force
           cmp -s "$RUNNER_TEMP/v30-first-build.qxw" "$V30_WORKSPACE" || {
@@ -79,21 +87,6 @@ jobs:
           python3 qlcplus/workspace-tools/Test-V30Workspace.py \
             --source "$V27_SOURCE" \
             --candidate "$V30_WORKSPACE"
-
-      - name: Commit generated V30 workspace on the repair branch
-        if: github.event_name == 'push' && github.ref_name == 'fix/v30-performance-controls'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$V30_WORKSPACE"
-          if git diff --cached --quiet; then
-            echo 'Generated V30 workspace is already current.'
-          else
-            git commit -m 'build: materialize validated V30 workspace'
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
 
       - name: Stage V30 workspace evidence
         shell: bash

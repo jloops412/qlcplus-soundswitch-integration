@@ -29,6 +29,32 @@ historical provenance only. They never override these current records.
 
 ## Current release and rig
 
+### Active unpublished work: V31 Reliability Pass
+
+The current task starts from PR #112 V30 at
+`f842153acb8edee790b8c47650c81b0285dcd33d`. V31 is an unpublished reliability
+candidate; see `docs/qlcplus-control-one/V31_CONTINUITY_AUDIT.md` and
+`docs/qlcplus-control-one/V31_RELIABILITY_PASS.md`. Do not mistake the older
+published package below for the complete current work.
+
+The owner requested three separate passes: reliability and continuity first,
+creative Autoloop/Look redesign second, GitHub publication only on a later
+explicit third-pass request. Keep QLC+ as the only lighting runtime. Preserve
+V30 as the immutable V31 input and preserve every earlier release directory.
+
+The full rig retains the eight original fixtures below and adds Wash FX Hex
+40-channel at U1 address 41, Focus Spot Two A 18-channel at 81, and B at 99.
+All eleven physical fixtures have matching private U3 instances. Group 2 owns
+Wash emitters and Group 4 owns Focus dimmers; they are no longer reserved.
+Scripted remains a reserved state.
+
+For V31 changes run `Test-V31Workspace.py` plus the deterministic MIDI tests
+and applicable existing protocol/intensity/seek/Priority tests. V26/V27
+package checks protect those exact packages. Windows matched build, pinned
+host loading, physical output, and gig qualification remain separate gates.
+
+### Older published baseline (historical version identity)
+
 - Current alpha: `releases/qlcplus-control-one/v26/`.
 - Workspace: `IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw`.
 - QLC+ source: `a124abebe0b5ad6077727c561a5a0e1f3730810c`.

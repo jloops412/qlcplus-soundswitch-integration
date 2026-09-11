@@ -70,6 +70,27 @@ int main()
         return 7;
     }
 
+    char raw[] = {'l', 'o', 'o', 'k'};
+    state.setFrame(QByteArray::fromRawData(raw, 4));
+    raw[0] = 'X';
+    if (state.compose(base) != QByteArray("look"))
+    {
+        std::cerr << "priority frame retained a mutable QLC raw buffer\n";
+        return 8;
+    }
+    state.clearFrame();
+    if (!state.active() || state.hasFrame() || state.compose(base) != base)
+    {
+        std::cerr << "closing the private output did not restore the base frame\n";
+        return 9;
+    }
+    state.setFrame(second);
+    if (state.compose(base) != second)
+    {
+        std::cerr << "reopening private output lost the active QLC Priority Look\n";
+        return 10;
+    }
+
     std::cout << "PASS: priority ownership, stale-frame guard, base restore\n";
     return 0;
 }

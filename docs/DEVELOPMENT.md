@@ -1,5 +1,12 @@
 # Development Guide
 
+Current unpublished work is V31 Reliability Pass. Before changing it, read
+`docs/qlcplus-control-one/V31_RELIABILITY_PASS.md` and the continuity audit.
+Run the V31 workspace and actual-class MIDI regressions for current behavior;
+the V26/V27 checks below protect earlier packages. The owner's third-pass
+publishing request has not yet been given.
+
+
 This guide is for contributors working on the active QLC+ workspace and the
 minimal SoundSwitch hardware integration.
 

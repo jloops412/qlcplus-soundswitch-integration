@@ -62,6 +62,15 @@ add_executable(soundswitch_priority_tests EXCLUDE_FROM_ALL
     soundswitchpriority.cpp soundswitchpriority.h
     tests/soundswitchprioritytest.cpp
 )
+
+add_executable(soundswitch_midi_tests EXCLUDE_FROM_ALL
+    soundswitchmidiinput.cpp soundswitchmidiinput.h
+    soundswitchperformance.cpp soundswitchperformance.h
+    tests/soundswitchmiditest.cpp tests/soundswitchmiditestbackend.h
+)
+target_compile_features(soundswitch_midi_tests PRIVATE cxx_std_17)
+target_compile_definitions(soundswitch_midi_tests PRIVATE SOUNDSWITCH_MIDI_TEST_BACKEND)
+target_link_libraries(soundswitch_midi_tests PRIVATE Qt${QT_MAJOR_VERSION}::Core)
 target_compile_features(soundswitch_priority_tests PRIVATE cxx_std_17)
 target_link_libraries(soundswitch_priority_tests PRIVATE
     Qt${QT_MAJOR_VERSION}::Core

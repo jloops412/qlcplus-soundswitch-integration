@@ -1,0 +1,39 @@
+name: QLC+ V31 reliability
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate checked-in V31 and rejection gates
+        run: python3 qlcplus/workspace-tools/Test-V31Workspace.py --self-test
+      - name: Compare two forced builds with the checked-in candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qlcplus/workspace-tools/Build-V31Reliability.py --output "$RUNNER_TEMP/v31-a.qxw"
+          python3 qlcplus/workspace-tools/Build-V31Reliability.py --output "$RUNNER_TEMP/v31-b.qxw"
+          cmp "$RUNNER_TEMP/v31-a.qxw" "$RUNNER_TEMP/v31-b.qxw"
+          cmp "$RUNNER_TEMP/v31-a.qxw" qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V31-RELIABILITY.qxw
+
+  software:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install test dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev
+      - name: Build actual-source software regressions
+        run: |
+          cmake -S qlcplus/plugins/soundswitch/tests -B build-v31-tests -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-v31-tests --parallel
+      - name: Run without hardware endpoints
+        run: ctest --test-dir build-v31-tests --output-on-failure

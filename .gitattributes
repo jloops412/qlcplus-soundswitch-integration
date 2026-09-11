@@ -4,3 +4,6 @@
 *.exe binary
 *.qxw text eol=crlf
 *.qxi text eol=lf
+
+# V22 was published and checksummed with LF; retain its original Git blob bytes.
+releases/qlcplus-control-one/v22/IR4-TUBES-CONTROL-ONE-V22-UNIFIED-PRO.qxw text eol=lf

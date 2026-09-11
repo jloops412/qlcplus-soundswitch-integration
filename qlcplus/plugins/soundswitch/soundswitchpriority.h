@@ -17,6 +17,7 @@ class SoundSwitchPriorityState
 public:
     void updateLook(quint32 logicalChannel, uchar value);
     void setFrame(const QByteArray &frame);
+    void clearFrame();
     QByteArray compose(const QByteArray &baseFrame) const;
 
     bool active() const;

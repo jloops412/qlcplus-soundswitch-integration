@@ -13,8 +13,12 @@
 #include <QMutex>
 #include <QSet>
 
+#ifdef SOUNDSWITCH_MIDI_TEST_BACKEND
+#include "tests/soundswitchmiditestbackend.h"
+#else
 #include <windows.h>
 #include <mmsystem.h>
+#endif
 
 class SoundSwitchMidiInput final : public QObject
 {
@@ -39,12 +43,14 @@ signals:
     void valueChanged(quint32 channel, uchar value);
 
 private:
+    friend struct SoundSwitchMidiTestAccess;
     static int findControlOneDevice();
     static int findControlOneOutputDevice();
     static bool isControlOneName(const QString &name);
     static void releaseHandle(HMIDIIN handle);
     static void releaseOutputHandle(HMIDIOUT handle);
     void resetControllerStateLocked();
+    void releaseTransientNotesLocked();
     static void CALLBACK midiCallback(HMIDIIN handle, UINT message,
                                       DWORD_PTR instance, DWORD_PTR param1,
                                       DWORD_PTR param2);
@@ -63,8 +69,12 @@ private:
     void dispatchAutoplay(int bank, bool allBanks, bool randomized,
                           bool restoreStaticMode);
     void dispatchManual(int bank, int pad, bool restoreStaticMode);
+    void selectAutoloopPad(int bank, int pad);
+    void toggleColorOverride(quint8 note);
+    void togglePositionOverride(int index);
     void restoreLogicalState();
     void restoreHardwareFeedback();
+    void restorePadFeedback();
 
 private:
     mutable QMutex m_mutex;
@@ -74,6 +84,9 @@ private:
     bool m_staticMode{false};
     int m_selectedBank{0};
     int m_autoplayBank{-1};
+    int m_autoplayVariant{-1};
+    int m_autoplaySeekBank{-1};
+    int m_autoplaySeekPad{-1};
     bool m_autoplayActive{false};
     bool m_autoplayAll{false};
     int m_autoplayMeasureIndex{3};
@@ -85,6 +98,8 @@ private:
     bool m_transportPaused{false};
     int m_latchedStaticNote{-1};
     int m_latchedOverrideNote{-1};
+    int m_latchedPositionNote{-1};
+    int m_activeRawLoop{-1};
     int m_intensityTarget{0};
     QSet<quint8> m_pressedNotes;
     QSet<quint8> m_shiftedPressedNotes;
