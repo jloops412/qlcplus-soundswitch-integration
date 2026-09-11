@@ -1,0 +1,43 @@
+V32 FIRST TEST - EXACT PINNED WINDOWS HOST AND YOUR RIG
+
+Do these in order and record pass/fail plus the fixture or control that failed.
+Known source issues are listed first in README.txt. STOP is not a guaranteed
+blackout while Flash overrides are active.
+
+1. With DMX disconnected: confirm QLC+ 5.3.0 GIT a124abe, no missing fixtures,
+   SoundSwitch Hardware and OS2L available, and all four universe routes agree
+   with README.txt. Switch to the Live Virtual Console page.
+2. Connect one low-risk LED fixture on your intended output. Start at low
+   Global intensity. Prove QLC+'s native Grand Master blackout and Global zero
+   actually darken it, including during a WHITE/color override, then restore.
+   Do not proceed with the full rig if your blackout method fails.
+3. In VirtualDJ play a known steady track using direct OS2L. Confirm QLC+'s
+   reported tempo agrees and loops advance without burst-rate BPM jumps.
+4. Check manual pads by mouse and Control One in every bank: latch, release
+   the physical pad, same-pad off, and replacement by another pad.
+5. Auto Bank sequential: while loop 6 plays, select 3. The next selections
+   should be 4, 5, 6. Repeat Auto All and random; selected loop starts exactly,
+   then random continues. Change speed 0.25x through 4x independently of dwell.
+6. After confirming fixture modes/addresses, add one fixture class at a time.
+   Check Global and Groups 1 IR-4 / 2 Wash / 3 tubes / 4 Focus independently.
+   Check all four banks plus representative still and moving Priority Looks.
+7. Apply/release a Priority Look over Autoplay: it owns the full visible frame,
+   and release reveals the advancing underlying loop. Check rapid handoffs.
+8. Test all nine colors as latches and Shift-held overrides, release Shift
+   before releasing the key, and repeat over Priority. Look for stuck holds
+   and the documented Wash/tube brightness-pattern flattening. Check WHITE,
+   BLACK and UV hold plus latch overlap and the documented cancellation issue.
+9. With Focus clearance and aims confirmed, test MOVE, position latch over
+   MOVE, release, then STROBE over a loop/Priority/color hold. Watch between-look
+   wheel/gobo transitions for unwanted intermediate selections. Check STOP,
+   then independently apply your already-verified blackout if light remains.
+10. Disconnect/reconnect Control One: transient holds should release, mouse
+    controls remain available, MIDI and known LEDs return. Recheck physical
+    output after the operator reconnects it. Close/reopen your saved test copy
+    and confirm its routes and profiles persist.
+
+Before relying on this for a gig, the exact intended VirtualDJ/audio, OS2L,
+controller, USB/DMX output and complete rig need a combined sustained rehearsal,
+including blackout and recovery. The project records specify two hours. A
+short successful first test is not gig qualification. Keep the working copy
+and untouched rollback together with your observation record.

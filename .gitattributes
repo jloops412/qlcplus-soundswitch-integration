@@ -7,3 +7,6 @@
 
 # V22 was published and checksummed with LF; retain its original Git blob bytes.
 releases/qlcplus-control-one/v22/IR4-TUBES-CONTROL-ONE-V22-UNIFIED-PRO.qxw text eol=lf
+
+# Preserve the original CI evidence bytes in the checksummed testing payload.
+releases/qlcplus-control-one/v32-testing/Evidence/soundswitch-build-evidence.json -text

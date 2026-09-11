@@ -4,12 +4,21 @@ This project integrates SoundSwitch Micro and Control One hardware with QLC+.
 
 ## Continue the current work
 
+The [V32 Windows testing package](../releases/qlcplus-control-one/v32-testing/README.txt)
+now combines the exact show with its matching CI-built DLL and fixture profiles.
+Read the [independent control audit](qlcplus-control-one/V32_CONTROL_INDEPENDENT_AUDIT.md),
+[creative audit](qlcplus-control-one/V32_CREATIVE_INDEPENDENT_AUDIT.md), and
+[SoundSwitch parity review](qlcplus-control-one/V32_SOUNDSWITCH_PARITY_AUDIT.md)
+before using it. STOP/BLACK override defects remain in this unchanged V32
+baseline. It is a controlled testing handoff, not a gig-qualified release.
+V33 was not available for this review and is not included.
+
 Start with [V32 Creative Pass](qlcplus-control-one/V32_CREATIVE_PASS.md), its
 validation evidence and the complete creative catalog. V32 is the completed
 second pass built on the recovered V31 reliability checkpoint. It redesigns
 all 128 loops and 32 Priority Looks and adds native MOVE/STROBE ownership.
-The V27 installation route below is the earlier packaged baseline. V32 needs
-its own matched DLL. The owner authorized GitHub publication on 2026-09-11;
+The V27 installation route below is the earlier packaged baseline. V32's matched
+DLL is now included in its testing package. The owner authorized GitHub publication on 2026-09-11;
 continue through [PR #112](https://github.com/jloops412/qlcplus-soundswitch-integration/pull/112)
 and the [publication record](qlcplus-control-one/V32_GITHUB_PUBLICATION.md).
 Pinned-host and physical rig qualification remain pending.

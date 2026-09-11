@@ -1,0 +1,11 @@
+Bundled fixture definitions retain their original author metadata.
+Both-Lighting-IR-4-(BOIR4).qxf: independently authored project definition;
+see IR4_DEFINITION_PROVENANCE.md. Exact source at integration commit below.
+American-DJ-Focus-Spot-Two.qxf: exact current project definition, unchanged.
+
+Two existing QLC+ stock definitions are bundled for complete dependency closure:
+https://github.com/mcallegari/qlcplus/blob/a124abebe0b5ad6077727c561a5a0e1f3730810c/resources/fixtures/Both_Lighting/Both-Lighting-BO-TUBE192.qxf
+https://github.com/mcallegari/qlcplus/blob/a124abebe0b5ad6077727c561a5a0e1f3730810c/resources/fixtures/Chauvet/Chauvet-Wash-FX-Hex.qxf
+Their pinned upstream COPYING is included in Licenses/QLCPlus-COPYING.txt.
+Generic / Generic / 3 Channel is supplied by QLC+ itself.
+Project source: https://github.com/jloops412/qlcplus-soundswitch-integration/tree/1f37441f2971af4057a68b7c5a8a7518516ef545/qlcplus/fixture-definitions

@@ -9,14 +9,24 @@ SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks,
 Priority Looks, parameter overrides, group intensity, controller feedback, and
 a complete mouse fallback.
 
-**Current development candidate:** [V32 Creative Pass](docs/qlcplus-control-one/V32_CREATIVE_PASS.md),
+**Current testing download:** [V32 Windows testing package](QLCPlus_V32_Windows_Testing_Package.zip)
+with [File Explorer installation and rollback](releases/qlcplus-control-one/v32-testing/README.txt).
+This bundles the exact V32 workspace with its matching Windows CI plug-in.
+It is **not gig-qualified or complete SoundSwitch parity**. The independent
+[control audit](docs/qlcplus-control-one/V32_CONTROL_INDEPENDENT_AUDIT.md) found
+that STOP does not clear Flash overrides and later overrides can defeat the
+BLACK Scene. Read the package warnings before controlled fixture testing.
+The separate promised V33 is not included in this package.
+
+**Development source:** [V32 Creative Pass](docs/qlcplus-control-one/V32_CREATIVE_PASS.md),
 built on the protected V31 reliability checkpoint. All 128 Autoloops and 32
 Priority Looks are redesigned, with native MOVE/STROBE ownership. Structural
 and local software checks pass. Published for review in
 [PR #112](https://github.com/jloops412/qlcplus-soundswitch-integration/pull/112);
 see its Checks tab for CI and the [publication record](docs/qlcplus-control-one/V32_GITHUB_PUBLICATION.md)
 for exact source identities. Pinned-host and physical rig qualification remain
-pending. This is a source/workspace review candidate, not an installable Windows release.
+pending. The testing package above now supplies the matching DLL; it does not
+change the workspace or fix the independent audit findings.
 
 **Packaged full-rig baseline:** [V27 Full Rig](releases/qlcplus-control-one/v27/README.md)
 
