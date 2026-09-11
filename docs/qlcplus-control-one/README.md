@@ -30,13 +30,14 @@ V26 also carries a focused build-matched QLC+ `os2l.dll` correction. It keeps Vi
 
 The BO-TUBE192 40-channel mode is eight RGBWY zones and has no master dimmer. The current plug-in therefore scales its 160 emitter channels for Group 3 intensity. That is useful for this rig but is the largest remaining show-specific coupling in reusable plug-in code.
 
-## Current unpublished work
+## Current development candidate
 
 Read `V32_CREATIVE_PASS.md`, its validation evidence and `v32-review/` catalog.
 V31 is the protected reliability source; V32 is the complete creative pass
 with native MOVE/STROBE. V32 adds private U4 effect fixtures without changing
-the physical rig or U3 patch. Windows/physical/gig qualification and the
-owner's later publication request remain pending.
+the physical rig or U3 patch. The owner authorized publication on 2026-09-11
+through PR #112 and issue #113; see `V32_GITHUB_PUBLICATION.md`. Pinned-host,
+physical and gig qualification remain pending.
 
 ## Documentation
 

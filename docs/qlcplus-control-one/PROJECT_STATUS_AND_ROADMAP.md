@@ -21,7 +21,7 @@ intensity routing that QLC+ cannot express cleanly. V30 retains the focused,
 build-matched QLC+ OS2L correction; the stock core executable remains
 unchanged.
 
-## Current status: V32 unpublished creative candidate
+## Current status: V32 source/workspace review candidate
 
 See `V32_CREATIVE_PASS.md`, `V32_VALIDATION_EVIDENCE.json` and
 `v32-review/V32_CREATIVE_CATALOG.md`. V32 contains all 128 redesigned 16-step
@@ -29,8 +29,10 @@ Autoloops, all 32 redesigned Priority Looks and an internal native effects
 layer for MOVE and STROBE. The exact V31 checkpoint is preserved. Existing
 physical patch, owner/seek/hold/feedback controls and 849 widgets are retained;
 hidden speed tables follow the new common musical timing. All six native
-software targets and V32 preservation checks pass. Windows/physical/gig
-qualification and the owner's third-pass publication request remain pending.
+software targets and V32 preservation checks pass locally. The owner authorized
+publication on 2026-09-11 through PR #112 and issue #113. See
+`V32_GITHUB_PUBLICATION.md` for exact source identities and the PR Checks tab
+for CI. Pinned-host, physical and gig qualification remain pending.
 
 ## Protected V31 reliability checkpoint
 
@@ -43,12 +45,13 @@ regressions, private performance/position coverage, and Priority buffer
 ownership. Original fixture addresses, all raw Autoloop creative payloads,
 and Priority Look creative payloads are preserved.
 
-V31 is an unpublished source/workspace candidate. The owner requested creative
-redesign next and GitHub publication only in a later third pass. Do not claim
+V31 was the unpublished first-pass source/workspace checkpoint. Its tree is
+preserved in the V32 publication; the creative pass and publication request
+have now followed. Do not claim
 a matched Windows DLL, pinned-host test, physical rig test, or gig qualification
 from deterministic software results.
 
-MOVE/STROBE ownership and programming need dedicated work in pass two. The
+V32 implements the second-pass MOVE/STROBE ownership and programming. The
 IR-4 custom fixture definition was recovered as an independently authored
 profile verified against its original manufacturer manual.
 Old package-manifest mismatches and V28/V29's unavailable artifacts are

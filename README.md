@@ -9,12 +9,14 @@ SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks,
 Priority Looks, parameter overrides, group intensity, controller feedback, and
 a complete mouse fallback.
 
-**Active unpublished work:** [V32 Creative Pass](docs/qlcplus-control-one/V32_CREATIVE_PASS.md),
+**Current development candidate:** [V32 Creative Pass](docs/qlcplus-control-one/V32_CREATIVE_PASS.md),
 built on the protected V31 reliability checkpoint. All 128 Autoloops and 32
 Priority Looks are redesigned, with native MOVE/STROBE ownership. Structural
-and software checks pass; a matched Windows build, physical rig review and
-the owner's later publication pass remain pending. This is a source/workspace
-review candidate, not an installable Windows release.
+and local software checks pass. Published for review in
+[PR #112](https://github.com/jloops412/qlcplus-soundswitch-integration/pull/112);
+see its Checks tab for CI and the [publication record](docs/qlcplus-control-one/V32_GITHUB_PUBLICATION.md)
+for exact source identities. Pinned-host and physical rig qualification remain
+pending. This is a source/workspace review candidate, not an installable Windows release.
 
 **Packaged full-rig baseline:** [V27 Full Rig](releases/qlcplus-control-one/v27/README.md)
 

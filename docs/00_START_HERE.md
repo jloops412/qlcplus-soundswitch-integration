@@ -5,12 +5,14 @@ This project integrates SoundSwitch Micro and Control One hardware with QLC+.
 ## Continue the current work
 
 Start with [V32 Creative Pass](qlcplus-control-one/V32_CREATIVE_PASS.md), its
-validation evidence and the complete creative catalog. V32 is the unpublished
+validation evidence and the complete creative catalog. V32 is the completed
 second pass built on the recovered V31 reliability checkpoint. It redesigns
 all 128 loops and 32 Priority Looks and adds native MOVE/STROBE ownership.
 The V27 installation route below is the earlier packaged baseline. V32 needs
-its own matched DLL; final Windows build, physical review and GitHub
-publication belong to the later owner-requested third pass.
+its own matched DLL. The owner authorized GitHub publication on 2026-09-11;
+continue through [PR #112](https://github.com/jloops412/qlcplus-soundswitch-integration/pull/112)
+and the [publication record](qlcplus-control-one/V32_GITHUB_PUBLICATION.md).
+Pinned-host and physical rig qualification remain pending.
 
 At show time, run one lighting application:
 

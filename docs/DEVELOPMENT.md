@@ -1,10 +1,11 @@
 # Development Guide
 
-Current unpublished work is V32 Creative Pass. Read
+Current development work is V32 Creative Pass. Read
 `docs/qlcplus-control-one/V32_CREATIVE_PASS.md` and its evidence before editing.
 Run V32 preservation checks, unchanged V31 checks and all six native software
 targets. Keep the protected V31 checkpoint and V26/V27 packages unchanged.
-The owner's third-pass publishing request has not yet been given.
+The owner authorized publication on 2026-09-11 through PR #112, tracked by
+issue #113. See `qlcplus-control-one/V32_GITHUB_PUBLICATION.md`.
 
 
 This guide is for contributors working on the active QLC+ workspace and the

@@ -1,5 +1,10 @@
 # V32 creative pass
 
+**Publication follow-up:** The owner authorized GitHub publication on
+2026-09-11. See [V32_GITHUB_PUBLICATION.md](V32_GITHUB_PUBLICATION.md) for
+the current PR and exact published source identities. The original second-pass
+record below describes the checkpoint before publication.
+
 Date: 2026-09-11. Status: unpublished source/workspace review candidate.
 
 V32 continues the completed V31 reliability checkpoint at
