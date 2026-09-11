@@ -130,3 +130,16 @@ selected top-level page, so this ordering prevents page navigation from leaving
 a live hold behind. Releasing a transient after browsing another page returns
 the operator to Live. Cross-page Focus-position clones observe the same native
 Scene::flashing state, so position latch release remains shared.
+
+## V32 native effect layer
+
+V32 uses the formerly empty U4 for native QLC+ MOVE/STROBE programming. Focus
+mirrors 209/210 and three HTP control bytes in fixture 211 emit to the
+`soundswitch:effect-layer` virtual output. The effect values and ownership
+markers arrive in one owned frame. The plug-in copies only pan/tilt/speed for
+MOVE, multiplies designated intensity channels by the native STROBE gate,
+then applies existing Global/group levels. It does not add a clock, scheduler
+or Function owner. Position Flash Scenes add their exact values to the native
+MOVE layer so they retain precedence. Removing the private route clears the
+snapshot. U4 must never feed a physical/network output. Full implementation,
+software evidence and physical limits are in `V32_CREATIVE_PASS.md`.

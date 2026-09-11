@@ -1,6 +1,17 @@
 # Validation and Maintenance
 
-## Active first-pass candidate
+## Active V32 second-pass candidate
+
+Read `V32_CREATIVE_PASS.md` for exact scope and evidence. Run
+`python3 qlcplus/workspace-tools/Test-V32Workspace.py --self-test` and all six
+actual-source native test targets, including effects. V31 remains a protected
+source checkpoint; its validator must still pass. V32's U4 effects route must
+stay internal. On hardware, test MOVE/position precedence, STROBE over Priority
+and colour holds, STOP, Grand Master, route removal and all intensity groups.
+The matched Windows build, actual pinned-host load, physical observations and
+gig qualification remain separate gates.
+
+## Protected V31 first-pass candidate
 
 Use `Test-V31Workspace.py` for the V31 candidate, alongside the actual-class
 MIDI software tests and existing protocol, intensity, seek, and Priority tests.

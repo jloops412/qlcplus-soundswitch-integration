@@ -100,6 +100,7 @@ bool SoundSwitchPlugin::bindingAt(quint32 output,
     binding = m_bindings.at(static_cast<qsizetype>(output));
     return binding.kind == OutputBinding::SurfaceFeedback ||
            binding.kind == OutputBinding::PriorityLayer ||
+           binding.kind == OutputBinding::EffectLayer ||
            binding.device != nullptr;
 }
 
@@ -109,7 +110,7 @@ bool SoundSwitchPlugin::openOutput(quint32 output, quint32 universe)
     if (!bindingAt(output, binding))
         return false;
 
-    if (binding.kind == OutputBinding::PriorityLayer)
+    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer)
     {
         // This virtual output is a private full-frame buffer. It never opens
         // a USB port; the normal DMX bindings select this frame only while a
@@ -153,6 +154,15 @@ void SoundSwitchPlugin::closeOutput(quint32 output, quint32 universe)
             {
                 m_priorityState.clearFrame();
                 m_priorityFrameUniverse = QLCIOPlugin::invalidLine();
+            }
+        }
+        else if (binding.kind == OutputBinding::EffectLayer)
+        {
+            QMutexLocker lock(&m_mutex);
+            if (universe == m_effectFrameUniverse)
+            {
+                m_effects.clearFrame();
+                m_effectFrameUniverse = QLCIOPlugin::invalidLine();
             }
         }
         else if (binding.kind == OutputBinding::SurfaceFeedback)
@@ -208,6 +218,10 @@ QString SoundSwitchPlugin::outputInfo(quint32 output)
             "layer. Patch a private QLC+ universe here; no additional "
             "hardware or program is required.</P></BODY></HTML>")
             .arg(binding.name.toHtmlEscaped());
+    if (binding.kind == OutputBinding::EffectLayer)
+        return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Internal native MOVE and STROBE "
+                              "parameter layer. Never route to physical DMX.</P></BODY></HTML>")
+            .arg(binding.name.toHtmlEscaped());
     if (binding.kind == OutputBinding::SurfaceFeedback)
         return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Control One MIDI "
                               "LED feedback output.</P></BODY></HTML>")
@@ -235,6 +249,14 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
         return;
     }
 
+    if (binding.kind == OutputBinding::EffectLayer)
+    {
+        QMutexLocker lock(&m_mutex);
+        m_effectFrameUniverse = universe;
+        m_effects.setFrame(data);
+        return;
+    }
+
     if (binding.kind == OutputBinding::SurfaceFeedback || binding.device == nullptr)
         return;
 
@@ -256,6 +278,7 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
         // shutters, strobes and program controls remain byte-for-byte intact.
         if (universe == 0)
         {
+            outputData = m_effects.compose(outputData);
             SoundSwitchIntensity::scaleFrame(
                 reinterpret_cast<std::uint8_t *>(outputData.data()),
                 static_cast<std::size_t>(outputData.size()),
@@ -308,7 +331,7 @@ void SoundSwitchPlugin::sendFeedBack(quint32 universe, quint32 output,
         return;
     }
 
-    if (binding.kind == OutputBinding::PriorityLayer)
+    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer)
         return;
 
     if (binding.kind == OutputBinding::SurfaceFeedback && m_midiInput != nullptr)
@@ -522,6 +545,18 @@ void SoundSwitchPlugin::rebuildBindingsLocked()
         binding.kind = OutputBinding::PriorityLayer;
         binding.name = QStringLiteral("SoundSwitch Hardware — Priority Looks Layer");
         binding.uid = QStringLiteral("soundswitch:priority-layer");
+        m_bindings.append(binding);
+    }
+
+    const bool hasEffectBinding = std::any_of(
+        m_bindings.cbegin(), m_bindings.cend(),
+        [](const OutputBinding &binding) { return binding.kind == OutputBinding::EffectLayer; });
+    if (!hasEffectBinding)
+    {
+        OutputBinding binding;
+        binding.kind = OutputBinding::EffectLayer;
+        binding.name = QStringLiteral("SoundSwitch Hardware - Native Effect Layer");
+        binding.uid = QStringLiteral("soundswitch:effect-layer");
         m_bindings.append(binding);
     }
 

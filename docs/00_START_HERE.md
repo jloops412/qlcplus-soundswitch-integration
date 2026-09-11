@@ -4,13 +4,13 @@ This project integrates SoundSwitch Micro and Control One hardware with QLC+.
 
 ## Continue the current work
 
-Start with [V31 Reliability Pass](qlcplus-control-one/V31_RELIABILITY_PASS.md)
-and the [continuity audit](qlcplus-control-one/V31_CONTINUITY_AUDIT.md).
-V30 is PR #112's unmerged candidate; V31 is its unpublished first-pass repair.
-The V27 installation route below describes the earlier packaged baseline.
-Do not install an older DLL with the V31 workspace or call software evidence
-physical qualification. The next owner-directed pass is creative design;
-publishing to GitHub is reserved for the subsequent third pass.
+Start with [V32 Creative Pass](qlcplus-control-one/V32_CREATIVE_PASS.md), its
+validation evidence and the complete creative catalog. V32 is the unpublished
+second pass built on the recovered V31 reliability checkpoint. It redesigns
+all 128 loops and 32 Priority Looks and adds native MOVE/STROBE ownership.
+The V27 installation route below is the earlier packaged baseline. V32 needs
+its own matched DLL; final Windows build, physical review and GitHub
+publication belong to the later owner-requested third pass.
 
 At show time, run one lighting application:
 

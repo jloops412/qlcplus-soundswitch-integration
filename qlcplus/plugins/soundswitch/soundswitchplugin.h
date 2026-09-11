@@ -23,6 +23,7 @@
 #include "qlcioplugin.h"
 #include "soundswitchintensity.h"
 #include "soundswitchpriority.h"
+#include "soundswitcheffects.h"
 
 #include <QHash>
 #include <QMutex>
@@ -73,7 +74,7 @@ private slots:
 private:
     struct OutputBinding
     {
-        enum Kind { Dmx, SurfaceFeedback, PriorityLayer } kind{Dmx};
+        enum Kind { Dmx, SurfaceFeedback, PriorityLayer, EffectLayer } kind{Dmx};
         SoundSwitchDevice *device{nullptr};
         int port{0};
         QString name;
@@ -94,6 +95,8 @@ private:
     QSet<quint32> m_feedbackUniverses;
     SoundSwitchPriorityState m_priorityState;
     quint32 m_priorityFrameUniverse{QLCIOPlugin::invalidLine()};
+    SoundSwitchEffects m_effects;
+    quint32 m_effectFrameUniverse{QLCIOPlugin::invalidLine()};
     int m_intensityTarget{0}; // 0=global, 1-4=fixture groups, 5=scripted
     SoundSwitchIntensity::Levels m_intensityLevels{{255, 255, 255,
                                                      255, 255, 255}};

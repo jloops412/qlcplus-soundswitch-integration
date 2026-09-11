@@ -29,7 +29,22 @@ historical provenance only. They never override these current records.
 
 ## Current release and rig
 
-### Active unpublished work: V31 Reliability Pass
+### Active unpublished work: V32 Creative Pass
+
+Start at `docs/qlcplus-control-one/V32_CREATIVE_PASS.md` and its evidence.
+V32 continues exact unpublished V31 commit `7808ed1aad81716eff0fe9ae3da4fc1a120d29a3`.
+Keep the protected V31 workspace byte-identical. V32 changes creative frames,
+raw speed timing tables, two captions and the bounded native MOVE/STROBE layer.
+It adds private Focus IDs 209/210 plus generic HTP control fixture 211 on
+Universe 4. U3 and U4 must remain internal-only. Existing physical/private
+fixture IDs, public Function IDs, 849 widget IDs and control channels remain.
+
+Run `Test-V32Workspace.py --self-test`, unchanged V31 validation, and all six
+native test targets (including effects). The Windows workflow is prepared,
+not executed. Physical output and gig qualification are pending. GitHub
+publication still requires the owner's later third-pass instruction.
+
+### Protected V31 Reliability checkpoint
 
 The current task starts from PR #112 V30 at
 `f842153acb8edee790b8c47650c81b0285dcd33d`. V31 is an unpublished reliability

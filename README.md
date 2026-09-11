@@ -9,10 +9,12 @@ SoundSwitch-familiar live workflow, VirtualDJ OS2L timing, four Autoloop banks,
 Priority Looks, parameter overrides, group intensity, controller feedback, and
 a complete mouse fallback.
 
-**Active unpublished work:** [V31 Reliability Pass](docs/qlcplus-control-one/V31_RELIABILITY_PASS.md),
-following the V30 candidate in PR #112. This first pass repairs control and
-output-layer regressions. Creative redesign and GitHub publication are later
-owner-directed passes. V31 is not yet an installable, qualified Windows release.
+**Active unpublished work:** [V32 Creative Pass](docs/qlcplus-control-one/V32_CREATIVE_PASS.md),
+built on the protected V31 reliability checkpoint. All 128 Autoloops and 32
+Priority Looks are redesigned, with native MOVE/STROBE ownership. Structural
+and software checks pass; a matched Windows build, physical rig review and
+the owner's later publication pass remain pending. This is a source/workspace
+review candidate, not an installable Windows release.
 
 **Packaged full-rig baseline:** [V27 Full Rig](releases/qlcplus-control-one/v27/README.md)
 
@@ -39,7 +41,8 @@ Custom code is deliberately narrow:
 
 - `soundswitch.dll` provides proprietary SoundSwitch USB output, Control One
   MIDI translation, LED feedback, reconnect behavior, and full-frame Priority
-  Look ownership.
+  Look ownership. The V32 candidate adds bounded composition of native
+  MOVE/STROBE parameters.
 - `os2l.dll` is a focused QLC+ plug-in correction that uses OS2L's reported BPM
   instead of bursty packet-arrival timing.
 

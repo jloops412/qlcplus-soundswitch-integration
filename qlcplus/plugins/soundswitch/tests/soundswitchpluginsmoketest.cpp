@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
         QStringLiteral("SoundSwitch Hardware — Priority Looks Layer"));
     const bool priorityValid = priorityIndex >= 0 &&
         uids.at(priorityIndex) == QStringLiteral("soundswitch:priority-layer");
+    const qsizetype effectsIndex = uids.indexOf(QStringLiteral("soundswitch:effect-layer"));
     const bool microValid = microIndex >= 0 &&
         uids.at(microIndex).startsWith(QStringLiteral("soundswitch:micro:"));
     const bool controlOneValid = controlOneIndex >= 0 &&
@@ -111,6 +112,14 @@ int main(int argc, char *argv[])
     plugin->writeUniverse(2U, static_cast<quint32>(priorityIndex),
                           QByteArray(334, '\0'), true);
     plugin->closeOutput(static_cast<quint32>(priorityIndex), 2U);
+
+    if (effectsIndex < 0 || !plugin->openOutput(static_cast<quint32>(effectsIndex), 3U))
+    {
+        std::cerr << "native effect layer did not open without hardware\n";
+        return 20;
+    }
+    plugin->writeUniverse(3U, static_cast<quint32>(effectsIndex), QByteArray(116, '\0'), true);
+    plugin->closeOutput(static_cast<quint32>(effectsIndex), 3U);
 
     if (!plugin->openOutput(static_cast<quint32>(feedbackIndex), 1U))
     {

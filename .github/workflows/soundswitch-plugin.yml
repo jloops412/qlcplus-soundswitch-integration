@@ -76,6 +76,7 @@ jobs:
             soundswitch_performance_tests `
             soundswitch_priority_tests `
             soundswitch_midi_tests `
+            soundswitch_effects_tests `
             ss_smoke `
             --parallel
 
@@ -88,9 +89,10 @@ jobs:
           $performance = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_performance_tests.exe | Select-Object -First 1
           $priority = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_priority_tests.exe | Select-Object -First 1
           $midi = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_midi_tests.exe | Select-Object -First 1
+          $effects = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_effects_tests.exe | Select-Object -First 1
           $smoke = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch_plugin_smoke_tests.exe | Select-Object -First 1
           $plugin = Get-ChildItem -Recurse build-soundswitch -Filter soundswitch.dll | Select-Object -First 1
-          foreach ($file in @($protocol, $intensity, $performance, $priority, $midi, $smoke, $plugin)) {
+          foreach ($file in @($protocol, $intensity, $performance, $priority, $midi, $effects, $smoke, $plugin)) {
             if ($null -eq $file) { throw 'A required build product is missing.' }
           }
           & $protocol.FullName
@@ -102,6 +104,8 @@ jobs:
           & $priority.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $midi.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $effects.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $smoke.FullName $plugin.FullName --allow-no-hardware
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -135,6 +139,7 @@ jobs:
             autoplaySeekTests = 'passed'
             priorityStateTests = 'passed'
             midiTranslationTests = 'passed-with-fake-winmm'
+            nativeEffectMaskTests = 'passed'
             pluginLoadSmoke = 'passed-without-hardware'
             pinnedQlcHostAbiTested = $false
           } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM artifact/build-evidence.json
@@ -143,7 +148,7 @@ jobs:
       - name: Upload matched plug-in
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: soundswitch-v31-windows-x64-${{ github.sha }}
+          name: soundswitch-v32-windows-x64-${{ github.sha }}
           if-no-files-found: error
           retention-days: 90
           path: artifact/*

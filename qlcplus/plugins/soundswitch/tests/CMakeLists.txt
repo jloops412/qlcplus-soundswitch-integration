@@ -23,3 +23,8 @@ add_executable(soundswitch_midi_tests
 target_compile_definitions(soundswitch_midi_tests PRIVATE SOUNDSWITCH_MIDI_TEST_BACKEND)
 target_link_libraries(soundswitch_midi_tests PRIVATE Qt6::Core)
 add_test(NAME midi COMMAND soundswitch_midi_tests)
+
+add_executable(soundswitch_effects_tests ../soundswitcheffects.cpp
+    ../soundswitchintensity.cpp soundswitcheffectstest.cpp)
+target_link_libraries(soundswitch_effects_tests PRIVATE Qt6::Core)
+add_test(NAME effects COMMAND soundswitch_effects_tests)

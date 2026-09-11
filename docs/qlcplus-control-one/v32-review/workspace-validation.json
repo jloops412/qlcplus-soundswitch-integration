@@ -1,0 +1,16 @@
+{
+  "physical_fixtures": 11,
+  "priority_fixtures": 11,
+  "effect_fixtures": 3,
+  "functions": 3297,
+  "widgets": 849,
+  "raw_loops": 128,
+  "raw_scene_leaves": 2048,
+  "priority_looks": 32,
+  "priority_scene_leaves": 102,
+  "protected_native_owners": 138,
+  "unchanged_source_functions": 980,
+  "speed_presets_checked": 1280,
+  "corruption_cases_rejected": 8,
+  "workspace_sha256": "16c676c531aa9aefa354eb2052e0f643be3c27d9e5fa71953deebf99257478c0"
+}

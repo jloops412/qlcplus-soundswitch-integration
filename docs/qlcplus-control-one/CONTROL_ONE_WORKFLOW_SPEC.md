@@ -112,3 +112,14 @@ Autoloop mode the hardware pads show the actual running pad number; bank
 buttons retain the browsed bank. Priority mode shows the active Look. Releasing
 a known momentary hold after navigating away returns to Live before the
 release is sent, because QLC dispatches inputs only to its selected page.
+
+## V32 creative and effect contract
+
+V32 preserves all existing gestures and public control channels. Its raw loops
+use 16-step common beat timing, with the same independent chase-speed/dwell
+controls. MOVE uses a private native pan/tilt sweep; an active position latch
+takes precedence and releasing it reveals the advancing MOVE sweep. STROBE
+now gates the current look's intensity while retaining colour and aim, including
+Priority Looks and colour holds. It remains an ordinary toggle control. These
+new behaviours have software/structural evidence and need the matched Windows
+host and physical bench. See `V32_CREATIVE_PASS.md` for the U4 ownership contract.

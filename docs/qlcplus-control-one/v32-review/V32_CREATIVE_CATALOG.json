@@ -1,0 +1,2666 @@
+[
+  {
+    "id": 532,
+    "name": "AUTOLOOP [MEDIUM] - RED - SMOOTH PULSE",
+    "bank": "Medium",
+    "pad": 1,
+    "palette": [
+      "red",
+      "ruby"
+    ],
+    "texture": "breathe",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 533,
+    "name": "AUTOLOOP [MEDIUM] - BLUE - SMOOTH",
+    "bank": "Medium",
+    "pad": 2,
+    "palette": [
+      "blue",
+      "sky"
+    ],
+    "texture": "tide",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 534,
+    "name": "AUTOLOOP [MEDIUM] - SUNNY - SMOOTH",
+    "bank": "Medium",
+    "pad": 3,
+    "palette": [
+      "gold",
+      "amber"
+    ],
+    "texture": "breathe",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 535,
+    "name": "AUTOLOOP [MEDIUM] - 80s - SMOOTH",
+    "bank": "Medium",
+    "pad": 4,
+    "palette": [
+      "magenta",
+      "cyan"
+    ],
+    "texture": "diagonal",
+    "motion": "orbit",
+    "optics": "g3",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 536,
+    "name": "AUTOLOOP [MEDIUM] - TEAL + PINK - SQUARE",
+    "bank": "Medium",
+    "pad": 5,
+    "palette": [
+      "teal",
+      "pink"
+    ],
+    "texture": "checker",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 537,
+    "name": "AUTOLOOP [MEDIUM] - PURPLE + YELLOW - SQUARE",
+    "bank": "Medium",
+    "pad": 6,
+    "palette": [
+      "purple",
+      "gold"
+    ],
+    "texture": "checker",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 538,
+    "name": "AUTOLOOP [MEDIUM] - GREEN + BLUE - WAVE",
+    "bank": "Medium",
+    "pad": 7,
+    "palette": [
+      "green",
+      "blue"
+    ],
+    "texture": "wave",
+    "motion": "orbit",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 539,
+    "name": "AUTOLOOP [MEDIUM] - BLUE - PULSE",
+    "bank": "Medium",
+    "pad": 8,
+    "palette": [
+      "blue",
+      "ice"
+    ],
+    "texture": "pulse",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 540,
+    "name": "AUTOLOOP [MEDIUM] - RED FIXTURE ROLL",
+    "bank": "Medium",
+    "pad": 9,
+    "palette": [
+      "red",
+      "ruby"
+    ],
+    "texture": "roll",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 541,
+    "name": "AUTOLOOP [MEDIUM] - BLUE FIXTURE BOUNCE",
+    "bank": "Medium",
+    "pad": 10,
+    "palette": [
+      "blue",
+      "cyan"
+    ],
+    "texture": "bounce",
+    "motion": "orbit",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 542,
+    "name": "AUTOLOOP [MEDIUM] - PINK + TEAL BOUNCE",
+    "bank": "Medium",
+    "pad": 11,
+    "palette": [
+      "pink",
+      "teal"
+    ],
+    "texture": "bounce",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 543,
+    "name": "AUTOLOOP [MEDIUM] - WARM / COOL SWAP",
+    "bank": "Medium",
+    "pad": 12,
+    "palette": [
+      "warm",
+      "ice"
+    ],
+    "texture": "halves",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 544,
+    "name": "AUTOLOOP [MEDIUM] - OUTSIDE IN AMBER",
+    "bank": "Medium",
+    "pad": 13,
+    "palette": [
+      "amber",
+      "gold"
+    ],
+    "texture": "inward",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 545,
+    "name": "AUTOLOOP [MEDIUM] - CENTER OUT CYAN",
+    "bank": "Medium",
+    "pad": 14,
+    "palette": [
+      "cyan",
+      "blue"
+    ],
+    "texture": "outward",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 546,
+    "name": "AUTOLOOP [MEDIUM] - LEFT / RIGHT RGB",
+    "bank": "Medium",
+    "pad": 15,
+    "palette": [
+      "red",
+      "green",
+      "blue"
+    ],
+    "texture": "halves",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 547,
+    "name": "AUTOLOOP [MEDIUM] - RAINBOW WALK",
+    "bank": "Medium",
+    "pad": 16,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "pink"
+    ],
+    "texture": "walk",
+    "motion": "orbit",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 548,
+    "name": "AUTOLOOP [MEDIUM] - GOLD + BLUE PAIRS",
+    "bank": "Medium",
+    "pad": 17,
+    "palette": [
+      "gold",
+      "blue"
+    ],
+    "texture": "pairs",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 549,
+    "name": "AUTOLOOP [MEDIUM] - PURPLE + CYAN PAIRS",
+    "bank": "Medium",
+    "pad": 18,
+    "palette": [
+      "purple",
+      "cyan"
+    ],
+    "texture": "pairs",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 550,
+    "name": "AUTOLOOP [MEDIUM] - SUNSET COMET",
+    "bank": "Medium",
+    "pad": 19,
+    "palette": [
+      "amber",
+      "coral",
+      "pink"
+    ],
+    "texture": "comet",
+    "motion": "orbit",
+    "optics": "g1rot",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 551,
+    "name": "AUTOLOOP [MEDIUM] - CANDY COMET",
+    "bank": "Medium",
+    "pad": 20,
+    "palette": [
+      "pink",
+      "cyan",
+      "lavender"
+    ],
+    "texture": "comet",
+    "motion": "fan",
+    "optics": "g2prism",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 552,
+    "name": "AUTOLOOP [MEDIUM] - FOUR COLOR CORNERS",
+    "bank": "Medium",
+    "pad": 21,
+    "palette": [
+      "red",
+      "gold",
+      "cyan",
+      "purple"
+    ],
+    "texture": "corners",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 553,
+    "name": "AUTOLOOP [MEDIUM] - CROSSFADE RAINBOW",
+    "bank": "Medium",
+    "pad": 22,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "magenta"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 554,
+    "name": "AUTOLOOP [MEDIUM] - TEAL RIPPLE",
+    "bank": "Medium",
+    "pad": 23,
+    "palette": [
+      "teal",
+      "cyan"
+    ],
+    "texture": "ripple",
+    "motion": "orbit",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 555,
+    "name": "AUTOLOOP [MEDIUM] - MAGENTA RIPPLE",
+    "bank": "Medium",
+    "pad": 24,
+    "palette": [
+      "magenta",
+      "pink"
+    ],
+    "texture": "ripple_reverse",
+    "motion": "orbit",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 556,
+    "name": "AUTOLOOP [MEDIUM] - WHITE COLOR ACCENT",
+    "bank": "Medium",
+    "pad": 25,
+    "palette": [
+      "blue",
+      "pink",
+      "white"
+    ],
+    "texture": "accent",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 557,
+    "name": "AUTOLOOP [MEDIUM] - UV PURPLE ROLL",
+    "bank": "Medium",
+    "pad": 26,
+    "palette": [
+      "uv",
+      "purple"
+    ],
+    "texture": "roll",
+    "motion": "fan",
+    "optics": "g3",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 558,
+    "name": "AUTOLOOP [MEDIUM] - GREEN LIME STEP",
+    "bank": "Medium",
+    "pad": 27,
+    "palette": [
+      "green",
+      "lime"
+    ],
+    "texture": "walk",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 559,
+    "name": "AUTOLOOP [MEDIUM] - ORANGE BLUE FLIP",
+    "bank": "Medium",
+    "pad": 28,
+    "palette": [
+      "orange",
+      "blue"
+    ],
+    "texture": "halves",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 560,
+    "name": "AUTOLOOP [MEDIUM] - COLOR BUILD",
+    "bank": "Medium",
+    "pad": 29,
+    "palette": [
+      "teal",
+      "cyan",
+      "gold"
+    ],
+    "texture": "build",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 561,
+    "name": "AUTOLOOP [MEDIUM] - SOFT DROP",
+    "bank": "Medium",
+    "pad": 30,
+    "palette": [
+      "purple",
+      "blush"
+    ],
+    "texture": "soft_drop",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 562,
+    "name": "AUTOLOOP [MEDIUM] - MIRROR WAVE",
+    "bank": "Medium",
+    "pad": 31,
+    "palette": [
+      "blue",
+      "cyan"
+    ],
+    "texture": "mirror",
+    "motion": "orbit",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 563,
+    "name": "AUTOLOOP [MEDIUM] - PARTY MIX",
+    "bank": "Medium",
+    "pad": 32,
+    "palette": [
+      "pink",
+      "cyan",
+      "gold"
+    ],
+    "texture": "phrase",
+    "motion": "fan",
+    "optics": "g3prism",
+    "steps": 16,
+    "step_beats": 1.0,
+    "phrase_measures": 4.0
+  },
+  {
+    "id": 564,
+    "name": "AUTOLOOP [COLORFUL] - RAINBOW FIXTURE CHASE",
+    "bank": "Colorful",
+    "pad": 1,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "pink"
+    ],
+    "texture": "walk",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 565,
+    "name": "AUTOLOOP [COLORFUL] - PRISM TUBE SWEEP",
+    "bank": "Colorful",
+    "pad": 2,
+    "palette": [
+      "pink",
+      "cyan",
+      "violet"
+    ],
+    "texture": "comet",
+    "motion": "orbit",
+    "optics": "prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 566,
+    "name": "AUTOLOOP [COLORFUL] - PRISM TUBE BOUNCE",
+    "bank": "Colorful",
+    "pad": 3,
+    "palette": [
+      "cyan",
+      "gold",
+      "magenta"
+    ],
+    "texture": "bounce",
+    "motion": "fan",
+    "optics": "prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 567,
+    "name": "AUTOLOOP [COLORFUL] - CANDY STRIPE ROTATE",
+    "bank": "Colorful",
+    "pad": 4,
+    "palette": [
+      "pink",
+      "ivory",
+      "teal"
+    ],
+    "texture": "stripes",
+    "motion": "orbit",
+    "optics": "g2rot",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 568,
+    "name": "AUTOLOOP [COLORFUL] - TROPICAL RUN",
+    "bank": "Colorful",
+    "pad": 5,
+    "palette": [
+      "teal",
+      "coral",
+      "gold"
+    ],
+    "texture": "roll",
+    "motion": "orbit",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 569,
+    "name": "AUTOLOOP [COLORFUL] - NEON ODD / EVEN",
+    "bank": "Colorful",
+    "pad": 6,
+    "palette": [
+      "lime",
+      "magenta"
+    ],
+    "texture": "checker",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 570,
+    "name": "AUTOLOOP [COLORFUL] - RGBW MARCH",
+    "bank": "Colorful",
+    "pad": 7,
+    "palette": [
+      "red",
+      "green",
+      "blue",
+      "white"
+    ],
+    "texture": "march",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 571,
+    "name": "AUTOLOOP [COLORFUL] - TEAL MAGENTA HALVES",
+    "bank": "Colorful",
+    "pad": 8,
+    "palette": [
+      "teal",
+      "magenta"
+    ],
+    "texture": "halves",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 572,
+    "name": "AUTOLOOP [COLORFUL] - FESTIVAL SIX",
+    "bank": "Colorful",
+    "pad": 9,
+    "palette": [
+      "red",
+      "orange",
+      "gold",
+      "green",
+      "cyan",
+      "violet"
+    ],
+    "texture": "corners",
+    "motion": "fan",
+    "optics": "g2prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 573,
+    "name": "AUTOLOOP [COLORFUL] - CITRUS CHASE",
+    "bank": "Colorful",
+    "pad": 10,
+    "palette": [
+      "lime",
+      "gold",
+      "orange"
+    ],
+    "texture": "syncopated",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 574,
+    "name": "AUTOLOOP [COLORFUL] - BERRY CHASE",
+    "bank": "Colorful",
+    "pad": 11,
+    "palette": [
+      "purple",
+      "pink",
+      "ruby"
+    ],
+    "texture": "bounce",
+    "motion": "orbit",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 575,
+    "name": "AUTOLOOP [COLORFUL] - OCEAN CHASE",
+    "bank": "Colorful",
+    "pad": 12,
+    "palette": [
+      "midnight",
+      "blue",
+      "teal",
+      "cyan"
+    ],
+    "texture": "tide",
+    "motion": "orbit",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 576,
+    "name": "AUTOLOOP [COLORFUL] - FIRE CHASE",
+    "bank": "Colorful",
+    "pad": 13,
+    "palette": [
+      "ruby",
+      "red",
+      "orange",
+      "gold"
+    ],
+    "texture": "embers",
+    "motion": "fan",
+    "optics": "g3",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 577,
+    "name": "AUTOLOOP [COLORFUL] - CONFETTI WAVE",
+    "bank": "Colorful",
+    "pad": 14,
+    "palette": [
+      "pink",
+      "cyan",
+      "gold",
+      "lime"
+    ],
+    "texture": "sparkle",
+    "motion": "hold",
+    "optics": "g2prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 578,
+    "name": "AUTOLOOP [COLORFUL] - PASTEL RAINBOW",
+    "bank": "Colorful",
+    "pad": 15,
+    "palette": [
+      "blush",
+      "lavender",
+      "ice",
+      "champagne"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 579,
+    "name": "AUTOLOOP [COLORFUL] - RED CYAN CROSS",
+    "bank": "Colorful",
+    "pad": 16,
+    "palette": [
+      "red",
+      "cyan"
+    ],
+    "texture": "diagonal",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 580,
+    "name": "AUTOLOOP [COLORFUL] - GREEN MAGENTA CROSS",
+    "bank": "Colorful",
+    "pad": 17,
+    "palette": [
+      "green",
+      "magenta"
+    ],
+    "texture": "diagonal_reverse",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 581,
+    "name": "AUTOLOOP [COLORFUL] - BLUE GOLD CROSS",
+    "bank": "Colorful",
+    "pad": 18,
+    "palette": [
+      "blue",
+      "gold"
+    ],
+    "texture": "pairs",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 582,
+    "name": "AUTOLOOP [COLORFUL] - COLOR LADDER",
+    "bank": "Colorful",
+    "pad": 19,
+    "palette": [
+      "red",
+      "orange",
+      "gold",
+      "green",
+      "cyan",
+      "blue"
+    ],
+    "texture": "ladder",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 583,
+    "name": "AUTOLOOP [COLORFUL] - REVERSE COLOR LADDER",
+    "bank": "Colorful",
+    "pad": 20,
+    "palette": [
+      "red",
+      "orange",
+      "gold",
+      "green",
+      "cyan",
+      "blue"
+    ],
+    "texture": "ladder_reverse",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 584,
+    "name": "AUTOLOOP [COLORFUL] - TUBE RAINBOW LEFT",
+    "bank": "Colorful",
+    "pad": 21,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "magenta"
+    ],
+    "texture": "comet",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 585,
+    "name": "AUTOLOOP [COLORFUL] - TUBE RAINBOW RIGHT",
+    "bank": "Colorful",
+    "pad": 22,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "magenta"
+    ],
+    "texture": "comet_reverse",
+    "motion": "fan",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 586,
+    "name": "AUTOLOOP [COLORFUL] - PINK WHITE SPARKLE",
+    "bank": "Colorful",
+    "pad": 23,
+    "palette": [
+      "pink",
+      "white"
+    ],
+    "texture": "sparkle",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 587,
+    "name": "AUTOLOOP [COLORFUL] - TEAL GOLD SPARKLE",
+    "bank": "Colorful",
+    "pad": 24,
+    "palette": [
+      "teal",
+      "gold"
+    ],
+    "texture": "sparkle",
+    "motion": "hold",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 588,
+    "name": "AUTOLOOP [COLORFUL] - KALEIDOSCOPE",
+    "bank": "Colorful",
+    "pad": 25,
+    "palette": [
+      "magenta",
+      "cyan",
+      "lime"
+    ],
+    "texture": "mirror",
+    "motion": "orbit",
+    "optics": "g3prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 589,
+    "name": "AUTOLOOP [COLORFUL] - MARDI GRAS",
+    "bank": "Colorful",
+    "pad": 26,
+    "palette": [
+      "purple",
+      "gold",
+      "green"
+    ],
+    "texture": "corners",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 590,
+    "name": "AUTOLOOP [COLORFUL] - MIAMI NEON",
+    "bank": "Colorful",
+    "pad": 27,
+    "palette": [
+      "hotpink",
+      "teal"
+    ],
+    "texture": "halves",
+    "motion": "drift",
+    "optics": "g3",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 591,
+    "name": "AUTOLOOP [COLORFUL] - SUNSET TO OCEAN",
+    "bank": "Colorful",
+    "pad": 28,
+    "palette": [
+      "coral",
+      "gold",
+      "blue",
+      "cyan"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 592,
+    "name": "AUTOLOOP [COLORFUL] - ELECTRIC LIME",
+    "bank": "Colorful",
+    "pad": 29,
+    "palette": [
+      "lime",
+      "blue"
+    ],
+    "texture": "ripple",
+    "motion": "fan",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 593,
+    "name": "AUTOLOOP [COLORFUL] - ELECTRIC VIOLET",
+    "bank": "Colorful",
+    "pad": 30,
+    "palette": [
+      "violet",
+      "cyan"
+    ],
+    "texture": "outward",
+    "motion": "fan",
+    "optics": "g3",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 594,
+    "name": "AUTOLOOP [COLORFUL] - FULL SPECTRUM BUILD",
+    "bank": "Colorful",
+    "pad": 31,
+    "palette": [
+      "blue",
+      "violet",
+      "pink",
+      "gold"
+    ],
+    "texture": "build",
+    "motion": "fan",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 595,
+    "name": "AUTOLOOP [COLORFUL] - COLOR EXPLOSION",
+    "bank": "Colorful",
+    "pad": 32,
+    "palette": [
+      "pink",
+      "cyan",
+      "gold"
+    ],
+    "texture": "explosion",
+    "motion": "hold",
+    "optics": "g3prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 596,
+    "name": "AUTOLOOP [SLOW DANCE] - FIRST DANCE GLOW",
+    "bank": "Slow Dance",
+    "pad": 1,
+    "palette": [
+      "warm",
+      "champagne"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 597,
+    "name": "AUTOLOOP [SLOW DANCE] - ROSE DRIFT",
+    "bank": "Slow Dance",
+    "pad": 2,
+    "palette": [
+      "rose",
+      "blush"
+    ],
+    "texture": "tide",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 598,
+    "name": "AUTOLOOP [SLOW DANCE] - ANTIQUE FADE",
+    "bank": "Slow Dance",
+    "pad": 3,
+    "palette": [
+      "amber",
+      "warm"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "g2soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 599,
+    "name": "AUTOLOOP [SLOW DANCE] - FIRE + ICE DRIFT",
+    "bank": "Slow Dance",
+    "pad": 4,
+    "palette": [
+      "amber",
+      "ice"
+    ],
+    "texture": "halves",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 600,
+    "name": "AUTOLOOP [SLOW DANCE] - MOONLIGHT",
+    "bank": "Slow Dance",
+    "pad": 5,
+    "palette": [
+      "midnight",
+      "ice"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 601,
+    "name": "AUTOLOOP [SLOW DANCE] - SUNSET MELT",
+    "bank": "Slow Dance",
+    "pad": 6,
+    "palette": [
+      "coral",
+      "amber",
+      "blush"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 602,
+    "name": "AUTOLOOP [SLOW DANCE] - DREAMY PASTEL",
+    "bank": "Slow Dance",
+    "pad": 7,
+    "palette": [
+      "blush",
+      "lavender",
+      "ice"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 603,
+    "name": "AUTOLOOP [SLOW DANCE] - WARM CANDLE",
+    "bank": "Slow Dance",
+    "pad": 8,
+    "palette": [
+      "amber",
+      "champagne"
+    ],
+    "texture": "embers",
+    "motion": "hold",
+    "optics": "g1soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 604,
+    "name": "AUTOLOOP [SLOW DANCE] - BLUSH + GOLD",
+    "bank": "Slow Dance",
+    "pad": 9,
+    "palette": [
+      "blush",
+      "gold"
+    ],
+    "texture": "pairs",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 605,
+    "name": "AUTOLOOP [SLOW DANCE] - LAVENDER HAZE",
+    "bank": "Slow Dance",
+    "pad": 10,
+    "palette": [
+      "lavender",
+      "blue"
+    ],
+    "texture": "tide",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 606,
+    "name": "AUTOLOOP [SLOW DANCE] - BLUE HOUR",
+    "bank": "Slow Dance",
+    "pad": 11,
+    "palette": [
+      "midnight",
+      "sky"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 607,
+    "name": "AUTOLOOP [SLOW DANCE] - CHAMPAGNE GLOW",
+    "bank": "Slow Dance",
+    "pad": 12,
+    "palette": [
+      "champagne",
+      "ivory"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "g1soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 608,
+    "name": "AUTOLOOP [SLOW DANCE] - SOFT TEAL TIDE",
+    "bank": "Slow Dance",
+    "pad": 13,
+    "palette": [
+      "teal",
+      "ice"
+    ],
+    "texture": "tide",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 609,
+    "name": "AUTOLOOP [SLOW DANCE] - SOFT PINK TIDE",
+    "bank": "Slow Dance",
+    "pad": 14,
+    "palette": [
+      "pink",
+      "blush"
+    ],
+    "texture": "tide",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 610,
+    "name": "AUTOLOOP [SLOW DANCE] - CENTER GLOW",
+    "bank": "Slow Dance",
+    "pad": 15,
+    "palette": [
+      "champagne",
+      "blush"
+    ],
+    "texture": "outward",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 611,
+    "name": "AUTOLOOP [SLOW DANCE] - OUTER GLOW",
+    "bank": "Slow Dance",
+    "pad": 16,
+    "palette": [
+      "lavender",
+      "ice"
+    ],
+    "texture": "inward",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 612,
+    "name": "AUTOLOOP [SLOW DANCE] - SLOW OCEAN",
+    "bank": "Slow Dance",
+    "pad": 17,
+    "palette": [
+      "teal",
+      "blue"
+    ],
+    "texture": "wave",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 613,
+    "name": "AUTOLOOP [SLOW DANCE] - SLOW SUNRISE",
+    "bank": "Slow Dance",
+    "pad": 18,
+    "palette": [
+      "coral",
+      "gold"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 614,
+    "name": "AUTOLOOP [SLOW DANCE] - PURPLE ROMANCE",
+    "bank": "Slow Dance",
+    "pad": 19,
+    "palette": [
+      "purple",
+      "blush"
+    ],
+    "texture": "breathe",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 615,
+    "name": "AUTOLOOP [SLOW DANCE] - CLASSIC WARM WHITE",
+    "bank": "Slow Dance",
+    "pad": 20,
+    "palette": [
+      "warm",
+      "ivory"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 616,
+    "name": "AUTOLOOP [SLOW DANCE] - GOLDEN RIPPLE",
+    "bank": "Slow Dance",
+    "pad": 21,
+    "palette": [
+      "gold",
+      "champagne"
+    ],
+    "texture": "ripple",
+    "motion": "drift",
+    "optics": "g1soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 617,
+    "name": "AUTOLOOP [SLOW DANCE] - ROSE RIPPLE",
+    "bank": "Slow Dance",
+    "pad": 22,
+    "palette": [
+      "rose",
+      "blush"
+    ],
+    "texture": "ripple_reverse",
+    "motion": "drift",
+    "optics": "g1soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 618,
+    "name": "AUTOLOOP [SLOW DANCE] - PASTEL CENTER OUT",
+    "bank": "Slow Dance",
+    "pad": 23,
+    "palette": [
+      "blush",
+      "lavender",
+      "ice"
+    ],
+    "texture": "outward",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 619,
+    "name": "AUTOLOOP [SLOW DANCE] - PASTEL OUTSIDE IN",
+    "bank": "Slow Dance",
+    "pad": 24,
+    "palette": [
+      "ice",
+      "lavender",
+      "blush"
+    ],
+    "texture": "inward",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 620,
+    "name": "AUTOLOOP [SLOW DANCE] - SLOW FIXTURE WALTZ",
+    "bank": "Slow Dance",
+    "pad": 25,
+    "palette": [
+      "warm",
+      "lavender",
+      "ice"
+    ],
+    "texture": "wave",
+    "motion": "drift",
+    "optics": "g1soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 621,
+    "name": "AUTOLOOP [SLOW DANCE] - MOONBEAM WALTZ",
+    "bank": "Slow Dance",
+    "pad": 26,
+    "palette": [
+      "blue",
+      "ice"
+    ],
+    "texture": "mirror",
+    "motion": "drift",
+    "optics": "soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 622,
+    "name": "AUTOLOOP [SLOW DANCE] - CANDLELIGHT PAIRS",
+    "bank": "Slow Dance",
+    "pad": 27,
+    "palette": [
+      "amber",
+      "champagne"
+    ],
+    "texture": "pairs",
+    "motion": "hold",
+    "optics": "g1soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 623,
+    "name": "AUTOLOOP [SLOW DANCE] - DUSK PAIRS",
+    "bank": "Slow Dance",
+    "pad": 28,
+    "palette": [
+      "midnight",
+      "rose"
+    ],
+    "texture": "halves",
+    "motion": "hold",
+    "optics": "g2soft",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 624,
+    "name": "AUTOLOOP [SLOW DANCE] - GENTLE COLOR BUILD",
+    "bank": "Slow Dance",
+    "pad": 29,
+    "palette": [
+      "lavender",
+      "blush",
+      "champagne"
+    ],
+    "texture": "build",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 625,
+    "name": "AUTOLOOP [SLOW DANCE] - QUIET RAINBOW",
+    "bank": "Slow Dance",
+    "pad": 30,
+    "palette": [
+      "rose",
+      "gold",
+      "teal",
+      "sky",
+      "lavender"
+    ],
+    "texture": "morph",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 626,
+    "name": "AUTOLOOP [SLOW DANCE] - LAST DANCE",
+    "bank": "Slow Dance",
+    "pad": 31,
+    "palette": [
+      "warm",
+      "rose"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 627,
+    "name": "AUTOLOOP [SLOW DANCE] - ETERNAL GLOW",
+    "bank": "Slow Dance",
+    "pad": 32,
+    "palette": [
+      "champagne",
+      "ivory"
+    ],
+    "texture": "tide",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 2.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 628,
+    "name": "AUTOLOOP [FLASHY] - WHITE BEAT FLASH",
+    "bank": "Flashy",
+    "pad": 1,
+    "palette": [
+      "white",
+      "blue"
+    ],
+    "texture": "beat",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 629,
+    "name": "AUTOLOOP [FLASHY] - RED / BLUE HIT",
+    "bank": "Flashy",
+    "pad": 2,
+    "palette": [
+      "red",
+      "blue"
+    ],
+    "texture": "alternate",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 630,
+    "name": "AUTOLOOP [FLASHY] - COLOR POP",
+    "bank": "Flashy",
+    "pad": 3,
+    "palette": [
+      "pink",
+      "cyan",
+      "gold"
+    ],
+    "texture": "pop",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 631,
+    "name": "AUTOLOOP [FLASHY] - TUBE WHITE SPARKLE",
+    "bank": "Flashy",
+    "pad": 4,
+    "palette": [
+      "white",
+      "midnight"
+    ],
+    "texture": "sparkle",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 632,
+    "name": "AUTOLOOP [FLASHY] - UV PUNCH",
+    "bank": "Flashy",
+    "pad": 5,
+    "palette": [
+      "uv",
+      "purple"
+    ],
+    "texture": "syncopated",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 633,
+    "name": "AUTOLOOP [FLASHY] - GOLD HIT",
+    "bank": "Flashy",
+    "pad": 6,
+    "palette": [
+      "gold",
+      "amber"
+    ],
+    "texture": "beat",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 634,
+    "name": "AUTOLOOP [FLASHY] - 4-BEAT BUILD",
+    "bank": "Flashy",
+    "pad": 7,
+    "palette": [
+      "blue",
+      "cyan",
+      "white"
+    ],
+    "texture": "build_hit",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 635,
+    "name": "AUTOLOOP [FLASHY] - DROP CHASE",
+    "bank": "Flashy",
+    "pad": 8,
+    "palette": [
+      "purple",
+      "pink",
+      "white"
+    ],
+    "texture": "drop",
+    "motion": "hold",
+    "optics": "prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 636,
+    "name": "AUTOLOOP [FLASHY] - RED FIXTURE HITS",
+    "bank": "Flashy",
+    "pad": 9,
+    "palette": [
+      "red",
+      "ruby"
+    ],
+    "texture": "roll_hit",
+    "motion": "hold",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 637,
+    "name": "AUTOLOOP [FLASHY] - BLUE FIXTURE HITS",
+    "bank": "Flashy",
+    "pad": 10,
+    "palette": [
+      "blue",
+      "cyan"
+    ],
+    "texture": "roll_reverse_hit",
+    "motion": "hold",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 638,
+    "name": "AUTOLOOP [FLASHY] - RAINBOW FIXTURE HITS",
+    "bank": "Flashy",
+    "pad": 11,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "magenta"
+    ],
+    "texture": "roll_hit",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 639,
+    "name": "AUTOLOOP [FLASHY] - CENTER WHITE PUNCH",
+    "bank": "Flashy",
+    "pad": 12,
+    "palette": [
+      "white",
+      "cyan"
+    ],
+    "texture": "outward_hit",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 640,
+    "name": "AUTOLOOP [FLASHY] - OUTER WHITE PUNCH",
+    "bank": "Flashy",
+    "pad": 13,
+    "palette": [
+      "white",
+      "blue"
+    ],
+    "texture": "inward_hit",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 641,
+    "name": "AUTOLOOP [FLASHY] - ODD / EVEN WHITE",
+    "bank": "Flashy",
+    "pad": 14,
+    "palette": [
+      "white",
+      "midnight"
+    ],
+    "texture": "checker_hit",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 642,
+    "name": "AUTOLOOP [FLASHY] - LEFT / RIGHT WHITE",
+    "bank": "Flashy",
+    "pad": 15,
+    "palette": [
+      "white",
+      "midnight"
+    ],
+    "texture": "halves_hit",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 643,
+    "name": "AUTOLOOP [FLASHY] - RED WHITE BLUE",
+    "bank": "Flashy",
+    "pad": 16,
+    "palette": [
+      "red",
+      "white",
+      "blue"
+    ],
+    "texture": "alternate",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 644,
+    "name": "AUTOLOOP [FLASHY] - TEAL MAGENTA PUNCH",
+    "bank": "Flashy",
+    "pad": 17,
+    "palette": [
+      "teal",
+      "magenta"
+    ],
+    "texture": "pop",
+    "motion": "hold",
+    "optics": "g1",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 645,
+    "name": "AUTOLOOP [FLASHY] - PURPLE GOLD PUNCH",
+    "bank": "Flashy",
+    "pad": 18,
+    "palette": [
+      "purple",
+      "gold"
+    ],
+    "texture": "syncopated",
+    "motion": "hold",
+    "optics": "g2prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 646,
+    "name": "AUTOLOOP [FLASHY] - RGB QUICK CUT",
+    "bank": "Flashy",
+    "pad": 19,
+    "palette": [
+      "red",
+      "green",
+      "blue"
+    ],
+    "texture": "cut",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 647,
+    "name": "AUTOLOOP [FLASHY] - CMY QUICK CUT",
+    "bank": "Flashy",
+    "pad": 20,
+    "palette": [
+      "cyan",
+      "magenta",
+      "gold"
+    ],
+    "texture": "cut",
+    "motion": "hold",
+    "optics": "g3",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 648,
+    "name": "AUTOLOOP [FLASHY] - TUBE RAINBOW SPARKLE",
+    "bank": "Flashy",
+    "pad": 21,
+    "palette": [
+      "red",
+      "gold",
+      "cyan",
+      "pink"
+    ],
+    "texture": "sparkle",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 649,
+    "name": "AUTOLOOP [FLASHY] - TUBE DOUBLE BOUNCE",
+    "bank": "Flashy",
+    "pad": 22,
+    "palette": [
+      "cyan",
+      "pink"
+    ],
+    "texture": "bounce_hit",
+    "motion": "hold",
+    "optics": "g2",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 650,
+    "name": "AUTOLOOP [FLASHY] - COMET DROP",
+    "bank": "Flashy",
+    "pad": 23,
+    "palette": [
+      "gold",
+      "pink"
+    ],
+    "texture": "comet_hit",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 651,
+    "name": "AUTOLOOP [FLASHY] - REVERSE COMET DROP",
+    "bank": "Flashy",
+    "pad": 24,
+    "palette": [
+      "gold",
+      "pink"
+    ],
+    "texture": "comet_reverse_hit",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 652,
+    "name": "AUTOLOOP [FLASHY] - EIGHTH-NOTE RAINBOW",
+    "bank": "Flashy",
+    "pad": 25,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "pink"
+    ],
+    "texture": "eighth",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 653,
+    "name": "AUTOLOOP [FLASHY] - HALF-BEAT RAINBOW",
+    "bank": "Flashy",
+    "pad": 26,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "pink"
+    ],
+    "texture": "half",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 654,
+    "name": "AUTOLOOP [FLASHY] - 2-BEAT COLOR SLAM",
+    "bank": "Flashy",
+    "pad": 27,
+    "palette": [
+      "pink",
+      "cyan",
+      "gold"
+    ],
+    "texture": "slam",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 655,
+    "name": "AUTOLOOP [FLASHY] - WHITE COLOR WHITE",
+    "bank": "Flashy",
+    "pad": 28,
+    "palette": [
+      "white",
+      "pink",
+      "white",
+      "blue"
+    ],
+    "texture": "alternate",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 656,
+    "name": "AUTOLOOP [FLASHY] - FIXTURE BUILD + HIT",
+    "bank": "Flashy",
+    "pad": 29,
+    "palette": [
+      "blue",
+      "pink",
+      "white"
+    ],
+    "texture": "build_hit",
+    "motion": "hold",
+    "optics": "g1prism",
+    "steps": 16,
+    "step_beats": 0.5,
+    "phrase_measures": 2.0
+  },
+  {
+    "id": 657,
+    "name": "AUTOLOOP [FLASHY] - CENTER-OUT DROP",
+    "bank": "Flashy",
+    "pad": 30,
+    "palette": [
+      "gold",
+      "cyan"
+    ],
+    "texture": "outward_drop",
+    "motion": "hold",
+    "optics": "g2prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 658,
+    "name": "AUTOLOOP [FLASHY] - OUTSIDE-IN DROP",
+    "bank": "Flashy",
+    "pad": 31,
+    "palette": [
+      "pink",
+      "blue"
+    ],
+    "texture": "inward_drop",
+    "motion": "hold",
+    "optics": "g2prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 659,
+    "name": "AUTOLOOP [FLASHY] - GRAND FINALE",
+    "bank": "Flashy",
+    "pad": 32,
+    "palette": [
+      "white",
+      "gold",
+      "cyan",
+      "magenta"
+    ],
+    "texture": "finale",
+    "motion": "hold",
+    "optics": "g3prism",
+    "steps": 16,
+    "step_beats": 0.25,
+    "phrase_measures": 1.0
+  },
+  {
+    "id": 5,
+    "name": "STATIC - DEEP RED",
+    "bank": "Priority Looks",
+    "pad": 1,
+    "palette": [
+      "ruby",
+      "red"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 6,
+    "name": "STATIC - RED",
+    "bank": "Priority Looks",
+    "pad": 2,
+    "palette": [
+      "red",
+      "amber"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 7,
+    "name": "STATIC - ROSE",
+    "bank": "Priority Looks",
+    "pad": 3,
+    "palette": [
+      "rose",
+      "blush"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 8,
+    "name": "STATIC - CORAL",
+    "bank": "Priority Looks",
+    "pad": 4,
+    "palette": [
+      "coral",
+      "champagne"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 9,
+    "name": "STATIC - AMBER",
+    "bank": "Priority Looks",
+    "pad": 5,
+    "palette": [
+      "amber",
+      "warm"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 10,
+    "name": "STATIC - GOLD",
+    "bank": "Priority Looks",
+    "pad": 6,
+    "palette": [
+      "gold",
+      "champagne"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 11,
+    "name": "STATIC - ORANGE",
+    "bank": "Priority Looks",
+    "pad": 7,
+    "palette": [
+      "orange",
+      "amber"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 12,
+    "name": "STATIC - SUNSET",
+    "bank": "Priority Looks",
+    "pad": 8,
+    "palette": [
+      "coral",
+      "amber",
+      "rose"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 13,
+    "name": "STATIC - BLUSH",
+    "bank": "Priority Looks",
+    "pad": 9,
+    "palette": [
+      "blush",
+      "champagne"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 14,
+    "name": "STATIC - PINK",
+    "bank": "Priority Looks",
+    "pad": 10,
+    "palette": [
+      "pink",
+      "blush"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 15,
+    "name": "STATIC - HOT PINK",
+    "bank": "Priority Looks",
+    "pad": 11,
+    "palette": [
+      "hotpink",
+      "magenta"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 16,
+    "name": "STATIC - MAGENTA",
+    "bank": "Priority Looks",
+    "pad": 12,
+    "palette": [
+      "magenta",
+      "violet"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 17,
+    "name": "STATIC - LAVENDER",
+    "bank": "Priority Looks",
+    "pad": 13,
+    "palette": [
+      "lavender",
+      "ice"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 18,
+    "name": "STATIC - VIOLET",
+    "bank": "Priority Looks",
+    "pad": 14,
+    "palette": [
+      "violet",
+      "lavender"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 19,
+    "name": "STATIC - PURPLE",
+    "bank": "Priority Looks",
+    "pad": 15,
+    "palette": [
+      "purple",
+      "rose"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 20,
+    "name": "STATIC - UV PURPLE",
+    "bank": "Priority Looks",
+    "pad": 16,
+    "palette": [
+      "uv",
+      "purple"
+    ],
+    "texture": "tide",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 21,
+    "name": "STATIC - ICE BLUE",
+    "bank": "Priority Looks",
+    "pad": 17,
+    "palette": [
+      "ice",
+      "sky"
+    ],
+    "texture": "tide",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 22,
+    "name": "STATIC - SKY BLUE",
+    "bank": "Priority Looks",
+    "pad": 18,
+    "palette": [
+      "sky",
+      "ice"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 23,
+    "name": "STATIC - ROYAL BLUE",
+    "bank": "Priority Looks",
+    "pad": 19,
+    "palette": [
+      "blue",
+      "sky"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 24,
+    "name": "STATIC - DEEP BLUE",
+    "bank": "Priority Looks",
+    "pad": 20,
+    "palette": [
+      "midnight",
+      "blue"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 25,
+    "name": "STATIC - CYAN",
+    "bank": "Priority Looks",
+    "pad": 21,
+    "palette": [
+      "cyan",
+      "ice"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 26,
+    "name": "STATIC - TEAL",
+    "bank": "Priority Looks",
+    "pad": 22,
+    "palette": [
+      "teal",
+      "cyan"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 27,
+    "name": "STATIC - GREEN",
+    "bank": "Priority Looks",
+    "pad": 23,
+    "palette": [
+      "green",
+      "lime"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 28,
+    "name": "STATIC - LIME",
+    "bank": "Priority Looks",
+    "pad": 24,
+    "palette": [
+      "lime",
+      "gold"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 29,
+    "name": "STATIC - CANDLELIGHT",
+    "bank": "Priority Looks",
+    "pad": 25,
+    "palette": [
+      "amber",
+      "champagne"
+    ],
+    "texture": "embers",
+    "motion": "hold",
+    "optics": "g1soft",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 30,
+    "name": "STATIC - ANTIQUE",
+    "bank": "Priority Looks",
+    "pad": 26,
+    "palette": [
+      "warm",
+      "amber"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "g2soft",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 31,
+    "name": "STATIC - WARM",
+    "bank": "Priority Looks",
+    "pad": 27,
+    "palette": [
+      "warm",
+      "ivory"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "open",
+    "steps": 1,
+    "step_beats": 0.0,
+    "phrase_measures": null
+  },
+  {
+    "id": 32,
+    "name": "STATIC - CHAMPAGNE",
+    "bank": "Priority Looks",
+    "pad": 28,
+    "palette": [
+      "champagne",
+      "ivory"
+    ],
+    "texture": "breathe",
+    "motion": "hold",
+    "optics": "g1soft",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 33,
+    "name": "STATIC - FIRE + ICE",
+    "bank": "Priority Looks",
+    "pad": 29,
+    "palette": [
+      "amber",
+      "ice"
+    ],
+    "texture": "halves",
+    "motion": "drift",
+    "optics": "open",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 34,
+    "name": "STATIC - TROPICAL",
+    "bank": "Priority Looks",
+    "pad": 30,
+    "palette": [
+      "teal",
+      "coral",
+      "gold"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "g2",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 35,
+    "name": "STATIC - ELECTRIC 80s",
+    "bank": "Priority Looks",
+    "pad": 31,
+    "palette": [
+      "magenta",
+      "cyan"
+    ],
+    "texture": "pairs",
+    "motion": "drift",
+    "optics": "g3",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  },
+  {
+    "id": 36,
+    "name": "STATIC - FULL SPECTRUM",
+    "bank": "Priority Looks",
+    "pad": 32,
+    "palette": [
+      "red",
+      "gold",
+      "green",
+      "cyan",
+      "blue",
+      "pink"
+    ],
+    "texture": "morph",
+    "motion": "drift",
+    "optics": "g1",
+    "steps": 8,
+    "step_beats": 4.0,
+    "phrase_measures": 8.0
+  }
+]

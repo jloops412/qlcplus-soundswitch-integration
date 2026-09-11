@@ -21,7 +21,18 @@ intensity routing that QLC+ cannot express cleanly. V30 retains the focused,
 build-matched QLC+ OS2L correction; the stock core executable remains
 unchanged.
 
-## Current status: V31 unpublished reliability candidate
+## Current status: V32 unpublished creative candidate
+
+See `V32_CREATIVE_PASS.md`, `V32_VALIDATION_EVIDENCE.json` and
+`v32-review/V32_CREATIVE_CATALOG.md`. V32 contains all 128 redesigned 16-step
+Autoloops, all 32 redesigned Priority Looks and an internal native effects
+layer for MOVE and STROBE. The exact V31 checkpoint is preserved. Existing
+physical patch, owner/seek/hold/feedback controls and 849 widgets are retained;
+hidden speed tables follow the new common musical timing. All six native
+software targets and V32 preservation checks pass. Windows/physical/gig
+qualification and the owner's third-pass publication request remain pending.
+
+## Protected V31 reliability checkpoint
 
 The active first-pass result is described in `V31_RELIABILITY_PASS.md`; the
 complete reconciled history and outstanding gates are in
@@ -52,7 +63,7 @@ exact selected-loop start during sequential or randomized autoplay, reliable
 Priority Look ownership/feedback, and independent Shift-held color overrides
 across the physical and private fixture layers.
 
-The V30 workspace validator covers all 128 raw Autoloops, all 320 possible
+The V30 workspace validator covers all 128 raw Autoloops, all 512 possible
 Bank/All sequential/randomized selected starts, all 22 physical/private fixture
 instances, all latch/hold override routes, and the unchanged private Priority
 patch. The matched plug-in adds focused seek and Priority state tests. These are
