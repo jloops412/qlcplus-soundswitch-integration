@@ -1,0 +1,50 @@
+{
+  "packageVersion": "V32-testing",
+  "preparedUtc": "2026-09-12",
+  "sourceCommit": "1f37441f2971af4057a68b7c5a8a7518516ef545",
+  "dllBuildRepositoryCommit": "d4a781c6a51018c4ce25b6c1f5a8aae554e0fbc7",
+  "dllBuildWorkflowRun": "34565636164",
+  "sourceEquivalence": "Reviewed diff between CI merge commit and source head is empty for plugin, workspace, tools and workflow; recorded by packaging coordinator.",
+  "requiredQlcSourceCommit": "a124abebe0b5ad6077727c561a5a0e1f3730810c",
+  "requiredQlcUi": "5.3.0 GIT a124abe",
+  "requiredQt": "6.8.1",
+  "requiredCompiler": "MinGW 13.1.0",
+  "requiredArchitecture": "Windows x64",
+  "requiredQlcExeSha256": "16dfc419bf878ac4802d88684253d12602dbaaab94579e88fd55519a1fb09533",
+  "workspaceSha256": "16c676c531aa9aefa354eb2052e0f643be3c27d9e5fa71953deebf99257478c0",
+  "soundswitchSha256": "44e13e17245682043695ef7386655cd648ea976fd4b50d6e211ff79fc9c1c43e",
+  "os2lSha256": "ef611b26fac5d090711af242ef7da880dbf1e1d59d5f22d36b5fb1918bdf6513",
+  "os2lOrigin": "Protected V27 package; unchanged V26 OS2L binary",
+  "structuralValidator": "Test-V32Workspace.py --self-test passed 2026-09-12 UTC; byte-identical duplicate builds, 8 corruption cases rejected",
+  "structure": {
+    "physicalFixtures": 11,
+    "priorityFixtures": 11,
+    "effectFixtures": 3,
+    "functions": 3297,
+    "widgets": 849,
+    "autoloops": 128,
+    "priorityLooks": 32
+  },
+  "softwareEvidence": "See soundswitch-build-evidence.json; protocol, intensity, seek, priority, MIDI fake-WinMM, effects and hardware-free plugin load checks passed in Windows CI.",
+  "matchedWindowsBinaryBuilt": true,
+  "pinnedWindowsHostLoaded": false,
+  "physicalRigObserved": false,
+  "gigQualified": false,
+  "v33Included": false,
+  "workspaceUnmodifiedFromSource": true,
+  "knownLimitations": [
+    "Native StopAll may leave Flash overrides emitting; STOP is not blackout.",
+    "WHITE/BLACK/UV hold release may cancel shared latched Flash state.",
+    "Wash/tube color override can replace underlying intensity/pixel variation.",
+    "Focus discrete optics/color channels lack ExcludeFade between looks.",
+    "Serialized U2 DMX2 route must be removed or moved to U1 in operator working copy.",
+    "Pinned host, physical aims/output, handoffs, reconnect and combined load need operator tests.",
+    "Full SoundSwitch parity, scripted show playback and OLED are not provided."
+  ],
+  "fixtureSha256": {
+    "American-DJ-Focus-Spot-Two.qxf": "308d6499d9fe3fc12e0889c17f562f423c38b4e23103bf58a7f597ee9ddc11c0",
+    "Both-Lighting-BO-TUBE192.qxf": "3bb257593e202e4465998760da2f1f5ee7867cec23023c16d3817e07473e72f5",
+    "Both-Lighting-IR-4-(BOIR4).qxf": "082552a1d28ea9777dd8f3601ab654a34d4d61886aafbc76e60ff2931cee4cff",
+    "Chauvet-Wash-FX-Hex.qxf": "aa0ef16d61a003a85b341a354c47d7d93e2cbab9ec9eeda45f23488ccdfed182"
+  }
+}

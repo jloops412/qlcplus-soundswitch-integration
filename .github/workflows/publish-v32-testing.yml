@@ -1,0 +1,159 @@
+name: Publish V32 Windows testing package
+
+on:
+  push:
+    branches: [fix/v32-testing-package-20260911]
+    paths:
+      - '.github/workflows/publish-v32-testing.yml'
+      - 'QLCPlus_V32_Windows_Testing_Package.zip'
+      - 'QLCPlus_V32_Windows_Testing_Package_SHA256SUMS.txt'
+      - 'releases/qlcplus-control-one/v32-testing/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-v32-testing-package
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.repository == 'jloops412/qlcplus-soundswitch-integration' && github.ref == 'refs/heads/fix/v32-testing-package-20260911'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify complete payload and ZIP checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path, PurePosixPath
+          import re
+          import zipfile
+
+          package = Path('releases/qlcplus-control-one/v32-testing')
+          archive = Path('QLCPlus_V32_Windows_Testing_Package.zip')
+          companion = Path('QLCPlus_V32_Windows_Testing_Package_SHA256SUMS.txt')
+          archive_root = 'QLCPlus_V32_Windows_Testing_Package/'
+
+          def read_manifest(path):
+              records = {}
+              for line in path.read_text(encoding='utf-8-sig').splitlines():
+                  if not line.strip():
+                      continue
+                  match = re.fullmatch(r'([0-9a-fA-F]{64}) [ *](.+)', line)
+                  if not match:
+                      raise SystemExit(f'Malformed checksum record in {path}')
+                  expected, name = match.groups()
+                  relative = PurePosixPath(name)
+                  if (relative.is_absolute() or '..' in relative.parts
+                          or '\\' in name or ':' in name or name != str(relative)
+                          or name in records):
+                      raise SystemExit(f'Unsafe or duplicate checksum path: {name}')
+                  records[name] = expected.lower()
+              if not records:
+                  raise SystemExit(f'Empty checksum manifest: {path}')
+              return records
+
+          outer = read_manifest(companion)
+          if set(outer) != {archive.name}:
+              raise SystemExit('Companion must checksum exactly the published ZIP')
+          if hashlib.sha256(archive.read_bytes()).hexdigest() != outer[archive.name]:
+              raise SystemExit('Published ZIP checksum mismatch')
+
+          expected = read_manifest(package / 'SHA256SUMS.txt')
+          actual = {}
+          for path in package.rglob('*'):
+              if path.is_symlink():
+                  raise SystemExit(f'Unexpected package symlink: {path}')
+              if path.is_file():
+                  actual[path.relative_to(package).as_posix()] = path.read_bytes()
+          if set(expected) != set(actual) - {'SHA256SUMS.txt'}:
+              raise SystemExit('Payload checksum coverage is incomplete or contains extra paths')
+          for name, digest in expected.items():
+              if hashlib.sha256(actual[name]).hexdigest() != digest:
+                  raise SystemExit(f'Payload checksum mismatch: {name}')
+
+          with zipfile.ZipFile(archive) as bundle:
+              names = bundle.namelist()
+              if len(names) != len(set(names)):
+                  raise SystemExit('Duplicate ZIP entries')
+              zipped = {}
+              for info in bundle.infolist():
+                  if not info.filename.startswith(archive_root):
+                      raise SystemExit('ZIP contains an unexpected root entry')
+                  relative_name = info.filename[len(archive_root):]
+                  relative = PurePosixPath(relative_name)
+                  if (relative.is_absolute() or '..' in relative.parts
+                          or '\\' in relative_name or ':' in relative_name):
+                      raise SystemExit('Unsafe ZIP path')
+                  if info.is_dir():
+                      continue
+                  if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                      raise SystemExit('Unexpected ZIP symlink')
+                  zipped[relative_name] = bundle.read(info)
+              if zipped != actual:
+                  raise SystemExit('ZIP is not byte-identical to the versioned payload')
+          workspace = 'IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V32-CREATIVE.qxw'
+          if actual.get(workspace) != (Path('qlcplus/workspace-tools') / workspace).read_bytes():
+              raise SystemExit('Packaged workspace differs from validated V32 source')
+          print(f'ZIP and all {len(expected)} payload checksums verified.')
+          PY
+      - name: Protect V31 baseline
+        run: python3 qlcplus/workspace-tools/Test-V31Workspace.py --self-test
+      - name: Validate V32 source, deterministic build, and corruption rejection
+        run: python3 qlcplus/workspace-tools/Test-V32Workspace.py --self-test
+
+  release:
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Publish immutable testing prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=v32-testing.1
+          archive=QLCPlus_V32_Windows_Testing_Package.zip
+          checksum=QLCPlus_V32_Windows_Testing_Package_SHA256SUMS.txt
+          existing_id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select(.tag_name == "v32-testing.1") | .id')
+          if [ -n "$existing_id" ]; then
+            evidence_dir=$(mktemp -d)
+            trap 'rm -rf "$evidence_dir"' EXIT
+            gh api "repos/$GITHUB_REPOSITORY/releases/$existing_id" > "$evidence_dir/release.json"
+            python3 - "$evidence_dir/release.json" "$archive" "$checksum" <<'PY'
+          import json
+          import sys
+          release = json.load(open(sys.argv[1], encoding='utf-8'))
+          if not release['prerelease'] or release['draft']:
+              raise SystemExit('Existing tag is not a published testing prerelease; refusing modification')
+          if sorted(asset['name'] for asset in release['assets']) != sorted(sys.argv[2:]):
+              raise SystemExit('Existing release has different or incomplete assets; refusing overwrite')
+          PY
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$evidence_dir" --pattern "$archive" --pattern "$checksum"
+            cmp "$archive" "$evidence_dir/$archive" || { echo 'Existing ZIP differs; create a new version instead of overwriting.' >&2; exit 1; }
+            cmp "$checksum" "$evidence_dir/$checksum" || { echo 'Existing checksum differs; create a new version instead of overwriting.' >&2; exit 1; }
+            echo 'Existing prerelease assets are byte-identical; left unchanged.'
+          else
+            existing_ref=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$tag" --jq '.[] | select(.ref == "refs/tags/v32-testing.1") | .ref')
+            if [ -n "$existing_ref" ]; then
+              echo 'Release tag already exists without a published release; refusing to attach assets to an unverified tag.' >&2
+              exit 1
+            fi
+            gh release create "$tag" "$archive" "$checksum" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title 'V32 Windows testing package' \
+              --notes-file docs/qlcplus-control-one/V32_TESTING_PACKAGE_RELEASE.md \
+              --prerelease --latest=false
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'

@@ -1,0 +1,22 @@
+{
+  "qlcplusSourceCommit": "a124abebe0b5ad6077727c561a5a0e1f3730810c",
+  "qtVersion": "6.8.1",
+  "qtRoot": "D:\\a\\qlcplus-soundswitch-integration\\Qt\\6.8.1\\mingw_64",
+  "compilerVersion": "g++.exe (x86_64-posix-seh-rev1, Built by MinGW-Builds project) 13.1.0",
+  "cmakeVersion": "cmake version 3.31.6",
+  "ninjaVersion": "1.13.2",
+  "runnerImage": "win22",
+  "runnerImageVersion": "20260907.297.1",
+  "architecture": "windows-x64-mingw",
+  "workflowRun": "34565636164",
+  "repositoryCommit": "d4a781c6a51018c4ce25b6c1f5a8aae554e0fbc7",
+  "soundswitchSha256": "44e13e17245682043695ef7386655cd648ea976fd4b50d6e211ff79fc9c1c43e",
+  "protocolTests": "passed",
+  "intensityTests": "passed",
+  "autoplaySeekTests": "passed",
+  "priorityStateTests": "passed",
+  "midiTranslationTests": "passed-with-fake-winmm",
+  "nativeEffectMaskTests": "passed",
+  "pluginLoadSmoke": "passed-without-hardware",
+  "pinnedQlcHostAbiTested": false
+}

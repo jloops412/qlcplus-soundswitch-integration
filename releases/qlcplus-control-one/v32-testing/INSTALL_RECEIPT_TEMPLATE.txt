@@ -1,0 +1,22 @@
+V32 TEST INSTALLATION AND OBSERVATION RECORD
+Copy this template outside the package before filling it in.
+Date/time:
+QLC+ version shown:
+QLC+ application folder (original):
+QLC+ application folder (test copy):
+Previous show path:
+Test show working-copy path:
+DLL backup folder:
+Prior fixture/profile files and backup paths (write NEW if none existed):
+  Both-Lighting-IR-4-(BOIR4).qxf:
+  American-DJ-Focus-Spot-Two.qxf:
+  Both-Lighting-BO-TUBE192.qxf:
+  Chauvet-Wash-FX-Hex.qxf:
+  SoundSwitch-Control-One-Performance.qxi:
+Exact hardware/output port tested:
+Fixture, mode and address tested:
+Blackout method physically verified:
+Host loaded without errors:
+FIRST_TEST results and any failed steps:
+Combined rehearsal duration and observations:
+Rollback tested:
