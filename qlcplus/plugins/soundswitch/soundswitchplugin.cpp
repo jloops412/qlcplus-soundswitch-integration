@@ -29,13 +29,6 @@
 
 namespace
 {
-// QLC stores DMX channels as zero-based indexes. The current performance rig
-// has four IR-4 master channels at addresses 1/11/21/31 and four consecutive
-// 40-channel BO-TUBE192 fixtures at addresses 175/215/255/295.
-constexpr std::array<int, 4> kIr4MasterChannels{{0, 10, 20, 30}};
-constexpr int kTubeFirstChannel = 174;
-constexpr int kTubeChannelCount = 4 * 40;
-constexpr int kTubeEndChannel = kTubeFirstChannel + kTubeChannelCount;
 constexpr quint32 kPriorityLookChannelBase = 600;
 constexpr quint32 kPriorityLookChannelCount = 32;
 }
@@ -107,6 +100,7 @@ bool SoundSwitchPlugin::bindingAt(quint32 output,
     binding = m_bindings.at(static_cast<qsizetype>(output));
     return binding.kind == OutputBinding::SurfaceFeedback ||
            binding.kind == OutputBinding::PriorityLayer ||
+           binding.kind == OutputBinding::EffectLayer ||
            binding.device != nullptr;
 }
 
@@ -116,7 +110,7 @@ bool SoundSwitchPlugin::openOutput(quint32 output, quint32 universe)
     if (!bindingAt(output, binding))
         return false;
 
-    if (binding.kind == OutputBinding::PriorityLayer)
+    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer)
     {
         // This virtual output is a private full-frame buffer. It never opens
         // a USB port; the normal DMX bindings select this frame only while a
@@ -151,9 +145,25 @@ void SoundSwitchPlugin::closeOutput(quint32 output, quint32 universe)
     {
         if (binding.kind == OutputBinding::PriorityLayer)
         {
-            // The same virtual line can be patched as the overlay DMX output
-            // and as its feedback control path. Keep its buffered state until
-            // the workspace is replaced or the plug-in is unloaded.
+            QMutexLocker lock(&m_mutex);
+            // Older workspaces may also patch this line for control feedback.
+            // Only closing the universe that supplied DMX invalidates the
+            // overlay. Removing that private output must reveal the base show,
+            // never leave the last private frame frozen on physical fixtures.
+            if (universe == m_priorityFrameUniverse)
+            {
+                m_priorityState.clearFrame();
+                m_priorityFrameUniverse = QLCIOPlugin::invalidLine();
+            }
+        }
+        else if (binding.kind == OutputBinding::EffectLayer)
+        {
+            QMutexLocker lock(&m_mutex);
+            if (universe == m_effectFrameUniverse)
+            {
+                m_effects.clearFrame();
+                m_effectFrameUniverse = QLCIOPlugin::invalidLine();
+            }
         }
         else if (binding.kind == OutputBinding::SurfaceFeedback)
         {
@@ -208,6 +218,10 @@ QString SoundSwitchPlugin::outputInfo(quint32 output)
             "layer. Patch a private QLC+ universe here; no additional "
             "hardware or program is required.</P></BODY></HTML>")
             .arg(binding.name.toHtmlEscaped());
+    if (binding.kind == OutputBinding::EffectLayer)
+        return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Internal native MOVE and STROBE "
+                              "parameter layer. Never route to physical DMX.</P></BODY></HTML>")
+            .arg(binding.name.toHtmlEscaped());
     if (binding.kind == OutputBinding::SurfaceFeedback)
         return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Control One MIDI "
                               "LED feedback output.</P></BODY></HTML>")
@@ -230,7 +244,16 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
     if (binding.kind == OutputBinding::PriorityLayer)
     {
         QMutexLocker lock(&m_mutex);
-        m_priorityLayerFrame = data;
+        m_priorityFrameUniverse = universe;
+        m_priorityState.setFrame(data);
+        return;
+    }
+
+    if (binding.kind == OutputBinding::EffectLayer)
+    {
+        QMutexLocker lock(&m_mutex);
+        m_effectFrameUniverse = universe;
+        m_effects.setFrame(data);
         return;
     }
 
@@ -245,38 +268,21 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
         // private Priority Looks universe replaces the complete physical
         // frame only while its Toggle button is active. Releasing it reveals
         // the base universe at its current step, with no restart or handoff.
-        if (universe == 0 && !m_activePriorityLooks.isEmpty() &&
-            !m_priorityLayerFrame.isEmpty())
-        {
-            outputData = m_priorityLayerFrame;
-        }
+        if (universe == 0)
+            outputData = m_priorityState.compose(data);
 
-        // Scale only the IR-4 master channels. BO-TUBE192's 40-channel mode is
-        // eight RGBWY emitter zones with no independent master, so Group 3
-        // scales all 160 channels across the four tubes. Groups 2 and 4 remain
-        // remembered expansion targets and intentionally modify no DMX yet.
+        // The full-rig intensity map is deliberately emitter-only. It scales
+        // IR-4 masters (Group 1), all six direct RGBAWUV Wash FX Hex zones
+        // (Group 2), all BO-TUBE192 emitter bytes (Group 3), and the main/UV
+        // dimmers of both Focus Spot Two fixtures (Group 4). Movement, optics,
+        // shutters, strobes and program controls remain byte-for-byte intact.
         if (universe == 0)
         {
-            const int global = m_intensityLevels[0];
-            const int irGroup = m_intensityLevels[1];
-            const int tubeGroup = m_intensityLevels[3];
-            const int irScale = (global * irGroup + 127) / 255;
-            const int tubeScale = (global * tubeGroup + 127) / 255;
-
-            for (int channel : kIr4MasterChannels)
-            {
-                if (channel >= outputData.size())
-                    continue;
-                const int source = static_cast<uchar>(outputData.at(channel));
-                outputData[channel] = static_cast<char>((source * irScale + 127) / 255);
-            }
-            for (int channel = kTubeFirstChannel;
-                 channel < kTubeEndChannel && channel < outputData.size();
-                 ++channel)
-            {
-                const int source = static_cast<uchar>(outputData.at(channel));
-                outputData[channel] = static_cast<char>((source * tubeScale + 127) / 255);
-            }
+            outputData = m_effects.compose(outputData);
+            SoundSwitchIntensity::scaleFrame(
+                reinterpret_cast<std::uint8_t *>(outputData.data()),
+                static_cast<std::size_t>(outputData.size()),
+                m_intensityLevels);
         }
 
     }
@@ -309,19 +315,42 @@ void SoundSwitchPlugin::sendFeedBack(quint32 universe, quint32 output,
         (binding.kind == OutputBinding::SurfaceFeedback ||
          binding.kind == OutputBinding::PriorityLayer))
     {
-        QMutexLocker lock(&m_mutex);
-        if (value != 0)
-            m_activePriorityLooks.insert(logicalChannel);
-        else
-            m_activePriorityLooks.remove(logicalChannel);
+        {
+            QMutexLocker lock(&m_mutex);
+            m_priorityState.updateLook(logicalChannel, value);
+        }
+
+        // Priority ownership and Control One LED feedback share the single
+        // QLC+ feedback destination. Do not return before updating the pad LED
+        // or the active Priority Look appears to stop immediately.
+        if (binding.kind == OutputBinding::SurfaceFeedback &&
+            m_midiInput != nullptr)
+        {
+            m_midiInput->applyFeedback(channel, value);
+        }
         return;
     }
 
-    if (binding.kind == OutputBinding::PriorityLayer)
+    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer)
         return;
 
     if (binding.kind == OutputBinding::SurfaceFeedback && m_midiInput != nullptr)
+    {
+        int changedIntensityTarget = -1;
+        {
+            QMutexLocker lock(&m_mutex);
+            const int previousTarget = m_intensityTarget;
+            if (SoundSwitchIntensity::applySurfaceFeedback(
+                    channel, value, m_intensityTarget, m_intensityLevels) &&
+                m_intensityTarget != previousTarget)
+            {
+                changedIntensityTarget = m_intensityTarget;
+            }
+        }
+        if (changedIntensityTarget >= 0)
+            m_midiInput->setIntensityTarget(changedIntensityTarget);
         m_midiInput->applyFeedback(channel, value);
+    }
 }
 
 bool SoundSwitchPlugin::openInput(quint32 input, quint32 universe)
@@ -516,6 +545,18 @@ void SoundSwitchPlugin::rebuildBindingsLocked()
         binding.kind = OutputBinding::PriorityLayer;
         binding.name = QStringLiteral("SoundSwitch Hardware — Priority Looks Layer");
         binding.uid = QStringLiteral("soundswitch:priority-layer");
+        m_bindings.append(binding);
+    }
+
+    const bool hasEffectBinding = std::any_of(
+        m_bindings.cbegin(), m_bindings.cend(),
+        [](const OutputBinding &binding) { return binding.kind == OutputBinding::EffectLayer; });
+    if (!hasEffectBinding)
+    {
+        OutputBinding binding;
+        binding.kind = OutputBinding::EffectLayer;
+        binding.name = QStringLiteral("SoundSwitch Hardware - Native Effect Layer");
+        binding.uid = QStringLiteral("soundswitch:effect-layer");
         m_bindings.append(binding);
     }
 

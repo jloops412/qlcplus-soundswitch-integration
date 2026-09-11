@@ -1,0 +1,105 @@
+Start testing: Sep 10 22:01 CST
+----------------------------------------------------------
+1/6 Testing: protocol
+1/6 Test: protocol
+Command: "build-v32-tests/soundswitch_protocol_tests"
+Directory: build-v32-tests
+"protocol" start time: Sep 10 22:01 CST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"protocol" end time: Sep 10 22:01 CST
+"protocol" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/6 Testing: intensity
+2/6 Test: intensity
+Command: "build-v32-tests/soundswitch_intensity_tests"
+Directory: build-v32-tests
+"intensity" start time: Sep 10 22:01 CST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"intensity" end time: Sep 10 22:01 CST
+"intensity" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/6 Testing: performance
+3/6 Test: performance
+Command: "build-v32-tests/soundswitch_performance_tests"
+Directory: build-v32-tests
+"performance" start time: Sep 10 22:01 CST
+Output:
+----------------------------------------------------------
+PASS: exact sequential/randomized seek and repeat nudge
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"performance" end time: Sep 10 22:01 CST
+"performance" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/6 Testing: priority
+4/6 Test: priority
+Command: "build-v32-tests/soundswitch_priority_tests"
+Directory: build-v32-tests
+"priority" start time: Sep 10 22:01 CST
+Output:
+----------------------------------------------------------
+PASS: priority ownership, stale-frame guard, base restore
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"priority" end time: Sep 10 22:01 CST
+"priority" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/6 Testing: midi
+5/6 Test: midi
+Command: "build-v32-tests/soundswitch_midi_tests"
+Directory: build-v32-tests
+"midi" start time: Sep 10 22:01 CST
+Output:
+----------------------------------------------------------
+PASS: note pairs and Shift release order
+PASS: disconnect momentary cleanup
+PASS: autoplay ownership and scope
+PASS: exact seek memory and mouse pads
+PASS: color/position latches follow QLC state
+PASS: hardware scope changes and reconnect
+PASS: Priority LED restoration
+PASS: native raw-loop LED feedback
+PASS: momentary release page routing
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"midi" end time: Sep 10 22:01 CST
+"midi" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/6 Testing: effects
+6/6 Test: effects
+Command: "build-v32-tests/soundswitch_effects_tests"
+Directory: build-v32-tests
+"effects" start time: Sep 10 22:01 CST
+Output:
+----------------------------------------------------------
+PASS: MOVE/STROBE ownership, intensity masks, native GM, Priority, snapshot and release
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"effects" end time: Sep 10 22:01 CST
+"effects" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 10 22:01 CST

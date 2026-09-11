@@ -19,23 +19,35 @@ QLC+ owns show-time operation; the custom components are loaded as native QLC+ p
 
 V26 also carries a focused build-matched QLC+ `os2l.dll` correction. It keeps VirtualDJ connected directly to QLC+, but derives beats from OS2L's reported BPM instead of bursty packet-arrival timing. The stock QLC+ executable remains untouched.
 
-## Current rig encoded in V26
+## Current physical rig (unchanged in V32)
 
 - Four Both Lighting IR-4 fixtures, 10-channel mode, DMX addresses 1, 11, 21, and 31.
+- One Chauvet Wash FX Hex, 40-channel mode, DMX address 41.
+- Two American DJ Focus Spot Two fixtures, 18-channel mode, DMX addresses 81 and 99.
 - Four Both Lighting BO-TUBE192 fixtures, 40-channel mode, DMX addresses 175, 215, 255, and 295.
 - A private duplicate fixture layer on QLC+ Universe 3 provides full-frame Priority Looks.
 - Universe 1 can feed Micro and/or Control One DMX 1; Universe 2 is reserved for Control One DMX 2 and carries the Control One MIDI/feedback patch.
 
 The BO-TUBE192 40-channel mode is eight RGBWY zones and has no master dimmer. The current plug-in therefore scales its 160 emitter channels for Group 3 intensity. That is useful for this rig but is the largest remaining show-specific coupling in reusable plug-in code.
 
+## Current development candidate
+
+Read `V32_CREATIVE_PASS.md`, its validation evidence and `v32-review/` catalog.
+V31 is the protected reliability source; V32 is the complete creative pass
+with native MOVE/STROBE. V32 adds private U4 effect fixtures without changing
+the physical rig or U3 patch. The owner authorized publication on 2026-09-11
+through PR #112 and issue #113; see `V32_GITHUB_PUBLICATION.md`. Pinned-host,
+physical and gig qualification remain pending.
+
 ## Documentation
 
+- `V30_PERFORMANCE_RECOVERY.md` — preserved V30 corrective source, exact behavior contracts, mappings, regression proof, and qualification boundary.
 - `CONTROL_ONE_WORKFLOW_SPEC.md` — performer-facing behavior.
 - `STATE_MODEL_AND_ARCHITECTURE.md` — ownership model and hard-won implementation findings.
 - `MAPPING_REFERENCE.md` — stable QLC+ logical channels and Control One roles.
 - `COMMUNITY_MIGRATION_GUIDE.md` — simple installation and SoundSwitch-switching guide for another DJ.
 - `V20_RELEASE_NOTES.md` — the protected creative rollback baseline.
-- `releases/qlcplus-control-one/v26/README.md` — current Autoplay Clarity package, first-test check, self-test, and rollback.
+- `releases/qlcplus-control-one/v26/README.md` — protected Autoplay Clarity package, first-test check, self-test, and rollback.
 - `qlcplus/patches/README.md` — focused OS2L source delta and rebuild boundary.
 - `releases/qlcplus-control-one/v24/README.md` — prior Runtime Feedback rollback package.
 - `releases/qlcplus-control-one/v23/README.md` — Live Console rollback package.

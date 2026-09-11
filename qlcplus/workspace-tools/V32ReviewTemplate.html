@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V32 Creative Review</title>
+<style>
+:root{color-scheme:dark;font:16px/1.45 system-ui,sans-serif;background:#101217;color:#eaf0fa}*{box-sizing:border-box}body{margin:0;padding:28px;max-width:1300px;margin-inline:auto}h1{font-size:30px;font-weight:600;margin:0}p{color:#bfcadc;max-width:85ch;overflow-wrap:anywhere}header{margin-bottom:24px}.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:end;margin-bottom:24px}label{display:flex;flex-direction:column;gap:6px;font-size:14px}select,button,input{font:inherit;color:inherit;background:#202633;border:1px solid #566174;border-radius:6px;padding:10px}button{cursor:pointer}button:hover{background:#303c51}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #9ebcff;outline-offset:3px}input[type=range]{width:180px;padding:10px 0}.selectlook{flex:1;min-width:240px}select{max-width:100%;width:100%}.comparison{display:grid;grid-template-columns:1fr 1fr;gap:20px}.stage{background:#080a0f;border:1px solid #343c4b;border-radius:10px;padding:18px;min-width:0}.stage h2{font-size:18px;font-weight:500;margin:0 0 8px}.sub{color:#aeb9cc;font-size:13px;min-height:38px}canvas{width:100%;height:auto;display:block}.scoreline{display:flex;gap:3px;margin-top:12px}.scoreline button{border:0;border-radius:2px;padding:0;height:26px;flex:1;min-width:0}.scoreline button.active{outline:2px solid #f0f5ff;outline-offset:2px}.facts{display:flex;gap:16px;flex-wrap:wrap;padding:18px 0;color:#cad6eb}.tag{border-left:2px solid #7391c8;padding-left:12px}.foot{font-size:13px;color:#aeb9cc;margin-top:22px}#look-name{font-size:20px;margin:10px 0 20px}.stepscrub{width:100%;margin:20px 0}.stepscrub input{width:100%}@media(max-width:760px){body{padding:16px}.comparison{grid-template-columns:1fr}h1{font-size:26px}.controls{gap:12px}}
+</style></head><body>
+<header><h1>V32 creative review</h1><p>Explore all 128 autoloops and 32 Priority Looks. Compare the inherited V31 score with the new fixture roles, colours and musical phrases.</p></header>
+<div class="controls">
+<label>Bank<select id="bank"><option>Medium</option><option>Colorful</option><option>Slow Dance</option><option>Flashy</option><option>Priority Looks</option></select></label>
+<label class="selectlook">Look<select id="look"></select></label>
+<label>Tempo <span id="bpm-label">120 BPM</span><input id="bpm" type="range" min="60" max="180" value="120" step="1"></label>
+<label>Autoloop speed<select id="speed"><option value=".25">0.25x</option><option value=".5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label>
+<button id="play" type="button" aria-pressed="false">Play phrase</button>
+</div>
+<div id="look-name" aria-live="polite"></div>
+<div class="comparison">
+<section class="stage"><h2>V31 · inherited score</h2><div class="sub" id="before-info"></div><canvas id="before" width="560" height="370" aria-label="V31 schematic fixture colours"></canvas><div class="scoreline" id="before-line"></div></section>
+<section class="stage"><h2>V32 · redesigned score</h2><div class="sub" id="after-info"></div><canvas id="after" width="560" height="370" aria-label="V32 schematic fixture colours"></canvas><div class="scoreline" id="after-line"></div></section>
+</div>
+<label class="stepscrub">V32 phrase position<input id="scrub" type="range" min="0" max="15" value="0" step=".05"></label>
+<div id="facts" class="facts"></div>
+<p class="foot">Schematic DMX colour preview. Fixture placement, brightness, colour mixing and beam aim require the physical bench; this is not a calibrated 3D visualizer. Focus wheel rotation in the inherited score is shown as neutral grey. MOVE/STROBE overrides are covered by separate software tests. Playback starts only when selected.</p>
+<p class="foot" id="identity"></p>
+<script>
+const DATA=/*SCORE_DATA*/{};
+const $=id=>document.getElementById(id);
+let id=532,playing=false,seconds=0,last=0;
+const bank=$('bank'),look=$('look'),bpm=$('bpm'),speed=$('speed'),scrub=$('scrub');
+function selectBank(){look.replaceChildren();for(const r of DATA.catalog.filter(x=>x.bank===bank.value)){let o=document.createElement('option');o.value=r.id;o.textContent=String(r.pad).padStart(2,'0')+' · '+r.name.replace(/^AUTOLOOP \[[^\]]+\] - /,'').replace(/^STATIC - /,'');look.append(o)}selectLook()}
+function caption(info){return info.frames.length===1?'Still look':`${info.frames.length} steps · ${info.duration} beats per step · ${+(info.frames.length*info.duration/4).toFixed(2)} measures at 1x`}
+function selectLook(){id=+look.value;seconds=0;const row=DATA.catalog.find(x=>x.id===id);$('look-name').textContent=row.name;speed.disabled=id<532;scrub.max=DATA.after[id].frames.length-1;scrub.value=0;$('facts').replaceChildren();for(const text of ['Palette: '+row.palette.join(' + '),'Texture: '+row.texture.replaceAll('_',' '),'Movement: '+row.motion,'Optics: '+row.optics]){const s=document.createElement('span');s.className='tag';s.textContent=text;$('facts').append(s)}for(const side of ['before','after']){$(side+'-info').textContent=caption(DATA[side][id]);const line=$(side+'-line');line.replaceChildren();DATA[side][id].frames.forEach((f,i)=>{const b=document.createElement('button');b.type='button';b.setAttribute('aria-label',`${side==='after'?'V32':'V31'} step ${i+1}`);b.style.background=css(f.ir[1]);b.onclick=()=>{pause();seconds=i*DATA[side][id].duration/(+bpm.value/60)/(id>=532?+speed.value:1);draw()};line.append(b)})}draw()}
+function css(c){return `rgb(${c.map(v=>Math.round(v)).join(',')})`}
+function blob(ctx,x,y,r,c){ctx.fillStyle=css(c);ctx.shadowBlur=15;ctx.shadowColor=css(c);ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle='#485062';ctx.lineWidth=1;ctx.stroke()}
+function label(ctx,text,x,y){ctx.fillStyle='#c4cee0';ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText(text,x,y)}
+function drawFrame(side,f){const c=$(side),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);label(ctx,'IR-4 · room colour',280,20);f.ir.forEach((color,i)=>{blob(ctx,90+i*125,49,20,color);label(ctx,String(i+1),90+i*125,83)});label(ctx,'BO-TUBE192 · pixel rhythm',280,115);f.tubes.forEach((pixels,i)=>{pixels.forEach((color,p)=>{ctx.fillStyle=css(color);ctx.fillRect(76+i*125,128+(7-p)*12,28,9)});label(ctx,String(i+1),90+i*125,242)});label(ctx,'Wash FX Hex · six zones',165,274);f.wash.forEach((color,i)=>blob(ctx,75+(i%3)*80,296+Math.floor(i/3)*28,10,color));label(ctx,'Focus A / B · beam colour',426,274);f.focus.forEach((color,i)=>{blob(ctx,380+i*88,303,16,color);label(ctx,'P '+f.positions[i][0],380+i*88,338);label(ctx,'T '+f.positions[i][1],380+i*88,358)})}
+function blend(a,b,v){if(Array.isArray(a))return a.map((x,i)=>blend(x,b[i],v));if(typeof a==='number')return a*(1-v)+b*v;const out={};for(const k of Object.keys(a))out[k]=blend(a[k],b[k],v);return out}
+function draw(){const beats=seconds*(+bpm.value/60)*(id>=532?+speed.value:1);for(const side of ['before','after']){const r=DATA[side][id],n=r.frames.length;const pos=n===1?0:(beats/r.duration)%n;const index=Math.floor(pos),frac=r.fade>0?Math.min(1,(pos-index)*r.duration/r.fade):1;const f=blend(r.frames[(index+n-1)%n],r.frames[index],frac);f.positions=f.positions.map(p=>p.map(Math.round));drawFrame(side,f);Array.from($(side+'-line').children).forEach((b,i)=>b.classList.toggle('active',i===index));if(side==='after')scrub.value=pos}}
+function pause(){playing=false;$('play').textContent='Play phrase';$('play').setAttribute('aria-pressed','false')}
+$('play').onclick=()=>{if(playing)pause();else{playing=true;last=performance.now();$('play').textContent='Pause';$('play').setAttribute('aria-pressed','true')}};
+function tick(now){if(playing){seconds+=Math.min(.1,(now-last)/1000);draw()}last=now;requestAnimationFrame(tick)}
+bank.onchange=selectBank;look.onchange=selectLook;bpm.oninput=()=>{$('bpm-label').textContent=bpm.value+' BPM';draw()};speed.onchange=draw;scrub.oninput=()=>{pause();seconds=+scrub.value*DATA.after[id].duration/(+bpm.value/60)/(id>=532?+speed.value:1);draw()};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});$('identity').textContent='V32 workspace SHA-256: '+DATA.sha256;selectBank();requestAnimationFrame(tick);
+</script></body></html>

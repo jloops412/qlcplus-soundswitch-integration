@@ -1,4 +1,4 @@
-name: QLC+ V26 validation
+name: QLC+ V26 and V27 validation
 
 on:
   pull_request:
@@ -10,15 +10,21 @@ permissions:
   contents: read
 
 concurrency:
-  group: qlcplus-v26-${{ github.workflow }}-${{ github.ref }}
+  group: qlcplus-workspaces-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  V26_WORKSPACE: releases/qlcplus-control-one/v26/IR4-TUBES-CONTROL-ONE-V26-AUTOPLAY-CLARITY.qxw
+  V26_SHA256: ed97e3ebaea120bc6ff5ff9747485da54e1808479f64a02ab4bc044744fab570
+  V27_GENERATED_WORKSPACE: qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw
+  V27_PACKAGED_WORKSPACE: releases/qlcplus-control-one/v27/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V27-FULL-RIG.qxw
 
 jobs:
   repository-hygiene:
     name: Repository scope and contributor files
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Require active project files
         shell: bash
@@ -67,9 +73,9 @@ jobs:
 
   package-validation:
     name: V26 package and source manifest
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Validate V26 package
         shell: pwsh
@@ -99,3 +105,69 @@ jobs:
               throw "Source checksum mismatch: $($Matches[2])"
             }
           }
+
+  v27-workspace-validation:
+    name: V27 deterministic full-rig workspace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify immutable V26 release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$V26_WORKSPACE"
+          actual="$(sha256sum "$V26_WORKSPACE" | awk '{print $1}')"
+          if [[ "$actual" != "$V26_SHA256" ]]; then
+            echo "V26 workspace SHA-256 mismatch: expected $V26_SHA256, found $actual"
+            exit 1
+          fi
+
+      - name: Prove the forced V27 build is deterministic
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 qlcplus/workspace-tools/Build-V27FullRig.py --force
+          cp "$V27_GENERATED_WORKSPACE" "$RUNNER_TEMP/v27-first-build.qxw"
+          python3 qlcplus/workspace-tools/Build-V27FullRig.py --force
+          if ! cmp -s "$RUNNER_TEMP/v27-first-build.qxw" "$V27_GENERATED_WORKSPACE"; then
+            echo "Two forced V27 builds produced different workspaces."
+            sha256sum "$RUNNER_TEMP/v27-first-build.qxw" "$V27_GENERATED_WORKSPACE"
+            exit 1
+          fi
+
+      - name: Validate the generated V27 workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 qlcplus/workspace-tools/Test-V27Workspace.py \
+            --source-workspace "$V26_WORKSPACE" \
+            --candidate-workspace "$V27_GENERATED_WORKSPACE" \
+            --focus-definition qlcplus/fixture-definitions/American-DJ-Focus-Spot-Two.qxf
+
+      - name: Compare generated and packaged V27 workspaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$V27_PACKAGED_WORKSPACE" ]]; then
+            if ! cmp -s "$V27_GENERATED_WORKSPACE" "$V27_PACKAGED_WORKSPACE"; then
+              echo "Packaged V27 workspace does not match the reproducible build."
+              sha256sum "$V27_GENERATED_WORKSPACE" "$V27_PACKAGED_WORKSPACE"
+              exit 1
+            fi
+            sha256sum "$V27_PACKAGED_WORKSPACE"
+          else
+            echo "Packaged V27 workspace is not present; comparison skipped."
+          fi
+
+  v27-package-validation:
+    name: V27 Windows release package
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate V27 package
+        shell: pwsh
+        run: releases/qlcplus-control-one/v27/Test-V27Package.ps1

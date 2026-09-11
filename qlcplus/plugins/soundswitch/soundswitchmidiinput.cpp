@@ -6,10 +6,12 @@
 */
 
 #include "soundswitchmidiinput.h"
+#include "soundswitchperformance.h"
 
 #include <QMetaObject>
 #include <QMutexLocker>
 #include <QString>
+#include <utility>
 
 namespace
 {
@@ -37,6 +39,10 @@ constexpr quint32 kUiPlayPauseChannel = 809;
 constexpr quint32 kUiOrderChannel = 810;
 constexpr quint32 kUiModeChannel = 811;
 constexpr quint32 kUiSpeedChannelBase = 812;
+constexpr quint32 kUiColorChannelBase = 850;
+constexpr quint32 kUiPositionChannelBase = 860;
+constexpr quint32 kUiPadChannelBase = 900;
+constexpr quint32 kRawLoopFeedbackBase = 1100;
 constexpr int kAutoplayMeasureCount = 5;
 constexpr int kSpeedPresetCount = 5;
 
@@ -52,16 +58,6 @@ quint32 autoplayVariantChannel(int bank, bool allBanks, bool randomized)
             + (randomized ? 1U : 0U);
 }
 
-uchar autoplaySeekValue(int bank, int pad, bool allBanks)
-{
-    // QLC+ Cue List step mode runs from 255 (first step) down to 0. Both
-    // supported parent sizes divide the 256-value MIDI range exactly.
-    const int stepsCount = allBanks ? 128 : 32;
-    const int stepIndex = allBanks
-        ? qBound(0, bank, 3) * 32 + qBound(0, pad, 31)
-        : qBound(0, pad, 31);
-    return static_cast<uchar>(255 - stepIndex * (256 / stepsCount));
-}
 
 bool isLatchedShiftSpecial(quint8 note)
 {
@@ -176,6 +172,7 @@ bool SoundSwitchMidiInput::ensureConnected()
             // clearing the performer's bank/mode/latch state.
             staleHandle = m_handle;
             m_handle = nullptr;
+            releaseTransientNotesLocked();
         }
     }
 
@@ -273,6 +270,9 @@ void SoundSwitchMidiInput::resetControllerStateLocked()
     m_staticMode = false;
     m_selectedBank = 0;
     m_autoplayBank = -1;
+    m_autoplayVariant = -1;
+    m_autoplaySeekBank = -1;
+    m_autoplaySeekPad = -1;
     m_autoplayActive = false;
     m_autoplayAll = false;
     m_autoplayMeasureIndex = 3;
@@ -284,11 +284,34 @@ void SoundSwitchMidiInput::resetControllerStateLocked()
     m_transportPaused = false;
     m_latchedStaticNote = -1;
     m_latchedOverrideNote = -1;
+    m_latchedPositionNote = -1;
+    m_activeRawLoop = -1;
     m_intensityTarget = 0;
     m_pressedNotes.clear();
     m_shiftedPressedNotes.clear();
     m_latchedShiftNotes.clear();
     m_controllerValues.clear();
+}
+
+void SoundSwitchMidiInput::releaseTransientNotesLocked()
+{
+    // A cable pull cannot deliver Note Off. Release only the momentary
+    // gestures that actually went to QLC+, leaving show latches untouched.
+    // Use the modifier remembered at Note On, even if Shift was released first.
+    for (quint8 note : std::as_const(m_pressedNotes))
+    {
+        const bool shifted = m_shiftedPressedNotes.contains(note);
+        if (shifted && (isLatchedShiftSpecial(note) || note <= 8))
+            continue;
+        if (!shifted && (note <= 44 || note == 51 || note == 55 || note == 60))
+            continue;
+        postValue((shifted ? kShiftedNoteBase : 0U) + note, 0);
+    }
+    if (m_shiftHeld)
+        postValue(kShiftNote, 0);
+    m_shiftHeld = false;
+    m_pressedNotes.clear();
+    m_shiftedPressedNotes.clear();
 }
 
 void SoundSwitchMidiInput::close()
@@ -298,6 +321,7 @@ void SoundSwitchMidiInput::close()
         QMutexLocker lock(&m_mutex);
         handle = m_handle;
         m_handle = nullptr;
+        releaseTransientNotesLocked();
         resetControllerStateLocked();
     }
     releaseHandle(handle);
@@ -316,9 +340,6 @@ void SoundSwitchMidiInput::closeFeedback()
 
 bool SoundSwitchMidiInput::sendFeedback(quint32 channel, uchar value)
 {
-    if (!ensureFeedbackConnected())
-        return false;
-
     const quint32 logicalChannel = channel & 0xffffU;
     quint8 status = 0;
     quint8 data1 = 0;
@@ -346,6 +367,9 @@ bool SoundSwitchMidiInput::sendFeedback(quint32 channel, uchar value)
         // Synthetic QLC state/config channels have no direct physical LED.
         return false;
     }
+
+    if (!ensureFeedbackConnected())
+        return false;
 
     HMIDIOUT handle = nullptr;
     {
@@ -446,9 +470,7 @@ void SoundSwitchMidiInput::handleInputDisconnected(HMIDIIN handle)
     // Physical down/up pairs cannot be completed after a cable pull. Clear
     // only transient gesture state; keep every logical show selection so the
     // normal two-second rescan can restore it on the replacement handle.
-    m_shiftHeld = false;
-    m_pressedNotes.clear();
-    m_shiftedPressedNotes.clear();
+    releaseTransientNotesLocked();
 }
 
 void SoundSwitchMidiInput::handleOutputDisconnected(HMIDIOUT handle)
@@ -460,6 +482,18 @@ void SoundSwitchMidiInput::handleOutputDisconnected(HMIDIOUT handle)
 
 void SoundSwitchMidiInput::postValue(quint32 channel, uchar value)
 {
+    // These monitor bindings carry QLC Function state back to the controller.
+    // They must never become an input path capable of starting a raw Chaser.
+    if ((channel & 0xffffU) >= kRawLoopFeedbackBase &&
+        (channel & 0xffffU) < kRawLoopFeedbackBase + 128U)
+        return;
+    // A performer can leave Live while a Flash is held. QLC routes input to
+    // the selected top-level page, so return to Live before the known release
+    // (including disconnect cleanup) reaches its owner. Persistent color,
+    // position, and shifted White/Black/UV latches are deliberately excluded.
+    if (value == 0 && ((channel >= 45U && channel <= 47U) ||
+                       (channel >= 164U && channel <= 172U)))
+        postPulse(kPerformancePageChannel);
     QMetaObject::invokeMethod(
         this,
         [this, channel, value]() { emit valueChanged(channel, value); },
@@ -484,6 +518,7 @@ void SoundSwitchMidiInput::postPlaybackState(quint32 channel)
 void SoundSwitchMidiInput::restoreLogicalState()
 {
     int bank = 0;
+    int autoplayBank = -1;
     int measureIndex = 0;
     int speedIndex = 0;
     bool staticMode = false;
@@ -495,6 +530,7 @@ void SoundSwitchMidiInput::restoreLogicalState()
     {
         QMutexLocker lock(&m_mutex);
         bank = m_selectedBank;
+        autoplayBank = m_autoplayBank;
         measureIndex = m_autoplayMeasureIndex;
         speedIndex = m_speedIndex;
         staticMode = m_staticMode;
@@ -520,7 +556,7 @@ void SoundSwitchMidiInput::restoreLogicalState()
 
     if (running && autoplayActive)
         postPulse(autoplayAll ? kAutoAllChannel
-                             : kAutoBankChannelBase + static_cast<quint32>(bank));
+                             : kAutoBankChannelBase + static_cast<quint32>(autoplayBank));
     else if (running)
         postPulse(kManualLoopChannel);
 
@@ -530,26 +566,20 @@ void SoundSwitchMidiInput::restoreLogicalState()
 void SoundSwitchMidiInput::restoreHardwareFeedback()
 {
     int bank = 0;
-    int manualPad = -1;
-    int staticPad = -1;
     int overrideNote = -1;
     int intensityTarget = 0;
     bool staticMode = false;
     bool randomized = false;
     bool running = false;
-    bool autoplayActive = false;
     QSet<quint8> shiftedLatches;
     {
         QMutexLocker lock(&m_mutex);
         bank = m_selectedBank;
-        manualPad = m_manualPad;
-        staticPad = m_latchedStaticNote;
         overrideNote = m_latchedOverrideNote;
         intensityTarget = m_intensityTarget;
         staticMode = m_staticMode;
         randomized = m_autoplayRandom;
         running = m_playbackRunning;
-        autoplayActive = m_autoplayActive;
         shiftedLatches = m_latchedShiftNotes;
     }
 
@@ -569,15 +599,23 @@ void SoundSwitchMidiInput::restoreHardwareFeedback()
         sendFeedback(static_cast<quint32>(note),
                      shiftedLatches.contains(static_cast<quint8>(note)) ? 255 : 0);
 
-    // During Autoplay, QLC+'s active child Function remains the authoritative
-    // pad indicator. Manual and Priority Look owners are fully known here and
-    // can be restored deterministically after a USB reconnect.
-    if (!autoplayActive)
+    restorePadFeedback();
+}
+
+void SoundSwitchMidiInput::restorePadFeedback()
+{
+    int activePad = -1;
     {
-        const int activePad = staticMode ? staticPad : (running ? manualPad : -1);
-        for (int note = 0; note <= 31; ++note)
-            sendFeedback(static_cast<quint32>(note), note == activePad ? 255 : 0);
+        QMutexLocker lock(&m_mutex);
+        if (m_staticMode)
+            activePad = m_latchedStaticNote;
+        else if (m_activeRawLoop >= 0)
+            activePad = m_activeRawLoop % 32;
+        else if (!m_autoplayActive && m_playbackRunning)
+            activePad = m_manualPad;
     }
+    for (int note = 0; note <= 31; ++note)
+        sendFeedback(static_cast<quint32>(note), note == activePad ? 255 : 0);
 }
 
 void SoundSwitchMidiInput::setIntensityTarget(int target)
@@ -610,11 +648,14 @@ void SoundSwitchMidiInput::togglePerformanceMode()
         postPulse(32U + static_cast<quint32>(bank));
 
     sendFeedback(60U, chooseStatic ? 0 : 255);
+    restoreHardwareFeedback();
 }
 
 void SoundSwitchMidiInput::toggleOrder()
 {
     int bank = 0;
+    int pad = -1;
+    int seekBank = -1;
     bool randomized = false;
     bool active = false;
     bool allBanks = false;
@@ -622,16 +663,29 @@ void SoundSwitchMidiInput::toggleOrder()
     {
         QMutexLocker lock(&m_mutex);
         m_autoplayRandom = !m_autoplayRandom;
-        bank = m_selectedBank;
+        bank = m_autoplayActive ? m_autoplayBank : m_selectedBank;
+        pad = m_autoplaySeekPad;
+        seekBank = m_autoplaySeekBank;
         randomized = m_autoplayRandom;
-        active = m_autoplayActive;
+        active = m_autoplayActive && m_playbackRunning;
         allBanks = m_autoplayAll;
         restoreStatic = m_staticMode;
     }
 
     postPulse(kOrderStateBase + (randomized ? 1U : 0U));
     if (active)
+    {
         dispatchAutoplay(bank, allBanks, randomized, restoreStatic);
+        if (pad >= 0 && seekBank >= 0)
+        {
+            const uchar seekValue = SoundSwitchPerformance::autoplaySeekValue(
+                seekBank, pad, allBanks, randomized);
+            postValue(kAutoplaySeekChannel,
+                      SoundSwitchPerformance::autoplaySeekNudgeValue(
+                          seekValue, allBanks));
+            postValue(kAutoplaySeekChannel, seekValue);
+        }
+    }
 
     sendFeedback(55U, randomized ? 255 : 0);
 }
@@ -640,6 +694,7 @@ void SoundSwitchMidiInput::togglePlayback()
 {
     int bank = -1;
     int pad = -1;
+    int seekBank = -1;
     bool autoplay = false;
     bool allBanks = false;
     bool randomized = false;
@@ -652,7 +707,8 @@ void SoundSwitchMidiInput::togglePlayback()
         randomized = m_autoplayRandom;
         restoreStatic = m_staticMode;
         bank = autoplay ? m_autoplayBank : m_manualBank;
-        pad = m_manualPad;
+        pad = autoplay ? m_autoplaySeekPad : m_manualPad;
+        seekBank = m_autoplaySeekBank;
         if (bank < 0 || (!autoplay && pad < 0))
         {
             m_playbackRunning = false;
@@ -669,7 +725,19 @@ void SoundSwitchMidiInput::togglePlayback()
     if (bank >= 0 && (autoplay || pad >= 0))
     {
         if (autoplay)
+        {
             dispatchAutoplay(bank, allBanks, randomized, restoreStatic);
+            if (startPlayback && pad >= 0 && seekBank >= 0)
+            {
+                const uchar seekValue =
+                    SoundSwitchPerformance::autoplaySeekValue(
+                        seekBank, pad, allBanks, randomized);
+                postValue(kAutoplaySeekChannel,
+                          SoundSwitchPerformance::autoplaySeekNudgeValue(
+                              seekValue, allBanks));
+                postValue(kAutoplaySeekChannel, seekValue);
+            }
+        }
         else
             dispatchManual(bank, pad, restoreStatic);
     }
@@ -693,11 +761,49 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
     bool postUiCommand = false;
     quint32 uiCommandChannel = 0;
     int feedbackBank = -1;
+    int uiPad = -1;
+    int uiColor = -1;
+    int uiPosition = -1;
+    bool sendPhysicalFeedback = true;
+    bool refreshPadFeedback = false;
     UiAction uiAction = UiAction::None;
 
     {
         QMutexLocker lock(&m_mutex);
-        if (logicalChannel >= kUiBankChannelBase &&
+        if (logicalChannel >= kRawLoopFeedbackBase &&
+            logicalChannel < kRawLoopFeedbackBase + 128U)
+        {
+            // Native disabled monitors observe the actual raw Chasers. This
+            // is feedback only: never dispatch a pad or infer a playback owner.
+            const int loop = static_cast<int>(logicalChannel - kRawLoopFeedbackBase);
+            if (value != 0 && m_activeRawLoop != loop)
+            {
+                m_activeRawLoop = loop;
+                refreshPadFeedback = !m_staticMode;
+            }
+            else if (value == 0 && m_activeRawLoop == loop)
+            {
+                m_activeRawLoop = -1;
+                refreshPadFeedback = !m_staticMode;
+            }
+            sendPhysicalFeedback = false;
+        }
+        else if (logicalChannel >= kUiPadChannelBase &&
+            logicalChannel < kUiPadChannelBase + 128U && value != 0)
+        {
+            uiPad = static_cast<int>(logicalChannel - kUiPadChannelBase);
+        }
+        else if (logicalChannel >= kUiColorChannelBase &&
+                 logicalChannel < kUiColorChannelBase + 9U && value != 0)
+        {
+            uiColor = static_cast<int>(logicalChannel - kUiColorChannelBase) + 36;
+        }
+        else if (logicalChannel >= kUiPositionChannelBase &&
+                 logicalChannel < kUiPositionChannelBase + 9U && value != 0)
+        {
+            uiPosition = static_cast<int>(logicalChannel - kUiPositionChannelBase);
+        }
+        else if (logicalChannel >= kUiBankChannelBase &&
             logicalChannel < kUiBankChannelBase + 4U && value != 0)
         {
             // Empty UI command Scenes start and stop immediately. Only their
@@ -769,11 +875,18 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
             const int target = variant / 2;
             if (value != 0)
             {
+                const bool sameScope = m_autoplayActive &&
+                    (m_autoplayAll ? target == 4 : target == m_autoplayBank);
+                if (!sameScope)
+                {
+                    m_autoplaySeekBank = -1;
+                    m_autoplaySeekPad = -1;
+                }
                 m_autoplayRandom = (variant % 2) != 0;
+                m_autoplayVariant = variant;
                 m_autoplayActive = true;
                 m_autoplayAll = target == 4;
-                if (!m_autoplayAll)
-                    m_autoplayBank = target;
+                m_autoplayBank = m_autoplayAll ? m_selectedBank : target;
                 m_playbackRunning = true;
                 m_transportPaused = false;
                 stateChannel = m_autoplayAll
@@ -781,13 +894,34 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
                     : kAutoBankChannelBase + static_cast<quint32>(m_autoplayBank);
                 postState = true;
             }
-            else if (m_autoplayActive &&
-                     (m_autoplayAll ? target == 4 : target == m_autoplayBank))
+            else if (m_autoplayActive && variant == m_autoplayVariant)
             {
                 m_playbackRunning = false;
-                stateChannel = kPlaybackStoppedChannel;
+                stateChannel = m_transportPaused ? 501U : kPlaybackStoppedChannel;
                 postState = true;
             }
+        }
+        else if (logicalChannel >= 36U && logicalChannel <= 44U)
+        {
+            if (value != 0)
+                m_latchedOverrideNote = static_cast<int>(logicalChannel);
+            else if (m_latchedOverrideNote == static_cast<int>(logicalChannel))
+                m_latchedOverrideNote = -1;
+        }
+        else if (logicalChannel >= 173U && logicalChannel <= 175U)
+        {
+            const quint8 note = static_cast<quint8>(logicalChannel - kShiftedNoteBase);
+            if (value != 0)
+                m_latchedShiftNotes.insert(note);
+            else
+                m_latchedShiftNotes.remove(note);
+        }
+        else if (logicalChannel >= 128U && logicalChannel <= 136U)
+        {
+            if (value != 0)
+                m_latchedPositionNote = static_cast<int>(logicalChannel);
+            else if (m_latchedPositionNote == static_cast<int>(logicalChannel))
+                m_latchedPositionNote = -1;
         }
         else if (logicalChannel >= kPriorityLookChannelBase &&
                  logicalChannel < kPriorityLookChannelBase +
@@ -799,8 +933,9 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
                 m_latchedStaticNote = note;
             else if (m_latchedStaticNote == note)
                 m_latchedStaticNote = -1;
+            sendPhysicalFeedback = m_staticMode;
         }
-        else if (logicalChannel <= 31U && !m_staticMode)
+        else if (logicalChannel <= 31U)
         {
             if (value != 0)
             {
@@ -821,11 +956,18 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
                 stateChannel = kPlaybackStoppedChannel;
                 postState = true;
             }
+            sendPhysicalFeedback = !m_staticMode && inputPage == m_selectedBank;
         }
     }
 
     if (postUiCommand)
         postPulse(uiCommandChannel);
+    if (uiPad >= 0)
+        selectAutoloopPad(uiPad / 32, uiPad % 32);
+    if (uiColor >= 0)
+        toggleColorOverride(static_cast<quint8>(uiColor));
+    if (uiPosition >= 0)
+        togglePositionOverride(uiPosition);
     if (feedbackBank >= 0)
     {
         for (int note = 32; note <= 35; ++note)
@@ -840,7 +982,10 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
         togglePerformanceMode();
     if (postState)
         postPlaybackState(stateChannel);
-    sendFeedback(channel, value);
+    if (refreshPadFeedback)
+        restorePadFeedback();
+    if (sendPhysicalFeedback)
+        sendFeedback(channel, value);
 }
 
 void SoundSwitchMidiInput::dispatchAutoplay(int bank, bool allBanks,
@@ -877,6 +1022,92 @@ void SoundSwitchMidiInput::dispatchManual(int bank, int pad,
     postPulse(static_cast<quint32>(qBound(0, pad, 31)));
     if (restoreStaticMode)
         postPulse(kStaticModeChannel);
+}
+
+void SoundSwitchMidiInput::selectAutoloopPad(int bank, int pad)
+{
+    bank = qBound(0, bank, 3);
+    pad = qBound(0, pad, 31);
+    bool remainsRunning = false;
+    bool seekAutoplay = false;
+    bool allBanks = false;
+    bool randomized = false;
+    bool restoreStatic = false;
+    {
+        QMutexLocker lock(&m_mutex);
+        seekAutoplay = m_autoplayActive && m_playbackRunning;
+        allBanks = m_autoplayAll;
+        randomized = m_autoplayRandom;
+        restoreStatic = m_staticMode;
+        if (seekAutoplay)
+        {
+            if (!allBanks && m_autoplayBank >= 0)
+                bank = m_autoplayBank;
+            m_autoplaySeekBank = bank;
+            m_autoplaySeekPad = pad;
+        }
+        else
+        {
+            const bool sameRunningLoop = !m_autoplayActive &&
+                m_playbackRunning && m_manualBank == bank && m_manualPad == pad;
+            m_autoplayBank = -1;
+            m_autoplayVariant = -1;
+            m_autoplayActive = false;
+            m_autoplayAll = false;
+            m_manualBank = bank;
+            m_manualPad = pad;
+            m_playbackRunning = !sameRunningLoop;
+            m_transportPaused = false;
+        }
+        remainsRunning = m_playbackRunning;
+    }
+
+    if (seekAutoplay)
+    {
+        const uchar seekValue = SoundSwitchPerformance::autoplaySeekValue(
+            bank, pad, allBanks, randomized);
+        postValue(kAutoplaySeekChannel,
+                  SoundSwitchPerformance::autoplaySeekNudgeValue(seekValue, allBanks));
+        postValue(kAutoplaySeekChannel, seekValue);
+    }
+    else
+    {
+        // Both mouse commands and MIDI pads reach the same native owner.
+        dispatchManual(bank, pad, restoreStatic);
+        postPlaybackState(remainsRunning ? kManualLoopChannel : kPlaybackStoppedChannel);
+        postPlaybackState(remainsRunning ? 500U : kPlaybackStoppedChannel);
+    }
+}
+
+void SoundSwitchMidiInput::toggleColorOverride(quint8 note)
+{
+    int previous = -1;
+    bool activate = false;
+    {
+        QMutexLocker lock(&m_mutex);
+        previous = m_latchedOverrideNote;
+        activate = previous != note;
+        m_latchedOverrideNote = activate ? note : -1;
+    }
+    if (previous >= 0 && previous != note)
+        postValue(static_cast<quint32>(previous), 0);
+    postValue(note, activate ? UCHAR_MAX : 0);
+}
+
+void SoundSwitchMidiInput::togglePositionOverride(int index)
+{
+    const int channel = static_cast<int>(kShiftedNoteBase) + qBound(0, index, 8);
+    int previous = -1;
+    bool activate = false;
+    {
+        QMutexLocker lock(&m_mutex);
+        previous = m_latchedPositionNote;
+        activate = previous != channel;
+        m_latchedPositionNote = activate ? channel : -1;
+    }
+    if (previous >= 0 && previous != channel)
+        postValue(static_cast<quint32>(previous), 0);
+    postValue(static_cast<quint32>(channel), activate ? UCHAR_MAX : 0);
 }
 
 void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
@@ -948,6 +1179,12 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
                     QMutexLocker lock(&m_mutex);
                     bank = m_selectedBank;
                     chooseAll = m_autoplayActive ? !m_autoplayAll : false;
+                    if (!m_autoplayActive || m_autoplayAll != chooseAll ||
+                        (!chooseAll && m_autoplayBank != bank))
+                    {
+                        m_autoplaySeekBank = -1;
+                        m_autoplaySeekPad = -1;
+                    }
                     m_autoplayActive = true;
                     m_autoplayBank = bank;
                     m_autoplayAll = chooseAll;
@@ -1009,6 +1246,12 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
                     QMutexLocker lock(&m_mutex);
                     chooseAll = m_autoplayActive && m_autoplayBank == bank
                             && !m_autoplayAll;
+                    if (!m_autoplayActive || m_autoplayAll != chooseAll ||
+                        (!chooseAll && m_autoplayBank != bank))
+                    {
+                        m_autoplaySeekBank = -1;
+                        m_autoplaySeekPad = -1;
+                    }
                     m_selectedBank = bank;
                     m_autoplayActive = true;
                     m_autoplayBank = bank;
@@ -1030,6 +1273,11 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
                 return;
             togglePlayback();
         }
+        else if (shifted && data1 <= 8)
+        {
+            if (pressed)
+                togglePositionOverride(data1);
+        }
         else if (!shifted && staticMode && data1 <= 31)
         {
             // The QLC Toggle button is authoritative. A positive pulse starts
@@ -1040,78 +1288,20 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
         }
         else if (!shifted && !staticMode && data1 <= 31)
         {
-            // A pad selects a native looping owner in manual mode. During
-            // Auto Bank/All it seeks the already-running parent Chaser instead,
-            // preserving scope, order, dwell and the priority-look layer.
             if (pressed)
             {
-                bool remainsRunning = true;
-                bool seekAutoplay = false;
-                bool allBanks = false;
                 int bank = 0;
                 {
                     QMutexLocker lock(&m_mutex);
                     bank = m_selectedBank;
-                    seekAutoplay = m_autoplayActive && m_playbackRunning;
-                    allBanks = m_autoplayAll;
-                    if (seekAutoplay)
-                    {
-                        if (!allBanks && m_autoplayBank >= 0)
-                            bank = m_autoplayBank;
-                        m_manualPad = static_cast<int>(data1);
-                    }
-                    else
-                    {
-                        const bool sameRunningLoop = !m_autoplayActive &&
-                            m_playbackRunning && m_manualBank == bank &&
-                            m_manualPad == static_cast<int>(data1);
-                        m_autoplayBank = -1;
-                        m_autoplayActive = false;
-                        m_autoplayAll = false;
-                        m_manualBank = bank;
-                        m_manualPad = static_cast<int>(data1);
-                        m_playbackRunning = !sameRunningLoop;
-                        m_transportPaused = false;
-                    }
-                    remainsRunning = m_playbackRunning;
                 }
-
-                if (seekAutoplay)
-                {
-                    postValue(kAutoplaySeekChannel,
-                              autoplaySeekValue(bank, data1, allBanks));
-                }
-                else
-                {
-                    // A Toggle button only needs one positive edge. Ignoring
-                    // the physical release prevents press/release paths from
-                    // being interpreted as a momentary flash.
-                    postPulse(data1);
-                    postPlaybackState(remainsRunning ? kManualLoopChannel
-                                                      : kPlaybackStoppedChannel);
-                    postPlaybackState(remainsRunning ? 500U
-                                                      : kPlaybackStoppedChannel);
-                }
+                selectAutoloopPad(bank, data1);
             }
         }
         else if (!shifted && data1 >= 36 && data1 <= 44)
         {
-            // Color Overrides use the same press-on/press-off behavior. Keep
-            // them exclusive so two contradictory palettes cannot be active.
             if (pressed)
-            {
-                int previous = -1;
-                bool activate = false;
-                {
-                    QMutexLocker lock(&m_mutex);
-                    previous = m_latchedOverrideNote;
-                    activate = previous != data1;
-                    m_latchedOverrideNote = activate ? data1 : -1;
-                }
-                if (previous >= 0 && previous != data1)
-                    postValue(static_cast<quint32>(previous), 0);
-                postValue(data1, activate ? UCHAR_MAX : 0);
-            }
+                toggleColorOverride(data1);
         }
         else if (shifted && isLatchedShiftSpecial(data1))
         {

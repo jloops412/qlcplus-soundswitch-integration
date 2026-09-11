@@ -1,0 +1,113 @@
+{
+  "auditDate": "2026-09-11",
+  "status": "unpublished-source-and-workspace-review-candidate",
+  "repository": "jloops412/qlcplus-soundswitch-integration",
+  "workingBranch": "creative/v32-full-rig",
+  "baseV31Commit": "7808ed1aad81716eff0fe9ae3da4fc1a120d29a3",
+  "publishedV30Head": "f842153acb8edee790b8c47650c81b0285dcd33d",
+  "recoveredCheckpoint": "QLCPlus_V31_First_Pass_Checkpoint.zip",
+  "sha256": {
+    "qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V32-CREATIVE.qxw": "16c676c531aa9aefa354eb2052e0f643be3c27d9e5fa71953deebf99257478c0",
+    "qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V31-RELIABILITY.qxw": "c6e03f865cfeda3fb5c578221ade3ef6883d87c033072a41bf5f1511f7f13651",
+    "qlcplus/workspace-tools/Build-V32Creative.py": "a711a33cd109ba64270fc4361c50ddcfa6260caca82602c7671f7fa747f7975d",
+    "qlcplus/workspace-tools/Test-V32Workspace.py": "ea09b74fb1119db1dc1c6aa354bc32357b80cbec2a854816d3c71d7bc028df39",
+    "qlcplus/workspace-tools/V32CreativeProgram.py": "89d54dc0bbd5dc6b7b6a983f49604ff2d080df01f5b132fb746eb876850fed1b",
+    "qlcplus/workspace-tools/Export-V32Review.py": "673b748993802bfb1723ec65fdbc9a9c703fc5ad08993e95aaa40945d2b5f6f4",
+    "qlcplus/workspace-tools/V32ReviewTemplate.html": "da95ccfcafcc89eff23581922cd1356c03aff9b93cfa709e722add70d01c090f",
+    "qlcplus/plugins/soundswitch/SHA256SUMS.txt": "535e54ff3ca007d0c2f6547c45cdedbb92de018208c2de3039bc4d3707b2f151",
+    "qlcplus/fixture-definitions/Both-Lighting-IR-4-(BOIR4).qxf": "082552a1d28ea9777dd8f3601ab654a34d4d61886aafbc76e60ff2931cee4cff",
+    "qlcplus/fixture-definitions/American-DJ-Focus-Spot-Two.qxf": "308d6499d9fe3fc12e0889c17f562f423c38b4e23103bf58a7f597ee9ddc11c0",
+    "qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi": "1e3588f955d8661951b7176e5f04a5de9acff9600a0ec318f7414a603542d7c7",
+    "docs/qlcplus-control-one/v32-review/V32_Creative_Review.html": "e20c1e29bb08b78715c37cc800fca83f3ae7f4f94c26caac61dcbc74db1efb5b",
+    "docs/qlcplus-control-one/v32-review/V32_CREATIVE_CATALOG.json": "7545615dc97f556da6fb5129a8d9e51b3b6d37577aaba31f992ca9e5a4bac132"
+  },
+  "preservation": {
+    "physical_fixtures": 11,
+    "priority_fixtures": 11,
+    "effect_fixtures": 3,
+    "functions": 3297,
+    "widgets": 849,
+    "raw_loops": 128,
+    "raw_scene_leaves": 2048,
+    "priority_looks": 32,
+    "priority_scene_leaves": 102,
+    "protected_native_owners": 138,
+    "unchanged_source_functions": 980,
+    "speed_presets_checked": 1280,
+    "corruption_cases_rejected": 8,
+    "workspace_sha256": "16c676c531aa9aefa354eb2052e0f643be3c27d9e5fa71953deebf99257478c0",
+    "protectedReleaseGitContentChanges": 0,
+    "inputProfileGitContentChanges": 0,
+    "fixtureDefinitionGitContentChanges": 0
+  },
+  "verification": {
+    "v26PackageValidator": "passed",
+    "v26WorkspaceSha256": "ed97e3ebaea120bc6ff5ff9747485da54e1808479f64a02ab4bc044744fab570",
+    "v27PackageValidator": "passed",
+    "v27WorkspaceSha256": "a4f7559930e93485f3ea2815a0b44ca8e40acdfcc43fb3b0430e863c64b2dc4b",
+    "v31WorkspaceAndNineCorruptionChecks": "passed",
+    "v32WorkspaceAndEightCorruptionChecks": "passed",
+    "v32TwoBuildsAndCheckedInArtifact": "byte-identical",
+    "pluginSourceHashManifest": "passed",
+    "portableTargets": {
+      "protocol": "passed",
+      "intensity": "passed",
+      "performance": "passed",
+      "priority": "passed",
+      "midi": "passed",
+      "effects": "passed"
+    },
+    "portableTestLog": "v32-review/native-test-results.txt",
+    "localTestRuntime": {
+      "os": "Linux x64",
+      "qt": "6.8.1",
+      "compiler": "g++ 13.3.0",
+      "midiBoundary": "existing fake WinMM backend; actual translation source"
+    },
+    "pluginAndSmokeTranslationUnits": "syntax compilation passed against pinned QLC+ interfaces with test-only WinMM boundary",
+    "reviewJavaScriptSyntax": "passed",
+    "reviewData": "all 160 before/after scores exported from actual V31/V32 workspace XML",
+    "reviewVisualInspection": "representative actual-score contact sheet inspected; not calibrated photometry or physical movement",
+    "reviewBrowserInteraction": "not tested: local browser navigation blocked with ERR_BLOCKED_BY_CLIENT",
+    "whitespace": "passed"
+  },
+  "requiredWindowsTuple": {
+    "qlcCommit": "a124abebe0b5ad6077727c561a5a0e1f3730810c",
+    "qlcUi": "5.3.0 GIT a124abe",
+    "qt": "6.8.1",
+    "compiler": "MinGW 13.1.0",
+    "architecture": "x64"
+  },
+  "qualification": {
+    "matchedWindowsBinaryBuilt": false,
+    "pinnedWindowsHostLoaded": false,
+    "nativeConsoleRendered": false,
+    "physicalRigObserved": false,
+    "gigQualified": false,
+    "githubPublished": false,
+    "githubWritesThisPass": 0
+  },
+  "remaining": [
+    "Matched Windows build, native plug-in smoke test, pinned QLC+ host load and complete package",
+    "Physical review of all 160 scores, relative brightness, colour, optics and calibrated aims",
+    "MOVE initial takeover and seam; position latch plus MOVE plus STROBE plus colour hold combinations",
+    "Physical STOP, private route removal, native Grand Master, groups, outputs and reconnect",
+    "Existing independently scheduled Priority-universe late-frame boundary",
+    "Combined two-hour workload and gig qualification",
+    "Owner-requested third-pass GitHub publication"
+  ],
+  "commands": [
+    "python3 qlcplus/workspace-tools/Build-V32Creative.py",
+    "python3 qlcplus/workspace-tools/Export-V32Review.py",
+    "python3 qlcplus/workspace-tools/Test-V32Workspace.py --self-test --json docs/qlcplus-control-one/v32-review/workspace-validation.json",
+    "python3 qlcplus/workspace-tools/Test-V31Workspace.py --self-test",
+    "pwsh -NoProfile -File releases/qlcplus-control-one/v26/Test-V26Package.ps1",
+    "pwsh -NoProfile -File releases/qlcplus-control-one/v27/Test-V27Package.ps1",
+    "cmake -S qlcplus/plugins/soundswitch/tests -B build-v32-tests -DCMAKE_PREFIX_PATH=/path/to/Qt6.8.1 -DCMAKE_BUILD_TYPE=Release",
+    "cmake --build build-v32-tests --parallel 4",
+    "ctest --test-dir build-v32-tests --output-on-failure",
+    "g++ -std=c++17 -fPIC -DSOUNDSWITCH_MIDI_TEST_BACKEND -fsyntax-only -I/path/to/Qt6.8.1/include -I/path/to/Qt6.8.1/include/QtCore -I/path/to/pinned-qlcplus/plugins/interfaces qlcplus/plugins/soundswitch/soundswitchplugin.cpp qlcplus/plugins/soundswitch/tests/soundswitchpluginsmoketest.cpp",
+    "node --check extracted-review-script.js",
+    "git diff --check"
+  ]
+}

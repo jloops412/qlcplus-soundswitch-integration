@@ -1,0 +1,20 @@
+name: QLC+ V32 creative preservation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Protect V31 baseline
+        run: python3 qlcplus/workspace-tools/Test-V31Workspace.py --self-test
+      - name: Validate checked-in V32, deterministic builds and corruption rejection
+        run: python3 qlcplus/workspace-tools/Test-V32Workspace.py --self-test

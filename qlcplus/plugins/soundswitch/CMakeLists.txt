@@ -9,8 +9,12 @@ add_library(${module_name} SHARED)
 target_sources(${module_name} PRIVATE
     ../interfaces/qlcioplugin.cpp ../interfaces/qlcioplugin.h
     soundswitchdevice.cpp soundswitchdevice.h
+    soundswitchintensity.cpp soundswitchintensity.h
     soundswitchmidiinput.cpp soundswitchmidiinput.h
+    soundswitchperformance.cpp soundswitchperformance.h
     soundswitchplugin.cpp soundswitchplugin.h
+    soundswitchpriority.cpp soundswitchpriority.h
+    soundswitcheffects.cpp soundswitcheffects.h
     soundswitchprotocol.cpp soundswitchprotocol.h
 )
 
@@ -39,6 +43,48 @@ add_executable(soundswitch_protocol_tests EXCLUDE_FROM_ALL
 )
 target_compile_features(soundswitch_protocol_tests PRIVATE cxx_std_17)
 
+add_executable(soundswitch_intensity_tests EXCLUDE_FROM_ALL
+    soundswitchintensity.cpp soundswitchintensity.h
+    tests/soundswitchintensitytest.cpp
+)
+target_compile_features(soundswitch_intensity_tests PRIVATE cxx_std_17)
+
+
+add_executable(soundswitch_performance_tests EXCLUDE_FROM_ALL
+    soundswitchperformance.cpp soundswitchperformance.h
+    tests/soundswitchperformancetest.cpp
+)
+target_compile_features(soundswitch_performance_tests PRIVATE cxx_std_17)
+target_link_libraries(soundswitch_performance_tests PRIVATE
+    Qt${QT_MAJOR_VERSION}::Core
+)
+
+add_executable(soundswitch_priority_tests EXCLUDE_FROM_ALL
+    soundswitchpriority.cpp soundswitchpriority.h
+    tests/soundswitchprioritytest.cpp
+)
+
+add_executable(soundswitch_effects_tests EXCLUDE_FROM_ALL
+    soundswitcheffects.cpp soundswitcheffects.h
+    soundswitchintensity.cpp soundswitchintensity.h
+    tests/soundswitcheffectstest.cpp
+)
+target_compile_features(soundswitch_effects_tests PRIVATE cxx_std_17)
+target_link_libraries(soundswitch_effects_tests PRIVATE Qt${QT_MAJOR_VERSION}::Core)
+
+add_executable(soundswitch_midi_tests EXCLUDE_FROM_ALL
+    soundswitchmidiinput.cpp soundswitchmidiinput.h
+    soundswitchperformance.cpp soundswitchperformance.h
+    tests/soundswitchmiditest.cpp tests/soundswitchmiditestbackend.h
+)
+target_compile_features(soundswitch_midi_tests PRIVATE cxx_std_17)
+target_compile_definitions(soundswitch_midi_tests PRIVATE SOUNDSWITCH_MIDI_TEST_BACKEND)
+target_link_libraries(soundswitch_midi_tests PRIVATE Qt${QT_MAJOR_VERSION}::Core)
+target_compile_features(soundswitch_priority_tests PRIVATE cxx_std_17)
+target_link_libraries(soundswitch_priority_tests PRIVATE
+    Qt${QT_MAJOR_VERSION}::Core
+)
+
 add_executable(ss_smoke EXCLUDE_FROM_ALL
     ../interfaces/qlcioplugin.cpp
     ../interfaces/qlcioplugin.h
@@ -51,7 +97,8 @@ target_include_directories(ss_smoke PRIVATE
 target_link_libraries(ss_smoke PRIVATE
     Qt${QT_MAJOR_VERSION}::Core
 )
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+   CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16)
     # GCC 16 diagnoses a Qt 6.8 header SFINAE pattern that predates this
     # project. Keep project warnings fatal without turning that external
     # compatibility warning into a smoke-test build failure.

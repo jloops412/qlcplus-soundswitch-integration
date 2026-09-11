@@ -1,0 +1,85 @@
+{
+  "auditDate": "2026-09-10",
+  "status": "unpublished-source-and-workspace-candidate",
+  "repository": "jloops412/qlcplus-soundswitch-integration",
+  "baseCommit": "f842153acb8edee790b8c47650c81b0285dcd33d",
+  "workspaceSourceSha256": "530e6d4166bc150442660bfbbff790bd1c1e4803f0c6d02c99302ebb30d79331",
+  "sha256": {
+    "qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V31-RELIABILITY.qxw": "c6e03f865cfeda3fb5c578221ade3ef6883d87c033072a41bf5f1511f7f13651",
+    "qlcplus/workspace-tools/Build-V31Reliability.py": "650dac30080bde6b07609c1d46f90dffd7afd374b18b4ed639f8e0c1a02d4aad",
+    "qlcplus/workspace-tools/Test-V31Workspace.py": "868487c6f42ccf377ad025499fd5d9432b5d34e31279e185aa3ad6a100355536",
+    "qlcplus/workspace-tools/V31RigIntegrity.py": "1d81653c7e2b68c4c3e5b072ecb6afc62d3c796776d0734212c7679e1423fabf",
+    "qlcplus/plugins/soundswitch/SHA256SUMS.txt": "7626f272abbe82839512d26db517443fc88695b21335d90447c7dba05d6fd207",
+    "qlcplus/fixture-definitions/Both-Lighting-IR-4-(BOIR4).qxf": "082552a1d28ea9777dd8f3601ab654a34d4d61886aafbc76e60ff2931cee4cff",
+    "qlcplus/fixture-definitions/American-DJ-Focus-Spot-Two.qxf": "308d6499d9fe3fc12e0889c17f562f423c38b4e23103bf58a7f597ee9ddc11c0",
+    "qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi": "1e3588f955d8661951b7176e5f04a5de9acff9600a0ec318f7414a603542d7c7"
+  },
+  "preservation": {
+    "physicalFixtures": 11,
+    "privateFixtures": 11,
+    "functions": 2255,
+    "widgets": 849,
+    "nativeOwners": 138,
+    "rawAutoloops": 128,
+    "rawSceneLeaves": 1024,
+    "prioritySceneLeaves": 102,
+    "modifiedPerformancePositionScenes": 14,
+    "addedPrivateFixtureValues": 73,
+    "protectedReleaseGitContentChanges": 0
+  },
+  "verification": {
+    "v26PackageValidator": "passed",
+    "v27PackageValidator": "passed",
+    "v27WorkspaceValidator": "passed",
+    "v30WorkspaceValidator": "passed",
+    "v31WorkspaceValidator": "passed",
+    "twoBuildsAndCheckedInArtifact": "byte-identical",
+    "selectedStartCases": 512,
+    "deliberateCorruptionRejections": 9,
+    "portableTargets": {
+      "protocol": "passed",
+      "intensity": "passed",
+      "performance": "passed",
+      "priority": "passed",
+      "midi": "passed"
+    },
+    "midiTestGroups": 9,
+    "baselineRegressionReproduction": {
+      "testedSource": "f842153acb8edee790b8c47650c81b0285dcd33d",
+      "initialMidiGroupsFailed": 5,
+      "initialMidiGroupsTested": 6,
+      "rawPriorityFrameAliasTest": "failed as expected"
+    },
+    "localTestRuntime": {
+      "os": "Linux x64",
+      "qt": "6.8.1",
+      "compiler": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+      "hardwareBoundary": "test-only WinMM fake; real translation source and Qt event queue"
+    },
+    "ir4Definition": "manufacturer manual hash verified; pinned QLC fixture.xsd passed; identity/mode/head/channels/defaults checked",
+    "independentReview": "completed; reconnect scope and scope-seek defects fixed and retested",
+    "whitespace": "passed"
+  },
+  "qualification": {
+    "matchedWindowsBinaryBuilt": false,
+    "pinnedWindowsHostLoaded": false,
+    "nativeConsoleRendered": false,
+    "physicalRigObserved": false,
+    "gigQualified": false,
+    "githubPublished": false
+  },
+  "remaining": [
+    "Creative Autoloop/Look redesign including nine V30 timing exceptions",
+    "MOVE/STROBE force-override ownership redesign",
+    "Matched Windows build, host loading and complete package",
+    "Physical controls, fixtures, Priority handoff, outputs and reconnect",
+    "Combined workload and gig qualification",
+    "Owner-requested third-pass GitHub publication"
+  ],
+  "commands": [
+    "python3 qlcplus/workspace-tools/Test-V31Workspace.py --self-test",
+    "cmake -S qlcplus/plugins/soundswitch/tests -B build-v31-tests -DCMAKE_PREFIX_PATH=/path/to/Qt6",
+    "cmake --build build-v31-tests --parallel",
+    "ctest --test-dir build-v31-tests --output-on-failure"
+  ]
+}

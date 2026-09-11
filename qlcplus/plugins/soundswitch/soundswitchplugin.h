@@ -21,14 +21,15 @@
 #define SOUNDSWITCHPLUGIN_H
 
 #include "qlcioplugin.h"
+#include "soundswitchintensity.h"
+#include "soundswitchpriority.h"
+#include "soundswitcheffects.h"
 
 #include <QHash>
 #include <QMutex>
 #include <QSet>
 #include <QTimer>
 #include <QVector>
-
-#include <array>
 
 class SoundSwitchDevice;
 class SoundSwitchMidiInput;
@@ -73,7 +74,7 @@ private slots:
 private:
     struct OutputBinding
     {
-        enum Kind { Dmx, SurfaceFeedback, PriorityLayer } kind{Dmx};
+        enum Kind { Dmx, SurfaceFeedback, PriorityLayer, EffectLayer } kind{Dmx};
         SoundSwitchDevice *device{nullptr};
         int port{0};
         QString name;
@@ -92,10 +93,13 @@ private:
     SoundSwitchMidiInput *m_midiInput{nullptr};
     QSet<quint32> m_midiUniverses;
     QSet<quint32> m_feedbackUniverses;
-    QSet<quint32> m_activePriorityLooks;
-    QByteArray m_priorityLayerFrame;
+    SoundSwitchPriorityState m_priorityState;
+    quint32 m_priorityFrameUniverse{QLCIOPlugin::invalidLine()};
+    SoundSwitchEffects m_effects;
+    quint32 m_effectFrameUniverse{QLCIOPlugin::invalidLine()};
     int m_intensityTarget{0}; // 0=global, 1-4=fixture groups, 5=scripted
-    std::array<uchar, 6> m_intensityLevels{{255, 255, 255, 255, 255, 255}};
+    SoundSwitchIntensity::Levels m_intensityLevels{{255, 255, 255,
+                                                     255, 255, 255}};
     int m_lastGroupNote{-1};
     qint64 m_lastGroupPressMs{0};
 };

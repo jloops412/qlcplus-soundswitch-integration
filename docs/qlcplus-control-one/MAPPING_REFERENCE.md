@@ -1,6 +1,6 @@
 # Control One Mapping Reference
 
-The `.qxi` profile is authoritative. This condensed map documents the stable logical channels retained through V26.
+The `.qxi` profile is authoritative. This condensed map documents the stable logical channels retained through V30.
 
 | Channels | Role |
 |---|---|
@@ -10,8 +10,9 @@ The `.qxi` profile is authoritative. This condensed map documents the stable log
 | 45–47 | White, Black, UV holds |
 | 48–63 | Select/touch/transport/mode/group controls |
 | 71–72 | Pan/Speed and Tilt/Color touch sensors |
+| 128–136 | Shift + performance pads 1–9: Focus A/B positions |
 | 160–163 | Shift + Banks 1–4 |
-| 164–172 | Nine shifted position override pads |
+| 164–172 | Shift + color pads: nine momentary full-rig color holds |
 | 173–175 | White, Black, UV toggles |
 | 182 | Link / Shift + BPM |
 | 188 | Shift + Auto Loop / Bank-All scope |
@@ -48,4 +49,4 @@ Base pad channels are intentionally page-relative. The active bank is carried se
 - Movement, Strobe, Hue, Smoke, Back, Link, and position pads: mapped or reserved, but not all have useful Functions for the current fixture set.
 - OLED: unsupported and out of scope.
 
-V21 restores the hardware LEDs for the selected bank, transport, order, mode, color override, intensity target, shifted White/Black/UV latches, and any manual/Priority pad whose owner is known after a MIDI-output reconnect. During native Autoplay, the running QLC+ child Function remains authoritative for the active pad. V26 adds no logical channel: its on-screen four-bank strips observe the 128 raw Chaser Functions directly, so manual, Auto Bank, Auto All, and seek remain inside the existing public mapping contract. Exactly one mouse mode switch uses channel `811` and Function `1993`. Channels `600–631` and `800–816` share one Surface feedback patch; UI command channels are positive-edge actions.
+V21 restores the hardware LEDs for the selected bank, transport, order, mode, color override, intensity target, shifted White/Black/UV latches, and any manual/Priority pad whose owner is known after a MIDI-output reconnect. During native Autoplay, the running QLC+ child Function remains authoritative for the active pad. V30 keeps channels `600–631` and `800–816` on one Surface feedback patch, makes channel `632` an exact repeatable selected-loop seek, assigns Shift + performance pads 1–9 (`128–136`) to the Focus position Scenes, and assigns Shift + color (`164–172`) to independent momentary color holds. The unshifted color channels `36–44` remain exclusive latches. UI command channels remain positive-edge actions.
