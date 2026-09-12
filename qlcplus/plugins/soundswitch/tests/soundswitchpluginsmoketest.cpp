@@ -121,6 +121,19 @@ int main(int argc, char *argv[])
     plugin->writeUniverse(3U, static_cast<quint32>(effectsIndex), QByteArray(116, '\0'), true);
     plugin->closeOutput(static_cast<quint32>(effectsIndex), 3U);
 
+    for (const auto &uid : {QStringLiteral("soundswitch:color-latch-layer"),
+                            QStringLiteral("soundswitch:color-hold-layer")})
+    {
+        const qsizetype index = uids.indexOf(uid);
+        if (index <= effectsIndex || !plugin->openOutput(static_cast<quint32>(index), 4U))
+        {
+            std::cerr << "native color layer unavailable or reordered legacy outputs\n";
+            return 21;
+        }
+        plugin->writeUniverse(4U, static_cast<quint32>(index), QByteArray(335, '\0'), true);
+        plugin->closeOutput(static_cast<quint32>(index), 4U);
+    }
+
     if (!plugin->openOutput(static_cast<quint32>(feedbackIndex), 1U))
     {
         std::cerr << "surface command line requires attached hardware\n";

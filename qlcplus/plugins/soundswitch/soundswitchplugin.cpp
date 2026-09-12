@@ -101,6 +101,8 @@ bool SoundSwitchPlugin::bindingAt(quint32 output,
     return binding.kind == OutputBinding::SurfaceFeedback ||
            binding.kind == OutputBinding::PriorityLayer ||
            binding.kind == OutputBinding::EffectLayer ||
+           binding.kind == OutputBinding::ColorLatchLayer ||
+           binding.kind == OutputBinding::ColorHoldLayer ||
            binding.device != nullptr;
 }
 
@@ -110,7 +112,8 @@ bool SoundSwitchPlugin::openOutput(quint32 output, quint32 universe)
     if (!bindingAt(output, binding))
         return false;
 
-    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer)
+    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer ||
+        binding.kind == OutputBinding::ColorLatchLayer || binding.kind == OutputBinding::ColorHoldLayer)
     {
         // This virtual output is a private full-frame buffer. It never opens
         // a USB port; the normal DMX bindings select this frame only while a
@@ -163,6 +166,21 @@ void SoundSwitchPlugin::closeOutput(quint32 output, quint32 universe)
             {
                 m_effects.clearFrame();
                 m_effectFrameUniverse = QLCIOPlugin::invalidLine();
+            }
+        }
+        else if (binding.kind == OutputBinding::ColorLatchLayer ||
+                 binding.kind == OutputBinding::ColorHoldLayer)
+        {
+            QMutexLocker lock(&m_mutex);
+            quint32 &source = binding.kind == OutputBinding::ColorLatchLayer
+                ? m_colorLatchUniverse : m_colorHoldUniverse;
+            if (universe == source)
+            {
+                if (binding.kind == OutputBinding::ColorLatchLayer)
+                    m_effects.clearColorLatchFrame();
+                else
+                    m_effects.clearColorHoldFrame();
+                source = QLCIOPlugin::invalidLine();
             }
         }
         else if (binding.kind == OutputBinding::SurfaceFeedback)
@@ -222,6 +240,10 @@ QString SoundSwitchPlugin::outputInfo(quint32 output)
         return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Internal native MOVE and STROBE "
                               "parameter layer. Never route to physical DMX.</P></BODY></HTML>")
             .arg(binding.name.toHtmlEscaped());
+    if (binding.kind == OutputBinding::ColorLatchLayer || binding.kind == OutputBinding::ColorHoldLayer)
+        return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Internal native color template. "
+                              "Preserves each fixture and cell intensity. Never route to physical DMX.</P></BODY></HTML>")
+            .arg(binding.name.toHtmlEscaped());
     if (binding.kind == OutputBinding::SurfaceFeedback)
         return QStringLiteral("<HTML><BODY><H3>%1</H3><P>Control One MIDI "
                               "LED feedback output.</P></BODY></HTML>")
@@ -254,6 +276,22 @@ void SoundSwitchPlugin::writeUniverse(quint32 universe, quint32 output,
         QMutexLocker lock(&m_mutex);
         m_effectFrameUniverse = universe;
         m_effects.setFrame(data);
+        return;
+    }
+
+    if (binding.kind == OutputBinding::ColorLatchLayer || binding.kind == OutputBinding::ColorHoldLayer)
+    {
+        QMutexLocker lock(&m_mutex);
+        if (binding.kind == OutputBinding::ColorLatchLayer)
+        {
+            m_colorLatchUniverse = universe;
+            m_effects.setColorLatchFrame(data);
+        }
+        else
+        {
+            m_colorHoldUniverse = universe;
+            m_effects.setColorHoldFrame(data);
+        }
         return;
     }
 
@@ -331,7 +369,8 @@ void SoundSwitchPlugin::sendFeedBack(quint32 universe, quint32 output,
         return;
     }
 
-    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer)
+    if (binding.kind == OutputBinding::PriorityLayer || binding.kind == OutputBinding::EffectLayer ||
+        binding.kind == OutputBinding::ColorLatchLayer || binding.kind == OutputBinding::ColorHoldLayer)
         return;
 
     if (binding.kind == OutputBinding::SurfaceFeedback && m_midiInput != nullptr)
@@ -557,6 +596,23 @@ void SoundSwitchPlugin::rebuildBindingsLocked()
         binding.kind = OutputBinding::EffectLayer;
         binding.name = QStringLiteral("SoundSwitch Hardware - Native Effect Layer");
         binding.uid = QStringLiteral("soundswitch:effect-layer");
+        m_bindings.append(binding);
+    }
+
+    // Append only: saved line indices 0-5 remain stable in existing workspaces.
+    for (const auto kind : {OutputBinding::ColorLatchLayer, OutputBinding::ColorHoldLayer})
+    {
+        const bool exists = std::any_of(m_bindings.cbegin(), m_bindings.cend(),
+            [kind](const OutputBinding &binding) { return binding.kind == kind; });
+        if (exists)
+            continue;
+        OutputBinding binding;
+        binding.kind = kind;
+        const bool latch = kind == OutputBinding::ColorLatchLayer;
+        binding.name = latch ? QStringLiteral("SoundSwitch Hardware - Color Latch Layer")
+                             : QStringLiteral("SoundSwitch Hardware - Color Hold Layer");
+        binding.uid = latch ? QStringLiteral("soundswitch:color-latch-layer")
+                            : QStringLiteral("soundswitch:color-hold-layer");
         m_bindings.append(binding);
     }
 

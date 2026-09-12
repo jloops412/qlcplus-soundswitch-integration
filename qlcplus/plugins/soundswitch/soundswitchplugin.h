@@ -74,7 +74,7 @@ private slots:
 private:
     struct OutputBinding
     {
-        enum Kind { Dmx, SurfaceFeedback, PriorityLayer, EffectLayer } kind{Dmx};
+        enum Kind { Dmx, SurfaceFeedback, PriorityLayer, EffectLayer, ColorLatchLayer, ColorHoldLayer } kind{Dmx};
         SoundSwitchDevice *device{nullptr};
         int port{0};
         QString name;
@@ -97,6 +97,8 @@ private:
     quint32 m_priorityFrameUniverse{QLCIOPlugin::invalidLine()};
     SoundSwitchEffects m_effects;
     quint32 m_effectFrameUniverse{QLCIOPlugin::invalidLine()};
+    quint32 m_colorLatchUniverse{QLCIOPlugin::invalidLine()};
+    quint32 m_colorHoldUniverse{QLCIOPlugin::invalidLine()};
     int m_intensityTarget{0}; // 0=global, 1-4=fixture groups, 5=scripted
     SoundSwitchIntensity::Levels m_intensityLevels{{255, 255, 255,
                                                      255, 255, 255}};

@@ -717,4 +717,12 @@
   <Name>UI Command — Chase Speed 4x</Name>
   <Type>Button</Type>
  </Channel>
+ <Channel Number="817">
+  <Name>STOP: release all overrides then stop</Name>
+  <Type>Button</Type>
+ </Channel>
+ <Channel Number="818">
+  <Name>Native STOP after override release</Name>
+  <Type>Button</Type>
+ </Channel>
 </InputProfile>

@@ -54,6 +54,8 @@ struct Rig
     }
 };
 
+int lastPadLed(int pad);
+
 void notePairsAndHolds()
 {
     Rig rig;
@@ -155,15 +157,167 @@ void latchesFollowFunctionState()
     rig.feedback(850, 255); rig.feedback(850, 0);
     check(rig.count(36, 255) == 1 && rig.count(36, 0) == 0,
           "mouse color command failed to latch");
-    rig.feedback(36, 255); rig.feedback(36, 0); // actual QLC Stop
+    // Inject a Function Flash on/off report to test translator bookkeeping.
+    // This does not execute QLC+'s engine or prove native StopAll unFlashes.
+    rig.feedback(36, 255); rig.feedback(36, 0);
     rig.clear(); rig.tap(36);
-    check(rig.count(36, 255) == 1, "stale color latch survived QLC Stop");
+    check(rig.count(36, 255) == 1, "color latch ignored Function off feedback");
     rig.note(52, true); rig.note(0, true); rig.note(52, false); rig.note(0, false);
     check(rig.count(128, 255) == 1 && rig.count(128, 0) == 0,
           "position latch released with physical Note Off");
     rig.feedback(128, 255); rig.feedback(128, 0);
     rig.clear(); rig.feedback(860, 255); rig.feedback(860, 0);
-    check(rig.count(128, 255) == 1, "mouse position could not restart after QLC Stop");
+    check(rig.count(128, 255) == 1, "mouse position ignored Function off feedback");
+}
+
+void stopReleasesEveryFlashBeforeNativeStop()
+{
+    Rig rig;
+    rig.feedback(338, 255); // Simulate a running native Auto All owner.
+    rig.tap(36);
+    rig.note(52, true); rig.tap(45); rig.tap(0); rig.note(52, false);
+    rig.note(45, true);
+    rig.note(52, true); rig.note(41, true); rig.note(52, false);
+    rig.clear();
+    rig.feedback(817, 255);
+    check(rig.events.size() > 2 && rig.events[0] == Event(510, 255) &&
+          rig.events[1] == Event(510, 0),
+          "STOP did not select Live before releasing Flash owners");
+    const auto stop = std::find(rig.events.begin(), rig.events.end(), Event(818, 255));
+    check(stop != rig.events.end(), "STOP did not request native StopAll");
+    for (const auto range : {std::pair<int, int>{36, 44}, {164, 172},
+                             {45, 47}, {173, 175}, {128, 136}})
+    {
+        for (int channel = range.first; channel <= range.second; ++channel)
+        {
+            const auto release = std::find(rig.events.begin(), stop, Event(channel, 0));
+            check(release != stop, "native StopAll preceded a required Flash release");
+            check(rig.count(channel, 0) == 1 && rig.count(channel, 255) == 0,
+                  "STOP failed to release each Flash channel exactly once");
+        }
+    }
+    check(rig.count(818, 255) == 1 && rig.events.back() == Event(818, 0),
+          "native StopAll was duplicated or was not the final command");
+    check(SoundSwitchMidiTestAccess::running(rig.input),
+          "STOP invented stopped state before native Function feedback");
+    check(rig.count(469, 255) == 0,
+          "STOP emitted synthetic stopped feedback as proof of engine state");
+    rig.clear(); rig.feedback(817, 0);
+    check(rig.events.empty(), "STOP command Scene ending dispatched a second stop");
+    rig.feedback(338, 0); // Simulated native owner acknowledgement, not engine execution.
+    check(!SoundSwitchMidiTestAccess::running(rig.input),
+          "STOP ignored the native playback owner's off feedback");
+}
+
+void stopIsIdempotentAndCancelsHeldKeys()
+{
+    Rig rig;
+    rig.note(52, true);
+    for (int note : {0, 36, 45, 46, 47}) rig.note(note, true);
+    rig.clear(); rig.feedback(817, 255);
+    const auto firstStop = rig.events;
+    rig.clear(); rig.feedback(817, 255);
+    check(rig.events == firstStop, "repeated STOP did not repeat the safe release contract");
+    rig.clear();
+    for (int note : {0, 36, 45, 46, 47, 52})
+    {
+        rig.note(note, true); // Echo while the physical key is still down.
+        rig.note(note, false);
+        if (note != 52) rig.note(note, false); // Duplicate/orphan release.
+    }
+    check(rig.events.empty(), "late held-key events after STOP re-armed or altered an owner");
+    rig.note(52, true);
+    for (int note : {0, 45, 46, 47}) rig.tap(note);
+    rig.note(52, false);
+    check(rig.count(128, 255) == 1 && rig.count(128, 0) == 0,
+          "STOP left stale position-latch translation state");
+    for (int channel : {173, 174, 175})
+        check(rig.count(channel, 255) == 1 && rig.count(channel, 0) == 0,
+              "STOP left stale White/Black/UV latch translation state");
+    rig.clear(); rig.tap(36);
+    check(rig.count(36, 255) == 1 && rig.count(36, 0) == 0,
+          "color could not latch on the first new press after STOP");
+}
+
+void hardwareAndMouseStopUseTheSameRoute()
+{
+    Rig mouse;
+    mouse.feedback(338, 255);
+    mouse.note(52, true); mouse.note(45, true);
+    mouse.clear(); mouse.feedback(817, 255);
+    const auto mouseStop = mouse.events;
+
+    Rig hardware;
+    hardware.feedback(338, 255);
+    hardware.note(52, true); hardware.note(45, true);
+    hardware.clear(); hardware.note(51, true); // Shift + Play/Pause is STOP.
+    check(hardware.events == mouseStop, "hardware STOP did not match mouse/OS2L STOP");
+    check(hardware.count(179, 255) == 0 && hardware.count(338, 255) == 0,
+          "hardware STOP also dispatched an old gesture or toggled playback");
+    hardware.clear();
+    hardware.note(51, true); hardware.note(51, false);
+    hardware.note(45, false); hardware.note(52, false);
+    check(hardware.events.empty(), "hardware STOP release/echo restarted a held control");
+
+    Rig pause;
+    pause.feedback(338, 255); pause.clear(); pause.tap(51);
+    check(pause.count(338, 255) == 1 && pause.count(818, 255) == 0,
+          "unshifted Play/Pause was incorrectly changed into STOP");
+}
+
+void performanceHoldFeedbackDoesNotClearLatches()
+{
+    for (int note : {45, 46, 47})
+    {
+        Rig rig;
+        SoundSwitchMidiTestBackend::present = true;
+        rig.note(52, true); rig.tap(note); rig.note(52, false);
+        rig.feedback(128 + note, 255); // Separate native latch Scene is active.
+        check(lastPadLed(note) == 127, "performance latch feedback did not light its hardware LED");
+        rig.note(note, true); rig.feedback(note, 255);
+        rig.note(note, false); rig.feedback(note, 0); // Native momentary Scene ends.
+        check(lastPadLed(note) == 127, "hold release darkened the still-latched performance LED");
+        rig.clear(); rig.note(52, true); rig.tap(note); rig.note(52, false);
+        check(rig.count(128 + note, 0) == 1 && rig.count(128 + note, 255) == 0,
+              "ordinary hold feedback cleared independent performance latch state");
+
+        rig.clear(); rig.feedback(128 + note, 255); // Mouse/native latch feedback.
+        rig.feedback(note, 255); rig.feedback(note, 0); // Mouse hold and release.
+        rig.note(52, true); rig.tap(note); rig.note(52, false);
+        check(rig.count(128 + note, 0) == 1 && rig.count(128 + note, 255) == 0,
+              "mouse hold release cleared independent performance latch state");
+        rig.feedback(note, 255); rig.feedback(128 + note, 0);
+        check(lastPadLed(note) == 127, "latch release darkened the still-held performance LED");
+        SoundSwitchMidiTestAccess::restoreLeds(rig.input);
+        check(lastPadLed(note) == 127, "feedback reconnect failed to restore active hold LED");
+        rig.feedback(note, 0);
+        check(lastPadLed(note) == 0, "performance LED stayed lit after both owners released");
+    }
+}
+
+void stopWorksAfterUnplugAndDoesNotRestoreOverlays()
+{
+    Rig rig;
+    SoundSwitchMidiTestBackend::present = true;
+    check(rig.input.open(), "fake input did not open for STOP unplug test");
+    rig.note(52, true); rig.tap(45); rig.note(52, false);
+    rig.note(45, true);
+    rig.note(52, true); rig.note(41, true); rig.note(52, false);
+    rig.clear(); SoundSwitchMidiTestAccess::disconnect(rig.input); rig.flush();
+    check(rig.count(45, 0) == 1 && rig.count(169, 0) == 1 && rig.count(173, 0) == 0,
+          "unplug did not release holds independently of established latches");
+    rig.clear(); rig.feedback(817, 255);
+    check(rig.count(173, 0) == 1 && rig.count(818, 255) == 1,
+          "mouse STOP could not release latches after MIDI unplug");
+    rig.clear();
+    check(rig.input.open(), "fake input did not reconnect after STOP"); rig.flush();
+    check(std::none_of(rig.events.begin(), rig.events.end(), [](const Event &event) {
+        return event.second != 0 && ((event.first >= 36 && event.first <= 47) ||
+               (event.first >= 128 && event.first <= 175));
+    }), "reconnecting after STOP re-armed a canceled overlay");
+    rig.clear(); rig.note(52, true); rig.tap(45); rig.note(52, false);
+    check(rig.count(173, 255) == 1 && rig.count(173, 0) == 0,
+          "first new latch after STOP/reconnect used stale translation state");
 }
 
 void scopeChangesAndReconnect()
@@ -305,6 +459,11 @@ int main(int argc, char **argv)
         {"autoplay ownership and scope", autoplayOwnership},
         {"exact seek memory and mouse pads", seekMemoryAndMouse},
         {"color/position latches follow QLC state", latchesFollowFunctionState},
+        {"STOP releases all Flash owners before native StopAll", stopReleasesEveryFlashBeforeNativeStop},
+        {"STOP idempotence and held-key cancellation", stopIsIdempotentAndCancelsHeldKeys},
+        {"hardware and mouse STOP share one route", hardwareAndMouseStopUseTheSameRoute},
+        {"performance hold/latch feedback independence", performanceHoldFeedbackDoesNotClearLatches},
+        {"STOP after unplug and reconnect", stopWorksAfterUnplugAndDoesNotRestoreOverlays},
         {"hardware scope changes and reconnect", scopeChangesAndReconnect},
         {"Priority LED restoration", priorityLedRestore},
         {"native raw-loop LED feedback", rawLoopLedFeedback},

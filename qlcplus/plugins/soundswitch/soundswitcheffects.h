@@ -10,8 +10,14 @@ class SoundSwitchEffects
 public:
     void setFrame(const QByteArray &frame);
     void clearFrame();
+    void setColorLatchFrame(const QByteArray &frame);
+    void setColorHoldFrame(const QByteArray &frame);
+    void clearColorLatchFrame();
+    void clearColorHoldFrame();
     QByteArray compose(const QByteArray &selectedFrame) const;
 private:
     QByteArray m_frame;
+    QByteArray m_colorLatchFrame;
+    QByteArray m_colorHoldFrame;
 };
 #endif
