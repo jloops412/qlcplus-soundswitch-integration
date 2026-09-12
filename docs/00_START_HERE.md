@@ -1,5 +1,13 @@
 # Start Here
 
+## Active V34 testing candidate
+
+The 2026-09-12 reliability work and next package are documented in
+[`V34_TESTING_PACKAGE_RELEASE.md`](qlcplus-control-one/V34_TESTING_PACKAGE_RELEASE.md).
+Use that record for V34. V32 and earlier documents below retain their historical
+scope. U1's physical output must be selected in QLC+ for the connected device;
+U2 is controls only and U3–U6 remain private. Physical qualification is pending.
+
 This project integrates SoundSwitch Micro and Control One hardware with QLC+.
 
 ## Continue the current work

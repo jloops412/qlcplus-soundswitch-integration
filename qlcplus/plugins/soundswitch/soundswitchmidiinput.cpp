@@ -41,6 +41,7 @@ constexpr quint32 kUiModeChannel = 811;
 constexpr quint32 kUiSpeedChannelBase = 812;
 constexpr quint32 kUiStopChannel = 817;
 constexpr quint32 kNativeStopAllChannel = 818;
+constexpr quint32 kStopRequestChannel = 819;
 constexpr quint32 kUiColorChannelBase = 850;
 constexpr quint32 kUiPositionChannelBase = 860;
 constexpr quint32 kUiPadChannelBase = 900;
@@ -304,6 +305,8 @@ void SoundSwitchMidiInput::releaseTransientNotesLocked()
     // Use the modifier remembered at Note On, even if Shift was released first.
     for (quint8 note : std::as_const(m_pressedNotes))
     {
+        if (note == kShiftNote)
+            continue; // The modifier is released once, below.
         const bool shifted = m_shiftedPressedNotes.contains(note);
         if (shifted && (isLatchedShiftSpecial(note) || note <= 8))
             continue;
@@ -782,8 +785,10 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
         QMutexLocker lock(&m_mutex);
         if (logicalChannel == kUiStopChannel)
         {
-            // The visible STOP command Scene receives mouse and OS2L input.
-            // Its zero feedback is the command ending, not another STOP.
+            // This positive edge is the STOP Scene's native running monitor,
+            // after MasterTimer consumes its start queue. The visible button's
+            // optimistic activation must not stop before queued shows start.
+            // Zero is not another request.
             if (value != 0)
                 uiAction = UiAction::Stop;
             sendPhysicalFeedback = false;
@@ -1123,18 +1128,31 @@ void SoundSwitchMidiInput::toggleColorOverride(quint8 note)
     postValue(note, activate ? UCHAR_MAX : 0);
 }
 
+void SoundSwitchMidiInput::requestStop()
+{
+    // Mouse/OS2L and hardware STOP start the same native command Scene. Wait
+    // for its running monitor (817) before releasing overrides and stopping;
+    // no wall-clock delay can reliably substitute for that engine handshake.
+    postPulse(kPerformancePageChannel);
+    postPulse(kStopRequestChannel);
+}
+
 void SoundSwitchMidiInput::stopAll()
 {
+    bool shiftHeld = false;
     {
         QMutexLocker lock(&m_mutex);
         // Stop cancels gestures as well as persistent Flash owners. Ignore
         // repeated Note On/late Note Off from keys still physically held so
         // they cannot re-arm an override or release its replacement.
         m_stoppedPressedNotes.unite(m_pressedNotes);
-        if (m_shiftHeld)
-            m_stoppedPressedNotes.insert(kShiftNote);
-        m_shiftHeld = false;
+        // Shift remains the real physical modifier. Holding it while pressing
+        // Play again must request another STOP, never accidentally resume.
+        m_stoppedPressedNotes.remove(kShiftNote);
+        shiftHeld = m_shiftHeld;
         m_pressedNotes.clear();
+        if (shiftHeld)
+            m_pressedNotes.insert(kShiftNote);
         m_shiftedPressedNotes.clear();
         m_latchedOverrideNote = -1;
         m_latchedPositionNote = -1;
@@ -1158,7 +1176,8 @@ void SoundSwitchMidiInput::stopAll()
         postValue(channel, 0);
     for (quint32 channel = 128; channel <= 136; ++channel)
         postValue(channel, 0);
-    postValue(kShiftNote, 0);
+    if (!shiftHeld)
+        postValue(kShiftNote, 0);
     // Native StopAll only stops running Functions; it does not unFlash Scene
     // DMX sources. Keep this command last in Qt's ordered event queue.
     postPulse(kNativeStopAllChannel);
@@ -1205,8 +1224,14 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
             }
             if (data1 == kShiftNote)
             {
+                if (m_shiftHeld == pressed)
+                    return;
                 m_shiftHeld = pressed;
                 shifted = m_shiftHeld;
+                if (pressed)
+                    m_pressedNotes.insert(data1);
+                else
+                    m_pressedNotes.remove(data1);
             }
             else if (pressed)
             {
@@ -1352,7 +1377,7 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
             if (!pressed)
                 return;
             if (shifted)
-                stopAll();
+                requestStop();
             else
                 togglePlayback();
         }

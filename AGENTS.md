@@ -1,5 +1,24 @@
 # Project Instructions for Build Agents
 
+## V34 reliability candidate (2026-09-12)
+
+The owner requested actual repairs, the next matching Windows test package, and
+GitHub publication. Continue at `docs/qlcplus-control-one/V34_TESTING_PACKAGE_RELEASE.md`.
+V34 derives from immutable V32; V33 was not available in this branch. Preserve
+all older workspaces/releases. V34 adds independent performance latch Scenes,
+final BLACK intensity gating, per-cell color templates on private U5/U6, Focus
+fade exclusions, and selected creative repairs. STOP explicitly releases native
+Flash owners before StopAll. Dedicated offscreen raw-loop observers keep native
+feedback independent of the visual strips. All physical fixture addresses and
+public loop/Look/owner IDs remain. U1 ships without physical output: select the
+actual connected device in QLC+ and Save As to persist its serial-dependent UID.
+
+Run `Test-V34Workspace.py --self-test`, `Test-V34CreativeRepairs.py`, protected
+V31/V32 validators, all six native plug-in suites and the pinned native engine
+contracts in `qlcplus/tests/v34-native`. Keep software, matched Windows DLL,
+full Windows host, physical rig, and gig evidence distinct. The current task
+is a testing release, not a declaration of complete SoundSwitch parity.
+
 ## Current owner directive
 
 The active project is a QLC+ workspace, creative show programming, and the

@@ -718,11 +718,15 @@
   <Type>Button</Type>
  </Channel>
  <Channel Number="817">
-  <Name>STOP: release all overrides then stop</Name>
+  <Name>Native STOP start acknowledgement</Name>
   <Type>Button</Type>
  </Channel>
  <Channel Number="818">
   <Name>Native STOP after override release</Name>
+  <Type>Button</Type>
+ </Channel>
+ <Channel Number="819">
+  <Name>Request STOP through native start queue</Name>
   <Type>Button</Type>
  </Channel>
 </InputProfile>

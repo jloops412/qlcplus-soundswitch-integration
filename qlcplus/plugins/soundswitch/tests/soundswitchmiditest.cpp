@@ -219,13 +219,17 @@ void stopIsIdempotentAndCancelsHeldKeys()
     rig.clear(); rig.feedback(817, 255);
     check(rig.events == firstStop, "repeated STOP did not repeat the safe release contract");
     rig.clear();
-    for (int note : {0, 36, 45, 46, 47, 52})
+    for (int note : {0, 36, 45, 46, 47})
     {
         rig.note(note, true); // Echo while the physical key is still down.
         rig.note(note, false);
-        if (note != 52) rig.note(note, false); // Duplicate/orphan release.
+        rig.note(note, false); // Duplicate/orphan release.
     }
     check(rig.events.empty(), "late held-key events after STOP re-armed or altered an owner");
+    rig.note(52, false);
+    check(rig.events == std::vector<Event>{{52,0}},
+          "STOP lost physical Shift before its actual release");
+    rig.clear();
     rig.note(52, true);
     for (int note : {0, 45, 46, 47}) rig.tap(note);
     rig.note(52, false);
@@ -251,18 +255,50 @@ void hardwareAndMouseStopUseTheSameRoute()
     hardware.feedback(338, 255);
     hardware.note(52, true); hardware.note(45, true);
     hardware.clear(); hardware.note(51, true); // Shift + Play/Pause is STOP.
-    check(hardware.events == mouseStop, "hardware STOP did not match mouse/OS2L STOP");
+    check(hardware.events == std::vector<Event>{{510,255}, {510,0}, {819,255}, {819,0}},
+          "hardware STOP did not request the native command Scene on Live");
+    check(hardware.count(818, 255) == 0 && SoundSwitchMidiTestAccess::running(hardware.input),
+          "hardware STOP bypassed native start-queue acknowledgement");
+    hardware.clear(); hardware.note(51, true); // Echo while awaiting native acknowledgement.
+    check(hardware.events.empty(), "pending hardware STOP dispatched duplicate requests");
+    // Simulated running-monitor acknowledgement tests translator ordering only.
+    // The separate pinned-engine harness proves the real start-queue barrier.
+    hardware.feedback(817, 255);
+    check(hardware.events == mouseStop, "acknowledged hardware STOP did not match mouse/OS2L STOP");
     check(hardware.count(179, 255) == 0 && hardware.count(338, 255) == 0,
           "hardware STOP also dispatched an old gesture or toggled playback");
     hardware.clear();
     hardware.note(51, true); hardware.note(51, false);
     hardware.note(45, false); hardware.note(52, false);
-    check(hardware.events.empty(), "hardware STOP release/echo restarted a held control");
+    check(hardware.events == std::vector<Event>{{52,0}},
+          "hardware STOP release/echo changed an owner or lost physical Shift");
 
     Rig pause;
     pause.feedback(338, 255); pause.clear(); pause.tap(51);
     check(pause.count(338, 255) == 1 && pause.count(818, 255) == 0,
           "unshifted Play/Pause was incorrectly changed into STOP");
+}
+
+void repeatedStopPreservesHeldShift()
+{
+    Rig rig;
+    rig.feedback(338, 255);
+    rig.note(52, true);
+    for (int attempt = 0; attempt < 4; ++attempt)
+    {
+        rig.clear(); rig.tap(51);
+        check(rig.events == std::vector<Event>{{510,255}, {510,0}, {819,255}, {819,0}},
+              "repeated Shift+Play became playback instead of a native STOP request");
+        rig.feedback(817, 255); // Simulated native monitor acknowledgement.
+        check(rig.count(818, 255) == 1 && rig.count(52, 0) == 0,
+              "STOP released the physically held Shift modifier");
+        rig.feedback(338, 0);
+    }
+    rig.clear(); rig.note(52, false);
+    check(rig.events == std::vector<Event>{{52,0}}, "actual Shift release was lost after repeated STOP");
+    rig.clear(); rig.tap(51);
+    check(rig.count(338, 255) == 1 && rig.count(819, 255) == 0,
+          "Play/Pause stayed shifted after the physical Shift key was released");
 }
 
 void performanceHoldFeedbackDoesNotClearLatches()
@@ -462,6 +498,7 @@ int main(int argc, char **argv)
         {"STOP releases all Flash owners before native StopAll", stopReleasesEveryFlashBeforeNativeStop},
         {"STOP idempotence and held-key cancellation", stopIsIdempotentAndCancelsHeldKeys},
         {"hardware and mouse STOP share one route", hardwareAndMouseStopUseTheSameRoute},
+        {"repeated STOP preserves physically held Shift", repeatedStopPreservesHeldShift},
         {"performance hold/latch feedback independence", performanceHoldFeedbackDoesNotClearLatches},
         {"STOP after unplug and reconnect", stopWorksAfterUnplugAndDoesNotRestoreOverlays},
         {"hardware scope changes and reconnect", scopeChangesAndReconnect},

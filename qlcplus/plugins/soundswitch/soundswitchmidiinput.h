@@ -66,6 +66,7 @@ private:
     void togglePerformanceMode();
     void toggleOrder();
     void togglePlayback();
+    void requestStop();
     void stopAll();
     void dispatchAutoplay(int bank, bool allBanks, bool randomized,
                           bool restoreStaticMode);
