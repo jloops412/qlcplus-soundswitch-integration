@@ -57,17 +57,17 @@ jobs:
             engine/src/function.h \
             engine/src/mastertimer.cpp \
             engine/src/mastertimer.h \
-            engine/test/chaser_test.cpp \
-            engine/test/chaser_test.h \
-            plugins/os2l/src/os2l.cpp \
-            plugins/os2l/src/os2l.h \
-            plugins/os2l/test/os2l_test.cpp \
+            engine/test/chaserrunner/CMakeLists.txt \
+            engine/test/chaserrunner/chaserrunner_test.cpp \
+            engine/test/chaserrunner/chaserrunner_test.h \
+            plugins/os2l/os2lplugin.cpp \
+            plugins/os2l/os2lplugin.h \
             ../v35-source/upstream/
           cd ..
           grep -RInE 'beat|Beat|tempo|Tempo|duration|Duration|seek|Seek|pause|Pause|autoplay|Auto Bank|Profile|Track|Next|Previous' \
             integration/qlcplus/plugins/soundswitch integration/qlcplus/patches \
             integration/qlcplus/tests/v34-native integration/qlcplus/workspace-tools \
-            upstream/engine/src upstream/plugins/os2l/src \
+            upstream/engine/src upstream/plugins/os2l \
             > v35-source/search-index.txt || true
       - name: Upload source snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
