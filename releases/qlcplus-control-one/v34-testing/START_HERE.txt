@@ -1,0 +1,24 @@
+V34: START HERE
+
+1. Close QLC+. Copy your complete matching installation to C:\QLC+-V34-Test.
+   Required: QLC+ 5.3.0 GIT a124abe, Qt 6.8.1, MinGW 13.1.0. Back up BOTH DLLs
+   in its Plugins folder, then install the bundled soundswitch.dll and os2l.dll.
+2. Back up and install the FOUR Fixtures files in %USERPROFILE%\QLC+\Fixtures
+   and the .qxi profile in %USERPROFILE%\QLC+\InputProfiles. These folders are
+   shared between installations. Keep your old show and all backups.
+3. Connect the Micro/Control One USB before launching the test QLC+ copy.
+   Leave the fixture DMX cable unplugged. Open the V34 .qxw. In Inputs/Outputs,
+   choose Universe 1 > Output > SoundSwitch Hardware > your EXACT connected
+   physical device/port. U1 ships unassigned. Leave U2-U6 intact and Save As.
+4. Check Grand Master remains Reduce / Intensity. Connect one LED fixture at
+   low Global intensity. Prove top-right BLACKOUT: it stays latched through STOP
+   until clicked again. Then test STOP with a loop, color latch and WHITE hold.
+   Try mouse STOP and Shift+Play/Pause. Overrides should clear without relighting.
+5. Test BLACK then WHITE/color: BLACK must keep output dark. Run a tube/Wash
+   chase and change colors: dark cells should stay dark. Release a WHITE hold
+   over its latch: the latch should remain. Continue with FIRST_TEST.txt to test
+   the full rig, Priority, VirtualDJ timing and Control One recovery.
+
+README.txt has the complete installation, route and rollback instructions.
+Record any failure with the exact controls/fixture/address used. This is a
+testing candidate; software evidence does not establish physical/gig approval.

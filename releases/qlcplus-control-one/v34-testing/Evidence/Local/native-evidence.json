@@ -1,0 +1,62 @@
+{
+  "generatedUtc": "2026-09-12T00:42:17.540042+00:00",
+  "result": "passed",
+  "exitCode": 0,
+  "sourcesUnchangedDuringBuildAndRun": true,
+  "qlcSourceCommit": "a124abebe0b5ad6077727c561a5a0e1f3730810c",
+  "qtVersion": "6.8.1",
+  "workspaceFilename": "IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V34-RELIABILITY.qxw",
+  "workspaceSha256": "781909bd7081e4e058f09e726af2f5a9eee259b5808fbd60cdb3d4ce2fe5f702",
+  "sourceAndFixtureSha256": {
+    "qlcplus/plugins/soundswitch/soundswitchdevice.cpp": "9b02f5678488cfc6da752ca676b0069adf32fb5688a6cc5410edaddcc66dff2e",
+    "qlcplus/plugins/soundswitch/soundswitcheffects.cpp": "4d8d83f28e4a1c3f5386851f8f29e7da5b761531f0947ee318e69be19f002f26",
+    "qlcplus/plugins/soundswitch/soundswitchintensity.cpp": "c0336c335f672eb2bf7ea3d506181efdf823694c6902077fc83f9a4dc1b8a8f0",
+    "qlcplus/plugins/soundswitch/soundswitchmidiinput.cpp": "46b09ae7090b2ce5aa1953047e595cc9fecd78c7c93e014526c7d50e56780524",
+    "qlcplus/plugins/soundswitch/soundswitchperformance.cpp": "d0b0a30e8ce9240ea40ae13ace4f63cb740b292008ac38c80a893403764736cf",
+    "qlcplus/plugins/soundswitch/soundswitchplugin.cpp": "65b413fc4a6aa433b451d5d1b96f6e5ae1a220d599851617574db845a82e5080",
+    "qlcplus/plugins/soundswitch/soundswitchpriority.cpp": "13158441a04d956255dab65b57c5d539f312fec830a4f03a82ef0ff94803f56d",
+    "qlcplus/plugins/soundswitch/soundswitchprotocol.cpp": "4c882115e5941adb5450657fcf787abf84dbc2ebdd2cb0a4a7648ed5ad155f2a",
+    "qlcplus/plugins/soundswitch/soundswitchdevice.h": "c2e82a7c850c5e5dd110127594e961295057096ec2e4323c5b67ab105971a480",
+    "qlcplus/plugins/soundswitch/soundswitcheffects.h": "3e94b382ffbb32cdf8a931bebddb11f087e90b7c617f31bd72f2235a67146887",
+    "qlcplus/plugins/soundswitch/soundswitchintensity.h": "f3879e6407c0f042147bb0c517d293612d8bc3a54604f00715afb2e01b58764f",
+    "qlcplus/plugins/soundswitch/soundswitchmidiinput.h": "ebbf29b2e014a0c6f052e28fdd89ca1c4ff0fbdfdf7449c062dd840c8c23372d",
+    "qlcplus/plugins/soundswitch/soundswitchperformance.h": "51741e2b94a1136fbe939c76395022f6f8d46559ab05fd17e446c79e5397912b",
+    "qlcplus/plugins/soundswitch/soundswitchplugin.h": "135d055861568d1b571d261de6d601a3bcfc3d2502201786d23f4898fedadfde",
+    "qlcplus/plugins/soundswitch/soundswitchpriority.h": "5d135785a90d6e7a4890457c4b427ba7342b475eba72429ba7d9ec0bb167af81",
+    "qlcplus/plugins/soundswitch/soundswitchprotocol.h": "62c3910f7798afc8c5dc345f6b5139c309e362f3b34123fe7bd5774789d57436",
+    "qlcplus/tests/v34-native/native_contract.cpp": "cd5b0cfdc1f4b4638e26a8cee765428b34133849387dd2af5e8316a691c492e2",
+    "qlcplus/tests/v34-native/CMakeLists.txt": "fe8a7cf5053f776eafc244de7eb5d030bca19eb246672a274e27c132d7f04ecb",
+    "qlcplus/tests/v34-native/adapters/tardis.h": "48f504b2f1642252cc807dd9e1ece0f2940e7820a2d33c88397a9493e45b1c7f",
+    "releases/qlcplus-control-one/v32-testing/Fixtures/American-DJ-Focus-Spot-Two.qxf": "308d6499d9fe3fc12e0889c17f562f423c38b4e23103bf58a7f597ee9ddc11c0",
+    "releases/qlcplus-control-one/v32-testing/Fixtures/Both-Lighting-BO-TUBE192.qxf": "3bb257593e202e4465998760da2f1f5ee7867cec23023c16d3817e07473e72f5",
+    "releases/qlcplus-control-one/v32-testing/Fixtures/Both-Lighting-IR-4-(BOIR4).qxf": "082552a1d28ea9777dd8f3601ab654a34d4d61886aafbc76e60ff2931cee4cff",
+    "releases/qlcplus-control-one/v32-testing/Fixtures/Chauvet-Wash-FX-Hex.qxf": "aa0ef16d61a003a85b341a354c47d7d93e2cbab9ec9eeda45f23488ccdfed182"
+  },
+  "nativeBinarySha256": {
+    "v34_native_contract": "00645927ac0141c7d3b3c64bdf155aca0f6a361679d0ace5388de778f26c6b88",
+    "libqlcplusengine5.so": "ab96e4855b707baa603e83748d1f6cb3a79df08ee862f51806fbdf920ea9bc85"
+  },
+  "passedScenarios": [
+    "pinned StopAll/Flash negative control",
+    "independent WHITE/BLACK/UV hold and latch ownership",
+    "mouse STOP through actual native feedback and Flash release",
+    "native U5/U6 color markers and BLACK priority",
+    "actual raw Chaser observer start/stop feedback and disabled negative control",
+    "immediate native manual-owner start then mouse STOP",
+    "immediate native manual-owner start then Shift+Play STOP"
+  ],
+  "scope": "Linux pinned engine, native Scene/MasterTimer/VCButton/feedback/output and candidate MIDI/effect code",
+  "testAdapters": [
+    "WinMM device I/O",
+    "Tardis undo/network history",
+    "output capture",
+    "focused active-page input dispatcher"
+  ],
+  "notTested": [
+    "Windows QLC host ABI/load",
+    "full rendered QML/page hierarchy",
+    "physical devices",
+    "visual lighting quality",
+    "gig qualification"
+  ]
+}

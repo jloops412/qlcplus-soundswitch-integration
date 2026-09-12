@@ -281,6 +281,9 @@ def verify_ci(binary_dir):
               'nativeEffectMaskTests': 'passed', 'pluginLoadSmoke': 'passed-without-hardware'}
     for key, value in checks.items():
         require(evidence.get(key) == value, 'Missing/pending/failed required CI check: ' + key)
+    require(evidence.get('workspaceSha256') == sha(ROOT / 'qlcplus/workspace-tools' / WORKSPACE), 'Windows CI workspace bytes differ')
+    require(evidence.get('inputProfileSha256') == sha(ROOT / 'qlcplus/input-profiles' / PROFILE), 'Windows CI input profile bytes differ')
+    require(evidence.get('v34WorkspaceValidation') == 'passed-with-corruption-tests', 'Windows workspace validation missing or failed')
     return evidence, source_binding(evidence['repositoryCommit'])
 
 
@@ -319,10 +322,11 @@ for path in list(root.glob('*.qxw'))+list(root.glob('*.qxi'))+list((root/'Fixtur
 record = json.loads((root/'Evidence/package-evidence.json').read_text())
 ci = json.loads((root/'Evidence/soundswitch-build-evidence.json').read_text())
 assert record['packageVersion'] == 'V34-testing'
-assert record['workspaceSha256'] == expected[record['workspace']]
+assert record['workspaceSha256'] == expected[record['workspace']] == ci['workspaceSha256']
+assert ci['v34WorkspaceValidation'] == 'passed-with-corruption-tests'
 assert record['soundswitchSha256'] == expected['soundswitch.dll'] == ci['soundswitchSha256']
 assert record['os2lSha256'] == expected['os2l.dll']
-assert record['inputProfileSha256'] == expected[record['inputProfile']]
+assert record['inputProfileSha256'] == expected[record['inputProfile']] == ci['inputProfileSha256']
 assert record['dllBuildRepositoryCommit'] == ci['repositoryCommit']
 assert record['gigQualified'] is False and record['physicalRigObserved'] is False
 bindings = json.loads((root/'Evidence/ci-source-hashes.json').read_text())

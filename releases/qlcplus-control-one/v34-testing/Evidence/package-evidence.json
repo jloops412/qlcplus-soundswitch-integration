@@ -1,0 +1,56 @@
+{
+  "dllBuildRepositoryCommit": "87d5aea4be9cc39daa0dced2237450dd7701172a",
+  "dllBuildWorkflowRun": "34662563586",
+  "dllBuildWorkflowUrl": "https://github.com/jloops412/qlcplus-soundswitch-integration/actions/runs/34662563586",
+  "fixtureSha256": {
+    "American-DJ-Focus-Spot-Two.qxf": "308d6499d9fe3fc12e0889c17f562f423c38b4e23103bf58a7f597ee9ddc11c0",
+    "Both-Lighting-BO-TUBE192.qxf": "3bb257593e202e4465998760da2f1f5ee7867cec23023c16d3817e07473e72f5",
+    "Both-Lighting-IR-4-(BOIR4).qxf": "082552a1d28ea9777dd8f3601ab654a34d4d61886aafbc76e60ff2931cee4cff",
+    "Chauvet-Wash-FX-Hex.qxf": "aa0ef16d61a003a85b341a354c47d7d93e2cbab9ec9eeda45f23488ccdfed182"
+  },
+  "fullSoundSwitchParity": false,
+  "gigQualified": false,
+  "inputProfile": "SoundSwitch-Control-One-Performance.qxi",
+  "inputProfileSha256": "bbe01d0196fda9e9bcc120334b3e233aac86774240bbd8cb1aab0a7d5eb69d74",
+  "localEvidenceFiles": [
+    "Evidence/Local/GitHub-Native-CI/LastTest.log",
+    "Evidence/Local/GitHub-Native-CI/run-identity.json",
+    "Evidence/Local/GitHub-Native-CI/v34-pinned-native-results.txt",
+    "Evidence/Local/V34_RELIABILITY_NOTES.md",
+    "Evidence/Local/build.log",
+    "Evidence/Local/native-evidence.json",
+    "Evidence/Local/native-results.txt"
+  ],
+  "localEvidenceScope": "Read each included record; inclusion alone is not a passing-test claim",
+  "matchedWindowsBinaryBuilt": true,
+  "os2lOrigin": "Protected V27 package; unchanged matched OS2L binary",
+  "os2lSha256": "ef611b26fac5d090711af242ef7da880dbf1e1d59d5f22d36b5fb1918bdf6513",
+  "packageVersion": "V34-testing",
+  "packagingRepositoryCommit": "87d5aea4be9cc39daa0dced2237450dd7701172a",
+  "physicalRigObserved": false,
+  "pinnedWindowsHostLoaded": false,
+  "preparedUtc": "2026-09-12",
+  "privateUniverses": {
+    "3": "Priority",
+    "4": "MOVE/STROBE + performance ownership",
+    "5": "Color latch",
+    "6": "Color hold"
+  },
+  "remainingChecks": [
+    "Pinned complete Windows host and actual controller/DMX rig",
+    "Physical aim, wheel transitions, visual quality and Priority handoffs",
+    "VirtualDJ timing, pause/seek/tempo changes and sustained audio workload",
+    "Physical MIDI/USB recovery and combined event rehearsal"
+  ],
+  "requiredArchitecture": "Windows x64",
+  "requiredCompiler": "MinGW 13.1.0",
+  "requiredQlcExeSha256": "16dfc419bf878ac4802d88684253d12602dbaaab94579e88fd55519a1fb09533",
+  "requiredQlcSourceCommit": "a124abebe0b5ad6077727c561a5a0e1f3730810c",
+  "requiredQlcUi": "5.3.0 GIT a124abe",
+  "requiredQt": "6.8.1",
+  "soundswitchSha256": "8a169625c265cfed3bdef7e0327b71c440b1d530b6563f486f4f2b848716c659",
+  "structuralEvidence": "structural-validation.txt: commands executed during packaging; isolated rebuild matches exactly",
+  "windowsSoftwareEvidence": "Original CI build-evidence.json, scoped to its exact repositoryCommit",
+  "workspace": "IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V34-RELIABILITY.qxw",
+  "workspaceSha256": "781909bd7081e4e058f09e726af2f5a9eee259b5808fbd60cdb3d4ce2fe5f702"
+}

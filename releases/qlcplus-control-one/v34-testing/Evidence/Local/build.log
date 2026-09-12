@@ -1,0 +1,4 @@
+[1/5] Automatic MOC and UIC for target v34_native_contract
+[2/4] Building CXX object CMakeFiles/v34_native_contract.dir/workspace/scratch/61cda6e60789/qlcplus-soundswitch-integration/qlcplus/plugins/soundswitch/soundswitchmidiinput.cpp.o
+[3/4] Building CXX object CMakeFiles/v34_native_contract.dir/native_contract.cpp.o
+[4/4] Linking CXX executable v34_native_contract
