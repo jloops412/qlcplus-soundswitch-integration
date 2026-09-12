@@ -80,6 +80,7 @@ jobs:
             integration/qlcplus/tests/v34-native integration/qlcplus/workspace-tools \
             upstream/engine/src upstream/plugins/os2l \
             > v35-source/search-index.txt || true
+          tar --exclude='integration/.git' -czf v35-complete-branch.tar.gz integration
       - name: Upload source snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -91,4 +92,10 @@ jobs:
         with:
           name: v35-package-handoff
           path: v35-handoff
+          if-no-files-found: error
+      - name: Upload complete branch
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v35-complete-branch
+          path: v35-complete-branch.tar.gz
           if-no-files-found: error
