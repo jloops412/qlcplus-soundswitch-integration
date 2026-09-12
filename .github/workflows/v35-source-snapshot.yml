@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Capture implementation source without release binaries
+      - name: Capture exact implementation and workspace inputs
         shell: bash
         run: |
           set -euo pipefail
@@ -37,6 +37,8 @@ jobs:
             qlcplus/workspace-tools/Build-V34Reliability.py \
             qlcplus/workspace-tools/Test-V34Workspace.py \
             qlcplus/workspace-tools/Build-V34TestingPackage.py \
+            qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V34-RELIABILITY.qxw \
+            releases/qlcplus-control-one/v32-testing/Fixtures \
             v35-source/
           grep -RInE 'beat|Beat|tempo|Tempo|duration|Duration|seek|Seek|pause|Pause|autoplay|Auto Bank|Profile|Track|Next|Previous' \
             qlcplus/plugins/soundswitch qlcplus/patches qlcplus/tests/v34-native qlcplus/workspace-tools \
