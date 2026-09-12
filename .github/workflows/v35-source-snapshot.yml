@@ -17,11 +17,19 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Capture exact implementation and workspace inputs
+          path: integration
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mcallegari/qlcplus
+          ref: a124abebe0b5ad6077727c561a5a0e1f3730810c
+          persist-credentials: false
+          path: upstream
+      - name: Capture exact implementation, workspace, and pinned engine inputs
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p v35-source
+          mkdir -p v35-source/integration v35-source/upstream
+          cd integration
           cp --parents \
             qlcplus/patches/0001-os2l-use-reported-bpm.patch \
             qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi \
@@ -38,9 +46,28 @@ jobs:
             qlcplus/workspace-tools/Test-V34Workspace.py \
             qlcplus/workspace-tools/Build-V34TestingPackage.py \
             qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V34-RELIABILITY.qxw \
-            v35-source/
+            ../v35-source/integration/
+          cd ../upstream
+          cp --parents \
+            engine/src/chaserrunner.cpp \
+            engine/src/chaserrunner.h \
+            engine/src/chaser.cpp \
+            engine/src/chaser.h \
+            engine/src/function.cpp \
+            engine/src/function.h \
+            engine/src/mastertimer.cpp \
+            engine/src/mastertimer.h \
+            engine/test/chaser_test.cpp \
+            engine/test/chaser_test.h \
+            plugins/os2l/src/os2l.cpp \
+            plugins/os2l/src/os2l.h \
+            plugins/os2l/test/os2l_test.cpp \
+            ../v35-source/upstream/
+          cd ..
           grep -RInE 'beat|Beat|tempo|Tempo|duration|Duration|seek|Seek|pause|Pause|autoplay|Auto Bank|Profile|Track|Next|Previous' \
-            qlcplus/plugins/soundswitch qlcplus/patches qlcplus/tests/v34-native qlcplus/workspace-tools \
+            integration/qlcplus/plugins/soundswitch integration/qlcplus/patches \
+            integration/qlcplus/tests/v34-native integration/qlcplus/workspace-tools \
+            upstream/engine/src upstream/plugins/os2l/src \
             > v35-source/search-index.txt || true
       - name: Upload source snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
