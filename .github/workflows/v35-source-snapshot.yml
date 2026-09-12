@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p v35-source/integration v35-source/upstream
+          mkdir -p v35-source/integration v35-source/upstream v35-handoff
           cd integration
           cp --parents \
             qlcplus/patches/0001-os2l-use-reported-bpm.patch \
@@ -47,6 +47,16 @@ jobs:
             qlcplus/workspace-tools/Build-V34TestingPackage.py \
             qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V34-RELIABILITY.qxw \
             ../v35-source/integration/
+          cp --parents \
+            QLCPlus_V34_Windows_Testing_Package.zip \
+            QLCPlus_V34_Windows_Testing_Package_SHA256SUMS.txt \
+            releases/qlcplus-control-one/v34-testing \
+            docs/qlcplus-control-one/V34_TESTING_PACKAGE_RELEASE.md \
+            docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md \
+            .github/workflows/publish-v34-testing.yml \
+            .github/workflows/qlcplus-v34-native.yml \
+            .github/workflows/soundswitch-plugin.yml \
+            ../v35-handoff/
           cd ../upstream
           cp --parents \
             engine/src/chaserrunner.cpp \
@@ -74,4 +84,10 @@ jobs:
         with:
           name: v35-source-snapshot
           path: v35-source
+          if-no-files-found: error
+      - name: Upload V34 package handoff
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v35-package-handoff
+          path: v35-handoff
           if-no-files-found: error
