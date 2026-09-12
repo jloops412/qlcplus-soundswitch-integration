@@ -1,0 +1,49 @@
+name: V35 source snapshot
+
+on:
+  push:
+    branches: [fix/v35-native-playback-timing]
+    paths:
+      - '.github/workflows/v35-source-snapshot.yml'
+      - 'qlcplus/**'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Capture implementation source without release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p v35-source
+          cp --parents \
+            qlcplus/patches/0001-os2l-use-reported-bpm.patch \
+            qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi \
+            qlcplus/plugins/soundswitch/CMakeLists.txt \
+            qlcplus/plugins/soundswitch/soundswitchmidiinput.cpp \
+            qlcplus/plugins/soundswitch/soundswitchmidiinput.h \
+            qlcplus/plugins/soundswitch/tests/CMakeLists.txt \
+            qlcplus/plugins/soundswitch/tests/soundswitchmiditest.cpp \
+            qlcplus/plugins/soundswitch/tests/soundswitchmiditestbackend.h \
+            qlcplus/tests/v34-native/CMakeLists.txt \
+            qlcplus/tests/v34-native/native_contract.cpp \
+            qlcplus/tests/v34-native/run_and_record.py \
+            qlcplus/workspace-tools/Build-V34Reliability.py \
+            qlcplus/workspace-tools/Test-V34Workspace.py \
+            qlcplus/workspace-tools/Build-V34TestingPackage.py \
+            v35-source/
+          grep -RInE 'beat|Beat|tempo|Tempo|duration|Duration|seek|Seek|pause|Pause|autoplay|Auto Bank|Profile|Track|Next|Previous' \
+            qlcplus/plugins/soundswitch qlcplus/patches qlcplus/tests/v34-native qlcplus/workspace-tools \
+            > v35-source/search-index.txt || true
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v35-source-snapshot
+          path: v35-source
+          if-no-files-found: error
