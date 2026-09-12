@@ -50,12 +50,13 @@ jobs:
           cp --parents \
             QLCPlus_V34_Windows_Testing_Package.zip \
             QLCPlus_V34_Windows_Testing_Package_SHA256SUMS.txt \
-            releases/qlcplus-control-one/v34-testing \
             docs/qlcplus-control-one/V34_TESTING_PACKAGE_RELEASE.md \
             docs/qlcplus-control-one/PROJECT_STATUS_AND_ROADMAP.md \
             .github/workflows/publish-v34-testing.yml \
             .github/workflows/qlcplus-v34-native.yml \
             .github/workflows/soundswitch-plugin.yml \
+            ../v35-handoff/
+          cp -a --parents releases/qlcplus-control-one/v34-testing \
             ../v35-handoff/
           cd ../upstream
           cp --parents \
