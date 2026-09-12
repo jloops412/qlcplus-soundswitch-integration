@@ -1,0 +1,8 @@
+{
+  "repositoryCommit": "87d5aea4be9cc39daa0dced2237450dd7701172a",
+  "workflowRun": 34662563604,
+  "artifactId": 10288271014,
+  "artifactSha256": "393e25e27e4fb52a524b50651e97fa835fdbda0e783bca2eeb8157ffad3e36ec",
+  "conclusion": "success",
+  "scope": "Actual pinned Linux QLC+ engine/VCButton, focused input dispatcher and output capture; no Windows host, QML GUI or physical hardware"
+}

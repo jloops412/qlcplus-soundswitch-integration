@@ -1,0 +1,5 @@
+IR-4 and Focus: current project definitions, hashes in package-evidence.json.
+Tube and Wash: unchanged pinned QLC+ stock definitions bundled in V32.
+QLC+ source: a124abebe0b5ad6077727c561a5a0e1f3730810c
+Stock generic modes are supplied by the matching QLC+ host.
+Original author metadata is retained; QLC+ COPYING is included.

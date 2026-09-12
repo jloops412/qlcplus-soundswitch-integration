@@ -1,0 +1,18 @@
+V34 INSTALLATION AND PHYSICAL OBSERVATION RECORD
+Copy this outside the package before filling it in.
+Date/time:
+QLC+ version shown and application path:
+Original application / test copy / previous show / new working show:
+DLL backup paths (both files):
+Fixture/profile backup paths; write NEW for files without a prior version:
+  Both-Lighting-IR-4-(BOIR4).qxf:
+  American-DJ-Focus-Spot-Two.qxf:
+  Both-Lighting-BO-TUBE192.qxf:
+  Chauvet-Wash-FX-Hex.qxf:
+  SoundSwitch-Control-One-Performance.qxi:
+Exact hardware output/port and fixture modes/addresses tested:
+Native BLACKOUT and STOP observations:
+FIRST_TEST step-by-step results and reproduction sequences for failures:
+VirtualDJ/audio/OS2L observations:
+Combined rehearsal duration and outcome:
+Rollback observation:

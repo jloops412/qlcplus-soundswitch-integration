@@ -1,0 +1,26 @@
+Start testing: Sep 12 00:45 UTC
+----------------------------------------------------------
+1/1 Testing: pinned-native-v34
+1/1 Test: pinned-native-v34
+Command: "/home/runner/work/qlcplus-soundswitch-integration/qlcplus-soundswitch-integration/build-v34-native/v34_native_contract"
+Directory: /home/runner/work/qlcplus-soundswitch-integration/qlcplus-soundswitch-integration/build-v34-native
+"pinned-native-v34" start time: Sep 12 00:45 UTC
+Output:
+----------------------------------------------------------
+QLC+ source a124abebe0b5ad6077727c561a5a0e1f3730810c; Qt 6.8.1
+PASS pinned StopAll/Flash negative control
+PASS independent WHITE/BLACK/UV hold and latch ownership
+PASS mouse STOP through actual native feedback and Flash release
+PASS native U5/U6 color markers and BLACK priority
+PASS actual raw Chaser observer start/stop feedback and disabled negative control
+PASS immediate native manual-owner start then mouse STOP
+PASS immediate native manual-owner start then Shift+Play STOP
+<end of output>
+Test time =  19.01 sec
+----------------------------------------------------------
+Test Passed.
+"pinned-native-v34" end time: Sep 12 00:45 UTC
+"pinned-native-v34" time elapsed: 00:00:19
+----------------------------------------------------------
+
+End testing: Sep 12 00:45 UTC

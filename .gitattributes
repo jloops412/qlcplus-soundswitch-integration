@@ -10,3 +10,4 @@ releases/qlcplus-control-one/v22/IR4-TUBES-CONTROL-ONE-V22-UNIFIED-PRO.qxw text 
 
 # Preserve the original CI evidence bytes in the checksummed testing payload.
 releases/qlcplus-control-one/v32-testing/Evidence/soundswitch-build-evidence.json -text
+releases/qlcplus-control-one/v34-testing/Evidence/soundswitch-build-evidence.json -text

@@ -39,6 +39,9 @@ constexpr quint32 kUiPlayPauseChannel = 809;
 constexpr quint32 kUiOrderChannel = 810;
 constexpr quint32 kUiModeChannel = 811;
 constexpr quint32 kUiSpeedChannelBase = 812;
+constexpr quint32 kUiStopChannel = 817;
+constexpr quint32 kNativeStopAllChannel = 818;
+constexpr quint32 kStopRequestChannel = 819;
 constexpr quint32 kUiColorChannelBase = 850;
 constexpr quint32 kUiPositionChannelBase = 860;
 constexpr quint32 kUiPadChannelBase = 900;
@@ -289,7 +292,9 @@ void SoundSwitchMidiInput::resetControllerStateLocked()
     m_intensityTarget = 0;
     m_pressedNotes.clear();
     m_shiftedPressedNotes.clear();
+    m_stoppedPressedNotes.clear();
     m_latchedShiftNotes.clear();
+    m_activePerformanceHolds.clear();
     m_controllerValues.clear();
 }
 
@@ -300,6 +305,8 @@ void SoundSwitchMidiInput::releaseTransientNotesLocked()
     // Use the modifier remembered at Note On, even if Shift was released first.
     for (quint8 note : std::as_const(m_pressedNotes))
     {
+        if (note == kShiftNote)
+            continue; // The modifier is released once, below.
         const bool shifted = m_shiftedPressedNotes.contains(note);
         if (shifted && (isLatchedShiftSpecial(note) || note <= 8))
             continue;
@@ -312,6 +319,7 @@ void SoundSwitchMidiInput::releaseTransientNotesLocked()
     m_shiftHeld = false;
     m_pressedNotes.clear();
     m_shiftedPressedNotes.clear();
+    m_stoppedPressedNotes.clear();
 }
 
 void SoundSwitchMidiInput::close()
@@ -572,6 +580,7 @@ void SoundSwitchMidiInput::restoreHardwareFeedback()
     bool randomized = false;
     bool running = false;
     QSet<quint8> shiftedLatches;
+    QSet<quint8> activePerformanceHolds;
     {
         QMutexLocker lock(&m_mutex);
         bank = m_selectedBank;
@@ -581,6 +590,7 @@ void SoundSwitchMidiInput::restoreHardwareFeedback()
         randomized = m_autoplayRandom;
         running = m_playbackRunning;
         shiftedLatches = m_latchedShiftNotes;
+        activePerformanceHolds = m_activePerformanceHolds;
     }
 
     for (int note = 32; note <= 35; ++note)
@@ -597,7 +607,8 @@ void SoundSwitchMidiInput::restoreHardwareFeedback()
         sendFeedback(static_cast<quint32>(note), note == overrideNote ? 255 : 0);
     for (int note = 45; note <= 47; ++note)
         sendFeedback(static_cast<quint32>(note),
-                     shiftedLatches.contains(static_cast<quint8>(note)) ? 255 : 0);
+                     shiftedLatches.contains(static_cast<quint8>(note)) ||
+                     activePerformanceHolds.contains(static_cast<quint8>(note)) ? 255 : 0);
 
     restorePadFeedback();
 }
@@ -752,7 +763,7 @@ void SoundSwitchMidiInput::togglePlayback()
 
 void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
 {
-    enum class UiAction { None, PlayPause, Order, Mode };
+    enum class UiAction { None, PlayPause, Order, Mode, Stop };
 
     const quint32 logicalChannel = channel & 0xffffU;
     const int inputPage = static_cast<int>((channel >> 16) & 0xffffU);
@@ -765,12 +776,24 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
     int uiColor = -1;
     int uiPosition = -1;
     bool sendPhysicalFeedback = true;
+    quint32 physicalFeedbackChannel = channel;
+    uchar physicalFeedbackValue = value;
     bool refreshPadFeedback = false;
     UiAction uiAction = UiAction::None;
 
     {
         QMutexLocker lock(&m_mutex);
-        if (logicalChannel >= kRawLoopFeedbackBase &&
+        if (logicalChannel == kUiStopChannel)
+        {
+            // This positive edge is the STOP Scene's native running monitor,
+            // after MasterTimer consumes its start queue. The visible button's
+            // optimistic activation must not stop before queued shows start.
+            // Zero is not another request.
+            if (value != 0)
+                uiAction = UiAction::Stop;
+            sendPhysicalFeedback = false;
+        }
+        else if (logicalChannel >= kRawLoopFeedbackBase &&
             logicalChannel < kRawLoopFeedbackBase + 128U)
         {
             // Native disabled monitors observe the actual raw Chasers. This
@@ -908,13 +931,22 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
             else if (m_latchedOverrideNote == static_cast<int>(logicalChannel))
                 m_latchedOverrideNote = -1;
         }
-        else if (logicalChannel >= 173U && logicalChannel <= 175U)
+        else if ((logicalChannel >= 45U && logicalChannel <= 47U) ||
+                 (logicalChannel >= 173U && logicalChannel <= 175U))
         {
-            const quint8 note = static_cast<quint8>(logicalChannel - kShiftedNoteBase);
+            const bool latched = logicalChannel >= kShiftedNoteBase;
+            const quint8 note = static_cast<quint8>(logicalChannel -
+                (latched ? kShiftedNoteBase : 0U));
+            auto &activeNotes = latched ? m_latchedShiftNotes : m_activePerformanceHolds;
             if (value != 0)
-                m_latchedShiftNotes.insert(note);
+                activeNotes.insert(note);
             else
-                m_latchedShiftNotes.remove(note);
+                activeNotes.remove(note);
+            // Independent native hold/latch Scenes share one physical LED.
+            // Releasing either owner must not darken the still-active other.
+            physicalFeedbackChannel = note;
+            physicalFeedbackValue = m_latchedShiftNotes.contains(note) ||
+                m_activePerformanceHolds.contains(note) ? UCHAR_MAX : 0;
         }
         else if (logicalChannel >= 128U && logicalChannel <= 136U)
         {
@@ -980,12 +1012,14 @@ void SoundSwitchMidiInput::applyFeedback(quint32 channel, uchar value)
         toggleOrder();
     else if (uiAction == UiAction::Mode)
         togglePerformanceMode();
+    else if (uiAction == UiAction::Stop)
+        stopAll();
     if (postState)
         postPlaybackState(stateChannel);
     if (refreshPadFeedback)
         restorePadFeedback();
     if (sendPhysicalFeedback)
-        sendFeedback(channel, value);
+        sendFeedback(physicalFeedbackChannel, physicalFeedbackValue);
 }
 
 void SoundSwitchMidiInput::dispatchAutoplay(int bank, bool allBanks,
@@ -1094,6 +1128,61 @@ void SoundSwitchMidiInput::toggleColorOverride(quint8 note)
     postValue(note, activate ? UCHAR_MAX : 0);
 }
 
+void SoundSwitchMidiInput::requestStop()
+{
+    // Mouse/OS2L and hardware STOP start the same native command Scene. Wait
+    // for its running monitor (817) before releasing overrides and stopping;
+    // no wall-clock delay can reliably substitute for that engine handshake.
+    postPulse(kPerformancePageChannel);
+    postPulse(kStopRequestChannel);
+}
+
+void SoundSwitchMidiInput::stopAll()
+{
+    bool shiftHeld = false;
+    {
+        QMutexLocker lock(&m_mutex);
+        // Stop cancels gestures as well as persistent Flash owners. Ignore
+        // repeated Note On/late Note Off from keys still physically held so
+        // they cannot re-arm an override or release its replacement.
+        m_stoppedPressedNotes.unite(m_pressedNotes);
+        // Shift remains the real physical modifier. Holding it while pressing
+        // Play again must request another STOP, never accidentally resume.
+        m_stoppedPressedNotes.remove(kShiftNote);
+        shiftHeld = m_shiftHeld;
+        m_pressedNotes.clear();
+        if (shiftHeld)
+            m_pressedNotes.insert(kShiftNote);
+        m_shiftedPressedNotes.clear();
+        m_latchedOverrideNote = -1;
+        m_latchedPositionNote = -1;
+        m_latchedShiftNotes.clear();
+        m_transportPaused = false;
+        // Running Functions and their LEDs remain QLC+'s authority. Do not
+        // invent stopped feedback here; native StopAll will stop those owners
+        // after every Flash source has received its explicit release.
+    }
+
+    // QLC routes input only to the current top-level page. These Flash
+    // controls all live on Live, including the position controls' owner.
+    postPulse(kPerformancePageChannel);
+    for (quint32 channel = 36; channel <= 44; ++channel)
+        postValue(channel, 0);
+    for (quint32 channel = 164; channel <= 172; ++channel)
+        postValue(channel, 0);
+    for (quint32 channel = 45; channel <= 47; ++channel)
+        postValue(channel, 0);
+    for (quint32 channel = 173; channel <= 175; ++channel)
+        postValue(channel, 0);
+    for (quint32 channel = 128; channel <= 136; ++channel)
+        postValue(channel, 0);
+    if (!shiftHeld)
+        postValue(kShiftNote, 0);
+    // Native StopAll only stops running Functions; it does not unFlash Scene
+    // DMX sources. Keep this command last in Qt's ordered event queue.
+    postPulse(kNativeStopAllChannel);
+}
+
 void SoundSwitchMidiInput::togglePositionOverride(int index)
 {
     const int channel = static_cast<int>(kShiftedNoteBase) + qBound(0, index, 8);
@@ -1127,10 +1216,22 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
         bool duplicatePress = false;
         {
             QMutexLocker lock(&m_mutex);
+            if (m_stoppedPressedNotes.contains(data1))
+            {
+                if (!pressed)
+                    m_stoppedPressedNotes.remove(data1);
+                return;
+            }
             if (data1 == kShiftNote)
             {
+                if (m_shiftHeld == pressed)
+                    return;
                 m_shiftHeld = pressed;
                 shifted = m_shiftHeld;
+                if (pressed)
+                    m_pressedNotes.insert(data1);
+                else
+                    m_pressedNotes.remove(data1);
             }
             else if (pressed)
             {
@@ -1149,8 +1250,12 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
             }
             else
             {
-                m_pressedNotes.remove(data1);
+                const bool wasPressed = m_pressedNotes.remove(data1) > 0;
                 shifted = m_shiftedPressedNotes.remove(data1) > 0;
+                // An orphan or duplicate Note Off has no physical owner in
+                // this connection. It must not release a newer mouse hold.
+                if (!wasPressed)
+                    return;
             }
             staticMode = m_staticMode;
         }
@@ -1267,11 +1372,14 @@ void SoundSwitchMidiInput::handleShortMessage(DWORD packedMessage)
                 postPlaybackState(500U);
             }
         }
-        else if (!shifted && data1 == 51)
+        else if (data1 == 51)
         {
             if (!pressed)
                 return;
-            togglePlayback();
+            if (shifted)
+                requestStop();
+            else
+                togglePlayback();
         }
         else if (shifted && data1 <= 8)
         {

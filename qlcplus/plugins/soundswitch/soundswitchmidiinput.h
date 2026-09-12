@@ -66,6 +66,8 @@ private:
     void togglePerformanceMode();
     void toggleOrder();
     void togglePlayback();
+    void requestStop();
+    void stopAll();
     void dispatchAutoplay(int bank, bool allBanks, bool randomized,
                           bool restoreStaticMode);
     void dispatchManual(int bank, int pad, bool restoreStaticMode);
@@ -103,7 +105,9 @@ private:
     int m_intensityTarget{0};
     QSet<quint8> m_pressedNotes;
     QSet<quint8> m_shiftedPressedNotes;
+    QSet<quint8> m_stoppedPressedNotes;
     QSet<quint8> m_latchedShiftNotes;
+    QSet<quint8> m_activePerformanceHolds;
     QHash<quint32, uchar> m_controllerValues;
 };
 

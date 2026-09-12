@@ -1,0 +1,60 @@
+name: QLC+ V34 pinned native engine contracts
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'qlcplus/plugins/soundswitch/**'
+      - 'qlcplus/tests/v34-native/**'
+      - 'qlcplus/workspace-tools/*V34*'
+      - '.github/workflows/qlcplus-v34-native.yml'
+  push:
+    paths:
+      - 'qlcplus/plugins/soundswitch/**'
+      - 'qlcplus/tests/v34-native/**'
+      - 'qlcplus/workspace-tools/*V34*'
+      - '.github/workflows/qlcplus-v34-native.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check out exact QLC+ engine and VCButton sources
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mcallegari/qlcplus
+          ref: a124abebe0b5ad6077727c561a5a0e1f3730810c
+          path: qlcplus-pinned
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libasound2-dev libudev-dev libgl-dev libglx-dev libopengl-dev libxkbcommon-dev
+      - name: Install exact Qt headers and runtime
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
+        with:
+          version: '6.8.1'
+          arch: linux_gcc_64
+          modules: qtmultimedia
+          cache: true
+      - name: Build unchanged pinned engine and candidate integration contracts
+        run: |
+          cmake -S qlcplus/tests/v34-native -B build-v34-native -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DQLCPLUS_SOURCE_DIR="$GITHUB_WORKSPACE/qlcplus-pinned"
+          cmake --build build-v34-native --parallel 4
+      - name: Exercise actual Scene, MasterTimer, VCButton, feedback and output bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build-v34-native --output-on-failure | tee v34-pinned-native-results.txt
+      - name: Save exact test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v34-pinned-native-engine-evidence
+          path: |
+            v34-pinned-native-results.txt
+            build-v34-native/Testing/Temporary/LastTest.log
+            build-v34-native/CMakeCache.txt

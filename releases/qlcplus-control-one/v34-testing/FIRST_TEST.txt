@@ -1,0 +1,49 @@
+V34 FIRST TEST: RECORD OBSERVATIONS ON THE EXACT HOST AND RIG
+
+1. Connect the actual USB device before QLC+ launch; leave fixture DMX unplugged.
+   Confirm QLC+ 5.3.0 GIT a124abe, both plug-ins and all definitions. Assign U1
+   to the exact connected hardware/port through Inputs/Outputs and Save As.
+   Check U2-U6 routes and default Grand Master Reduce / Intensity. Open Live.
+2. Connect one LED fixture on the intended output at low Global intensity.
+   Check native BLACKOUT at top right and Global zero with WHITE/color active.
+   BLACKOUT is latched: STOP must not cancel it; click BLACKOUT again to release.
+3. Start a loop and then a Priority Look. Latch a color, Shift-latch WHITE/UV,
+   and hold a second override. Test mouse STOP and Shift+Play/Pause separately.
+   Every Flash owner and running Function should release. Late key releases
+   must not restart anything. Repeat after browsing another console page.
+4. Latch BLACK; press WHITE, UV and a color. Light output must stay dark until
+   BLACK is released. Repeat over Priority and STROBE; movement may continue.
+5. For WHITE, BLACK and UV: Shift-tap to latch, then press/release the ordinary
+   hold. The original latch and corresponding LED must remain. Shift-tap again
+   to release. Repeat with mouse holds and with Shift released before the key.
+6. Run a clearly patterned tube/Wash chase with dark cells. Latch RED, hold
+   BLUE with Shift, then release BLUE. Dark cells must stay dark, the chase
+   should keep moving, and the RED latch should return. Repeat over Priority.
+7. Add the remaining fixtures by class after confirming mode/address and aim.
+   Check Global and Groups 1 IR-4 / 2 Wash / 3 tubes / 4 Focus. Check still and
+   moving Priority Looks. Releasing a Look should reveal the advancing loop;
+   rapid Look changes should not show a stale previous Look.
+8. By mouse and Control One, test every bank: manual latch, physical pad
+   release, same-pad off, replacement. During sequential Auto Bank, choose 3
+   while 6 plays: it should continue 4, 5, 6. Repeat Auto All and random;
+   verify the selected loop starts and random selection continues afterward.
+   Change chase speed 0.25x-4x separately from 1/2/4/8/16-measure dwell.
+9. With VirtualDJ/audio running through direct OS2L, compare displayed BPM,
+   pause/resume playback, seek within a track and change tempo. Observe beat
+   timing, controller response and output together. Record any timing jump;
+   translator/unit checks cannot establish this physical DJ workflow.
+10. Check MOVE and position precedence/release, then STROBE over loops,
+    Priority and holds. Watch Focus color/gobo/prism changes for unwanted
+    intermediate effects. Inspect sweeps and white/half-time pulses visually.
+11. Unplug/replug Control One while a color/WHITE hold is down and a latch is
+    established. Holds should release; the established latch should remain.
+    Mouse STOP must work with MIDI absent. On reconnect, confirm MIDI, LEDs,
+    selected bank/mode and the intended physical output recover without restart.
+12. Save/reopen the working show and verify routes persist. Rehearse the exact
+    complete DJ/audio/OS2L/controller/USB/DMX setup under sustained load, including
+    blackout, STOP and recovery. The project qualification target is two hours.
+
+Record failures with control sequence, fixture/mode/address and observed result.
+Review the 128 loops and 32 Priority Looks on the actual fixtures before rating
+their appearance. This package does not claim complete SoundSwitch feature
+parity, pinned Windows host qualification, physical qualification or gig approval.

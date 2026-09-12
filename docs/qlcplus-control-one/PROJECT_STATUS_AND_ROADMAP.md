@@ -1,5 +1,17 @@
 # Project Status and Roadmap
 
+## V34 reliability work — 2026-09-12
+
+See [the V34 testing release record](V34_TESTING_PACKAGE_RELEASE.md) for the
+candidate, exact evidence and package status. The owner has authorized repairs,
+Windows testing handoff and GitHub publication. V34 addresses STOP/Flash release,
+independent WHITE/BLACK/UV ownership, final BLACK priority, per-cell color
+brightness, discrete Focus transitions and selected creative score defects.
+It preserves the eleven-fixture patch, 128 loops, 32 Priority Looks and existing
+playback owners. The dedicated raw-loop feedback observers avoid depending on
+visual-strip enable state. Select the real U1 physical output once in QLC+;
+private U3–U6 routes use stable UIDs. Hardware/gig qualification remains pending.
+
 ## Mission and selected architecture
 
 The selected architecture is QLC+ plus one focused native hardware/workflow

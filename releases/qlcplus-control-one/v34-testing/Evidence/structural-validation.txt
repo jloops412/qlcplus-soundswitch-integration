@@ -1,0 +1,29 @@
+$ python3 qlcplus/workspace-tools/Test-V34Workspace.py --self-test
+{
+  "functions": 3301,
+  "widgets": 979,
+  "fixtures": 50,
+  "raw_loops": 128,
+  "raw_scene_leaves": 2048,
+  "priority_looks": 32,
+  "priority_scene_leaves": 102,
+  "unchanged_collections": 138,
+  "independent_performance_hold_widgets": 3,
+  "color_templates": 18,
+  "buttons_with_surface_feedback_moved_first": 180,
+  "enabled_raw_feedback_monitors": 128,
+  "inert_visual_status_labels": 146,
+  "focus_fade_exclusions_checked": 10,
+  "physical_output_tested": false,
+  "corruption_cases_rejected": 17,
+  "workspace_sha256": "781909bd7081e4e058f09e726af2f5a9eee259b5808fbd60cdb3d4ce2fe5f702"
+}
+
+$ python3 qlcplus/workspace-tools/Test-V34CreativeRepairs.py
+......
+----------------------------------------------------------------------
+Ran 6 tests (elapsed time omitted for reproducible packaging)
+
+OK
+
+PASS: isolated deterministic V34 rebuild is byte-identical to packaged/CI-bound workspace.

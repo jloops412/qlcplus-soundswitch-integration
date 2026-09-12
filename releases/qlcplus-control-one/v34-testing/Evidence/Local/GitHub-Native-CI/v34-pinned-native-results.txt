@@ -1,0 +1,8 @@
+Internal ctest changing into directory: /home/runner/work/qlcplus-soundswitch-integration/qlcplus-soundswitch-integration/build-v34-native
+Test project /home/runner/work/qlcplus-soundswitch-integration/qlcplus-soundswitch-integration/build-v34-native
+    Start 1: pinned-native-v34
+1/1 Test #1: pinned-native-v34 ................   Passed   19.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =  19.15 sec

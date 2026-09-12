@@ -6,11 +6,15 @@ on:
     paths:
       - '.github/workflows/soundswitch-plugin.yml'
       - 'qlcplus/plugins/soundswitch/**'
+      - 'qlcplus/workspace-tools/*V34*'
+      - 'qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi'
   push:
     branches: [main, 'feat/**', 'fix/**']
     paths:
       - '.github/workflows/soundswitch-plugin.yml'
       - 'qlcplus/plugins/soundswitch/**'
+      - 'qlcplus/workspace-tools/*V34*'
+      - 'qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi'
 
 permissions:
   contents: read
@@ -30,6 +34,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate exact V34 workspace and creative contracts
+        shell: pwsh
+        run: |
+          python qlcplus/workspace-tools/Test-V34Workspace.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python qlcplus/workspace-tools/Test-V34CreativeRepairs.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install matched Qt and MinGW kit
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730
@@ -134,6 +146,9 @@ jobs:
             workflowRun = '${{ github.run_id }}'
             repositoryCommit = '${{ github.sha }}'
             soundswitchSha256 = $hash
+            workspaceSha256 = (Get-FileHash qlcplus/workspace-tools/IR4-TUBES-WASH-FOCUS-CONTROL-ONE-V34-RELIABILITY.qxw -Algorithm SHA256).Hash.ToLowerInvariant()
+            inputProfileSha256 = (Get-FileHash qlcplus/input-profiles/SoundSwitch-Control-One-Performance.qxi -Algorithm SHA256).Hash.ToLowerInvariant()
+            v34WorkspaceValidation = 'passed-with-corruption-tests'
             protocolTests = 'passed'
             intensityTests = 'passed'
             autoplaySeekTests = 'passed'
@@ -148,7 +163,7 @@ jobs:
       - name: Upload matched plug-in
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: soundswitch-v32-windows-x64-${{ github.sha }}
+          name: soundswitch-v34-windows-x64-${{ github.sha }}
           if-no-files-found: error
           retention-days: 90
           path: artifact/*
